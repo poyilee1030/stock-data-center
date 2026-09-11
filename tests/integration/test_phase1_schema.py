@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from datetime import UTC, datetime
 from decimal import Decimal
+from threading import Event
 from typing import Any
 
 import pytest
@@ -637,3 +639,399 @@ def test_other_single_row_business_hashes_are_storage_generated(db: Connection) 
     ).mappings().one()
     assert revenue_hash["business_content_hash"] != "f" * 64
     assert revenue_hash["ingested_at"].year != 2000
+
+
+def test_financial_seal_serializes_with_concurrent_child_mutation(
+    isolated_database_url: str,
+) -> None:
+    test_engine = sa.create_engine(isolated_database_url, pool_pre_ping=True)
+    try:
+        with test_engine.begin() as setup:
+            security_id, artifact_id, run_id = seed_lineage(
+                setup, "financial_filing", digest_char="7"
+            )
+            first_filing = insert_filing_with_fact(
+                setup,
+                security_id,
+                artifact_id,
+                run_id,
+                filing_key="concurrency-seal-first",
+            )
+            second_filing = insert_filing_with_fact(
+                setup,
+                security_id,
+                artifact_id,
+                run_id,
+                filing_key="concurrency-child-first",
+            )
+
+        seal_connection = test_engine.connect()
+        seal_transaction = seal_connection.begin()
+        first_hash = seal_connection.execute(
+            sa.text(
+                """
+                INSERT INTO financial_filing_seals (
+                    filing_version_id, business_content_hash, ingested_at
+                ) VALUES (:filing_id, :hash, statement_timestamp())
+                RETURNING business_content_hash
+                """
+            ),
+            {"filing_id": first_filing, "hash": "f" * 64},
+        ).scalar_one()
+
+        child_started = Event()
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            child_future = executor.submit(
+                concurrent_fact_insert,
+                test_engine,
+                first_filing,
+                child_started,
+                "{https://example.test/tifrs}Liabilities",
+            )
+            assert child_started.wait(timeout=2)
+            with pytest.raises(FutureTimeout):
+                child_future.result(timeout=0.25)
+            seal_transaction.commit()
+            assert child_future.result(timeout=5) == "55000"
+        seal_connection.close()
+
+        with test_engine.connect() as check:
+            assert check.execute(
+                sa.text(
+                    "SELECT count(*) FROM financial_facts WHERE filing_version_id = :id"
+                ),
+                {"id": first_filing},
+            ).scalar_one() == 1
+
+        child_connection = test_engine.connect()
+        child_transaction = child_connection.begin()
+        insert_extra_fact(
+            child_connection,
+            second_filing,
+            "{https://example.test/tifrs}Liabilities",
+        )
+
+        seal_started = Event()
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            seal_future = executor.submit(
+                concurrent_seal, test_engine, second_filing, seal_started
+            )
+            assert seal_started.wait(timeout=2)
+            with pytest.raises(FutureTimeout):
+                seal_future.result(timeout=0.25)
+            child_transaction.commit()
+            second_hash = seal_future.result(timeout=5)
+        child_connection.close()
+
+        assert second_hash != first_hash
+        with test_engine.connect() as check:
+            assert check.execute(
+                sa.text(
+                    "SELECT count(*) FROM financial_facts WHERE filing_version_id = :id"
+                ),
+                {"id": second_filing},
+            ).scalar_one() == 2
+            assert check.execute(
+                sa.text(
+                    """
+                    SELECT business_content_hash
+                    FROM financial_filing_versions
+                    WHERE id = :id
+                    """
+                ),
+                {"id": second_filing},
+            ).scalar_one() == second_hash
+    finally:
+        test_engine.dispose()
+
+
+def insert_filing_with_fact(
+    db: Connection,
+    security_id: int,
+    artifact_id: str,
+    run_id: str,
+    *,
+    filing_key: str,
+) -> int:
+    filing_id = db.execute(
+        sa.text(
+            """
+            INSERT INTO financial_filing_versions (
+                security_id, source, filing_key, report_year, report_quarter,
+                period_start, period_end, currency,
+                raw_artifact_id, ingest_run_id
+            ) VALUES (
+                :security_id, 'official', :filing_key, 2026, 2,
+                DATE '2026-01-01', DATE '2026-06-30', 'TWD',
+                :artifact_id, :run_id
+            ) RETURNING id
+            """
+        ),
+        {
+            "security_id": security_id,
+            "filing_key": filing_key,
+            "artifact_id": artifact_id,
+            "run_id": run_id,
+        },
+    ).scalar_one()
+    db.execute(
+        sa.text(
+            """
+            INSERT INTO financial_facts (
+                filing_version_id, concept_qname, context_hash,
+                entity_identifier, period_type, instant_date,
+                unit_identity, numeric_value
+            ) VALUES (
+                :filing_id, '{https://example.test/tifrs}Assets', :hash,
+                'TW-2330', 'instant', DATE '2026-06-30', 'TWD', 100
+            )
+            """
+        ),
+        {"filing_id": filing_id, "hash": "0" * 64},
+    )
+    return filing_id
+
+
+def insert_extra_fact(db: Connection, filing_id: int, concept: str) -> None:
+    db.execute(
+        sa.text(
+            """
+            INSERT INTO financial_facts (
+                filing_version_id, concept_qname, context_hash,
+                entity_identifier, period_type, instant_date,
+                unit_identity, numeric_value
+            ) VALUES (
+                :filing_id, :concept, :hash, 'TW-2330', 'instant',
+                DATE '2026-06-30', 'TWD', 50
+            )
+            """
+        ),
+        {"filing_id": filing_id, "concept": concept, "hash": "0" * 64},
+    )
+
+
+def concurrent_fact_insert(
+    engine: Engine,
+    filing_id: int,
+    started: Event,
+    concept: str,
+) -> str:
+    try:
+        with engine.begin() as connection:
+            connection.exec_driver_sql("SET LOCAL lock_timeout = '5s'")
+            started.set()
+            insert_extra_fact(connection, filing_id, concept)
+    except DBAPIError as exc:
+        return str(getattr(exc.orig, "sqlstate", "unknown"))
+    return "committed"
+
+
+def concurrent_seal(engine: Engine, filing_id: int, started: Event) -> str:
+    with engine.begin() as connection:
+        connection.exec_driver_sql("SET LOCAL lock_timeout = '5s'")
+        started.set()
+        return connection.execute(
+            sa.text(
+                """
+                INSERT INTO financial_filing_seals (
+                    filing_version_id, business_content_hash, ingested_at
+                ) VALUES (:filing_id, :hash, statement_timestamp())
+                RETURNING business_content_hash
+                """
+            ),
+            {"filing_id": filing_id, "hash": "f" * 64},
+        ).scalar_one()
+
+
+def test_tdcc_seal_serializes_with_concurrent_child_mutation(
+    isolated_database_url: str,
+) -> None:
+    test_engine = sa.create_engine(isolated_database_url, pool_pre_ping=True)
+    try:
+        with test_engine.begin() as setup:
+            security_id, artifact_id, run_id = seed_lineage(
+                setup, "tdcc_snapshot", digest_char="8"
+            )
+            first_snapshot = insert_snapshot_with_distribution(
+                setup,
+                security_id,
+                artifact_id,
+                run_id,
+                snapshot_date="2026-09-04",
+            )
+            second_snapshot = insert_snapshot_with_distribution(
+                setup,
+                security_id,
+                artifact_id,
+                run_id,
+                snapshot_date="2026-09-11",
+            )
+
+        seal_connection = test_engine.connect()
+        seal_transaction = seal_connection.begin()
+        first_hash = seal_connection.execute(
+            sa.text(
+                """
+                INSERT INTO tdcc_snapshot_seals (
+                    snapshot_version_id, business_content_hash, ingested_at
+                ) VALUES (:snapshot_id, :hash, statement_timestamp())
+                RETURNING business_content_hash
+                """
+            ),
+            {"snapshot_id": first_snapshot, "hash": "f" * 64},
+        ).scalar_one()
+
+        child_started = Event()
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            child_future = executor.submit(
+                concurrent_distribution_insert,
+                test_engine,
+                first_snapshot,
+                child_started,
+                "1000-5000",
+            )
+            assert child_started.wait(timeout=2)
+            with pytest.raises(FutureTimeout):
+                child_future.result(timeout=0.25)
+            seal_transaction.commit()
+            assert child_future.result(timeout=5) == "55000"
+        seal_connection.close()
+
+        with test_engine.connect() as check:
+            assert check.execute(
+                sa.text(
+                    "SELECT count(*) FROM tdcc_distribution WHERE snapshot_version_id = :id"
+                ),
+                {"id": first_snapshot},
+            ).scalar_one() == 1
+
+        child_connection = test_engine.connect()
+        child_transaction = child_connection.begin()
+        insert_extra_distribution(
+            child_connection, second_snapshot, "1000-5000"
+        )
+
+        seal_started = Event()
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            seal_future = executor.submit(
+                concurrent_tdcc_seal, test_engine, second_snapshot, seal_started
+            )
+            assert seal_started.wait(timeout=2)
+            with pytest.raises(FutureTimeout):
+                seal_future.result(timeout=0.25)
+            child_transaction.commit()
+            second_hash = seal_future.result(timeout=5)
+        child_connection.close()
+
+        assert second_hash != first_hash
+        with test_engine.connect() as check:
+            assert check.execute(
+                sa.text(
+                    "SELECT count(*) FROM tdcc_distribution WHERE snapshot_version_id = :id"
+                ),
+                {"id": second_snapshot},
+            ).scalar_one() == 2
+            assert check.execute(
+                sa.text(
+                    """
+                    SELECT business_content_hash
+                    FROM tdcc_snapshot_versions
+                    WHERE id = :id
+                    """
+                ),
+                {"id": second_snapshot},
+            ).scalar_one() == second_hash
+    finally:
+        test_engine.dispose()
+
+
+def insert_snapshot_with_distribution(
+    db: Connection,
+    security_id: int,
+    artifact_id: str,
+    run_id: str,
+    *,
+    snapshot_date: str,
+) -> int:
+    snapshot_id = db.execute(
+        sa.text(
+            """
+            INSERT INTO tdcc_snapshot_versions (
+                security_id, source, snapshot_date,
+                raw_artifact_id, ingest_run_id
+            ) VALUES (
+                :security_id, 'official', CAST(:snapshot_date AS date),
+                :artifact_id, :run_id
+            ) RETURNING id
+            """
+        ),
+        {
+            "security_id": security_id,
+            "snapshot_date": snapshot_date,
+            "artifact_id": artifact_id,
+            "run_id": run_id,
+        },
+    ).scalar_one()
+    db.execute(
+        sa.text(
+            """
+            INSERT INTO tdcc_distribution (
+                snapshot_version_id, bucket_code, holder_count,
+                shares, ownership_percent
+            ) VALUES (:snapshot_id, '1-999', 10, 1000, 10.5)
+            """
+        ),
+        {"snapshot_id": snapshot_id},
+    )
+    return snapshot_id
+
+
+def insert_extra_distribution(
+    db: Connection, snapshot_id: int, bucket_code: str
+) -> None:
+    db.execute(
+        sa.text(
+            """
+            INSERT INTO tdcc_distribution (
+                snapshot_version_id, bucket_code, holder_count,
+                shares, ownership_percent
+            ) VALUES (:snapshot_id, :bucket_code, 2, 500, 5)
+            """
+        ),
+        {"snapshot_id": snapshot_id, "bucket_code": bucket_code},
+    )
+
+
+def concurrent_distribution_insert(
+    engine: Engine,
+    snapshot_id: int,
+    started: Event,
+    bucket_code: str,
+) -> str:
+    try:
+        with engine.begin() as connection:
+            connection.exec_driver_sql("SET LOCAL lock_timeout = '5s'")
+            started.set()
+            insert_extra_distribution(connection, snapshot_id, bucket_code)
+    except DBAPIError as exc:
+        return str(getattr(exc.orig, "sqlstate", "unknown"))
+    return "committed"
+
+
+def concurrent_tdcc_seal(
+    engine: Engine, snapshot_id: int, started: Event
+) -> str:
+    with engine.begin() as connection:
+        connection.exec_driver_sql("SET LOCAL lock_timeout = '5s'")
+        started.set()
+        return connection.execute(
+            sa.text(
+                """
+                INSERT INTO tdcc_snapshot_seals (
+                    snapshot_version_id, business_content_hash, ingested_at
+                ) VALUES (:snapshot_id, :hash, statement_timestamp())
+                RETURNING business_content_hash
+                """
+            ),
+            {"snapshot_id": snapshot_id, "hash": "f" * 64},
+        ).scalar_one()

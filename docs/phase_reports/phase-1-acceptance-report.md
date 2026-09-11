@@ -33,7 +33,7 @@ Primary evidence:
 
 | Criterion | Result | Concrete evidence |
 | --- | --- | --- |
-| Child insert after seal is rejected | PASS | `stockdc_protect_financial_child` and `stockdc_protect_tdcc_child` execute as PostgreSQL triggers. Tests `test_financial_aggregate_visibility_context_and_immutability` and `test_tdcc_seal_controls_visibility_and_immutability` attempt inserts after seal and observe DB rejection. |
+| Child insert after seal is rejected | PASS | `stockdc_protect_financial_child` and `stockdc_protect_tdcc_child` lock the parent and execute as PostgreSQL triggers. Sequential tests attempt inserts after seal and observe DB rejection. Dedicated two-connection tests prove a child racing a not-yet-committed seal waits and is then rejected. |
 | Sealed aggregate cannot be updated/deleted | PASS | Parent, child, and seal triggers reject post-seal mutations. The financial aggregate test exercises parent update/delete, fact update/delete, and seal update/delete; the TDCC test exercises sealed parent update. |
 | Committed unsealed aggregate can exist but is resolver-invisible | PASS | No constraint requires a seal at transaction commit, while `visible_financial_filings` and `visible_tdcc_snapshots` require dataset-specific seals. Both aggregate tests create parent/children without a seal and prove the visibility view returns zero before seal and one after seal. |
 | Caller cannot forge normal historical ingestion time | PASS | Single-version, evidence, and seal BEFORE INSERT triggers overwrite caller timestamps with `statement_timestamp()`. Tests submit year-2000 values and assert returned values fall within the current operation window. |
@@ -55,6 +55,9 @@ All ten required criteria pass.
 - Publication evidence requires exactly one real version foreign key target.
 - Aggregate seal hashes canonically order facts, summary metrics, and TDCC
   buckets before hashing.
+- Financial and TDCC seal/child mutations serialize on the same parent row.
+  Two-connection tests cover both legal race outcomes: seal-first rejects the
+  waiting child, and child-first makes the waiting seal include that child.
 - A partial unique index permits at most one canonical source per dataset.
 - `alembic check` reports no metadata drift.
 
@@ -74,7 +77,7 @@ pytest      8.4.2
 Results:
 
 ```text
-pytest:                    8 passed
+pytest:                    10 passed
 Alembic round-trip:        PASS (covered by pytest)
 alembic check:             No new upgrade operations detected
 Python compileall:         PASS

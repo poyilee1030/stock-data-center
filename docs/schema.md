@@ -87,6 +87,12 @@ hash to the parent. After the seal exists, triggers reject:
 - child insert/update/delete; and
 - seal update/delete.
 
+Every child insert/update/delete obtains `FOR UPDATE` on that same parent before
+checking for a seal. This is the aggregate serialization point: a child mutation
+that locks first commits before the seal can scan children, while a seal that
+locks first commits before the child checks seal state and causes that child to
+be rejected. Moving an existing child to another parent is forbidden.
+
 The seal tables use direct foreign keys rather than polymorphic references.
 
 ## XBRL context identity

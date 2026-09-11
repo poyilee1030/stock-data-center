@@ -260,26 +260,32 @@ $$;
 CREATE FUNCTION stockdc_protect_financial_child() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
-    old_parent bigint;
-    new_parent bigint;
+    parent_id bigint;
 BEGIN
-    IF TG_OP <> 'INSERT' THEN
-        old_parent := CASE TG_TABLE_NAME
-            WHEN 'financial_facts' THEN OLD.filing_version_id
-            ELSE OLD.filing_version_id
-        END;
+    IF TG_OP = 'UPDATE' AND NEW.filing_version_id <> OLD.filing_version_id THEN
+        RAISE EXCEPTION 'moving a financial child between filings is forbidden'
+            USING ERRCODE = '55000';
     END IF;
-    IF TG_OP <> 'DELETE' THEN
-        new_parent := CASE TG_TABLE_NAME
-            WHEN 'financial_facts' THEN NEW.filing_version_id
-            ELSE NEW.filing_version_id
-        END;
+
+    IF TG_OP = 'DELETE' THEN
+        parent_id := OLD.filing_version_id;
+    ELSE
+        parent_id := NEW.filing_version_id;
     END IF;
-    IF (old_parent IS NOT NULL AND EXISTS (
-            SELECT 1 FROM financial_filing_seals WHERE filing_version_id = old_parent
-        )) OR (new_parent IS NOT NULL AND EXISTS (
-            SELECT 1 FROM financial_filing_seals WHERE filing_version_id = new_parent
-        )) THEN
+
+    -- Child mutation and sealing must serialize on this exact parent row.
+    -- If the child gets the lock first, a later seal includes the mutation.
+    -- If the seal gets it first, this statement waits and then sees the seal.
+    PERFORM 1 FROM financial_filing_versions
+     WHERE id = parent_id FOR UPDATE;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'financial filing % does not exist', parent_id
+            USING ERRCODE = '23503';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM financial_filing_seals WHERE filing_version_id = parent_id
+    ) THEN
         RAISE EXCEPTION 'children of a sealed financial filing are immutable'
             USING ERRCODE = '55000';
     END IF;
@@ -368,16 +374,30 @@ $$;
 CREATE FUNCTION stockdc_protect_tdcc_child() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
-    old_parent bigint;
-    new_parent bigint;
+    parent_id bigint;
 BEGIN
-    IF TG_OP <> 'INSERT' THEN old_parent := OLD.snapshot_version_id; END IF;
-    IF TG_OP <> 'DELETE' THEN new_parent := NEW.snapshot_version_id; END IF;
-    IF (old_parent IS NOT NULL AND EXISTS (
-            SELECT 1 FROM tdcc_snapshot_seals WHERE snapshot_version_id = old_parent
-        )) OR (new_parent IS NOT NULL AND EXISTS (
-            SELECT 1 FROM tdcc_snapshot_seals WHERE snapshot_version_id = new_parent
-        )) THEN
+    IF TG_OP = 'UPDATE' AND NEW.snapshot_version_id <> OLD.snapshot_version_id THEN
+        RAISE EXCEPTION 'moving a TDCC child between snapshots is forbidden'
+            USING ERRCODE = '55000';
+    END IF;
+
+    IF TG_OP = 'DELETE' THEN
+        parent_id := OLD.snapshot_version_id;
+    ELSE
+        parent_id := NEW.snapshot_version_id;
+    END IF;
+
+    -- Use the same aggregate lock as sealing; see the financial equivalent.
+    PERFORM 1 FROM tdcc_snapshot_versions
+     WHERE id = parent_id FOR UPDATE;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'TDCC snapshot % does not exist', parent_id
+            USING ERRCODE = '23503';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM tdcc_snapshot_seals WHERE snapshot_version_id = parent_id
+    ) THEN
         RAISE EXCEPTION 'children of a sealed TDCC snapshot are immutable'
             USING ERRCODE = '55000';
     END IF;
