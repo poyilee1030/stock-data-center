@@ -64,6 +64,16 @@ publication instant and a stable storage-generated revision identifier as the
 final tie-breaker. Exact dataset logical keys are defined with that dataset;
 handlers may not improvise the ordering.
 
+For an immutable aggregate, market eligibility additionally requires:
+
+```text
+seal.ingested_at <= knowledge_as_of
+```
+
+This does not redefine market publication time. It proves that the Data Center
+had completed the aggregate by the historical knowledge cutoff and prevents a
+later seal from making an earlier committed draft retroactively visible.
+
 ## System PIT
 
 System PIT answers:
@@ -119,6 +129,9 @@ Resolved responses include enough provenance to identify, as applicable:
 
 An unsupported source/PIT combination or invalid mixture of market and system
 parameters fails explicitly; it never falls back to current state.
+
+The Phase 2 implementation contract and deterministic ordering are documented
+in [Core PIT Resolver](pit_resolver.md).
 
 ## Derived PIT inheritance
 

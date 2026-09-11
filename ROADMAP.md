@@ -1492,10 +1492,10 @@ unsealed aggregate invisibility
 
 Acceptance criteria:
 
-- [ ] resolver correctness does not depend on Redis
-- [ ] deterministic authoritative-evidence selection exists
-- [ ] market/system semantics match Phase 0
-- [ ] queries return provenance
+- [x] resolver correctness does not depend on Redis
+- [x] deterministic authoritative-evidence selection exists
+- [x] market/system semantics match Phase 0
+- [x] queries return provenance
 
 ---
 
