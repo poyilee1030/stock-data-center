@@ -70,6 +70,7 @@ The service depends on a cache abstraction.
 - [ADR-0010: source-specific evidence types](decisions/0010-source-specific-evidence-type-policy.md)
 - [Canonical derived data contract](derived_data.md)
 - [Core PIT resolver contract](pit_resolver.md)
+- [Security metadata and daily market data](security_daily_market.md)
 - [Cache contract](cache.md)
 
 Changes to an accepted decision require a superseding ADR and, when the change

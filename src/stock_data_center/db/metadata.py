@@ -93,6 +93,8 @@ security = sa.Table(
         nullable=False,
         server_default=sa.text("statement_timestamp()"),
     ),
+    sa.CheckConstraint("security_code <> ''", name="security_code_nonempty"),
+    sa.CheckConstraint("market <> ''", name="market_nonempty"),
 )
 
 ingest_runs = sa.Table(

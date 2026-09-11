@@ -156,6 +156,18 @@ migrate to conservative `official`-only acceptance. A partial unique index
 allows at most one canonical source per dataset. The resolver enforces these
 flags and filters evidence types before supersession/ranking.
 
+## Phase 3 domain access
+
+Phase 3 uses the existing `security_metadata_versions` and
+`daily_price_versions` shape. One focused migration makes stable `security`
+identity immutable, enforces non-empty identity values, and makes `created_at`
+DB-controlled. The `market_data` package supplies normalized append-only
+writers and cache-free domain queries for historical security state, historical
+listed universes, single-date daily prices, and inclusive daily-price windows.
+Every business record still resolves through the Phase 2 source, evidence,
+revision, and provenance rules. See
+[the Phase 3 contract](security_daily_market.md).
+
 ## Migration operation
 
 Local PostgreSQL 18 startup:
