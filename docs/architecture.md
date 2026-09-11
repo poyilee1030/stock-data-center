@@ -1,0 +1,71 @@
+# Architecture Contract
+
+## Status
+
+Accepted for Phase 0 on 2026-09-11.
+
+## System boundary
+
+`stock-data-center` is the sole owner of source ingestion, raw provenance,
+business revision history, publication evidence, temporal visibility, source
+selection, PostgreSQL storage, the public data API, and any optional query
+cache.
+
+Downstream systems consume resolved responses through the public API or SDK.
+They must not connect directly to PostgreSQL or Redis and must not reproduce
+PIT, evidence-selection, or source-selection rules.
+
+The following concerns remain outside this repository:
+
+- EPS or stock-selection model training
+- feature and label construction owned by those models
+- portfolio research, ranking, and backtesting
+
+## Authoritative components
+
+PostgreSQL 18 is the only authoritative store. It contains business history,
+publication evidence, ingestion history, and provenance. Raw artifacts are
+immutable, content-addressed evidence held behind a storage abstraction.
+
+Redis, when configured, is only a disposable cache of already-resolved query
+responses. Removing every Redis key, disabling Redis, or losing Redis must not
+change the business result or provenance returned for a canonical request.
+
+## Write path
+
+```text
+source
+  -> immutable raw artifact + ingest run
+  -> parser
+  -> normalization
+  -> PostgreSQL business/evidence history
+```
+
+No durable business or evidence write may exist only in Redis.
+
+## Read path
+
+```text
+client
+  -> API
+  -> application service
+  -> optional response cache
+  -> PIT resolver on cache miss
+  -> PostgreSQL
+```
+
+Routes, repositories, and PIT resolvers do not contain Redis-specific policy.
+The service depends on a cache abstraction.
+
+## Frozen contracts
+
+- [PIT semantics](pit_semantics.md)
+- [ADR-0001: temporal model](decisions/0001-temporal-and-pit-model.md)
+- [ADR-0002: business revisions and publication evidence](decisions/0002-business-revisions-and-publication-evidence.md)
+- [ADR-0003: immutable aggregates, hashes, and provenance](decisions/0003-immutable-aggregates-hashes-and-provenance.md)
+- [ADR-0004: source capability and cross-source policy](decisions/0004-source-capability-and-cross-source-policy.md)
+- [ADR-0005: optional cache architecture](decisions/0005-optional-cache-architecture.md)
+- [Cache contract](cache.md)
+
+Changes to an accepted decision require a superseding ADR and, when the change
+affects planned behavior, a corresponding `ROADMAP.md` update.
