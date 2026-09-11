@@ -38,6 +38,7 @@ source policy, and creates a complete canonical object. It contains at least:
 - cache contract version;
 - response schema version;
 - PIT resolver semantics version;
+- derivation version for every canonical derived request;
 - dataset/endpoint identity;
 - every typed business query parameter;
 - resolved source;
@@ -61,7 +62,7 @@ stockdc:<cache-contract-version>:<dataset-or-endpoint>:<digest>
 
 Dictionary insertion order, `repr`, `str(object)`, and raw caller input are not
 canonical encodings. Omitting a PIT cutoff, source, business parameter, or
-semantic version is a P0 correctness defect.
+semantic/derivation version is a P0 correctness defect.
 
 ## Aliases and defaults
 
@@ -92,7 +93,8 @@ eviction, restart, total key deletion, or unavailability must be safe.
 ## Evolution and migration
 
 A semantic change to the cache contract, response schema, PIT resolution, or
-source reconciliation bumps the applicable namespace/version before rollout.
+source reconciliation, or derivation semantics bumps the applicable
+namespace/version before rollout.
 A trusted migration that backdates temporal metadata must include a cache-impact
 section and either bump the namespace or purge the precisely affected entries.
 

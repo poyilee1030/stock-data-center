@@ -119,3 +119,12 @@ Resolved responses include enough provenance to identify, as applicable:
 
 An unsupported source/PIT combination or invalid mixture of market and system
 parameters fails explicitly; it never falls back to current state.
+
+## Derived PIT inheritance
+
+Canonical derived results use inputs resolved under the same explicit PIT
+context. Market-derived results inherit `information_as_of` and
+`knowledge_as_of`; system-derived results inherit `system_as_of`. A materialized
+result's `computed_at` is calculation provenance only and is never substituted
+for input publication or ingestion visibility. See
+[Canonical Derived Data](derived_data.md).
