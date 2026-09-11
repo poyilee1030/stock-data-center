@@ -1,89 +1,62 @@
 # Phase 1 Acceptance Report
 
-- Phase: 1 — Versioned PIT Database Schema
+- Phase: 1 — Complete v1 Storage Contract and Versioned PIT Schema
 - Date: 2026-09-11
 - Result: PASS
 
 ## Scope delivered
 
-Phase 1 adds the PostgreSQL 18 correctness foundation:
+Phase 1 freezes the complete known v1 PostgreSQL 18 storage and ownership
+contract. It includes core identity/provenance, every known observed domain,
+publication evidence, immutable financial/TDCC aggregates, canonical-derived
+definitions/results, DB-generated hashes and timestamps, source-aware lineage,
+and PIT-oriented indexes.
 
-- SQLAlchemy 2.x metadata for dataset/source policy, provenance, versioned
-  business data, publication evidence, XBRL facts, and sealed aggregates;
-- two fixed Alembic revisions for tables and PostgreSQL integrity logic;
-- DB-generated authoritative timestamps and hashes;
-- append-only and post-seal immutability triggers;
-- composite provenance constraints and dataset/source validation;
-- seal-only visibility views; and
-- PostgreSQL integration regressions.
+The legacy audit and exact field dispositions are in
+[`docs/data_domain_inventory.md`](../data_domain_inventory.md). Schema details
+are in [`docs/schema.md`](../schema.md), with architectural decisions in
+[ADR-0007](../decisions/0007-canonical-derived-data-ownership-and-pit.md) and
+[ADR-0008](../decisions/0008-complete-v1-storage-decomposition.md).
 
-No PIT resolver, API route, ingestion adapter, cache abstraction, or Redis
-dependency was introduced.
-
-Primary evidence:
-
-- `src/stock_data_center/db/metadata.py`
-- `migrations/versions/94060901029e_create_phase_1_schema.py`
-- `migrations/versions/b7e1c9a42f10_enforce_phase_1_invariants.py`
-- `tests/integration/test_phase1_schema.py`
-- [Schema documentation](../schema.md)
-- [ADR-0006](../decisions/0006-content-addressed-artifacts-and-fetch-observations.md)
+No ingestion pipeline, calculator, resolver, public API, cache implementation,
+or Redis dependency was added.
 
 ## Required acceptance criteria
 
 | Criterion | Result | Concrete evidence |
 | --- | --- | --- |
-| Child insert after seal is rejected | PASS | `stockdc_protect_financial_child` and `stockdc_protect_tdcc_child` lock the parent and execute as PostgreSQL triggers. Sequential tests attempt inserts after seal and observe DB rejection. Dedicated two-connection tests prove a child racing a not-yet-committed seal waits and is then rejected. |
-| Sealed aggregate cannot be updated/deleted | PASS | Parent, child, and seal triggers reject post-seal mutations. The financial aggregate test exercises parent update/delete, fact update/delete, and seal update/delete; the TDCC test exercises sealed parent update. |
-| Committed unsealed aggregate can exist but is resolver-invisible | PASS | No constraint requires a seal at transaction commit, while `visible_financial_filings` and `visible_tdcc_snapshots` require dataset-specific seals. Both aggregate tests create parent/children without a seal and prove the visibility view returns zero before seal and one after seal. |
-| Caller cannot forge normal historical ingestion time | PASS | Single-version, evidence, and seal BEFORE INSERT triggers overwrite caller timestamps with `statement_timestamp()`. Tests submit year-2000 values and assert returned values fall within the current operation window. |
-| Business hash is storage-generated from canonical business content | PASS | Per-dataset insert/seal triggers replace submitted hashes using SHA-256 over PostgreSQL canonical JSON. Tests cover daily price, security metadata, monthly revenue, financial filing, and TDCC hashes. Duplicate price content is rejected by logical-key/source/hash uniqueness. |
-| Evidence update does not create false business revision | PASS | Publication evidence has its own append-only table/hash and target FK. `test_evidence_is_append_only_and_does_not_create_business_revision` appends assertion, correction, and retraction while the business-version count stays one. |
-| Correction/retraction can be represented append-only | PASS | Evidence-kind and publication-shape checks support correction and retraction; supersession validation restricts chains to one target/source. The evidence test inserts both events and confirms evidence UPDATE is rejected. |
-| XBRL context identity supports dimensions | PASS | `stockdc_prepare_financial_fact` hashes entity, period, explicit/typed dimensions, scenario, and segment. The aggregate test proves reordered equivalent JSON produces a duplicate identity while a distinct dimension produces a distinct non-null hash and coexists. |
-| Source A capability does not leak to source B | PASS | `dataset_sources` uses `(dataset_code, source)` as its primary key. `test_source_capabilities_and_lineage_are_isolated` stores opposing market-PIT flags and proves they remain independent; cross-source normalized lineage is rejected. |
-| Alembic upgrade/downgrade/upgrade succeeds | PASS | `test_postgresql_18_and_migration_round_trip` verifies PostgreSQL major version 18, downgrades to base, confirms schema removal, upgrades to head, and confirms table/view restoration. The full suite passed this test. |
+| `docs/data_domain_inventory.md` covers all known legacy tables/domains | PASS | The inventory records the 2026-09-11 legacy schema audit and names all 26 legacy tables. `test_phase1_contract_docs.py` enforces that set. |
+| Every legacy field/domain has an intentional disposition | PASS | The inventory maps each field group to observed storage, canonical derived data, downstream ownership, raw-only provenance, or deprecation. It explicitly covers full daily quote fields and legacy analysis scores. |
+| All known v1 observed domains have a storage contract | PASS | SQLAlchemy metadata and migrations define 31 tables covering core, daily/revenue, XBRL, TDCC, institutional/holding, margin/short/SBL, indices, actions, official valuation, tags, and concept catalog. |
+| All known v1 canonical-derived domains have a materialized/virtual contract | PASS | `derived_dataset_definitions`, `derived_computation_runs`, and `derived_metric_versions` implement the common contract; the inventory explicitly selects a strategy for technical, concentration, valuation, margin, short/SBL and additional reusable datasets. |
+| Child insert after seal is rejected | PASS | Financial and TDCC child protection triggers lock the parent and reject post-seal mutation; sequential and real multi-connection tests cover this. |
+| Sealed aggregate cannot be updated/deleted | PASS | Parent, child, and seal triggers reject post-seal update/delete; integration tests exercise both aggregate families. |
+| Seal and child mutation serialize on the same aggregate identity | PASS | Both paths take `FOR UPDATE` on the parent. Two-connection tests prove seal-first rejects the waiting child and child-first makes the waiting seal hash the child. |
+| Committed unsealed aggregate can exist but is resolver-invisible | PASS | `visible_financial_filings` and `visible_tdcc_snapshots` inner-join their dataset-specific seal tables; tests see zero before seal and one after. |
+| Caller cannot forge normal historical ingestion time | PASS | BEFORE INSERT triggers overwrite observed `ingested_at`, seal time, evidence `recorded_at`, derived `registered_at`, and derived `computed_at` with trusted DB time. Tests submit year-2000 values. |
+| Business hash is storage-generated from canonical business content | PASS | PostgreSQL SHA-256 trigger functions overwrite submitted hashes. Tests cover prior and every newly added observed table; a regression proves an extended daily quote field changes the hash. |
+| Evidence update does not create false business revision | PASS | Evidence is a separate append-only identity/hash. Assertion, correction, and retraction tests leave the business-version count unchanged. |
+| Correction/retraction is append-only | PASS | Evidence checks and same-target/source supersession validation allow appended correction/retraction rows while UPDATE/DELETE/TRUNCATE is rejected. |
+| XBRL context identity supports dimensions | PASS | The generated context hash includes entity, period, explicit/typed dimensions, scenario, and segment. Tests prove canonical JSON ordering and dimensional distinction. |
+| Source A capability does not leak to source B | PASS | `dataset_sources` keys policy by `(dataset_code, source)`; integration tests preserve opposing source capabilities and reject cross-source lineage. |
+| Canonical derived definitions include `derivation_version` | PASS | An immutable unique `(dataset_code, derivation_version)` definition is required. Tests register and retain semantically distinct v1/v2 definitions. |
+| Derived `computed_at` is not market publication time | PASS | Derived rows contain explicit market/system PIT context and no `published_at` column; docs define inherited input visibility. The DB overwrites `computed_at` as operational provenance only. |
+| Migration tests cover every v1 table | PASS | `V1_TABLES` explicitly lists all 31 tables and the round-trip test checks the complete set after upgrade. New observed-domain tests exercise trusted lineage/hash/time/immutability. |
+| Alembic upgrade/downgrade/upgrade succeeds | PASS | `test_postgresql_18_and_migration_round_trip` performs the full cycle against PostgreSQL 18. |
+| `alembic check` passes | PASS | Both the dedicated test and the final command report no metadata drift. |
 
-All ten required criteria pass.
-
-## Additional integrity evidence
-
-- `raw_artifact_observations` preserves repeated-fetch provenance without
-  duplicating identical content-addressed artifacts.
-- Composite foreign keys reject mismatched artifact/run identifiers, while
-  triggers reject dataset/source mismatch.
-- Publication evidence requires exactly one real version foreign key target.
-- Aggregate seal hashes canonically order facts, summary metrics, and TDCC
-  buckets before hashing.
-- Financial and TDCC seal/child mutations serialize on the same parent row.
-  Two-connection tests cover both legal race outcomes: seal-first rejects the
-  waiting child, and child-first makes the waiting seal include that child.
-- A partial unique index permits at most one canonical source per dataset.
-- `alembic check` reports no metadata drift.
+All 19 required criteria pass.
 
 ## Verification performed
 
-Environment:
-
 ```text
-Python      3.12.3
-PostgreSQL  18 (postgres:18)
-SQLAlchemy  2.0.52
-Alembic     1.19.2
-psycopg     3.3.5
-pytest      8.4.2
+PostgreSQL:                 18 (postgres:18)
+pytest:                     25 passed
+Alembic round-trip:         PASS (inside pytest)
+alembic check:              No new upgrade operations detected
+Python compileall:          PASS
+Phase scope:                no resolver/API/cache/Redis implementation
 ```
 
-Results:
-
-```text
-pytest:                    10 passed
-Alembic round-trip:        PASS (covered by pytest)
-alembic check:             No new upgrade operations detected
-Python compileall:         PASS
-git diff --check:          PASS
-Phase scope inspection:    no resolver/API/cache/Redis implementation
-```
-
-Phase 2 may begin only as a separate task. Its resolver must operate with cache
-disabled and must not alter the Phase 0 semantics.
+Phase 2 may begin only as a separate task and must remain correct with caching
+disabled.

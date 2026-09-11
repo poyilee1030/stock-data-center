@@ -15,9 +15,14 @@ migrations are the deployment record in `migrations/versions/`.
 | Dataset policy | `dataset_catalog`, `dataset_sources` |
 | Security identity | `security`, `security_metadata_versions` |
 | Provenance | `ingest_runs`, `raw_artifacts`, `raw_artifact_observations` |
-| Single-row versions | `daily_price_versions`, `monthly_revenue_versions` |
+| Market/revenue versions | `daily_price_versions`, `monthly_revenue_versions` |
 | Financial aggregate | `financial_filing_versions`, `financial_facts`, `quarterly_financial_summary`, `financial_filing_seals` |
 | TDCC aggregate | `tdcc_snapshot_versions`, `tdcc_distribution`, `tdcc_snapshot_seals` |
+| Institutional data | `institutional_investor_versions`, `institutional_market_summary_versions`, `foreign_holding_versions` |
+| Credit/short data | `margin_trading_versions`, `securities_lending_versions` |
+| Reference/event data | `market_index`, `market_index_versions`, `corporate_action_versions`, `security_tag_versions` |
+| Official source metrics | `official_valuation_versions`, `xbrl_concept_catalog_versions` |
+| Canonical derived data | `derived_dataset_definitions`, `derived_computation_runs`, `derived_metric_versions` |
 | Publication knowledge | `publication_evidence` |
 
 All externally meaningful timestamps use `TIMESTAMPTZ`.
@@ -59,6 +64,15 @@ none is exposed in Phase 1.
 Append-only tables reject `UPDATE`, `DELETE`, and `TRUNCATE`; immutability does
 not depend on application repository behavior.
 
+The same rules apply to every v1 observed version table. Daily prices retain
+the complete known legacy observable contract: OHLC, volume, trade value,
+trade count, price change/direction, source bid/ask snapshots, and parsed last
+bid/ask price and volume. Institutional flow, holdings, margin, exchange short,
+SBL, index, corporate-action, official-valuation, tag, and concept-catalog
+domains each retain source identity, raw/ingest lineage, trusted ingestion
+time, and a storage-generated business hash. The field-by-field disposition is
+maintained in [the data-domain inventory](data_domain_inventory.md).
+
 ## Publication evidence
 
 `publication_evidence` has real nullable foreign keys to each supported version
@@ -70,6 +84,34 @@ the same target and source.
 logic. Updates and deletes are rejected. Assertions/corrections require a
 non-null publication instant; unknown/retraction events require a null instant.
 Authoritative evidence selection remains Phase 2 work.
+
+Every observed version type has a dedicated nullable foreign key from
+`publication_evidence`; the exactly-one-target constraint, dataset/source
+validation, supersession validation, and independent evidence hash cover all
+v1 targets.
+
+## Canonical derived contract
+
+`derived_dataset_definitions` registers an immutable `(dataset_code,
+derivation_version)` semantic definition, including formula/specification,
+implementation identity, required inputs, calendar/timezone convention, and
+price-adjustment convention. The DB generates its definition hash and trusted
+registration time.
+
+`derived_computation_runs` records operational computation provenance.
+`derived_metric_versions` stores materialized typed metric values with the
+definition, security/date/metric identity, explicit market or system PIT
+context, input dataset identity, deterministic input fingerprint, computation
+run, DB-generated business hash, and trusted `computed_at`. The DB rejects a
+result whose run belongs to a different definition. Definitions and results
+are append-only.
+
+`computed_at` never grants market visibility. A market-PIT result carries both
+`information_as_of` and `knowledge_as_of`; a system-PIT result carries only
+`system_as_of`. Visibility is inherited from the inputs selected under that
+context. The same definition contract applies to virtual derived datasets, so
+storage strategy cannot change financial meaning. See
+[derived-data semantics](derived_data.md) and [ADR-0007](decisions/0007-canonical-derived-data-ownership-and-pit.md).
 
 ## Immutable aggregates
 

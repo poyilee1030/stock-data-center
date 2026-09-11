@@ -843,11 +843,388 @@ Do not depend on Redis persistence for correctness or audit history.
 
 ---
 
-# 23. Phase 0 — Freeze Contracts and ADRs
+# 23. Data Domain Ownership and v1 Storage Coverage
+
+`stock-data-center` owns two kinds of reusable data:
+
+```text
+A. observed/source datasets
+B. canonical reusable derived datasets
+```
+
+It does NOT own model-specific experimental features.
+
+The boundary is:
+
+```text
+stock-data-center
+=
+historically observable source data
++
+deterministic, cross-repo, canonical derived data
+
+stock-eps-model / stock-model-selection
+=
+model-specific transformations
++
+feature combinations
++
+labels
++
+training logic
+```
+
+A useful ownership test is:
+
+> If all current ML models disappeared tomorrow, would this value still have a stable and independently meaningful financial definition?
+
+If yes, it may belong in Data Center.
+
+Examples that may belong in Data Center:
+
+```text
+MA20
+20-day historical volatility
+TTM EPS
+ROE
+foreign holding ratio
+large-holder concentration
+margin usage ratio
+official PE/PB/dividend yield
+```
+
+Examples that do NOT belong in Data Center:
+
+```text
+selection_score_v4
+quality_momentum_combo
+eps_growth_signal_weighted
+model-specific interaction terms
+```
+
+---
+
+# 24. v1 Data Domain Inventory
+
+Phase 1 must define the complete storage contract for every known Data Center v1 domain, even if later phases populate the tables.
+
+The authoritative inventory document is:
+
+```text
+docs/data_domain_inventory.md
+```
+
+It must map every relevant legacy table/domain to one of:
+
+```text
+observed/source dataset
+canonical derived dataset
+model-specific feature
+raw-artifact-only field
+deprecated / intentionally removed
+```
+
+The inventory must also document:
+
+```text
+legacy table / field
+new dataset/domain
+new table(s)
+storage class
+PIT semantics
+source
+materialized or virtual
+migration/backfill status
+downstream consumers
+```
+
+No known v1 legacy domain may remain unmapped when Phase 1 is accepted.
+
+## 24.1 Observed / Source Data Domains
+
+The Phase 1 schema contract must include storage for the following known v1 domains.
+
+### Core identity / provenance
+
+```text
+security
+security metadata history
+dataset catalog
+dataset-source capabilities
+ingest runs
+raw artifacts
+raw artifact observations
+publication evidence
+```
+
+### Market data
+
+```text
+daily stock trading/price data
+market indices
+official daily valuation data where source-provided
+corporate actions
+```
+
+The legacy `daily_quotes` inventory must be reviewed field-by-field.
+
+At minimum decide the v1 disposition of:
+
+```text
+OHLC
+volume
+trade value
+trade count
+price change
+bid/ask fields
+other source-observable fields
+```
+
+Do not silently drop a legacy observable field without recording its disposition in `docs/data_domain_inventory.md`.
+
+### Revenue
+
+```text
+monthly revenue
+```
+
+Derived values such as:
+
+```text
+MoM
+YoY
+cumulative revenue
+cumulative YoY
+```
+
+do not need to be duplicated as observed source values when they can be deterministically derived from PIT-safe revenue history, unless the source-published value itself is intentionally preserved as a distinct source fact.
+
+### Financial / XBRL
+
+```text
+financial filing versions
+financial facts
+curated quarterly summary
+historical actual EPS
+filing publication evidence
+```
+
+### TDCC / ownership distribution
+
+```text
+TDCC snapshots
+TDCC distribution buckets
+```
+
+### Institutional / chip-flow source data
+
+The v1 storage contract must cover the source data required to reproduce legacy institutional/chip-flow features, including as applicable:
+
+```text
+institutional investor buy/sell/net flow
+foreign investor data
+investment trust data
+dealer data
+foreign holding
+trust holding
+dealer holding
+```
+
+The exact table decomposition may be unified by investor category or separated by source/domain, but it must be explicitly decided in Phase 1.
+
+### Margin / securities lending
+
+The v1 storage contract must include:
+
+```text
+margin trading
+short selling / margin-short data
+securities borrowing and lending (SBL)
+```
+
+These are source datasets.
+
+Derived pressure/ratio signals are separate canonical derived datasets.
+
+### Corporate actions
+
+The v1 schema must define a domain for:
+
+```text
+cash dividends
+stock dividends
+rights
+ex-dividend / ex-right events
+other supported corporate actions
+```
+
+This domain is required for future adjusted-price and total-return correctness.
+
+### Market indices
+
+The v1 schema must define index history used by:
+
+```text
+market-regime features
+benchmarks
+backtests
+```
+
+### Official source valuation
+
+If the upstream source publishes values such as:
+
+```text
+PE
+PB
+dividend yield
+```
+
+those source-published values may be stored as observed source data.
+
+Do not confuse source-published valuation with Data Center-computed valuation metrics.
+
+---
+
+# 25. Canonical Derived Dataset Contract
+
+Data Center may materialize or virtually calculate deterministic derived datasets that are reused across repositories.
+
+Initial v1 canonical derived domains should include, where formulas are frozen:
+
+```text
+technical indicators
+shareholding concentration
+valuation metrics
+margin metrics
+short-interest / SBL metrics
+```
+
+Potential materialized storage concepts include:
+
+```text
+derived_dataset_definitions
+
+technical_indicator_versions
+shareholding_concentration_versions
+valuation_metric_versions
+margin_metric_versions
+short_interest_metric_versions
+```
+
+Exact table decomposition must be decided in Phase 1 and documented in `docs/schema.md` and `docs/data_domain_inventory.md`.
+
+## 25.1 Derivation Version
+
+Every canonical derived dataset must have an explicit:
+
+```text
+derivation_version
+```
+
+Example:
+
+```text
+technical_indicators:v1
+```
+
+A formula change must create a new derivation version.
+
+Do not silently overwrite historical values with a new implementation.
+
+## 25.2 Derivation Definition
+
+The system must preserve enough information to identify the formula semantics.
+
+At minimum:
+
+```text
+dataset code
+derivation version
+formula/specification
+implementation version or git commit
+input dataset requirements
+timezone/calendar convention where relevant
+adjustment convention where relevant
+created/registered time
+```
+
+## 25.3 Derived PIT Semantics
+
+A derived value is not automatically a new market publication event.
+
+For market PIT:
+
+> Visibility of a derived metric is inherited from the PIT-safe inputs and formula version used to compute it.
+
+For example:
+
+```text
+MA20 at historical date T
+```
+
+must be computed only from price inputs visible under that query's PIT context.
+
+Similarly:
+
+```text
+TTM EPS
+shareholding concentration
+margin usage ratio
+```
+
+must use only input versions available under the requested PIT context.
+
+`computed_at` means:
+
+```text
+when Data Center calculated/materialized the result
+```
+
+It does NOT mean:
+
+```text
+when the market could know the underlying information
+```
+
+Do not use `computed_at` as `published_at`.
+
+## 25.4 Derived Lineage
+
+A materialized derived result must preserve:
+
+```text
+derivation_version
+input dataset identity
+input/query lineage or deterministic input fingerprint
+PIT context used
+computation provenance
+business-content hash
+```
+
+Repeated recomputation with identical inputs and derivation version must not create a semantically different result.
+
+## 25.5 Materialized vs Virtual
+
+Canonical derived datasets may be:
+
+```text
+materialized in PostgreSQL
+or
+computed on demand and cached
+```
+
+The storage policy is a performance decision.
+
+The financial definition and PIT result must be the same.
+
+---
+
+# 26. Phase 0 — Freeze Contracts and ADRs
 
 ## Goal
 
-Freeze temporal, versioning, provenance, and cache semantics before implementation continues.
+Freeze temporal, versioning, provenance, data-domain ownership, derived-data, and cache semantics before implementation continues.
 
 Required ADRs/documents should cover:
 
@@ -859,6 +1236,8 @@ immutable aggregate sealing
 hash boundaries
 source-level PIT capability
 cross-source policy
+observed vs canonical-derived ownership
+derived PIT semantics
 optional cache architecture
 cache-key correctness
 ```
@@ -871,28 +1250,97 @@ Acceptance criteria:
 - [x] business and evidence revisions are separate
 - [x] only sealed complex aggregates are visible
 - [x] source-level PIT capability is defined
+- [x] observed vs canonical-derived ownership is defined
+- [x] derived `computed_at` is explicitly not market publication time
 - [x] Redis is explicitly optional
 - [x] cache-on/cache-off equivalence is an invariant
 - [x] PIT-aware cache-key fields are documented
 
 ---
 
-# 24. Phase 1 — Versioned PIT Database Schema
+# 27. Phase 1 — Complete v1 Storage Contract and Versioned PIT Schema
 
 ## Goal
 
-Implement the correctness foundation in PostgreSQL 18.
+Establish the complete PostgreSQL 18 storage contract for all known Data Center v1 observed and canonical-derived domains.
 
-Core tables/concepts include:
+Phase 1 is complete only when the v1 storage model is intentionally frozen enough that later domain phases can focus on ingestion, calculation, PIT querying, and backfill rather than discovering missing major data domains.
+
+Phase 1 does NOT need to:
+
+```text
+download all source data
+backfill all tables
+implement every calculator
+expose every REST endpoint
+implement Redis
+```
+
+Empty-but-correct v1 tables are acceptable.
+
+## Required Inventory
+
+Create and maintain:
+
+```text
+docs/data_domain_inventory.md
+```
+
+Every relevant legacy table/field must be mapped to:
+
+```text
+new table/domain
+or
+canonical derived dataset
+or
+model-specific downstream feature
+or
+raw-artifact-only
+or
+deprecated
+```
+
+## Core Infrastructure Tables / Concepts
 
 ```text
 security
 security_metadata_versions
-ingest_runs
-raw_artifacts
+
 dataset_catalog
 dataset_sources
 
+ingest_runs
+raw_artifacts
+raw_artifact_observations
+
+publication_evidence
+```
+
+## Observed Dataset Storage Contract
+
+The v1 schema must define storage for all known first-class observed domains, including:
+
+```text
+daily stock trading / price history
+monthly revenue
+financial / XBRL
+TDCC distribution
+
+institutional investor flow / holdings
+foreign / trust / dealer source data
+
+margin trading
+short selling
+securities lending / SBL
+
+market indices
+corporate actions
+official source valuation data
+```
+
+Suggested concepts may include:
+
+```text
 daily_price_versions
 monthly_revenue_versions
 
@@ -905,26 +1353,93 @@ tdcc_snapshot_versions
 tdcc_snapshot_seals
 tdcc_distribution
 
-publication_evidence
+institutional_investor_versions
+institutional_holding_versions
+
+margin_trading_versions
+securities_lending_versions
+
+market_index_versions
+corporate_action_versions
+official_valuation_versions
 ```
 
-Exact table decomposition may evolve through ADRs.
+Exact decomposition may differ if an ADR documents a better normalized design.
 
-Requirements:
+## Canonical Derived Storage Contract
+
+Phase 1 must also define the v1 storage/definition contract for cross-repo canonical derived datasets.
+
+At minimum decide the schema strategy for:
+
+```text
+technical indicators
+shareholding concentration
+valuation metrics
+margin metrics
+short-interest / SBL metrics
+```
+
+Suggested concepts may include:
+
+```text
+derived_dataset_definitions
+technical_indicator_versions
+shareholding_concentration_versions
+valuation_metric_versions
+margin_metric_versions
+short_interest_metric_versions
+```
+
+A domain may be declared virtual/on-demand rather than materialized, but that decision must be explicit in `docs/data_domain_inventory.md`.
+
+## Required Versioning / Provenance Semantics
+
+All applicable observed/materialized-derived datasets must define:
+
+```text
+logical key
+business revision semantics
+business_content_hash
+source
+ingested/system visibility time
+publication evidence relationship where applicable
+raw/ingest provenance where applicable
+indexes for expected PIT resolution
+```
+
+Canonical derived datasets must additionally define:
+
+```text
+derivation_version
+input lineage/fingerprint
+computation provenance
+PIT inheritance semantics
+```
+
+## Requirements
 
 - append-only business histories
 - append-only evidence histories
 - DB-enforced sealed aggregate immutability
+- concurrency-safe seal/child serialization
 - server/trusted timestamps
 - source-aware logical keys
 - canonical hash generation
 - lineage constraints
+- derivation-version semantics
+- complete legacy-domain mapping
 - PostgreSQL 18 migration round-trip
 
-Acceptance criteria:
+## Acceptance Criteria
 
+- [x] `docs/data_domain_inventory.md` exists and covers all known legacy tables/domains
+- [x] every legacy field/domain is intentionally mapped, deprecated, derived, raw-only, or downstream-owned
+- [x] all known v1 observed data domains have a defined storage contract
+- [x] all known v1 canonical-derived domains have a defined materialized/virtual contract
 - [x] child insert after seal is rejected
 - [x] sealed aggregate cannot be updated/deleted
+- [x] seal and child mutation serialize on the same aggregate identity
 - [x] committed unsealed aggregate can exist but is resolver-invisible
 - [x] caller cannot forge normal historical ingestion time
 - [x] business hash is storage-generated from canonical business content
@@ -932,11 +1447,15 @@ Acceptance criteria:
 - [x] correction/retraction can be represented append-only
 - [x] XBRL context identity supports dimensions
 - [x] source A capability does not leak to source B
+- [x] canonical derived tables/definitions include `derivation_version`
+- [x] derived `computed_at` is not used as market publication time
+- [x] migration tests cover every v1 table
 - [x] Alembic upgrade/downgrade/upgrade succeeds
+- [x] `alembic check` passes
 
 ---
 
-# 25. Phase 2 — Core PIT Resolver
+# 28. Phase 2 — Core PIT Resolver
 
 ## Goal
 
@@ -954,6 +1473,8 @@ system PIT resolver
 publication evidence resolver
 source policy resolver
 ```
+
+The resolver contract must be reusable by later observed and derived dataset phases.
 
 Required tests include:
 
@@ -978,32 +1499,36 @@ Acceptance criteria:
 
 ---
 
-# 26. Phase 3 — Security Metadata and Daily Price
+# 29. Phase 3 — Security Metadata and Daily Market Data
 
 ## Goal
 
-Deliver PIT-safe security identity/history and daily price access.
+Deliver PIT-safe security identity/history and daily market-data access.
 
 Include:
 
 ```text
 listed/delisted history
 security metadata versions
-daily price versions/revisions
+daily price/trading versions
 source provenance
 PIT queries
 ```
+
+The implementation must follow the Phase 1 disposition of legacy `daily_quotes` fields.
 
 Acceptance criteria:
 
 - [ ] no survivorship-only current security list
 - [ ] historical security state is queryable
-- [ ] daily prices are source/revision aware
+- [ ] daily market data is source/revision aware
+- [ ] intentionally preserved legacy observable fields are queryable
+- [ ] intentionally dropped fields are documented
 - [ ] dataset-specific regression tests exist
 
 ---
 
-# 27. Phase 4 — Monthly Revenue
+# 30. Phase 4 — Monthly Revenue
 
 ## Goal
 
@@ -1020,6 +1545,8 @@ raw provenance
 
 Required historical regression cases include delayed publication around known dates.
 
+Canonical revenue-derived metrics such as MoM/YoY may be implemented here or in Phase 9, but must follow the Phase 1 derivation contract.
+
 Acceptance criteria:
 
 - [ ] unknown publication is market-invisible
@@ -1030,7 +1557,7 @@ Acceptance criteria:
 
 ---
 
-# 28. Phase 5 — Financial / XBRL
+# 31. Phase 5 — Financial / XBRL
 
 ## Goal
 
@@ -1047,10 +1574,13 @@ publication evidence
 curated quarterly summary
 ```
 
+Historical actual EPS and other canonical financial facts must become available for downstream derived metrics.
+
 Acceptance criteria:
 
 - [ ] unsealed filings are invisible
 - [ ] child insert after seal fails
+- [ ] concurrent seal/child behavior preserves aggregate hash correctness
 - [ ] dimensional facts can coexist correctly
 - [ ] canonical duplicate facts are rejected
 - [ ] Q4 availability is controlled by evidence, not calendar shortcuts
@@ -1059,7 +1589,7 @@ Acceptance criteria:
 
 ---
 
-# 29. Phase 6 — TDCC
+# 32. Phase 6 — TDCC
 
 ## Goal
 
@@ -1075,6 +1605,8 @@ source/provenance
 publication/effective-time semantics
 ```
 
+TDCC raw distribution is the source dataset for later canonical shareholding-concentration calculations.
+
 Acceptance criteria:
 
 - [ ] snapshot is invisible before seal
@@ -1084,19 +1616,169 @@ Acceptance criteria:
 
 ---
 
-# 30. Phase 7 — Standardize Public REST Contract
+# 33. Phase 7 — Institutional, Margin, Short-Selling, and SBL Source Data
 
 ## Goal
 
-Expose already-correct dataset/resolver capabilities through a stable API.
+Implement PIT-safe source data required by reusable chip-flow and financing metrics.
 
-Phase 7 standardizes:
+Domains include, as applicable:
+
+```text
+institutional investor buy/sell/net flow
+foreign investor data
+investment trust data
+dealer data
+
+foreign/trust/dealer holdings
+
+margin balances
+short balances
+margin utilization source data
+
+securities borrowing and lending / SBL
+```
+
+Do not store model-specific interpretations here.
+
+Acceptance criteria:
+
+- [ ] each source domain has explicit logical/revision keys
+- [ ] publication/effective-time semantics are documented
+- [ ] historical backfill preserves system PIT
+- [ ] source-specific provenance is preserved
+- [ ] old model-selection raw dependencies can be reconstructed from Data Center source data
+- [ ] dataset-specific regression tests exist
+
+---
+
+# 34. Phase 8 — Market Indices, Corporate Actions, and Official Valuation
+
+## Goal
+
+Implement the remaining reusable observed market domains.
+
+### Market indices
+
+Provide PIT-safe history for:
+
+```text
+market-regime features
+benchmarks
+backtesting
+```
+
+### Corporate actions
+
+Implement:
+
+```text
+cash dividends
+stock dividends
+rights
+ex-dividend / ex-right events
+other supported corporate actions
+```
+
+This is the foundation for future adjusted prices and total-return calculations.
+
+### Official valuation
+
+Where a source publishes:
+
+```text
+PE
+PB
+dividend yield
+```
+
+preserve them as observed source data with source/revision semantics.
+
+Acceptance criteria:
+
+- [ ] index history is PIT-safe
+- [ ] corporate actions have explicit effective/announcement semantics
+- [ ] source-published valuation is distinguishable from computed valuation
+- [ ] backfill/revision provenance is preserved
+- [ ] dataset-specific regression tests exist
+
+---
+
+# 35. Phase 9 — Canonical Derived Datasets
+
+## Goal
+
+Implement deterministic reusable calculations shared by downstream repositories.
+
+Initial canonical domains:
+
+```text
+technical indicators
+shareholding concentration
+valuation metrics
+margin metrics
+short-interest / SBL metrics
+```
+
+Examples:
+
+```text
+MA5 / MA20 / MA60
+historical returns
+historical volatility
+RSI / MACD if standardized
+
+large/middle/small holder concentration
+
+TTM EPS
+canonical ROE/ROA/margins
+computed PE/PB where formula is standardized
+
+margin usage ratios
+short-interest ratios
+SBL pressure metrics
+```
+
+Only formulas with stable cross-repo meaning belong here.
+
+Model-specific combinations remain downstream.
+
+## Required Rules
+
+- explicit `derivation_version`
+- deterministic formula specification
+- PIT-safe input resolution
+- input lineage/fingerprint
+- no use of future inputs
+- `computed_at` is provenance, not market publication time
+- materialized and virtual computation must return equivalent semantics
+
+Acceptance criteria:
+
+- [ ] each canonical metric has documented formula/version
+- [ ] changing a formula requires a new derivation version
+- [ ] identical PIT inputs + derivation version produce identical results
+- [ ] derived market visibility inherits only from valid PIT inputs
+- [ ] both downstream repos can consume the same canonical definition
+- [ ] model-specific features are excluded from this layer
+- [ ] legacy calculator outputs selected for v1 can be reproduced or intentionally superseded
+
+---
+
+# 36. Phase 10 — Standardize Public REST Contract
+
+## Goal
+
+Expose already-correct observed and canonical-derived dataset capabilities through a stable API.
+
+Standardize:
 
 ```text
 routing
 request schemas
 PIT context schemas
 source selection
+derivation-version selection where applicable
 errors
 pagination
 provenance
@@ -1112,6 +1794,7 @@ information_as_of
 knowledge_as_of
 system_as_of
 source
+derivation_version
 ```
 
 Avoid ambiguous:
@@ -1127,16 +1810,17 @@ Acceptance criteria:
 
 - [ ] public endpoints do not expose DB tables
 - [ ] provenance is available in responses
+- [ ] derived responses identify derivation version
 - [ ] invalid PIT combinations fail loudly
 - [ ] API works with `CACHE_BACKEND=none`
 
 ---
 
-# 31. Phase 8 — Optional Cache Abstraction
+# 37. Phase 11 — Optional Cache Abstraction
 
 ## Goal
 
-Add caching without changing resolver semantics.
+Add caching without changing resolver or derivation semantics.
 
 Implement:
 
@@ -1150,18 +1834,18 @@ cache policy
 
 Start with `NullCache`.
 
-Then add integration points above PIT resolution.
+Then add integration points above resolved observed/derived query execution.
 
 Acceptance criteria:
 
 - [ ] default/no-cache mode remains fully functional
 - [ ] cache layer contains no PIT business rules
-- [ ] cache key includes all temporal/source semantics
+- [ ] cache key includes all temporal/source/derivation semantics
 - [ ] cache hit returns the same response schema/provenance as a miss
 
 ---
 
-# 32. Phase 9 — Redis Backend
+# 38. Phase 12 — Redis Backend
 
 ## Goal
 
@@ -1202,14 +1886,15 @@ same query, Redis warm -> result A
 Redis failure fallback -> result A
 ```
 
-Required PIT cache regression tests:
+Required cache identity tests:
 
 ```text
-different information_as_of -> different cache identity
-different knowledge_as_of -> different cache identity
-different system_as_of -> different cache identity
-different source -> different cache identity
-resolver version bump -> different namespace
+different information_as_of -> different identity
+different knowledge_as_of -> different identity
+different system_as_of -> different identity
+different source -> different identity
+different derivation_version -> different identity
+resolver/response version bump -> different namespace
 ```
 
 Acceptance criteria:
@@ -1218,21 +1903,23 @@ Acceptance criteria:
 - [ ] Redis outage does not fail correct PostgreSQL-backed queries
 - [ ] cache-on/cache-off result equality is tested
 - [ ] no cache key omits PIT context
+- [ ] no derived cache key omits derivation version
 - [ ] Redis persistence is not required
 - [ ] cache metrics expose hit/miss/error behavior
 
 ---
 
-# 33. Phase 10 — Operational Tooling and Observability
+# 39. Phase 13 — Operational Tooling and Observability
 
 ## Goal
 
-Make ingestion, PIT reads, PostgreSQL behavior, and cache behavior observable.
+Make ingestion, derivation, PIT reads, PostgreSQL behavior, and cache behavior observable.
 
 Include metrics/logging for:
 
 ```text
 ingest runs
+derived calculation runs
 PIT query latency
 PostgreSQL query latency
 cache hits
@@ -1242,9 +1929,10 @@ cache bypasses
 result sizes
 source failures
 seal failures
+derivation failures
 ```
 
-Operational diagnostics should make it possible to determine whether Redis is actually reducing PostgreSQL workload / SSD reads.
+Operational diagnostics should make it possible to determine whether Redis/materialization is actually reducing PostgreSQL workload / SSD reads.
 
 Useful host/database observation may include:
 
@@ -1259,7 +1947,7 @@ Do not make performance assumptions without measurement.
 
 ---
 
-# 34. Phase 11 — Full PIT Regression and CI Gate
+# 40. Phase 14 — Full PIT Regression and CI Gate
 
 ## Goal
 
@@ -1271,17 +1959,23 @@ Core test families:
 
 ```text
 schema/migration tests
+legacy-domain inventory/schema coverage tests
 append-only tests
-seal tests
+seal/concurrency tests
 business revision tests
 publication evidence tests
 two-clock market PIT tests
 system PIT tests
 source-level capability tests
-daily price tests
+
+daily market data tests
 revenue tests
 XBRL tests
 TDCC tests
+institutional/margin/SBL tests
+index/corporate-action/valuation tests
+derived-dataset tests
+
 API tests
 cache equivalence tests
 Redis failure tests where practical
@@ -1300,6 +1994,8 @@ git diff --check
 Acceptance criteria:
 
 - [ ] PIT regressions block merge
+- [ ] schema/domain coverage regressions block merge
+- [ ] derived-version regressions block merge
 - [ ] cache regressions block merge
 - [ ] PostgreSQL 18 is verified
 - [ ] all dataset-specific suites are included
@@ -1307,7 +2003,7 @@ Acceptance criteria:
 
 ---
 
-# 35. Phase 12 — Downstream Readiness
+# 41. Phase 15 — Downstream Readiness
 
 ## Goal
 
@@ -1324,26 +2020,44 @@ Provide stable client/API examples for:
 historically reproducible market query
 current-best market reconstruction
 system PIT query
+
 historical universe
-daily prices
+daily market data
 monthly revenue
 financials
 actual EPS history
 TDCC
+institutional/chip-flow source data
+margin/SBL
+market indices
+corporate actions
+official valuation
+
+canonical technical indicators
+canonical concentration metrics
+canonical valuation metrics
+canonical margin/short-interest metrics
 ```
 
-Downstream systems must not need to know whether Redis exists.
+Downstream systems must not need to know whether:
+
+```text
+a derived value was materialized or computed on demand
+Redis exists
+```
 
 Acceptance criteria:
 
 - [ ] downstream code uses only API/SDK
 - [ ] no downstream DB credentials are required
 - [ ] no downstream Redis credentials are required
+- [ ] both downstream repos can share canonical derived definitions
 - [ ] changing CACHE_BACKEND requires no downstream code change
+- [ ] model-specific features remain downstream-owned
 
 ---
 
-# 36. Suggested Source Layout
+# 42. Suggested Source Layout
 
 ```text
 stock-data-center/
@@ -1362,6 +2076,8 @@ stock-data-center/
 │   ├── pit_semantics.md
 │   ├── schema.md
 │   ├── data_sources.md
+│   ├── data_domain_inventory.md
+│   ├── derived_data.md
 │   ├── cache.md
 │   ├── phase_reports/
 │   └── decisions/
@@ -1370,6 +2086,11 @@ stock-data-center/
 │       ├── api/
 │       ├── services/
 │       ├── pit/
+│       ├── derived/
+│       │   ├── technical/
+│       │   ├── ownership/
+│       │   ├── valuation/
+│       │   └── margin/
 │       ├── cache/
 │       │   ├── base.py
 │       │   ├── null_cache.py
@@ -1389,7 +2110,7 @@ stock-data-center/
 
 ---
 
-# 37. Definition of Done for v1
+# 43. Definition of Done for v1
 
 Version 1 is complete when:
 
@@ -1397,32 +2118,44 @@ Version 1 is complete when:
 - [ ] market PIT supports `information_as_of` + `knowledge_as_of`
 - [ ] system PIT supports exact ingestion reconstruction
 - [ ] business revisions and publication-evidence revisions are separate
-- [ ] complex aggregates are seal-protected
+- [ ] complex aggregates are concurrency-safe and seal-protected
 - [ ] source-level PIT capability is enforced
 - [ ] XBRL full context identity is supported
 - [ ] raw provenance is auditable
+
+- [ ] all known v1 legacy/source domains have an explicit storage/ownership mapping
+- [ ] all required observed domains have PIT-safe storage/query support
+- [ ] reusable canonical derived datasets have versioned derivation semantics
+- [ ] model-specific features remain outside Data Center
+
 - [ ] REST API is stable
 - [ ] Redis is optional
 - [ ] Data Center works without Redis
 - [ ] Redis failure falls back safely
 - [ ] cache keys are PIT-aware
+- [ ] derived cache keys include derivation identity
 - [ ] cache-on/cache-off results are identical
-- [ ] full PIT/cache regression suite runs in CI
+- [ ] full PIT/domain/derived/cache regression suite runs in CI
 - [ ] downstream ML repos need neither DB nor Redis access
 
 ---
 
-# 38. Core Design Principles
+# 44. Core Design Principles
 
 1. Correct historical visibility before convenience.
-2. PostgreSQL is truth; Redis is disposable optimization.
-3. Redis may improve performance but may never change semantics.
-4. Market time and Data Center knowledge time are separate clocks.
-5. System PIT means actual complete ingestion history.
-6. Business revisions and evidence revisions are separate.
-7. Complex aggregates become visible only when sealed.
-8. Sources remain separate unless an explicit reconciliation policy exists.
-9. Cache resolved results, not database implementation details.
-10. Every cache identity must include all PIT-relevant semantics.
-11. Downstream ML systems never reproduce PIT rules.
-12. Measure SSD/database behavior before claiming cache benefit.
+2. Phase 1 defines the complete known v1 storage contract, not only the first few datasets.
+3. PostgreSQL is truth; Redis is disposable optimization.
+4. Redis may improve performance but may never change semantics.
+5. Market time and Data Center knowledge time are separate clocks.
+6. System PIT means actual complete ingestion history.
+7. Business revisions and evidence revisions are separate.
+8. Complex aggregates become visible only when sealed and remain correct under concurrency.
+9. Sources remain separate unless an explicit reconciliation policy exists.
+10. Data Center may own deterministic cross-repo canonical derived datasets.
+11. Every canonical derived dataset must have a derivation version and PIT-safe input lineage.
+12. `computed_at` is derivation provenance, not market publication time.
+13. Model-specific features remain in ML repositories.
+14. Cache resolved results, not database implementation details.
+15. Every cache identity must include all PIT/source/derivation semantics.
+16. Downstream ML systems never reproduce PIT rules.
+17. Measure SSD/database behavior before claiming cache benefit.

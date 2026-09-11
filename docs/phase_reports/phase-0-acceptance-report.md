@@ -15,6 +15,7 @@ Normative documents:
 - [Architecture contract](../architecture.md)
 - [Point-in-time semantics](../pit_semantics.md)
 - [Optional cache contract](../cache.md)
+- [Canonical derived data contract](../derived_data.md)
 
 Accepted decisions:
 
@@ -23,6 +24,7 @@ Accepted decisions:
 - [ADR-0003: immutable aggregates, hashes, and provenance](../decisions/0003-immutable-aggregates-hashes-and-provenance.md)
 - [ADR-0004: source capability and cross-source policy](../decisions/0004-source-capability-and-cross-source-policy.md)
 - [ADR-0005: optional cache architecture](../decisions/0005-optional-cache-architecture.md)
+- [ADR-0007: canonical derived ownership and PIT](../decisions/0007-canonical-derived-data-ownership-and-pit.md)
 
 ## Required acceptance criteria
 
@@ -34,11 +36,13 @@ Accepted decisions:
 | Business and evidence revisions are separate | PASS | ADR-0002 declares two append-only histories and states that better evidence cannot create a business revision; its duplicate-fetch rule preserves lineage independently. |
 | Only sealed complex aggregates are visible | PASS | ADR-0003 defines the draft-to-seal lifecycle, resolver invisibility before seal, trusted seal time, dataset-specific seal FKs, and DB-enforced post-seal immutability. |
 | Source-level PIT capability is defined | PASS | ADR-0004 assigns capability to `(dataset_code, source)`, defines owned fields and explicit failure for unsupported combinations, and prohibits capability inheritance. |
+| Observed vs canonical-derived ownership is defined | PASS | `docs/derived_data.md`, “Ownership boundary”, and ADR-0007 define deterministic reusable financial metrics as Data Center-owned while model-specific transformations remain downstream. |
+| Derived `computed_at` is explicitly not market publication time | PASS | `docs/derived_data.md`, “PIT inheritance”, and `docs/pit_semantics.md`, “Derived PIT inheritance”, define `computed_at` as operational provenance and forbid its use as publication evidence. |
 | Redis is explicitly optional | PASS | `docs/cache.md`, “Authority and placement”, accepts both `CACHE_BACKEND=none` and `CACHE_BACKEND=redis`; ADR-0005 makes PostgreSQL authoritative and Redis disposable. |
 | Cache-on/cache-off equivalence is an invariant | PASS | `docs/cache.md` states equality across NullCache, Redis cold, Redis warm, and Redis failure fallback, including provenance and schema. ADR-0005 accepts the invariant. |
-| PIT-aware cache-key fields are documented | PASS | `docs/cache.md`, “Canonical identity”, specifies contract/schema/resolver versions, dataset, all business parameters, resolved source, PIT mode, and the mode-specific cutoff fields, plus deterministic serialization and hashing. |
+| PIT-aware cache-key fields are documented | PASS | `docs/cache.md`, “Canonical identity”, specifies contract/schema/resolver/derivation versions, dataset, all business parameters, resolved source, PIT mode, and mode-specific cutoff fields, plus deterministic serialization and hashing. |
 
-All nine required criteria pass. Phase 1 may begin only through a separate,
+All eleven required criteria pass. Phase 1 may begin only through a separate,
 explicit task and must not introduce Redis.
 
 ## Additional contract evidence
@@ -51,10 +55,12 @@ explicit task and must not introduce Redis.
 - Cache failure, namespace evolution, payload completeness, alias handling, and
   temporal migration impact: `docs/cache.md` and ADR-0005.
 - Ownership and downstream access boundaries: `docs/architecture.md`.
+- Canonical-derived ownership, definition versioning, PIT inheritance, and
+  materialized/virtual equivalence: `docs/derived_data.md` and ADR-0007.
 
 ## Verification
 
-- Required Phase 0 documents and all five ADRs were checked for presence.
+- Required Phase 0 documents and all applicable ADRs were checked for presence.
 - Internal Markdown links in Phase 0 documents were checked to resolve to local
   files.
 - Whitespace/error checking was run across the delivered Markdown files.

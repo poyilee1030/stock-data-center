@@ -13,6 +13,7 @@ PostgreSQL history
 business revisions
 publication evidence
 PIT visibility
+canonical reusable derived datasets
 public API
 optional query-result caching
 ```
@@ -24,11 +25,12 @@ EPS model training
 stock-selection model training
 portfolio research
 strategy ranking logic
+model-specific experimental features
 ```
 
 The highest-priority requirement is:
 
-> Historical correctness must not depend on current database state, caller discipline, or cache availability.
+> Historical correctness must not depend on current database state, caller discipline, derivation timing, or cache availability.
 
 ---
 
@@ -44,7 +46,7 @@ Do not maintain competing version-suffixed roadmaps in the repository root.
 
 Work one phase at a time.
 
-Do not begin later phases merely because the code is convenient to add.
+Do not begin later phases merely because code is convenient to add.
 
 At the end of each phase, produce:
 
@@ -95,6 +97,7 @@ what the Data Center had ingested
 which revision was visible
 which publication evidence was authoritative
 which source policy applies
+which canonical derivation definition applies
 ```
 
 Downstream consumers receive resolved data.
@@ -141,6 +144,7 @@ run migrations
 start in CACHE_BACKEND=none
 ingest data
 resolve PIT queries
+calculate canonical derived data
 pass core correctness tests
 ```
 
@@ -194,7 +198,7 @@ Do not implement long blocking retries in the request path.
 
 # 8. Cache Layer Placement
 
-Cache resolved Data Center responses above the PIT resolver.
+Cache resolved Data Center responses above the PIT resolver / canonical-derivation service.
 
 Correct:
 
@@ -202,7 +206,7 @@ Correct:
 API
  -> service
  -> cache
- -> PIT resolver on miss
+ -> PIT resolver / derived service on miss
  -> PostgreSQL
 ```
 
@@ -212,6 +216,7 @@ Avoid:
 API route containing Redis code
 SQL repository containing Redis code
 PIT resolver changing semantics based on cache
+derived calculator changing formulas based on cache
 ```
 
 Use a cache abstraction.
@@ -272,7 +277,13 @@ For system PIT:
 system_as_of
 ```
 
-Omitting any PIT cutoff from a cached query identity is a P0 bug.
+For canonical derived queries:
+
+```text
+derivation_version
+```
+
+Omitting any PIT cutoff or derivation identity from a cached query key is a P0 bug.
 
 Use canonical serialization before hashing.
 
@@ -291,6 +302,7 @@ cache contract
 response schema
 PIT resolver semantics
 source reconciliation semantics
+derivation semantics
 ```
 
 Prefer namespace/version bumps over broad ad hoc deletion.
@@ -313,10 +325,12 @@ price windows
 resolved revenue
 resolved financials
 resolved TDCC
+institutional/margin/SBL query results
+canonical derived results
 large repeated historical query results
 ```
 
-The objective is to avoid repeated DB/PIT work.
+The objective is to avoid repeated DB/PIT/derivation work.
 
 ---
 
@@ -339,6 +353,7 @@ reproducibility
 business revision history
 publication evidence
 ingestion history
+derivation definitions
 ```
 
 Those belong in PostgreSQL/raw provenance storage.
@@ -501,7 +516,34 @@ Enforce immutability in PostgreSQL.
 
 ---
 
-# 21. Seal Table Rule
+# 21. Seal Concurrency Rule
+
+Seal and child mutation must serialize on the same aggregate identity.
+
+For concurrent seal vs child mutation, only these outcomes are valid:
+
+```text
+child commits first
+-> seal sees and hashes the child
+
+or
+
+seal commits first
+-> child mutation is rejected
+```
+
+This outcome is forbidden:
+
+```text
+seal hash excludes child
+but child commits afterward
+```
+
+Keep real multi-connection concurrency regression tests.
+
+---
+
+# 22. Seal Table Rule
 
 Prefer dataset-specific seal tables with real foreign keys.
 
@@ -515,7 +557,7 @@ when they cannot be protected by real referential integrity.
 
 ---
 
-# 22. Ingestion-Time Rule
+# 23. Ingestion-Time Rule
 
 Normal callers must not provide authoritative historical ingestion timestamps.
 
@@ -525,7 +567,7 @@ Historical timestamp preservation is allowed only through a dedicated trusted mi
 
 ---
 
-# 23. Business Hash Rule
+# 24. Business Hash Rule
 
 `business_content_hash` is storage-generated from canonical business values.
 
@@ -546,7 +588,7 @@ in business content identity.
 
 ---
 
-# 24. Hash Separation
+# 25. Hash Separation
 
 Keep separate:
 
@@ -560,7 +602,7 @@ Do not reuse a generic `content_hash` to mean different identities.
 
 ---
 
-# 25. Duplicate Fetch Rule
+# 26. Duplicate Fetch Rule
 
 A repeated fetch with unchanged business content:
 
@@ -578,7 +620,7 @@ Design lineage accordingly.
 
 ---
 
-# 26. Provenance Integrity
+# 27. Provenance Integrity
 
 If a record stores:
 
@@ -593,7 +635,7 @@ Do not allow mismatched lineage IDs.
 
 ---
 
-# 27. Raw Artifact Rule
+# 28. Raw Artifact Rule
 
 Raw artifacts are immutable and content-addressed.
 
@@ -603,7 +645,7 @@ Raw artifacts are evidence/provenance, not a cache.
 
 ---
 
-# 28. Source-Level PIT Capability
+# 29. Source-Level PIT Capability
 
 PIT capability belongs to:
 
@@ -617,7 +659,7 @@ Do not let verified evidence rules for one source authorize another source.
 
 ---
 
-# 29. Cross-Source Rule
+# 30. Cross-Source Rule
 
 Preserve independent source histories.
 
@@ -636,7 +678,7 @@ New reconciliation policies require ADR + tests.
 
 ---
 
-# 30. Unknown Publication Rule
+# 31. Unknown Publication Rule
 
 If:
 
@@ -652,7 +694,7 @@ Do not invent a historical publication timestamp.
 
 ---
 
-# 31. Backfill Rule
+# 32. Backfill Rule
 
 If reliable retained evidence proves a source was public earlier:
 
@@ -672,7 +714,7 @@ Do not use current wall-clock time as fake historical publication metadata.
 
 ---
 
-# 32. XBRL Context Rule
+# 33. XBRL Context Rule
 
 Financial facts require a non-null canonical context identity.
 
@@ -692,7 +734,7 @@ Do not rely on nullable date columns as the fact uniqueness key.
 
 ---
 
-# 33. Timezone Rule
+# 34. Timezone Rule
 
 Use timezone-aware timestamps only.
 
@@ -712,7 +754,428 @@ Never compare naive and aware datetimes silently.
 
 ---
 
-# 34. API Boundary Rule
+# 35. Data Domain Inventory Is Mandatory
+
+Phase 1 must define the complete known v1 storage contract.
+
+Maintain:
+
+```text
+docs/data_domain_inventory.md
+```
+
+Every relevant legacy table/domain/field must be mapped to one of:
+
+```text
+observed/source dataset
+canonical derived dataset
+model-specific downstream feature
+raw-artifact-only
+deprecated / intentionally removed
+```
+
+No known v1 legacy domain may remain unmapped when Phase 1 is accepted.
+
+---
+
+# 36. Phase 1 Is Complete v1 Storage Contract
+
+Phase 1 is NOT merely:
+
+```text
+create a few core PIT tables
+```
+
+Phase 1 must define the complete known v1 storage contract for:
+
+```text
+core identity/provenance
+daily market data
+monthly revenue
+financial/XBRL
+TDCC
+
+institutional investor data
+foreign/trust/dealer source data
+
+margin trading
+short selling
+SBL
+
+market indices
+corporate actions
+official valuation source data
+
+canonical derived dataset definitions/storage strategy
+```
+
+Later phases may populate and expose these datasets.
+
+Empty-but-correct tables/contracts are acceptable in Phase 1.
+
+---
+
+# 37. Legacy Domain Coverage Rule
+
+Before Phase 1 is accepted, review the old DB inventory field-by-field.
+
+Do not silently omit old observable data.
+
+For each field/domain, explicitly decide:
+
+```text
+keep as observed
+recompute as canonical derived
+leave to downstream model
+preserve only in raw artifact
+deprecate intentionally
+```
+
+Document the decision.
+
+---
+
+# 38. Observed vs Canonical-Derived Boundary
+
+Do not use this oversimplified boundary:
+
+```text
+raw -> Data Center
+derived -> ML repo
+```
+
+Use this boundary instead:
+
+```text
+Data Center
+=
+observable/source facts
++
+deterministic reusable canonical derived data
+
+ML repos
+=
+model-specific transformations/features/labels/training
+```
+
+A derived value may belong in Data Center if it has a stable cross-repo financial definition.
+
+---
+
+# 39. Canonical Derived Dataset Rule
+
+Canonical derived datasets are allowed in Data Center when they are:
+
+```text
+deterministic
+cross-repo reusable
+financially well-defined
+independent of a specific ML model
+reconstructible from PIT-safe Data Center inputs
+```
+
+Examples:
+
+```text
+technical indicators
+shareholding concentration
+TTM EPS
+canonical ROE/ROA/margins
+margin usage ratios
+short-interest/SBL ratios
+```
+
+---
+
+# 40. Model-Specific Feature Rule
+
+Do not put model-specific features into Data Center.
+
+Forbidden examples:
+
+```text
+selection_score_v4
+momentum_quality_combo
+eps_growth_signal_weighted
+experiment-specific interaction terms
+```
+
+These belong in downstream ML repositories.
+
+---
+
+# 41. Derivation Version Is Mandatory
+
+Every canonical derived dataset must have an explicit:
+
+```text
+derivation_version
+```
+
+Formula changes require a new derivation version.
+
+Do not silently overwrite historical derived values with a changed implementation.
+
+Example:
+
+```text
+technical_indicators:v1
+technical_indicators:v2
+```
+
+---
+
+# 42. Derivation Definition Rule
+
+A canonical derivation definition must preserve enough information to identify its semantics.
+
+At minimum:
+
+```text
+dataset code
+derivation version
+formula/specification
+implementation version or git commit
+required input datasets
+calendar/timezone convention where relevant
+price-adjustment convention where relevant
+registration timestamp
+```
+
+Keep this in schema/docs appropriate to the implementation.
+
+---
+
+# 43. Derived PIT Rule
+
+A derived value does not create a new market-publication time merely because Data Center computed it later.
+
+For market PIT:
+
+```text
+derived visibility inherits from PIT-safe input visibility
+```
+
+For example:
+
+```text
+MA20
+TTM EPS
+large-holder concentration
+margin usage ratio
+```
+
+must use only inputs visible under the requested PIT context.
+
+Do not set:
+
+```text
+published_at = computed_at
+```
+
+for a canonical derived metric.
+
+---
+
+# 44. `computed_at` Rule
+
+`computed_at` means:
+
+```text
+when Data Center calculated/materialized the derived result
+```
+
+It is provenance / operational metadata.
+
+It is NOT:
+
+```text
+market publication time
+```
+
+Do not use `computed_at` to determine market PIT visibility.
+
+---
+
+# 45. Derived Lineage Rule
+
+Materialized canonical derived results must preserve:
+
+```text
+derivation_version
+input dataset identity
+input lineage / deterministic input fingerprint
+PIT context
+computation provenance
+business-content hash
+```
+
+Repeated recomputation with identical inputs and derivation version must not create a semantically different result.
+
+---
+
+# 46. Materialized vs Virtual Derived Data
+
+Canonical derived datasets may be:
+
+```text
+materialized in PostgreSQL
+or
+computed on demand and cached
+```
+
+Storage strategy is a performance decision.
+
+The financial definition and PIT semantics must remain identical.
+
+Do not make downstream repos care whether a result is materialized or virtual.
+
+---
+
+# 47. Shared Derived Data Goal
+
+If both:
+
+```text
+stock-eps-model
+stock-model-selection
+```
+
+need the same canonical metric, prefer one Data Center definition rather than independent reimplementations.
+
+This avoids:
+
+```text
+formula drift
+PIT drift
+duplicate computation
+inconsistent feature semantics
+```
+
+---
+
+# 48. Daily Market Legacy Coverage
+
+The legacy `daily_quotes` domain must be reviewed field-by-field.
+
+At minimum decide the v1 disposition of:
+
+```text
+OHLC
+volume
+trade value
+trade count
+price change
+bid/ask fields
+other source-observable values
+```
+
+Do not assume OHLCV alone is sufficient without an explicit inventory decision.
+
+---
+
+# 49. Institutional / Chip-Flow Coverage
+
+The v1 storage contract must cover source data required to reproduce legacy institutional/chip-flow metrics, including as applicable:
+
+```text
+institutional investor buy/sell/net flow
+foreign investor data
+investment trust data
+dealer data
+foreign/trust/dealer holdings
+```
+
+Exact table decomposition may differ, but the domain cannot remain undefined.
+
+---
+
+# 50. Margin / SBL Coverage
+
+The v1 storage contract must cover:
+
+```text
+margin trading
+short selling
+securities borrowing and lending
+```
+
+Derived pressure/ratio metrics may be canonical derived datasets.
+
+Do not migrate old model-specific interpretations as source facts.
+
+---
+
+# 51. Corporate Action Coverage
+
+The v1 schema must define a corporate-action domain for:
+
+```text
+cash dividends
+stock dividends
+rights
+ex-dividend / ex-right events
+other supported corporate actions
+```
+
+This is required for future adjusted-price and total-return correctness.
+
+---
+
+# 52. Market Index Coverage
+
+The v1 schema must define historical market-index storage used by:
+
+```text
+market-regime features
+benchmarks
+backtests
+```
+
+Do not force downstream backtesters to source their own index data.
+
+---
+
+# 53. Official Valuation vs Computed Valuation
+
+Keep these concepts separate:
+
+```text
+source-published PE/PB/dividend yield
+```
+
+and:
+
+```text
+Data Center-computed valuation metrics
+```
+
+The former is observed source data.
+
+The latter is canonical derived data.
+
+Do not collapse them into one ambiguous table without clear source/derivation semantics.
+
+---
+
+# 54. Monthly Revenue Derived Fields
+
+Values such as:
+
+```text
+MoM
+YoY
+cumulative revenue
+cumulative YoY
+```
+
+may be recomputed from PIT-safe monthly revenue history.
+
+Do not duplicate them as source facts unless preserving the source-published value itself is intentional and documented.
+
+---
+
+# 55. API Boundary Rule
 
 Public clients may know:
 
@@ -720,6 +1183,7 @@ Public clients may know:
 dataset concepts
 PIT context
 source selection
+derivation version
 provenance
 ```
 
@@ -735,7 +1199,7 @@ Do not leak infrastructure details into downstream model repos.
 
 ---
 
-# 35. Downstream Credential Rule
+# 56. Downstream Credential Rule
 
 `stock-eps-model` and `stock-model-selection` must not require:
 
@@ -748,7 +1212,7 @@ They use only Data Center API/SDK credentials/configuration.
 
 ---
 
-# 36. Ingestion and Query Separation
+# 57. Ingestion and Query Separation
 
 Write path:
 
@@ -759,22 +1223,22 @@ source -> raw artifact -> parser -> normalization -> PostgreSQL
 Read path:
 
 ```text
-client -> API -> optional cache -> PIT resolver -> PostgreSQL
+client -> API -> optional cache -> PIT resolver / derived service -> PostgreSQL
 ```
 
 Do not route ingestion correctness through Redis.
 
 ---
 
-# 37. No Cache-Only Writes
+# 58. No Cache-Only Writes
 
-Never write business/evidence data only to Redis.
+Never write business/evidence/derivation-definition data only to Redis.
 
 All durable writes go through authoritative storage/provenance paths.
 
 ---
 
-# 38. Query Alias Rule
+# 59. Query Alias Rule
 
 Avoid ambiguous cache behavior for:
 
@@ -789,15 +1253,21 @@ Use shorter TTLs for intentionally dynamic current queries.
 
 ---
 
-# 39. Cache TTL Rule
+# 60. Cache TTL Rule
 
 TTL is a performance policy, not a correctness mechanism.
 
-Never rely on "the wrong key will expire soon" as a substitute for correct cache identity.
+Never rely on:
+
+```text
+the wrong key will expire soon
+```
+
+as a substitute for correct cache identity.
 
 ---
 
-# 40. Cache Serialization Rule
+# 61. Cache Serialization Rule
 
 Cache encoding must be deterministic and versioned.
 
@@ -807,7 +1277,7 @@ Do not return a reduced-information cached response.
 
 ---
 
-# 41. Observability Rule
+# 62. Observability Rule
 
 Expose/log enough information to distinguish:
 
@@ -818,6 +1288,7 @@ cache error
 cache bypass
 PostgreSQL query
 resolver latency
+derived calculation latency
 response size
 ```
 
@@ -825,19 +1296,20 @@ Do not log sensitive credentials or raw connection strings.
 
 ---
 
-# 42. SSD Optimization Rule
+# 63. SSD Optimization Rule
 
-Redis is intended primarily as a read/query workload optimization.
+Redis/materialization are intended primarily as read/query workload optimizations.
 
 Do not claim SSD benefit without measurement.
 
-Use database/host metrics such as:
+Use metrics such as:
 
 ```text
 PostgreSQL blks_read / blks_hit
 query timings
 iostat
 cache hit/miss metrics
+derived recomputation counts
 ```
 
 Redis does not eliminate PostgreSQL write I/O from:
@@ -852,7 +1324,7 @@ vacuum
 
 ---
 
-# 43. Testing Cache Correctness
+# 64. Testing Cache Correctness
 
 Every cacheable query family must test at least:
 
@@ -865,11 +1337,28 @@ Redis unavailable fallback result
 
 All must match semantically.
 
-Also test that changing each relevant PIT/source parameter produces a distinct cache identity.
+Also test that changing each relevant PIT/source/derivation parameter produces a distinct cache identity.
 
 ---
 
-# 44. PIT Regression Tests Are Permanent
+# 65. Testing Derived Correctness
+
+Every canonical derived dataset must have tests for:
+
+```text
+deterministic formula output
+derivation-version behavior
+PIT-safe input selection
+no future input leakage
+input lineage/fingerprint
+materialized vs virtual equivalence where both exist
+```
+
+A derivation bug is not fixed until a regression test exists.
+
+---
+
+# 66. PIT Regression Tests Are Permanent
 
 Once a PIT/leakage bug is found, add a regression test.
 
@@ -884,21 +1373,24 @@ backfill
 evidence correction
 evidence retraction
 sealed aggregate
+seal concurrency
 source capability isolation
 XBRL dimensions
+derived PIT inheritance
 cache PIT identity
 cache failure fallback
 ```
 
 ---
 
-# 45. Phase Scope Discipline
+# 67. Phase Scope Discipline
 
 When implementing one ROADMAP phase:
 
 - implement only that phase
 - do not weaken existing acceptance criteria
 - do not silently change PIT semantics
+- do not silently change derivation semantics
 - record architectural changes in ADRs
 - keep phase reports current
 - avoid unrelated refactors
@@ -907,27 +1399,59 @@ If a later-phase optimization is needed for correctness, document why.
 
 ---
 
-# 46. Phase 1 Special Rule
+# 68. Phase 1 Special Rule
 
-Phase 1 correctness work takes priority over cache work.
+Phase 1 must establish the complete known v1 storage and ownership contract.
 
-Do not introduce Redis into Phase 1 schema implementation.
+Do not accept Phase 1 merely because the currently implemented core tables are correct.
 
-First make PostgreSQL/PIT semantics correct with cache disabled.
+Before Phase 1 completion:
+
+```text
+docs/data_domain_inventory.md must be complete
+all known v1 domains must be mapped
+all intended v1 observed domains must have storage contracts
+all intended v1 canonical-derived domains must have materialized/virtual contracts
+```
+
+Phase 1 may leave tables empty.
+
+Phase 1 does not need to implement all ingestion/calculator pipelines.
 
 ---
 
-# 47. Cache Phase Special Rule
+# 69. Phase 1 No-Redis Rule
 
-When adding Redis, do not modify expected resolver output to improve cacheability.
+Do not introduce Redis into Phase 1 schema correctness work.
 
-Adapt caching to the resolver contract, not the resolver contract to Redis.
+First complete:
+
+```text
+storage contract
+constraints
+PIT metadata
+provenance
+domain coverage
+derived-data contract
+```
+
+Caching remains a later optimization phase.
 
 ---
 
-# 48. Migration Rule
+# 70. Derived Implementation Phase Rule
 
-A migration that changes historical temporal meaning must include a cache-impact section.
+Phase 1 may define canonical derived storage/definition contracts.
+
+Actual calculators belong in the later canonical-derived-data phase unless needed for schema validation.
+
+Do not implement model training logic inside derived calculators.
+
+---
+
+# 71. Migration Rule
+
+A migration that changes historical temporal or derivation meaning must include a cache-impact section.
 
 If it can change prior cached query results:
 
@@ -941,7 +1465,7 @@ before/with rollout.
 
 ---
 
-# 49. Redis Configuration Rule
+# 72. Redis Configuration Rule
 
 Redis-specific configuration belongs in deployment/configuration files.
 
@@ -959,7 +1483,7 @@ inside domain logic.
 
 ---
 
-# 50. Security Rule
+# 73. Security Rule
 
 If Redis is remote:
 
@@ -972,28 +1496,30 @@ Redis is infrastructure, not a public API.
 
 ---
 
-# 51. Priority Order
+# 74. Priority Order
 
 When tradeoffs exist, prioritize:
 
 ```text
 1. PIT correctness
 2. historical auditability
-3. provenance integrity
-4. deterministic behavior
-5. source isolation
-6. cache/result equivalence
-7. maintainability
-8. performance
-9. SSD/read reduction
-10. convenience
+3. complete v1 domain ownership/storage contract
+4. provenance integrity
+5. deterministic behavior
+6. source isolation
+7. derivation-version correctness
+8. cache/result equivalence
+9. maintainability
+10. performance
+11. SSD/read reduction
+12. convenience
 ```
 
-Never trade the first six for cache performance.
+Never trade the first eight for performance.
 
 ---
 
-# 52. Phase Completion Checklist
+# 75. Phase Completion Checklist
 
 Before declaring any phase complete:
 
@@ -1005,6 +1531,16 @@ PIT semantics preserved
 provenance preserved
 no source-capability leakage
 no direct downstream DB/cache dependency introduced
+```
+
+For Phase 1 additionally:
+
+```text
+legacy/domain inventory complete
+all known v1 domains mapped
+observed storage contracts complete
+canonical-derived contracts complete
+derivation-version semantics documented
 ```
 
 For cache phases additionally:
@@ -1019,7 +1555,7 @@ Then publish the phase acceptance report.
 
 ---
 
-# 53. Core Boundary
+# 76. Core Boundary
 
 Remember the repository contract:
 
@@ -1033,19 +1569,20 @@ owns:
     revisions
     provenance
     PostgreSQL
+    canonical reusable derived data
     optional cache
     API
 
 stock-eps-model
 owns:
-    EPS features
+    EPS-specific features
     EPS labels
     EPS training
     EPS prediction
 
 stock-model-selection
 owns:
-    selection features
+    model-specific selection features
     forward-return labels
     selection training
     ranking
@@ -1053,5 +1590,7 @@ owns:
 ```
 
 Redis must remain an optional implementation detail of `stock-data-center`.
+
+Canonical derived datasets must remain model-independent, versioned, PIT-safe, and reusable.
 
 Enabling, disabling, restarting, or losing Redis may affect performance, but must never affect PIT correctness or returned data.

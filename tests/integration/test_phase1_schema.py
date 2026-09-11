@@ -19,6 +19,24 @@ from conftest import alembic_config
 pytestmark = pytest.mark.integration
 
 
+V1_TABLES = {
+    "dataset_catalog", "dataset_sources", "security", "ingest_runs",
+    "raw_artifacts", "raw_artifact_observations",
+    "security_metadata_versions", "daily_price_versions",
+    "monthly_revenue_versions", "financial_filing_versions",
+    "financial_facts", "quarterly_financial_summary",
+    "financial_filing_seals", "tdcc_snapshot_versions",
+    "tdcc_distribution", "tdcc_snapshot_seals",
+    "institutional_investor_versions", "foreign_holding_versions",
+    "institutional_market_summary_versions", "margin_trading_versions",
+    "securities_lending_versions", "market_index", "market_index_versions",
+    "corporate_action_versions", "official_valuation_versions",
+    "security_tag_versions", "xbrl_concept_catalog_versions",
+    "derived_dataset_definitions", "derived_computation_runs",
+    "derived_metric_versions", "publication_evidence",
+}
+
+
 def rejected(db: Connection, sql: str, **params: Any) -> None:
     with pytest.raises(DBAPIError):
         with db.begin_nested():
@@ -165,10 +183,15 @@ def test_postgresql_18_and_migration_round_trip(engine: Engine) -> None:
             assert not sa.inspect(connection).has_table("daily_price_versions")
         command.upgrade(config, "head")
         with engine.connect() as connection:
-            assert sa.inspect(connection).has_table("daily_price_versions")
+            tables = set(sa.inspect(connection).get_table_names())
+            assert V1_TABLES <= tables
             assert connection.execute(sa.text("SELECT count(*) FROM visible_financial_filings")).scalar_one() == 0
     finally:
         command.upgrade(config, "head")
+
+
+def test_alembic_metadata_has_no_drift() -> None:
+    command.check(alembic_config())
 
 
 def test_single_row_versions_have_storage_hash_and_trusted_time(db: Connection) -> None:
@@ -223,6 +246,35 @@ def test_duplicate_fetch_preserves_observation_without_fake_revision(db: Connect
 
     assert db.execute(sa.text("SELECT count(*) FROM daily_price_versions")).scalar_one() == 1
     assert db.execute(sa.text("SELECT count(*) FROM raw_artifact_observations")).scalar_one() == 2
+
+
+def test_extended_daily_quote_fields_participate_in_business_hash(db: Connection) -> None:
+    security_id, artifact_id, run_id = seed_lineage(db, "daily_price")
+    statement = sa.text(
+        """
+        INSERT INTO daily_price_versions (
+            security_id, source, trade_date, open_price, high_price, low_price,
+            close_price, volume, trade_value, trade_count, price_change,
+            price_direction, bid_snapshot, ask_snapshot, last_bid_price,
+            last_ask_price, last_bid_volume, last_ask_volume,
+            business_content_hash, ingested_at, raw_artifact_id, ingest_run_id
+        ) VALUES (
+            :security_id, 'official', DATE '2026-09-10', 100, 110, 90,
+            105, 1000, 105000, :trade_count, 5, '+',
+            '104.5@10', '105@12', 104.5, 105, 10, 12,
+            :hash, TIMESTAMPTZ '2000-01-01+00', :artifact_id, :run_id
+        ) RETURNING business_content_hash
+        """
+    )
+    common = {
+        "security_id": security_id,
+        "hash": "f" * 64,
+        "artifact_id": artifact_id,
+        "run_id": run_id,
+    }
+    first = db.execute(statement, {**common, "trade_count": 100}).scalar_one()
+    second = db.execute(statement, {**common, "trade_count": 101}).scalar_one()
+    assert first != second
 
 
 def test_evidence_is_append_only_and_does_not_create_business_revision(db: Connection) -> None:
@@ -639,6 +691,179 @@ def test_other_single_row_business_hashes_are_storage_generated(db: Connection) 
     ).mappings().one()
     assert revenue_hash["business_content_hash"] != "f" * 64
     assert revenue_hash["ingested_at"].year != 2000
+
+
+@pytest.mark.parametrize(
+    ("table", "dataset", "identity_columns", "identity_values"),
+    [
+        ("institutional_investor_versions", "institutional_investor", "security_id, source, trade_date", ":security_id, 'official', DATE '2026-09-10'"),
+        ("foreign_holding_versions", "foreign_holding", "security_id, source, trade_date", ":security_id, 'official', DATE '2026-09-10'"),
+        ("institutional_market_summary_versions", "institutional_market_summary", "market, source, trade_date, institution", "'TWSE', 'official', DATE '2026-09-10', 'foreign'"),
+        ("margin_trading_versions", "margin_trading", "security_id, source, trade_date", ":security_id, 'official', DATE '2026-09-10'"),
+        ("securities_lending_versions", "securities_lending", "security_id, source, trade_date", ":security_id, 'official', DATE '2026-09-10'"),
+        ("corporate_action_versions", "corporate_action", "security_id, source, action_type, ex_date", ":security_id, 'official', 'cash_dividend', DATE '2026-09-10'"),
+        ("official_valuation_versions", "official_valuation", "security_id, source, trade_date", ":security_id, 'official', DATE '2026-09-10'"),
+        ("security_tag_versions", "security_tag", "security_id, source, tag, effective_from", ":security_id, 'official', 'listed', DATE '2026-01-01'"),
+        ("xbrl_concept_catalog_versions", "xbrl_concept_catalog", "source, concept_qname, statement_type", "'official', '{https://example.test/tifrs}Assets', 'balance_sheet'"),
+    ],
+)
+def test_new_observed_domains_enforce_lineage_hash_time_and_immutability(
+    db: Connection,
+    table: str,
+    dataset: str,
+    identity_columns: str,
+    identity_values: str,
+) -> None:
+    security_id, artifact_id, run_id = seed_lineage(db, dataset)
+    row = db.execute(
+        sa.text(
+            f"""
+            INSERT INTO {table} (
+                {identity_columns}, business_content_hash, ingested_at,
+                raw_artifact_id, ingest_run_id
+            ) VALUES (
+                {identity_values}, :forged_hash,
+                TIMESTAMPTZ '2000-01-01+00', :artifact_id, :run_id
+            ) RETURNING id, business_content_hash, ingested_at
+            """
+        ),
+        {
+            "security_id": security_id,
+            "forged_hash": "f" * 64,
+            "artifact_id": artifact_id,
+            "run_id": run_id,
+        },
+    ).mappings().one()
+    assert row["business_content_hash"] != "f" * 64
+    assert row["ingested_at"].year != 2000
+    rejected(db, f"UPDATE {table} SET business_content_hash = :hash WHERE id = :id", hash="0" * 64, id=row["id"])
+    rejected(db, f"DELETE FROM {table} WHERE id = :id", id=row["id"])
+
+
+def test_market_index_version_and_extended_publication_target(db: Connection) -> None:
+    _, artifact_id, run_id = seed_lineage(db, "market_index", digest_char="8")
+    index_id = db.execute(
+        sa.text("INSERT INTO market_index (index_code, market, name) VALUES ('TAIEX', 'TWSE', 'Taiwan Capitalization Weighted Index') RETURNING id")
+    ).scalar_one()
+    version = db.execute(
+        sa.text(
+            """
+            INSERT INTO market_index_versions (
+                market_index_id, source, trade_date, close_value,
+                business_content_hash, ingested_at, raw_artifact_id, ingest_run_id
+            ) VALUES (
+                :index_id, 'official', DATE '2026-09-10', 25000,
+                :hash, TIMESTAMPTZ '2000-01-01+00', :artifact_id, :run_id
+            ) RETURNING id, business_content_hash
+            """
+        ),
+        {"index_id": index_id, "hash": "f" * 64, "artifact_id": artifact_id, "run_id": run_id},
+    ).mappings().one()
+    evidence = db.execute(
+        sa.text(
+            """
+            INSERT INTO publication_evidence (
+                dataset_code, source, evidence_kind, published_at,
+                evidence_source, evidence_type, quality_rank,
+                market_index_version_id, publication_evidence_hash,
+                recorded_at, raw_artifact_id, ingest_run_id
+            ) VALUES (
+                'market_index', 'official', 'assertion',
+                TIMESTAMPTZ '2026-09-10 06:00:00+00', 'exchange',
+                'official', 100, :version_id, :hash,
+                TIMESTAMPTZ '2000-01-01+00', :artifact_id, :run_id
+            ) RETURNING recorded_at, publication_evidence_hash
+            """
+        ),
+        {"version_id": version["id"], "hash": "e" * 64, "artifact_id": artifact_id, "run_id": run_id},
+    ).mappings().one()
+    assert evidence["recorded_at"].year != 2000
+    assert evidence["publication_evidence_hash"] != "e" * 64
+
+
+def test_derived_contract_versions_pit_lineage_and_computed_time(db: Connection) -> None:
+    security_id, _, _ = seed_lineage(db, "daily_price", digest_char="9")
+    db.execute(
+        sa.text(
+            """
+            INSERT INTO dataset_catalog (dataset_code, description, schema_version)
+            VALUES ('technical_indicators', 'canonical technical indicators', 'v1')
+            """
+        )
+    )
+    definition_sql = sa.text(
+        """
+        INSERT INTO derived_dataset_definitions (
+            dataset_code, derivation_version, storage_strategy,
+            formula_specification, implementation_version,
+            input_dataset_codes, calendar_timezone, calendar_convention,
+            price_adjustment_convention, definition_hash, registered_at
+        ) VALUES (
+            'technical_indicators', :version, 'materialized', :formula,
+            :implementation, '["daily_price"]'::jsonb, 'Asia/Taipei',
+            'TWSE sessions', 'unadjusted', :hash, TIMESTAMPTZ '2000-01-01+00'
+        ) RETURNING id, definition_hash, registered_at
+        """
+    )
+    v1 = db.execute(definition_sql, {"version": "v1", "formula": "MA20=mean(close[-20:])", "implementation": "commit-a", "hash": "f" * 64}).mappings().one()
+    v2 = db.execute(definition_sql, {"version": "v2", "formula": "MA20=adjusted_mean(close[-20:])", "implementation": "commit-b", "hash": "f" * 64}).mappings().one()
+    assert v1["definition_hash"] != "f" * 64
+    assert v1["definition_hash"] != v2["definition_hash"]
+    assert v1["registered_at"].year != 2000
+
+    run_id = db.execute(
+        sa.text(
+            """
+            INSERT INTO derived_computation_runs (
+                definition_id, status, implementation_version, started_at
+            ) VALUES (:definition_id, 'running', 'commit-a', statement_timestamp())
+            RETURNING id
+            """
+        ),
+        {"definition_id": v1["id"]},
+    ).scalar_one()
+    result = db.execute(
+        sa.text(
+            """
+            INSERT INTO derived_metric_versions (
+                definition_id, security_id, observation_date, metric_code,
+                pit_mode, information_as_of, knowledge_as_of,
+                input_dataset_identity, input_fingerprint, computation_run_id,
+                numeric_value, business_content_hash, computed_at
+            ) VALUES (
+                :definition_id, :security_id, DATE '2026-09-10', 'ma20',
+                'market', TIMESTAMPTZ '2026-09-10 08:00:00+00',
+                TIMESTAMPTZ '2026-09-10 09:00:00+00',
+                '{"daily_price":{"source":"official","through":"2026-09-10"}}'::jsonb,
+                :fingerprint, :run_id, 101.25, :hash,
+                TIMESTAMPTZ '2000-01-01+00'
+            ) RETURNING id, business_content_hash, computed_at
+            """
+        ),
+        {"definition_id": v1["id"], "security_id": security_id, "fingerprint": "a" * 64, "run_id": run_id, "hash": "f" * 64},
+    ).mappings().one()
+    assert result["business_content_hash"] != "f" * 64
+    assert result["computed_at"].year != 2000
+    assert "published_at" not in {column["name"] for column in sa.inspect(db).get_columns("derived_metric_versions")}
+    rejected(db, "UPDATE derived_metric_versions SET numeric_value = 0 WHERE id = :id", id=result["id"])
+    rejected(db, "UPDATE derived_dataset_definitions SET formula_specification = 'changed' WHERE id = :id", id=v1["id"])
+
+    rejected(
+        db,
+        """
+        INSERT INTO derived_metric_versions (
+            definition_id, security_id, observation_date, metric_code, pit_mode,
+            system_as_of, input_dataset_identity, input_fingerprint,
+            computation_run_id, numeric_value, business_content_hash, computed_at
+        ) VALUES (
+            :wrong_definition, :security_id, DATE '2026-09-10', 'ma20',
+            'system', statement_timestamp(), '{}'::jsonb, :fingerprint,
+            :run_id, 1, :hash, statement_timestamp()
+        )
+        """,
+        wrong_definition=v2["id"], security_id=security_id,
+        fingerprint="b" * 64, run_id=run_id, hash="f" * 64,
+    )
 
 
 def test_financial_seal_serializes_with_concurrent_child_mutation(

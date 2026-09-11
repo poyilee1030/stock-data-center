@@ -8,8 +8,8 @@ Accepted for Phase 0 on 2026-09-11.
 
 `stock-data-center` is the sole owner of source ingestion, raw provenance,
 business revision history, publication evidence, temporal visibility, source
-selection, PostgreSQL storage, the public data API, and any optional query
-cache.
+selection, canonical reusable derived definitions/results, PostgreSQL storage,
+the public data API, and any optional query cache.
 
 Downstream systems consume resolved responses through the public API or SDK.
 They must not connect directly to PostgreSQL or Redis and must not reproduce
@@ -65,6 +65,8 @@ The service depends on a cache abstraction.
 - [ADR-0003: immutable aggregates, hashes, and provenance](decisions/0003-immutable-aggregates-hashes-and-provenance.md)
 - [ADR-0004: source capability and cross-source policy](decisions/0004-source-capability-and-cross-source-policy.md)
 - [ADR-0005: optional cache architecture](decisions/0005-optional-cache-architecture.md)
+- [ADR-0007: canonical derived ownership and PIT](decisions/0007-canonical-derived-data-ownership-and-pit.md)
+- [Canonical derived data contract](derived_data.md)
 - [Cache contract](cache.md)
 
 Changes to an accepted decision require a superseding ADR and, when the change
