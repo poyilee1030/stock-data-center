@@ -12,9 +12,11 @@ publication evidence, immutable financial/TDCC aggregates, canonical-derived
 definitions/results, DB-generated hashes and timestamps, source-aware lineage,
 and PIT-oriented indexes.
 
-The legacy audit and exact field dispositions are in
-[`docs/data_domain_inventory.md`](../data_domain_inventory.md). Schema details
-are in [`docs/schema.md`](../schema.md), with architectural decisions in
+The legacy audit is in
+[`docs/data_domain_inventory.md`](../data_domain_inventory.md), with all 416
+field dispositions in the normative
+[`docs/data_domain_inventory.json`](../data_domain_inventory.json). Schema
+details are in [`docs/schema.md`](../schema.md), with architectural decisions in
 [ADR-0007](../decisions/0007-canonical-derived-data-ownership-and-pit.md) and
 [ADR-0008](../decisions/0008-complete-v1-storage-decomposition.md).
 
@@ -25,8 +27,8 @@ or Redis dependency was added.
 
 | Criterion | Result | Concrete evidence |
 | --- | --- | --- |
-| `docs/data_domain_inventory.md` covers all known legacy tables/domains | PASS | The inventory records the 2026-09-11 legacy schema audit and names all 26 legacy tables. `test_phase1_contract_docs.py` enforces that set. |
-| Every legacy field/domain has an intentional disposition | PASS | The inventory maps each field group to observed storage, canonical derived data, downstream ownership, raw-only provenance, or deprecation. It explicitly covers full daily quote fields and legacy analysis scores. |
+| `docs/data_domain_inventory.md` covers all known legacy tables/domains | PASS | The inventory records the 2026-09-11 audit: 26 retained DB tables plus all 27 `SCHEMA_COLS` categories, including four deprecated pre-XBRL categories. `test_phase1_contract_docs.py` enforces both the retained table set and the field contract. |
+| Every legacy field/domain has an intentional disposition | PASS | `docs/data_domain_inventory.json` contains one explicit record for each of the 416 audited `SCHEMA_COLS` fields, with disposition, target, and reason. Tests enforce uniqueness, 27/416 counts, allowed dispositions, non-empty targets/reasons, and the frozen canonical pair SHA-256 extracted from the old source. |
 | All known v1 observed domains have a storage contract | PASS | SQLAlchemy metadata and migrations define 31 tables covering core, daily/revenue, XBRL, TDCC, institutional/holding, margin/short/SBL, indices, actions, official valuation, tags, and concept catalog. |
 | All known v1 canonical-derived domains have a materialized/virtual contract | PASS | `derived_dataset_definitions`, `derived_computation_runs`, and `derived_metric_versions` implement the common contract; the inventory explicitly selects a strategy for technical, concentration, valuation, margin, short/SBL and additional reusable datasets. |
 | Child insert after seal is rejected | PASS | Financial and TDCC child protection triggers lock the parent and reject post-seal mutation; sequential and real multi-connection tests cover this. |
@@ -51,7 +53,7 @@ All 19 required criteria pass.
 
 ```text
 PostgreSQL:                 18 (postgres:18)
-pytest:                     25 passed
+pytest:                     27 passed
 Alembic round-trip:         PASS (inside pytest)
 alembic check:              No new upgrade operations detected
 Python compileall:          PASS

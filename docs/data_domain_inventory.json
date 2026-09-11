@@ -1,0 +1,2933 @@
+{
+  "format_version": 1,
+  "source": {
+    "repository": "my_stock_project",
+    "path": "common/schemas.py::SCHEMA_COLS",
+    "audited_at": "2026-09-11",
+    "table_count": 27,
+    "field_count": 416,
+    "canonical_pair_sha256": "a22c4a17f8b9f4dc35199fce9d988c68d7aa1391c81870c4b6070b436152840f"
+  },
+  "global_rules": {
+    "symbol": "security or index identity",
+    "market": "security/source or market-level identity",
+    "name": "security_metadata_versions.name",
+    "date": "domain logical observation/report/snapshot/event date",
+    "pced_file/pced_row/pced_col": "raw-artifact-only parser provenance",
+    "publish_time": "publication_evidence.published_at"
+  },
+  "fields": [
+    {
+      "legacy_table": "daily_quotes",
+      "legacy_field": "date",
+      "disposition": "identity",
+      "target": "daily_price_versions.trade_date",
+      "reason": "Date is the domain observation, report, snapshot, or event logical key."
+    },
+    {
+      "legacy_table": "daily_quotes",
+      "legacy_field": "market",
+      "disposition": "identity",
+      "target": "security.market or domain market identity",
+      "reason": "Market is part of security or market-level logical identity."
+    },
+    {
+      "legacy_table": "daily_quotes",
+      "legacy_field": "symbol",
+      "disposition": "identity",
+      "target": "security.security_code",
+      "reason": "Legacy symbol resolves to stable Data Center identity."
+    },
+    {
+      "legacy_table": "daily_quotes",
+      "legacy_field": "name",
+      "disposition": "observed",
+      "target": "security_metadata_versions.name",
+      "reason": "Names are source-observed, effective-dated security metadata."
+    },
+    {
+      "legacy_table": "daily_quotes",
+      "legacy_field": "open",
+      "disposition": "observed",
+      "target": "daily_price_versions.open_price",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "daily_quotes",
+      "legacy_field": "high",
+      "disposition": "observed",
+      "target": "daily_price_versions.high_price",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "daily_quotes",
+      "legacy_field": "low",
+      "disposition": "observed",
+      "target": "daily_price_versions.low_price",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "daily_quotes",
+      "legacy_field": "close",
+      "disposition": "observed",
+      "target": "daily_price_versions.close_price",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "daily_quotes",
+      "legacy_field": "volume",
+      "disposition": "observed",
+      "target": "daily_price_versions.volume",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "daily_quotes",
+      "legacy_field": "value",
+      "disposition": "observed",
+      "target": "daily_price_versions.trade_value",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "daily_quotes",
+      "legacy_field": "transactions",
+      "disposition": "observed",
+      "target": "daily_price_versions.trade_count",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "daily_quotes",
+      "legacy_field": "change",
+      "disposition": "observed",
+      "target": "daily_price_versions.price_change",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "daily_quotes",
+      "legacy_field": "direction",
+      "disposition": "observed",
+      "target": "daily_price_versions.price_direction",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "daily_quotes",
+      "legacy_field": "bid",
+      "disposition": "observed",
+      "target": "daily_price_versions.bid_snapshot",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "daily_quotes",
+      "legacy_field": "ask",
+      "disposition": "observed",
+      "target": "daily_price_versions.ask_snapshot",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "daily_quotes",
+      "legacy_field": "pced_file",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "daily_quotes",
+      "legacy_field": "pced_row",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "daily_quotes",
+      "legacy_field": "pced_col",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "institutional_investors",
+      "legacy_field": "date",
+      "disposition": "identity",
+      "target": "institutional_investor_versions.trade_date",
+      "reason": "Date is the domain observation, report, snapshot, or event logical key."
+    },
+    {
+      "legacy_table": "institutional_investors",
+      "legacy_field": "market",
+      "disposition": "identity",
+      "target": "security.market or domain market identity",
+      "reason": "Market is part of security or market-level logical identity."
+    },
+    {
+      "legacy_table": "institutional_investors",
+      "legacy_field": "symbol",
+      "disposition": "identity",
+      "target": "security.security_code",
+      "reason": "Legacy symbol resolves to stable Data Center identity."
+    },
+    {
+      "legacy_table": "institutional_investors",
+      "legacy_field": "name",
+      "disposition": "observed",
+      "target": "security_metadata_versions.name",
+      "reason": "Names are source-observed, effective-dated security metadata."
+    },
+    {
+      "legacy_table": "institutional_investors",
+      "legacy_field": "foreign_buy",
+      "disposition": "observed",
+      "target": "institutional_investor_versions.foreign_buy",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "institutional_investors",
+      "legacy_field": "foreign_sell",
+      "disposition": "observed",
+      "target": "institutional_investor_versions.foreign_sell",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "institutional_investors",
+      "legacy_field": "foreign_net",
+      "disposition": "observed",
+      "target": "institutional_investor_versions.foreign_net",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "institutional_investors",
+      "legacy_field": "foreign_dealer_buy",
+      "disposition": "observed",
+      "target": "institutional_investor_versions.foreign_dealer_buy",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "institutional_investors",
+      "legacy_field": "foreign_dealer_sell",
+      "disposition": "observed",
+      "target": "institutional_investor_versions.foreign_dealer_sell",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "institutional_investors",
+      "legacy_field": "foreign_dealer_net",
+      "disposition": "observed",
+      "target": "institutional_investor_versions.foreign_dealer_net",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "institutional_investors",
+      "legacy_field": "trust_buy",
+      "disposition": "observed",
+      "target": "institutional_investor_versions.trust_buy",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "institutional_investors",
+      "legacy_field": "trust_sell",
+      "disposition": "observed",
+      "target": "institutional_investor_versions.trust_sell",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "institutional_investors",
+      "legacy_field": "trust_net",
+      "disposition": "observed",
+      "target": "institutional_investor_versions.trust_net",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "institutional_investors",
+      "legacy_field": "dealer_self_buy",
+      "disposition": "observed",
+      "target": "institutional_investor_versions.dealer_self_buy",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "institutional_investors",
+      "legacy_field": "dealer_self_sell",
+      "disposition": "observed",
+      "target": "institutional_investor_versions.dealer_self_sell",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "institutional_investors",
+      "legacy_field": "dealer_self_net",
+      "disposition": "observed",
+      "target": "institutional_investor_versions.dealer_self_net",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "institutional_investors",
+      "legacy_field": "dealer_hedge_buy",
+      "disposition": "observed",
+      "target": "institutional_investor_versions.dealer_hedge_buy",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "institutional_investors",
+      "legacy_field": "dealer_hedge_sell",
+      "disposition": "observed",
+      "target": "institutional_investor_versions.dealer_hedge_sell",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "institutional_investors",
+      "legacy_field": "dealer_hedge_net",
+      "disposition": "observed",
+      "target": "institutional_investor_versions.dealer_hedge_net",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "institutional_investors",
+      "legacy_field": "dealer_net",
+      "disposition": "observed",
+      "target": "institutional_investor_versions.dealer_net",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "institutional_investors",
+      "legacy_field": "total_net",
+      "disposition": "observed",
+      "target": "institutional_investor_versions.total_net",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "institutional_investors",
+      "legacy_field": "pced_file",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "institutional_investors",
+      "legacy_field": "pced_row",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "institutional_investors",
+      "legacy_field": "pced_col",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "foreign_holding",
+      "legacy_field": "date",
+      "disposition": "identity",
+      "target": "foreign_holding_versions.trade_date",
+      "reason": "Date is the domain observation, report, snapshot, or event logical key."
+    },
+    {
+      "legacy_table": "foreign_holding",
+      "legacy_field": "market",
+      "disposition": "identity",
+      "target": "security.market or domain market identity",
+      "reason": "Market is part of security or market-level logical identity."
+    },
+    {
+      "legacy_table": "foreign_holding",
+      "legacy_field": "symbol",
+      "disposition": "identity",
+      "target": "security.security_code",
+      "reason": "Legacy symbol resolves to stable Data Center identity."
+    },
+    {
+      "legacy_table": "foreign_holding",
+      "legacy_field": "name",
+      "disposition": "observed",
+      "target": "security_metadata_versions.name",
+      "reason": "Names are source-observed, effective-dated security metadata."
+    },
+    {
+      "legacy_table": "foreign_holding",
+      "legacy_field": "issued_shares",
+      "disposition": "observed",
+      "target": "foreign_holding_versions.issued_shares",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "foreign_holding",
+      "legacy_field": "foreign_investable_shares",
+      "disposition": "observed",
+      "target": "foreign_holding_versions.investable_shares",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "foreign_holding",
+      "legacy_field": "foreign_held_shares",
+      "disposition": "observed",
+      "target": "foreign_holding_versions.held_shares",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "foreign_holding",
+      "legacy_field": "foreign_investable_ratio",
+      "disposition": "observed",
+      "target": "foreign_holding_versions.investable_ratio",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "foreign_holding",
+      "legacy_field": "foreign_held_ratio",
+      "disposition": "observed",
+      "target": "foreign_holding_versions.held_ratio",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "foreign_holding",
+      "legacy_field": "foreign_legal_limit_ratio",
+      "disposition": "observed",
+      "target": "foreign_holding_versions.foreign_legal_limit_ratio",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "foreign_holding",
+      "legacy_field": "pced_file",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "foreign_holding",
+      "legacy_field": "pced_row",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "foreign_holding",
+      "legacy_field": "pced_col",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "trust_holding",
+      "legacy_field": "date",
+      "disposition": "identity",
+      "target": "derived_metric_versions.observation_date (institutional_holding:v1)",
+      "reason": "Date is the domain observation, report, snapshot, or event logical key."
+    },
+    {
+      "legacy_table": "trust_holding",
+      "legacy_field": "market",
+      "disposition": "identity",
+      "target": "security.market or domain market identity",
+      "reason": "Market is part of security or market-level logical identity."
+    },
+    {
+      "legacy_table": "trust_holding",
+      "legacy_field": "symbol",
+      "disposition": "identity",
+      "target": "security.security_code",
+      "reason": "Legacy symbol resolves to stable Data Center identity."
+    },
+    {
+      "legacy_table": "trust_holding",
+      "legacy_field": "name",
+      "disposition": "observed",
+      "target": "security_metadata_versions.name",
+      "reason": "Names are source-observed, effective-dated security metadata."
+    },
+    {
+      "legacy_table": "trust_holding",
+      "legacy_field": "issued_shares",
+      "disposition": "observed",
+      "target": "foreign_holding_versions.issued_shares",
+      "reason": "Issued shares is a source observation used as a derived holding-ratio input."
+    },
+    {
+      "legacy_table": "trust_holding",
+      "legacy_field": "trust_held_shares",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=trust_held_shares (institutional_holding:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "trust_holding",
+      "legacy_field": "trust_held_ratio",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=trust_held_ratio (institutional_holding:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "trust_holding",
+      "legacy_field": "pced_file",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "trust_holding",
+      "legacy_field": "pced_row",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "trust_holding",
+      "legacy_field": "pced_col",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "dealer_holding",
+      "legacy_field": "date",
+      "disposition": "identity",
+      "target": "derived_metric_versions.observation_date (institutional_holding:v1)",
+      "reason": "Date is the domain observation, report, snapshot, or event logical key."
+    },
+    {
+      "legacy_table": "dealer_holding",
+      "legacy_field": "market",
+      "disposition": "identity",
+      "target": "security.market or domain market identity",
+      "reason": "Market is part of security or market-level logical identity."
+    },
+    {
+      "legacy_table": "dealer_holding",
+      "legacy_field": "symbol",
+      "disposition": "identity",
+      "target": "security.security_code",
+      "reason": "Legacy symbol resolves to stable Data Center identity."
+    },
+    {
+      "legacy_table": "dealer_holding",
+      "legacy_field": "name",
+      "disposition": "observed",
+      "target": "security_metadata_versions.name",
+      "reason": "Names are source-observed, effective-dated security metadata."
+    },
+    {
+      "legacy_table": "dealer_holding",
+      "legacy_field": "issued_shares",
+      "disposition": "observed",
+      "target": "foreign_holding_versions.issued_shares",
+      "reason": "Issued shares is a source observation used as a derived holding-ratio input."
+    },
+    {
+      "legacy_table": "dealer_holding",
+      "legacy_field": "dealer_held_shares",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=dealer_held_shares (institutional_holding:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "dealer_holding",
+      "legacy_field": "dealer_held_ratio",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=dealer_held_ratio (institutional_holding:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "dealer_holding",
+      "legacy_field": "pced_file",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "dealer_holding",
+      "legacy_field": "pced_row",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "dealer_holding",
+      "legacy_field": "pced_col",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "margin_trading",
+      "legacy_field": "date",
+      "disposition": "identity",
+      "target": "margin_trading_versions.trade_date",
+      "reason": "Date is the domain observation, report, snapshot, or event logical key."
+    },
+    {
+      "legacy_table": "margin_trading",
+      "legacy_field": "market",
+      "disposition": "identity",
+      "target": "security.market or domain market identity",
+      "reason": "Market is part of security or market-level logical identity."
+    },
+    {
+      "legacy_table": "margin_trading",
+      "legacy_field": "symbol",
+      "disposition": "identity",
+      "target": "security.security_code",
+      "reason": "Legacy symbol resolves to stable Data Center identity."
+    },
+    {
+      "legacy_table": "margin_trading",
+      "legacy_field": "name",
+      "disposition": "observed",
+      "target": "security_metadata_versions.name",
+      "reason": "Names are source-observed, effective-dated security metadata."
+    },
+    {
+      "legacy_table": "margin_trading",
+      "legacy_field": "margin_long_buy",
+      "disposition": "observed",
+      "target": "margin_trading_versions.margin_buy",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "margin_trading",
+      "legacy_field": "margin_long_sell",
+      "disposition": "observed",
+      "target": "margin_trading_versions.margin_sell",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "margin_trading",
+      "legacy_field": "margin_long_cash_repay",
+      "disposition": "observed",
+      "target": "margin_trading_versions.margin_cash_repayment",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "margin_trading",
+      "legacy_field": "margin_long_prev_balance",
+      "disposition": "observed",
+      "target": "margin_trading_versions.margin_previous_balance",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "margin_trading",
+      "legacy_field": "margin_long_balance",
+      "disposition": "observed",
+      "target": "margin_trading_versions.margin_balance",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "margin_trading",
+      "legacy_field": "margin_long_limit",
+      "disposition": "observed",
+      "target": "margin_trading_versions.margin_next_limit",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "margin_trading",
+      "legacy_field": "margin_short_buy",
+      "disposition": "observed",
+      "target": "margin_trading_versions.short_buy",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "margin_trading",
+      "legacy_field": "margin_short_sell",
+      "disposition": "observed",
+      "target": "margin_trading_versions.short_sell",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "margin_trading",
+      "legacy_field": "margin_short_cash_repay",
+      "disposition": "observed",
+      "target": "margin_trading_versions.short_stock_repayment",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "margin_trading",
+      "legacy_field": "margin_short_prev_balance",
+      "disposition": "observed",
+      "target": "margin_trading_versions.short_previous_balance",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "margin_trading",
+      "legacy_field": "margin_short_balance",
+      "disposition": "observed",
+      "target": "margin_trading_versions.short_balance",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "margin_trading",
+      "legacy_field": "margin_short_limit",
+      "disposition": "observed",
+      "target": "margin_trading_versions.short_next_limit",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "margin_trading",
+      "legacy_field": "offset_balance",
+      "disposition": "observed",
+      "target": "margin_trading_versions.offset_balance",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "margin_trading",
+      "legacy_field": "pced_file",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "margin_trading",
+      "legacy_field": "pced_row",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "margin_trading",
+      "legacy_field": "pced_col",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "margin_sbl",
+      "legacy_field": "date",
+      "disposition": "identity",
+      "target": "margin_trading_versions.trade_date / securities_lending_versions.trade_date",
+      "reason": "Date is the domain observation, report, snapshot, or event logical key."
+    },
+    {
+      "legacy_table": "margin_sbl",
+      "legacy_field": "market",
+      "disposition": "identity",
+      "target": "security.market or domain market identity",
+      "reason": "Market is part of security or market-level logical identity."
+    },
+    {
+      "legacy_table": "margin_sbl",
+      "legacy_field": "symbol",
+      "disposition": "identity",
+      "target": "security.security_code",
+      "reason": "Legacy symbol resolves to stable Data Center identity."
+    },
+    {
+      "legacy_table": "margin_sbl",
+      "legacy_field": "name",
+      "disposition": "observed",
+      "target": "security_metadata_versions.name",
+      "reason": "Names are source-observed, effective-dated security metadata."
+    },
+    {
+      "legacy_table": "margin_sbl",
+      "legacy_field": "margin_short_prev_balance",
+      "disposition": "observed",
+      "target": "margin_trading_versions.short_previous_balance",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "margin_sbl",
+      "legacy_field": "margin_short_balance",
+      "disposition": "observed",
+      "target": "margin_trading_versions.short_balance",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "margin_sbl",
+      "legacy_field": "margin_short_buy",
+      "disposition": "observed",
+      "target": "margin_trading_versions.short_buy",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "margin_sbl",
+      "legacy_field": "margin_short_sell",
+      "disposition": "observed",
+      "target": "margin_trading_versions.short_sell",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "margin_sbl",
+      "legacy_field": "sbl_prev_balance",
+      "disposition": "observed",
+      "target": "securities_lending_versions.previous_balance",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "margin_sbl",
+      "legacy_field": "sbl_sell",
+      "disposition": "observed",
+      "target": "securities_lending_versions.borrowed",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "margin_sbl",
+      "legacy_field": "sbl_repay",
+      "disposition": "observed",
+      "target": "securities_lending_versions.returned",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "margin_sbl",
+      "legacy_field": "sbl_balance",
+      "disposition": "observed",
+      "target": "securities_lending_versions.balance",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "margin_sbl",
+      "legacy_field": "pced_file",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "margin_sbl",
+      "legacy_field": "pced_row",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "margin_sbl",
+      "legacy_field": "pced_col",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "margin_pressure_analysis",
+      "legacy_field": "date",
+      "disposition": "identity",
+      "target": "derived_metric_versions.observation_date (margin_metrics:v1)",
+      "reason": "Date is the domain observation, report, snapshot, or event logical key."
+    },
+    {
+      "legacy_table": "margin_pressure_analysis",
+      "legacy_field": "market",
+      "disposition": "identity",
+      "target": "security.market or domain market identity",
+      "reason": "Market is part of security or market-level logical identity."
+    },
+    {
+      "legacy_table": "margin_pressure_analysis",
+      "legacy_field": "symbol",
+      "disposition": "identity",
+      "target": "security.security_code",
+      "reason": "Legacy symbol resolves to stable Data Center identity."
+    },
+    {
+      "legacy_table": "margin_pressure_analysis",
+      "legacy_field": "name",
+      "disposition": "observed",
+      "target": "security_metadata_versions.name",
+      "reason": "Names are source-observed, effective-dated security metadata."
+    },
+    {
+      "legacy_table": "margin_pressure_analysis",
+      "legacy_field": "margin_long_balance",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=margin_long_balance (margin_metrics:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "margin_pressure_analysis",
+      "legacy_field": "margin_long_limit",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=margin_long_limit (margin_metrics:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "margin_pressure_analysis",
+      "legacy_field": "margin_usage_ratio",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=margin_usage_ratio (margin_metrics:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "margin_pressure_analysis",
+      "legacy_field": "margin_long_balance_wow",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=margin_long_balance_wow (margin_metrics:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "margin_pressure_analysis",
+      "legacy_field": "margin_long_balance_wow_pct",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=margin_long_balance_wow_pct (margin_metrics:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "margin_pressure_analysis",
+      "legacy_field": "margin_short_balance",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=margin_short_balance (margin_metrics:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "margin_pressure_analysis",
+      "legacy_field": "margin_short_limit",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=margin_short_limit (margin_metrics:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "margin_pressure_analysis",
+      "legacy_field": "short_usage_ratio",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=short_usage_ratio (margin_metrics:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "margin_pressure_analysis",
+      "legacy_field": "margin_short_balance_wow",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=margin_short_balance_wow (margin_metrics:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "margin_pressure_analysis",
+      "legacy_field": "margin_short_balance_wow_pct",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=margin_short_balance_wow_pct (margin_metrics:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "margin_pressure_analysis",
+      "legacy_field": "short_cover_pressure",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=short_cover_pressure (margin_metrics:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "margin_pressure_analysis",
+      "legacy_field": "margin_pressure_score",
+      "disposition": "downstream",
+      "target": "stock-model-selection model-specific feature",
+      "reason": "The legacy composite score has no frozen cross-repo financial definition."
+    },
+    {
+      "legacy_table": "margin_pressure_analysis",
+      "legacy_field": "pced_file",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "margin_pressure_analysis",
+      "legacy_field": "pced_row",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "margin_pressure_analysis",
+      "legacy_field": "pced_col",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "short_interest_analysis",
+      "legacy_field": "date",
+      "disposition": "identity",
+      "target": "derived_metric_versions.observation_date (short_interest_metrics:v1)",
+      "reason": "Date is the domain observation, report, snapshot, or event logical key."
+    },
+    {
+      "legacy_table": "short_interest_analysis",
+      "legacy_field": "market",
+      "disposition": "identity",
+      "target": "security.market or domain market identity",
+      "reason": "Market is part of security or market-level logical identity."
+    },
+    {
+      "legacy_table": "short_interest_analysis",
+      "legacy_field": "symbol",
+      "disposition": "identity",
+      "target": "security.security_code",
+      "reason": "Legacy symbol resolves to stable Data Center identity."
+    },
+    {
+      "legacy_table": "short_interest_analysis",
+      "legacy_field": "name",
+      "disposition": "observed",
+      "target": "security_metadata_versions.name",
+      "reason": "Names are source-observed, effective-dated security metadata."
+    },
+    {
+      "legacy_table": "short_interest_analysis",
+      "legacy_field": "sbl_balance",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=sbl_balance (short_interest_metrics:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "short_interest_analysis",
+      "legacy_field": "sbl_balance_wow",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=sbl_balance_wow (short_interest_metrics:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "short_interest_analysis",
+      "legacy_field": "sbl_balance_wow_pct",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=sbl_balance_wow_pct (short_interest_metrics:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "short_interest_analysis",
+      "legacy_field": "sbl_sell",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=sbl_sell (short_interest_metrics:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "short_interest_analysis",
+      "legacy_field": "sbl_repay",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=sbl_repay (short_interest_metrics:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "short_interest_analysis",
+      "legacy_field": "sbl_sell_repay_ratio",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=sbl_sell_repay_ratio (short_interest_metrics:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "short_interest_analysis",
+      "legacy_field": "margin_short_balance",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=margin_short_balance (short_interest_metrics:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "short_interest_analysis",
+      "legacy_field": "margin_short_balance_wow",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=margin_short_balance_wow (short_interest_metrics:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "short_interest_analysis",
+      "legacy_field": "margin_short_balance_wow_pct",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=margin_short_balance_wow_pct (short_interest_metrics:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "short_interest_analysis",
+      "legacy_field": "short_pressure_score",
+      "disposition": "downstream",
+      "target": "stock-model-selection model-specific feature",
+      "reason": "The legacy composite score has no frozen cross-repo financial definition."
+    },
+    {
+      "legacy_table": "short_interest_analysis",
+      "legacy_field": "pced_file",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "short_interest_analysis",
+      "legacy_field": "pced_row",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "short_interest_analysis",
+      "legacy_field": "pced_col",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "pe_ratio",
+      "legacy_field": "date",
+      "disposition": "identity",
+      "target": "official_valuation_versions.trade_date",
+      "reason": "Date is the domain observation, report, snapshot, or event logical key."
+    },
+    {
+      "legacy_table": "pe_ratio",
+      "legacy_field": "market",
+      "disposition": "identity",
+      "target": "security.market or domain market identity",
+      "reason": "Market is part of security or market-level logical identity."
+    },
+    {
+      "legacy_table": "pe_ratio",
+      "legacy_field": "symbol",
+      "disposition": "identity",
+      "target": "security.security_code",
+      "reason": "Legacy symbol resolves to stable Data Center identity."
+    },
+    {
+      "legacy_table": "pe_ratio",
+      "legacy_field": "name",
+      "disposition": "observed",
+      "target": "security_metadata_versions.name",
+      "reason": "Names are source-observed, effective-dated security metadata."
+    },
+    {
+      "legacy_table": "pe_ratio",
+      "legacy_field": "pe_ratio",
+      "disposition": "observed",
+      "target": "official_valuation_versions.pe_ratio",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "pe_ratio",
+      "legacy_field": "pced_file",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "pe_ratio",
+      "legacy_field": "pced_row",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "pe_ratio",
+      "legacy_field": "pced_col",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "market_indices",
+      "legacy_field": "date",
+      "disposition": "identity",
+      "target": "market_index_versions.trade_date",
+      "reason": "Date is the domain observation, report, snapshot, or event logical key."
+    },
+    {
+      "legacy_table": "market_indices",
+      "legacy_field": "market",
+      "disposition": "identity",
+      "target": "security.market or domain market identity",
+      "reason": "Market is part of security or market-level logical identity."
+    },
+    {
+      "legacy_table": "market_indices",
+      "legacy_field": "symbol",
+      "disposition": "identity",
+      "target": "market_index.index_code",
+      "reason": "Legacy symbol resolves to stable Data Center identity."
+    },
+    {
+      "legacy_table": "market_indices",
+      "legacy_field": "index_name",
+      "disposition": "observed",
+      "target": "market_index.name",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "market_indices",
+      "legacy_field": "index_close",
+      "disposition": "observed",
+      "target": "market_index_versions.close_value",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "market_indices",
+      "legacy_field": "index_change_points",
+      "disposition": "observed",
+      "target": "market_index_versions.change_points",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "market_indices",
+      "legacy_field": "pced_file",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "market_indices",
+      "legacy_field": "pced_row",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "market_indices",
+      "legacy_field": "pced_col",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "shareholding",
+      "legacy_field": "date",
+      "disposition": "identity",
+      "target": "tdcc_snapshot_versions.snapshot_date",
+      "reason": "Date is the domain observation, report, snapshot, or event logical key."
+    },
+    {
+      "legacy_table": "shareholding",
+      "legacy_field": "symbol",
+      "disposition": "identity",
+      "target": "security.security_code",
+      "reason": "Legacy symbol resolves to stable Data Center identity."
+    },
+    {
+      "legacy_table": "shareholding",
+      "legacy_field": "level",
+      "disposition": "observed",
+      "target": "tdcc_distribution.bucket_code",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "shareholding",
+      "legacy_field": "level_name",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts",
+      "reason": "Source display label is retained raw; canonical bucket identity is bucket_code."
+    },
+    {
+      "legacy_table": "shareholding",
+      "legacy_field": "holders",
+      "disposition": "observed",
+      "target": "tdcc_distribution.holder_count",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "shareholding",
+      "legacy_field": "shares",
+      "disposition": "observed",
+      "target": "tdcc_distribution.shares",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "shareholding",
+      "legacy_field": "percentage",
+      "disposition": "observed",
+      "target": "tdcc_distribution.ownership_percent",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "shareholding",
+      "legacy_field": "pced_file",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "shareholding",
+      "legacy_field": "pced_row",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "shareholding",
+      "legacy_field": "pced_col",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "shareholding_concentration",
+      "legacy_field": "date",
+      "disposition": "identity",
+      "target": "derived_metric_versions.observation_date (shareholding_concentration:v1)",
+      "reason": "Date is the domain observation, report, snapshot, or event logical key."
+    },
+    {
+      "legacy_table": "shareholding_concentration",
+      "legacy_field": "symbol",
+      "disposition": "identity",
+      "target": "security.security_code",
+      "reason": "Legacy symbol resolves to stable Data Center identity."
+    },
+    {
+      "legacy_table": "shareholding_concentration",
+      "legacy_field": "large_holder_ratio",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=large_holder_ratio (shareholding_concentration:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "shareholding_concentration",
+      "legacy_field": "small_holder_ratio",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=small_holder_ratio (shareholding_concentration:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "shareholding_concentration",
+      "legacy_field": "mid_holder_ratio",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=mid_holder_ratio (shareholding_concentration:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "shareholding_concentration",
+      "legacy_field": "concentration_spread",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=concentration_spread (shareholding_concentration:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "shareholding_concentration",
+      "legacy_field": "large_holder_count",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=large_holder_count (shareholding_concentration:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "shareholding_concentration",
+      "legacy_field": "small_holder_count",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=small_holder_count (shareholding_concentration:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "shareholding_concentration",
+      "legacy_field": "large_holder_ratio_wow",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=large_holder_ratio_wow (shareholding_concentration:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "shareholding_concentration",
+      "legacy_field": "small_holder_ratio_wow",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=small_holder_ratio_wow (shareholding_concentration:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "shareholding_concentration",
+      "legacy_field": "mid_holder_ratio_wow",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=mid_holder_ratio_wow (shareholding_concentration:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "shareholding_concentration",
+      "legacy_field": "concentration_spread_wow",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=concentration_spread_wow (shareholding_concentration:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "shareholding_concentration",
+      "legacy_field": "pced_file",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "shareholding_concentration",
+      "legacy_field": "pced_row",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "shareholding_concentration",
+      "legacy_field": "pced_col",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "monthly_revenue",
+      "legacy_field": "date",
+      "disposition": "identity",
+      "target": "monthly_revenue_versions.revenue_year / revenue_month",
+      "reason": "Date is the domain observation, report, snapshot, or event logical key."
+    },
+    {
+      "legacy_table": "monthly_revenue",
+      "legacy_field": "market",
+      "disposition": "identity",
+      "target": "security.market or domain market identity",
+      "reason": "Market is part of security or market-level logical identity."
+    },
+    {
+      "legacy_table": "monthly_revenue",
+      "legacy_field": "symbol",
+      "disposition": "identity",
+      "target": "security.security_code",
+      "reason": "Legacy symbol resolves to stable Data Center identity."
+    },
+    {
+      "legacy_table": "monthly_revenue",
+      "legacy_field": "name",
+      "disposition": "observed",
+      "target": "security_metadata_versions.name",
+      "reason": "Names are source-observed, effective-dated security metadata."
+    },
+    {
+      "legacy_table": "monthly_revenue",
+      "legacy_field": "revenue_current",
+      "disposition": "observed",
+      "target": "monthly_revenue_versions.revenue",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "monthly_revenue",
+      "legacy_field": "revenue_last_month",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions (revenue_last_month; monthly_revenue_growth:v1)",
+      "reason": "Recomputed from PIT-safe monthly revenue history rather than duplicated as a source fact."
+    },
+    {
+      "legacy_table": "monthly_revenue",
+      "legacy_field": "revenue_last_year",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions (revenue_last_year; monthly_revenue_growth:v1)",
+      "reason": "Recomputed from PIT-safe monthly revenue history rather than duplicated as a source fact."
+    },
+    {
+      "legacy_table": "monthly_revenue",
+      "legacy_field": "mom_pct",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions (mom_pct; monthly_revenue_growth:v1)",
+      "reason": "Recomputed from PIT-safe monthly revenue history rather than duplicated as a source fact."
+    },
+    {
+      "legacy_table": "monthly_revenue",
+      "legacy_field": "yoy_pct",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions (yoy_pct; monthly_revenue_growth:v1)",
+      "reason": "Recomputed from PIT-safe monthly revenue history rather than duplicated as a source fact."
+    },
+    {
+      "legacy_table": "monthly_revenue",
+      "legacy_field": "revenue_cumulative",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions (revenue_cumulative; monthly_revenue_growth:v1)",
+      "reason": "Recomputed from PIT-safe monthly revenue history rather than duplicated as a source fact."
+    },
+    {
+      "legacy_table": "monthly_revenue",
+      "legacy_field": "revenue_cumulative_last_year",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions (revenue_cumulative_last_year; monthly_revenue_growth:v1)",
+      "reason": "Recomputed from PIT-safe monthly revenue history rather than duplicated as a source fact."
+    },
+    {
+      "legacy_table": "monthly_revenue",
+      "legacy_field": "cumulative_yoy_pct",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions (cumulative_yoy_pct; monthly_revenue_growth:v1)",
+      "reason": "Recomputed from PIT-safe monthly revenue history rather than duplicated as a source fact."
+    },
+    {
+      "legacy_table": "monthly_revenue",
+      "legacy_field": "comment",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts",
+      "reason": "Free-form source commentary is retained in immutable raw evidence in v1."
+    },
+    {
+      "legacy_table": "monthly_revenue",
+      "legacy_field": "publish_time",
+      "disposition": "publication_evidence",
+      "target": "publication_evidence.published_at",
+      "reason": "Market publication time is evidence and remains separate from business revisions."
+    },
+    {
+      "legacy_table": "monthly_revenue",
+      "legacy_field": "pced_file",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "monthly_revenue",
+      "legacy_field": "pced_row",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "monthly_revenue",
+      "legacy_field": "pced_col",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "date",
+      "disposition": "identity",
+      "target": "financial_filing_versions reporting period",
+      "reason": "The date becomes filing/report-period identity; the surrounding pre-XBRL table shape is deprecated."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "market",
+      "disposition": "identity",
+      "target": "security.market",
+      "reason": "Legacy market still resolves to security identity; the surrounding pre-XBRL table shape is deprecated."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "symbol",
+      "disposition": "identity",
+      "target": "security.security_code",
+      "reason": "Legacy symbol still resolves to stable security identity; the surrounding pre-XBRL table shape is deprecated."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "name",
+      "disposition": "observed",
+      "target": "security_metadata_versions.name",
+      "reason": "Security name remains observed metadata; the surrounding pre-XBRL table shape is deprecated."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "statement_type",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "revenue_q",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "revenue_acc",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "cost_of_revenue_q",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "cost_of_revenue_acc",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "gross_profit_q",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "gross_profit_acc",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "operating_expense_q",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "operating_expense_acc",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "operating_income_q",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "operating_income_acc",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "non_operating_income_q",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "non_operating_income_acc",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "pretax_income_q",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "pretax_income_acc",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "tax_expense_q",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "tax_expense_acc",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "net_income_q",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "net_income_acc",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "other_comprehensive_income_q",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "other_comprehensive_income_acc",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "comprehensive_income_q",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "comprehensive_income_acc",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "eps_q",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "eps_acc",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "net_interest_income_q",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "net_interest_income_acc",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "non_interest_income_q",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "non_interest_income_acc",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "net_revenue_q",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "net_revenue_acc",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "other_income_net_q",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "other_income_net_acc",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "pced_file",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates remain raw provenance even though this legacy table shape is deprecated."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "pced_row",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates remain raw provenance even though this legacy table shape is deprecated."
+    },
+    {
+      "legacy_table": "income_statement",
+      "legacy_field": "pced_col",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates remain raw provenance even though this legacy table shape is deprecated."
+    },
+    {
+      "legacy_table": "balance_sheet",
+      "legacy_field": "date",
+      "disposition": "identity",
+      "target": "financial_filing_versions reporting period",
+      "reason": "The date becomes filing/report-period identity; the surrounding pre-XBRL table shape is deprecated."
+    },
+    {
+      "legacy_table": "balance_sheet",
+      "legacy_field": "market",
+      "disposition": "identity",
+      "target": "security.market",
+      "reason": "Legacy market still resolves to security identity; the surrounding pre-XBRL table shape is deprecated."
+    },
+    {
+      "legacy_table": "balance_sheet",
+      "legacy_field": "symbol",
+      "disposition": "identity",
+      "target": "security.security_code",
+      "reason": "Legacy symbol still resolves to stable security identity; the surrounding pre-XBRL table shape is deprecated."
+    },
+    {
+      "legacy_table": "balance_sheet",
+      "legacy_field": "name",
+      "disposition": "observed",
+      "target": "security_metadata_versions.name",
+      "reason": "Security name remains observed metadata; the surrounding pre-XBRL table shape is deprecated."
+    },
+    {
+      "legacy_table": "balance_sheet",
+      "legacy_field": "statement_type",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "balance_sheet",
+      "legacy_field": "current_assets",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "balance_sheet",
+      "legacy_field": "noncurrent_assets",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "balance_sheet",
+      "legacy_field": "total_assets",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "balance_sheet",
+      "legacy_field": "current_liabilities",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "balance_sheet",
+      "legacy_field": "noncurrent_liabilities",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "balance_sheet",
+      "legacy_field": "total_liabilities",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "balance_sheet",
+      "legacy_field": "total_equity",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "balance_sheet",
+      "legacy_field": "equity_parent",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "balance_sheet",
+      "legacy_field": "share_capital",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "balance_sheet",
+      "legacy_field": "capital_surplus",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "balance_sheet",
+      "legacy_field": "retained_earnings",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "balance_sheet",
+      "legacy_field": "other_equity",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "balance_sheet",
+      "legacy_field": "treasury_shares",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "balance_sheet",
+      "legacy_field": "inventory",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "balance_sheet",
+      "legacy_field": "accounts_receivable",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "balance_sheet",
+      "legacy_field": "nav_per_share",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "balance_sheet",
+      "legacy_field": "pced_file",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates remain raw provenance even though this legacy table shape is deprecated."
+    },
+    {
+      "legacy_table": "balance_sheet",
+      "legacy_field": "pced_row",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates remain raw provenance even though this legacy table shape is deprecated."
+    },
+    {
+      "legacy_table": "balance_sheet",
+      "legacy_field": "pced_col",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates remain raw provenance even though this legacy table shape is deprecated."
+    },
+    {
+      "legacy_table": "cash_flow",
+      "legacy_field": "date",
+      "disposition": "identity",
+      "target": "financial_filing_versions reporting period",
+      "reason": "The date becomes filing/report-period identity; the surrounding pre-XBRL table shape is deprecated."
+    },
+    {
+      "legacy_table": "cash_flow",
+      "legacy_field": "market",
+      "disposition": "identity",
+      "target": "security.market",
+      "reason": "Legacy market still resolves to security identity; the surrounding pre-XBRL table shape is deprecated."
+    },
+    {
+      "legacy_table": "cash_flow",
+      "legacy_field": "symbol",
+      "disposition": "identity",
+      "target": "security.security_code",
+      "reason": "Legacy symbol still resolves to stable security identity; the surrounding pre-XBRL table shape is deprecated."
+    },
+    {
+      "legacy_table": "cash_flow",
+      "legacy_field": "name",
+      "disposition": "observed",
+      "target": "security_metadata_versions.name",
+      "reason": "Security name remains observed metadata; the surrounding pre-XBRL table shape is deprecated."
+    },
+    {
+      "legacy_table": "cash_flow",
+      "legacy_field": "statement_type",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "cash_flow",
+      "legacy_field": "cash_flow_operating_q",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "cash_flow",
+      "legacy_field": "cash_flow_operating_acc",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "cash_flow",
+      "legacy_field": "cash_flow_investing_q",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "cash_flow",
+      "legacy_field": "cash_flow_investing_acc",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "cash_flow",
+      "legacy_field": "cash_flow_financing_q",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "cash_flow",
+      "legacy_field": "cash_flow_financing_acc",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "cash_flow",
+      "legacy_field": "fx_effect_q",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "cash_flow",
+      "legacy_field": "fx_effect_acc",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "cash_flow",
+      "legacy_field": "net_cash_change_q",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "cash_flow",
+      "legacy_field": "net_cash_change_acc",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "cash_flow",
+      "legacy_field": "cash_begin",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "cash_flow",
+      "legacy_field": "cash_end",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "cash_flow",
+      "legacy_field": "pced_file",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates remain raw provenance even though this legacy table shape is deprecated."
+    },
+    {
+      "legacy_table": "cash_flow",
+      "legacy_field": "pced_row",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates remain raw provenance even though this legacy table shape is deprecated."
+    },
+    {
+      "legacy_table": "cash_flow",
+      "legacy_field": "pced_col",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates remain raw provenance even though this legacy table shape is deprecated."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "date",
+      "disposition": "identity",
+      "target": "financial_filing_versions reporting period",
+      "reason": "The date becomes filing/report-period identity; the surrounding pre-XBRL table shape is deprecated."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "symbol",
+      "disposition": "identity",
+      "target": "security.security_code",
+      "reason": "Legacy symbol still resolves to stable security identity; the surrounding pre-XBRL table shape is deprecated."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "name",
+      "disposition": "observed",
+      "target": "security_metadata_versions.name",
+      "reason": "Security name remains observed metadata; the surrounding pre-XBRL table shape is deprecated."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "market",
+      "disposition": "identity",
+      "target": "security.market",
+      "reason": "Legacy market still resolves to security identity; the surrounding pre-XBRL table shape is deprecated."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "revenue_q",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "revenue_acc",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "revenue_acc_ly",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "revenue_acc_yoy",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "op_income_q",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "op_income_acc",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "op_income_acc_ly",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "op_income_acc_yoy",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "non_op_income_q",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "non_op_income_acc",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "non_op_income_acc_ly",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "non_op_income_acc_yoy",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "pretax_income_q",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "pretax_income_acc",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "pretax_income_acc_ly",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "pretax_income_acc_yoy",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "net_income_q",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "net_income_acc",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "net_income_acc_ly",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "net_income_acc_yoy",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "eps_q",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "eps_acc",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "eps_acc_ly",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "eps_acc_yoy",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "capital",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "nav_per_share",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "equity_to_assets_ratio",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "current_ratio",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "quick_ratio",
+      "disposition": "deprecated",
+      "target": "financial/XBRL v1 contract",
+      "reason": "Legacy non-XBRL table is retired; live financial history uses namespace-aware XBRL facts and versioned summaries."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "pced_file",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates remain raw provenance even though this legacy table shape is deprecated."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "pced_row",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates remain raw provenance even though this legacy table shape is deprecated."
+    },
+    {
+      "legacy_table": "quarterly_reports",
+      "legacy_field": "pced_col",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates remain raw provenance even though this legacy table shape is deprecated."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "date",
+      "disposition": "identity",
+      "target": "financial_filing_versions.period_end / report_year / report_quarter",
+      "reason": "Date is the domain observation, report, snapshot, or event logical key."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "symbol",
+      "disposition": "identity",
+      "target": "security.security_code",
+      "reason": "Legacy symbol resolves to stable Data Center identity."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "market",
+      "disposition": "identity",
+      "target": "security.market or domain market identity",
+      "reason": "Market is part of security or market-level logical identity."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "report_category",
+      "disposition": "observed",
+      "target": "financial_filing_versions / financial fact context (report_category)",
+      "reason": "Filing/report context is preserved with the immutable financial aggregate."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "revenue_q",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=revenue_q",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "revenue_acc",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=revenue_acc",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "revenue_acc_ly",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=revenue_acc_ly",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "revenue_acc_yoy",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=revenue_acc_yoy",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "op_income_q",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=op_income_q",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "op_income_acc",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=op_income_acc",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "op_income_acc_ly",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=op_income_acc_ly",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "op_income_acc_yoy",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=op_income_acc_yoy",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "non_op_income_q",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=non_op_income_q",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "non_op_income_acc",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=non_op_income_acc",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "non_op_income_acc_ly",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=non_op_income_acc_ly",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "non_op_income_acc_yoy",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=non_op_income_acc_yoy",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "pretax_income_q",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=pretax_income_q",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "pretax_income_acc",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=pretax_income_acc",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "pretax_income_acc_ly",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=pretax_income_acc_ly",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "pretax_income_acc_yoy",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=pretax_income_acc_yoy",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "net_income_q",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=net_income_q",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "net_income_acc",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=net_income_acc",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "net_income_acc_ly",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=net_income_acc_ly",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "net_income_acc_yoy",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=net_income_acc_yoy",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "eps_q",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=eps_q",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "eps_acc",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=eps_acc",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "eps_acc_ly",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=eps_acc_ly",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "eps_acc_yoy",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=eps_acc_yoy",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "capital",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=capital",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "nav_per_share",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=nav_per_share",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "equity_to_assets_ratio",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=equity_to_assets_ratio",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "current_ratio",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=current_ratio",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "quick_ratio",
+      "disposition": "canonical_derived",
+      "target": "quarterly_financial_summary.metric_code=quick_ratio",
+      "reason": "Reusable normalized summary is reconstructed from sealed namespace-aware XBRL facts."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "publish_time",
+      "disposition": "publication_evidence",
+      "target": "publication_evidence.published_at",
+      "reason": "Market publication time is evidence and remains separate from business revisions."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "period",
+      "disposition": "observed",
+      "target": "financial_filing_versions / financial fact context (period)",
+      "reason": "Filing/report context is preserved with the immutable financial aggregate."
+    },
+    {
+      "legacy_table": "quarterly_reports_xbrl",
+      "legacy_field": "period_type",
+      "disposition": "observed",
+      "target": "financial_filing_versions / financial fact context (period_type)",
+      "reason": "Filing/report context is preserved with the immutable financial aggregate."
+    },
+    {
+      "legacy_table": "balance_sheet_xbrl",
+      "legacy_field": "date",
+      "disposition": "identity",
+      "target": "financial_filing_versions period and financial_facts context period",
+      "reason": "Date is the domain observation, report, snapshot, or event logical key."
+    },
+    {
+      "legacy_table": "balance_sheet_xbrl",
+      "legacy_field": "symbol",
+      "disposition": "identity",
+      "target": "security.security_code",
+      "reason": "Legacy symbol resolves to stable Data Center identity."
+    },
+    {
+      "legacy_table": "balance_sheet_xbrl",
+      "legacy_field": "publish_time",
+      "disposition": "publication_evidence",
+      "target": "publication_evidence.published_at",
+      "reason": "Market publication time is evidence and remains separate from business revisions."
+    },
+    {
+      "legacy_table": "balance_sheet_xbrl",
+      "legacy_field": "account_code",
+      "disposition": "observed",
+      "target": "financial_facts.concept_qname",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "balance_sheet_xbrl",
+      "legacy_field": "value_text",
+      "disposition": "observed",
+      "target": "financial_facts.text_value",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "balance_sheet_xbrl",
+      "legacy_field": "value_num",
+      "disposition": "observed",
+      "target": "financial_facts.numeric_value",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "income_statement_xbrl",
+      "legacy_field": "date",
+      "disposition": "identity",
+      "target": "financial_filing_versions period and financial_facts context period",
+      "reason": "Date is the domain observation, report, snapshot, or event logical key."
+    },
+    {
+      "legacy_table": "income_statement_xbrl",
+      "legacy_field": "symbol",
+      "disposition": "identity",
+      "target": "security.security_code",
+      "reason": "Legacy symbol resolves to stable Data Center identity."
+    },
+    {
+      "legacy_table": "income_statement_xbrl",
+      "legacy_field": "publish_time",
+      "disposition": "publication_evidence",
+      "target": "publication_evidence.published_at",
+      "reason": "Market publication time is evidence and remains separate from business revisions."
+    },
+    {
+      "legacy_table": "income_statement_xbrl",
+      "legacy_field": "account_code",
+      "disposition": "observed",
+      "target": "financial_facts.concept_qname",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "income_statement_xbrl",
+      "legacy_field": "value_text",
+      "disposition": "observed",
+      "target": "financial_facts.text_value",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "income_statement_xbrl",
+      "legacy_field": "value_num",
+      "disposition": "observed",
+      "target": "financial_facts.numeric_value",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "cash_flow_xbrl",
+      "legacy_field": "date",
+      "disposition": "identity",
+      "target": "financial_filing_versions period and financial_facts context period",
+      "reason": "Date is the domain observation, report, snapshot, or event logical key."
+    },
+    {
+      "legacy_table": "cash_flow_xbrl",
+      "legacy_field": "symbol",
+      "disposition": "identity",
+      "target": "security.security_code",
+      "reason": "Legacy symbol resolves to stable Data Center identity."
+    },
+    {
+      "legacy_table": "cash_flow_xbrl",
+      "legacy_field": "publish_time",
+      "disposition": "publication_evidence",
+      "target": "publication_evidence.published_at",
+      "reason": "Market publication time is evidence and remains separate from business revisions."
+    },
+    {
+      "legacy_table": "cash_flow_xbrl",
+      "legacy_field": "account_code",
+      "disposition": "observed",
+      "target": "financial_facts.concept_qname",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "cash_flow_xbrl",
+      "legacy_field": "value_text",
+      "disposition": "observed",
+      "target": "financial_facts.text_value",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "cash_flow_xbrl",
+      "legacy_field": "value_num",
+      "disposition": "observed",
+      "target": "financial_facts.numeric_value",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "xbrl_codebook",
+      "legacy_field": "statement_type",
+      "disposition": "observed",
+      "target": "xbrl_concept_catalog_versions.statement_type",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "xbrl_codebook",
+      "legacy_field": "account_code",
+      "disposition": "observed",
+      "target": "xbrl_concept_catalog_versions.concept_qname",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "xbrl_codebook",
+      "legacy_field": "account_name_cht",
+      "disposition": "observed",
+      "target": "xbrl_concept_catalog_versions.account_name_zh",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "xbrl_codebook",
+      "legacy_field": "account_name_eng",
+      "disposition": "observed",
+      "target": "xbrl_concept_catalog_versions.account_name_en",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "stock_info",
+      "legacy_field": "symbol",
+      "disposition": "identity",
+      "target": "security.security_code",
+      "reason": "Legacy symbol resolves to stable Data Center identity."
+    },
+    {
+      "legacy_table": "stock_info",
+      "legacy_field": "name",
+      "disposition": "observed",
+      "target": "security_metadata_versions.name",
+      "reason": "Names are source-observed, effective-dated security metadata."
+    },
+    {
+      "legacy_table": "stock_info",
+      "legacy_field": "industry",
+      "disposition": "observed",
+      "target": "security_metadata_versions.industry",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "stock_info",
+      "legacy_field": "market",
+      "disposition": "identity",
+      "target": "security.market or domain market identity",
+      "reason": "Market is part of security or market-level logical identity."
+    },
+    {
+      "legacy_table": "stock_info",
+      "legacy_field": "listing_date",
+      "disposition": "observed",
+      "target": "security_metadata_versions.listed_on",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "stock_info",
+      "legacy_field": "pced_file",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "stock_info",
+      "legacy_field": "pced_row",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "stock_info",
+      "legacy_field": "pced_col",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "stock_tags",
+      "legacy_field": "symbol",
+      "disposition": "identity",
+      "target": "security.security_code",
+      "reason": "Legacy symbol resolves to stable Data Center identity."
+    },
+    {
+      "legacy_table": "stock_tags",
+      "legacy_field": "tag",
+      "disposition": "observed",
+      "target": "security_tag_versions.tag",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "stock_tags",
+      "legacy_field": "pced_file",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "stock_tags",
+      "legacy_field": "pced_row",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "stock_tags",
+      "legacy_field": "pced_col",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "dividend",
+      "legacy_field": "date",
+      "disposition": "identity",
+      "target": "corporate_action_versions.ex_date",
+      "reason": "Date is the domain observation, report, snapshot, or event logical key."
+    },
+    {
+      "legacy_table": "dividend",
+      "legacy_field": "symbol",
+      "disposition": "identity",
+      "target": "security.security_code",
+      "reason": "Legacy symbol resolves to stable Data Center identity."
+    },
+    {
+      "legacy_table": "dividend",
+      "legacy_field": "name",
+      "disposition": "observed",
+      "target": "security_metadata_versions.name",
+      "reason": "Names are source-observed, effective-dated security metadata."
+    },
+    {
+      "legacy_table": "dividend",
+      "legacy_field": "close_before",
+      "disposition": "observed",
+      "target": "corporate_action_versions.close_before",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "dividend",
+      "legacy_field": "ref_price",
+      "disposition": "observed",
+      "target": "corporate_action_versions.reference_price",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "dividend",
+      "legacy_field": "rights_dividend_value",
+      "disposition": "observed",
+      "target": "corporate_action_versions.rights_dividend_value",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "dividend",
+      "legacy_field": "type",
+      "disposition": "observed",
+      "target": "corporate_action_versions.action_type",
+      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+    },
+    {
+      "legacy_table": "dividend",
+      "legacy_field": "pced_file",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "dividend",
+      "legacy_field": "pced_row",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "dividend",
+      "legacy_field": "pced_col",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "valuation_daily",
+      "legacy_field": "date",
+      "disposition": "identity",
+      "target": "derived_metric_versions.observation_date (valuation_metrics:v1)",
+      "reason": "Date is the domain observation, report, snapshot, or event logical key."
+    },
+    {
+      "legacy_table": "valuation_daily",
+      "legacy_field": "symbol",
+      "disposition": "identity",
+      "target": "security.security_code",
+      "reason": "Legacy symbol resolves to stable Data Center identity."
+    },
+    {
+      "legacy_table": "valuation_daily",
+      "legacy_field": "close",
+      "disposition": "observed",
+      "target": "daily_price_versions.close_price",
+      "reason": "Close is referenced from PIT-safe observed price history and is not duplicated."
+    },
+    {
+      "legacy_table": "valuation_daily",
+      "legacy_field": "ttm_eps_official",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=ttm_eps_official (valuation_metrics:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "valuation_daily",
+      "legacy_field": "pe_official",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=pe_official (valuation_metrics:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "valuation_daily",
+      "legacy_field": "pe_percentile_official",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=pe_percentile_official (valuation_metrics:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "valuation_daily",
+      "legacy_field": "roe_official",
+      "disposition": "canonical_derived",
+      "target": "derived_metric_versions.metric_code=roe_official (valuation_metrics:v1)",
+      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+    },
+    {
+      "legacy_table": "valuation_daily",
+      "legacy_field": "pced_file",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "valuation_daily",
+      "legacy_field": "pced_row",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    },
+    {
+      "legacy_table": "valuation_daily",
+      "legacy_field": "pced_col",
+      "disposition": "raw_artifact_only",
+      "target": "raw_artifacts / ingest provenance",
+      "reason": "Parser file/row/column coordinates are source provenance, not canonical business content."
+    }
+  ]
+}

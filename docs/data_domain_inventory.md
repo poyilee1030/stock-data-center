@@ -3,10 +3,19 @@
 ## Audit scope
 
 This is the complete known v1 disposition of the legacy PostgreSQL schema in
-`/home/poyi/GitHubLL/my_stock_project`, reviewed on 2026-09-11 from
-`common/schemas.py` and the retained database schema dump. The audit found 26
-legacy tables. No table or declared legacy field is intentionally left
+`my_stock_project`, reviewed on 2026-09-11 from `common/schemas.py::SCHEMA_COLS`
+and the retained database schema dump. The retained DB audit found 26 tables;
+`SCHEMA_COLS` contains 27 categories and 416 declared fields, including four
+deprecated pre-XBRL categories. No retained table or declared field is left
 unmapped.
+
+The normative, field-by-field contract is
+[`data_domain_inventory.json`](data_domain_inventory.json). Each of its 416
+records names the legacy table and field, disposition, target domain/field, and
+reason. It also records the canonical SHA-256 fingerprint of the audited
+`SCHEMA_COLS` `(table, field)` pairs. Automated tests compare the complete
+contract against that frozen legacy fingerprint, counts, uniqueness, and the
+allowed dispositions.
 
 Disposition terms:
 
@@ -18,6 +27,20 @@ Disposition terms:
 - **raw-only**: parser coordinates retained with the immutable raw artifact;
 - **deprecated**: intentionally excluded from v1.
 
+## Global legacy-field rules
+
+These rules apply wherever the field occurs; table-specific entries in the
+JSON contract resolve the exact target and rationale:
+
+| Legacy field | Disposition |
+| --- | --- |
+| `symbol` | Stable `security.security_code`, except index symbols which map to `market_index.index_code`. |
+| `market` | Security/source identity or the applicable market-level logical identity. |
+| `name` | Observed, effective-dated `security_metadata_versions.name`. |
+| `date` | The applicable observation, report, snapshot, or event logical date—not publication or ingestion time. |
+| `pced_file`, `pced_row`, `pced_col` | Raw-artifact-only parser/source coordinates. |
+| `publish_time` | `publication_evidence.published_at`; never folded into business content. |
+
 ## Complete legacy table and field mapping
 
 | Legacy table | Legacy fields reviewed | v1 disposition |
@@ -26,6 +49,10 @@ Disposition terms:
 | `stock_tags` | `symbol`, tag/category, effective dates | Observed `security_tag_versions`; source and effective interval are explicit. |
 | `daily_quotes` | `date`, `market`, `symbol`, `name`; OHLC; `volume`, `value`, `transactions`; `change`, `direction`; `bid`, `ask`; parsed last bid/ask price and volume; `pced_file`, `pced_row`, `pced_col` | OHLC, volume, trade value/count, change/direction, source bid/ask snapshots, and parsed last bid/ask values are observed in `daily_price_versions`. Market/symbol resolve through `security`; name through metadata. `pced_*` is raw-only parser provenance tied to `raw_artifacts`/`ingest_runs`, not business content. |
 | `monthly_revenue` | year/month, current revenue, currency; MoM, YoY, cumulative revenue, cumulative YoY; comment; publication timestamp; `pced_*` | Current revenue/currency are observed in `monthly_revenue_versions`. Source-published commentary remains in raw artifact v1. Ratios and cumulative values are canonical derived (`monthly_revenue_growth:v1`) unless a future source-value contract is added. Publication time belongs only in `publication_evidence`; `pced_*` is raw-only. |
+| `income_statement` | All 40 declared legacy identity, statement, quarterly/accumulated metric, and `pced_*` fields | Deprecated pre-XBRL category. Namespace-aware `financial_facts` and sealed summaries are the v1 replacement; the JSON contract gives every field an explicit disposition. |
+| `balance_sheet` | All 24 declared legacy identity, statement, balance, ratio, and `pced_*` fields | Deprecated pre-XBRL category; replaced by namespace-aware financial facts and versioned summaries. |
+| `cash_flow` | All 20 declared legacy identity, statement, cash-flow, and `pced_*` fields | Deprecated pre-XBRL category; replaced by namespace-aware financial facts and versioned summaries. |
+| `quarterly_reports` | All 36 declared legacy identity, financial summary, ratio, and `pced_*` fields | Deprecated pre-XBRL category; replaced by `quarterly_reports_xbrl`, sealed facts, and canonical summaries. |
 | `income_statement_xbrl` | entity/period, namespaced account code, value, unit, context/dimensions | Observed `financial_filing_versions` + `financial_facts`; statement presentation summaries may use `quarterly_financial_summary`. |
 | `balance_sheet_xbrl` | entity/instant, namespaced account code, value, unit, context/dimensions | Observed `financial_filing_versions` + `financial_facts`. |
 | `cash_flow_xbrl` | entity/period, namespaced account code, value, unit, context/dimensions | Observed `financial_filing_versions` + `financial_facts`. |
