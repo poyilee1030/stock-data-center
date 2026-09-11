@@ -34,9 +34,10 @@ A request supplies both clocks and a source. A business version is eligible
 only when the authoritative evidence resolved under the knowledge cutoff:
 
 1. has `recorded_at <= knowledge_as_of`;
-2. is an affirmative, non-retracted publication assertion;
-3. has non-null `published_at`; and
-4. has `published_at <= information_as_of`.
+2. has an `evidence_type` accepted by the exact `(dataset_code, source)` policy;
+3. is an affirmative, non-retracted publication assertion;
+4. has non-null `published_at`; and
+5. has `published_at <= information_as_of`.
 
 Neither a raw fetch time nor `ingested_at` substitutes for `published_at`.
 Evidence with `published_at = NULL` is market-invisible. Current wall-clock time
@@ -63,6 +64,16 @@ business revision for the source and logical key using the revision's resolved
 publication instant and a stable storage-generated revision identifier as the
 final tie-breaker. Exact dataset logical keys are defined with that dataset;
 handlers may not improvise the ordering.
+
+For an immutable aggregate, market eligibility additionally requires:
+
+```text
+seal.ingested_at <= knowledge_as_of
+```
+
+This does not redefine market publication time. It proves that the Data Center
+had completed the aggregate by the historical knowledge cutoff and prevents a
+later seal from making an earlier committed draft retroactively visible.
 
 ## System PIT
 
@@ -119,6 +130,9 @@ Resolved responses include enough provenance to identify, as applicable:
 
 An unsupported source/PIT combination or invalid mixture of market and system
 parameters fails explicitly; it never falls back to current state.
+
+The Phase 2 implementation contract and deterministic ordering are documented
+in [Core PIT Resolver](pit_resolver.md).
 
 ## Derived PIT inheritance
 

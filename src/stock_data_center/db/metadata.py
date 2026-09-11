@@ -42,6 +42,12 @@ dataset_sources = sa.Table(
     sa.Column("supports_system_pit", sa.Boolean(), nullable=False),
     sa.Column("publication_time_quality", sa.SmallInteger(), nullable=False),
     sa.Column("evidence_status", sa.String(32), nullable=False),
+    sa.Column(
+        "accepted_evidence_types",
+        postgresql.ARRAY(sa.String(64)),
+        nullable=False,
+        server_default=sa.text("ARRAY['official']::varchar[]"),
+    ),
     sa.Column("is_canonical", sa.Boolean(), nullable=False, server_default=sa.false()),
     sa.Column(
         "created_at",
@@ -60,6 +66,12 @@ dataset_sources = sa.Table(
     sa.CheckConstraint(
         "evidence_status IN ('unverified', 'verified', 'disabled')",
         name="evidence_status_value",
+    ),
+    sa.CheckConstraint(
+        "cardinality(accepted_evidence_types) > 0 "
+        "AND array_position(accepted_evidence_types, NULL) IS NULL "
+        "AND array_position(accepted_evidence_types, '') IS NULL",
+        name="accepted_evidence_types_valid",
     ),
 )
 sa.Index(
