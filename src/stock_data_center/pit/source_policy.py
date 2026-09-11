@@ -58,6 +58,7 @@ class SourcePolicyResolver:
             supports_system_pit=row["supports_system_pit"],
             publication_time_quality=row["publication_time_quality"],
             evidence_status=row["evidence_status"],
+            accepted_evidence_types=tuple(row["accepted_evidence_types"]),
             is_canonical=row["is_canonical"],
         )
         if context.mode == "market" and (

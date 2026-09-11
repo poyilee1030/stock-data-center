@@ -34,9 +34,10 @@ A request supplies both clocks and a source. A business version is eligible
 only when the authoritative evidence resolved under the knowledge cutoff:
 
 1. has `recorded_at <= knowledge_as_of`;
-2. is an affirmative, non-retracted publication assertion;
-3. has non-null `published_at`; and
-4. has `published_at <= information_as_of`.
+2. has an `evidence_type` accepted by the exact `(dataset_code, source)` policy;
+3. is an affirmative, non-retracted publication assertion;
+4. has non-null `published_at`; and
+5. has `published_at <= information_as_of`.
 
 Neither a raw fetch time nor `ingested_at` substitutes for `published_at`.
 Evidence with `published_at = NULL` is market-invisible. Current wall-clock time

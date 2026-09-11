@@ -150,9 +150,11 @@ duplicate is rejected.
 
 `dataset_sources` has a composite primary key of `(dataset_code, source)` and
 stores market/system PIT capability, evidence status/quality, and canonical
-source status independently. A partial unique index allows at most one
-canonical source per dataset. Resolver enforcement of these flags belongs to
-Phase 2.
+source status independently. Phase 2 adds a non-empty
+`accepted_evidence_types` array to the same exact source policy; existing rows
+migrate to conservative `official`-only acceptance. A partial unique index
+allows at most one canonical source per dataset. The resolver enforces these
+flags and filters evidence types before supersession/ranking.
 
 ## Migration operation
 

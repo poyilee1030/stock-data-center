@@ -12,7 +12,11 @@ from stock_data_center.db.metadata import (
     raw_artifacts,
 )
 from stock_data_center.pit.contracts import DatasetContract
-from stock_data_center.pit.models import AuthoritativeEvidence, MarketPITContext
+from stock_data_center.pit.models import (
+    AuthoritativeEvidence,
+    MarketPITContext,
+    SourcePolicy,
+)
 
 
 class PublicationEvidenceResolver:
@@ -24,6 +28,7 @@ class PublicationEvidenceResolver:
         contract: DatasetContract,
         version_id: int,
         context: MarketPITContext,
+        policy: SourcePolicy,
     ) -> AuthoritativeEvidence | None:
         target = publication_evidence.c[contract.evidence_target_column]
         rows = connection.execute(
@@ -58,7 +63,12 @@ class PublicationEvidenceResolver:
             )
             .where(
                 target == version_id,
+                publication_evidence.c.dataset_code == policy.dataset_code,
+                publication_evidence.c.source == policy.source,
                 publication_evidence.c.recorded_at <= context.knowledge_as_of,
+                publication_evidence.c.evidence_type.in_(
+                    policy.accepted_evidence_types
+                ),
             )
         ).mappings().all()
         if not rows:

@@ -76,7 +76,7 @@ class PITResolver:
             eligible: list[tuple[object, int, RowMapping, AuthoritativeEvidence]] = []
             for row in candidates:
                 authoritative = self._evidence.resolve(
-                    connection, contract, row["id"], context
+                    connection, contract, row["id"], context, policy
                 )
                 if (
                     authoritative is not None

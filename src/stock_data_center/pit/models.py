@@ -66,6 +66,7 @@ class SourcePolicy:
     supports_system_pit: bool
     publication_time_quality: int
     evidence_status: str
+    accepted_evidence_types: tuple[str, ...]
     is_canonical: bool
 
 

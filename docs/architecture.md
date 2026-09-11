@@ -67,6 +67,7 @@ The service depends on a cache abstraction.
 - [ADR-0005: optional cache architecture](decisions/0005-optional-cache-architecture.md)
 - [ADR-0007: canonical derived ownership and PIT](decisions/0007-canonical-derived-data-ownership-and-pit.md)
 - [ADR-0009: aggregate market PIT seal cutoff](decisions/0009-aggregate-market-pit-seal-cutoff.md)
+- [ADR-0010: source-specific evidence types](decisions/0010-source-specific-evidence-type-policy.md)
 - [Canonical derived data contract](derived_data.md)
 - [Core PIT resolver contract](pit_resolver.md)
 - [Cache contract](cache.md)

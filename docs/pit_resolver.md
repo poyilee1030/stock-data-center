@@ -36,24 +36,28 @@ Source selection follows ADR-0004:
 
 Capability is checked on the exact `(dataset_code, source)` row. Market PIT
 requires `supports_market_pit` and verified evidence status. System PIT requires
-`supports_system_pit`. No capability is inherited across sources.
+`supports_system_pit`. Each source also has a non-empty
+`accepted_evidence_types` allowlist. No capability or evidence type is inherited
+across sources.
 
 ## Authoritative evidence
 
 For each candidate business version, the resolver:
 
 1. retains evidence with `recorded_at <= knowledge_as_of`;
-2. removes evidence superseded by another retained event;
-3. ranks remaining chain heads by `quality_rank`, then `recorded_at`, then
+2. excludes evidence whose type is not accepted by the selected source policy;
+3. removes evidence superseded by another retained accepted event;
+4. ranks remaining chain heads by `quality_rank`, then `recorded_at`, then
    storage-generated evidence ID, all descending;
-4. interprets the first head; `unknown` and `retraction` are invisible, while
+5. interprets the first head; `unknown` and `retraction` are invisible, while
    `assertion` and `correction` require
    `published_at <= information_as_of`.
 
-Supersession happens before ranking, so even a lower-ranked correction or
-retraction replaces the assertion it supersedes. Independent chain heads still
-use the deterministic ranking. Among visible business revisions for one
-logical key/source, the resolver chooses greatest authoritative
+Type filtering happens before supersession and ranking. An unsupported event
+cannot suppress an accepted predecessor; an accepted superseding event replaces
+its accepted predecessor even when its rank is lower. Independent accepted
+chain heads still use the deterministic ranking. Among visible business
+revisions for one logical key/source, the resolver chooses greatest authoritative
 `published_at`, then greatest storage-generated version ID.
 
 ## System resolution and aggregates

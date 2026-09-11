@@ -30,6 +30,7 @@ def configure_source(
     system: bool = True,
     verified: bool = True,
     canonical: bool = True,
+    accepted_evidence_types: tuple[str, ...] = ("official",),
 ) -> int:
     db.execute(
         sa.text(
@@ -46,9 +47,11 @@ def configure_source(
             """
             INSERT INTO dataset_sources (
                 dataset_code, source, supports_market_pit, supports_system_pit,
-                publication_time_quality, evidence_status, is_canonical
+                publication_time_quality, evidence_status, is_canonical,
+                accepted_evidence_types
             ) VALUES (
-                :dataset, :source, :market, :system, 100, :status, :canonical
+                :dataset, :source, :market, :system, 100, :status, :canonical,
+                :accepted_evidence_types
             )
             """
         ),
@@ -59,6 +62,7 @@ def configure_source(
             "system": system,
             "status": "verified" if verified else "unverified",
             "canonical": canonical,
+            "accepted_evidence_types": list(accepted_evidence_types),
         },
     )
     return db.execute(
@@ -161,6 +165,8 @@ def insert_evidence(
     supersedes: int | None = None,
     quality: int = 100,
     evidence_source: str = "exchange",
+    evidence_type: str = "official",
+    source: str = "official",
 ) -> int:
     return db.execute(
         sa.text(
@@ -172,8 +178,8 @@ def insert_evidence(
                 publication_evidence_hash, recorded_at,
                 raw_artifact_id, ingest_run_id
             ) VALUES (
-                'daily_price', 'official', :kind, :published_at,
-                :evidence_source, 'official', :quality, :supersedes, :version,
+                'daily_price', :source, :kind, :published_at,
+                :evidence_source, :evidence_type, :quality, :supersedes, :version,
                 :hash, TIMESTAMPTZ '2000-01-01+00', :artifact, :run
             ) RETURNING id
             """
@@ -182,6 +188,8 @@ def insert_evidence(
             "kind": kind,
             "published_at": published_at,
             "evidence_source": evidence_source,
+            "evidence_type": evidence_type,
+            "source": source,
             "quality": quality,
             "supersedes": supersedes,
             "version": version_id,
@@ -366,6 +374,141 @@ def test_evidence_head_ranking_is_quality_then_recorded_time_then_id(db: Connect
     assert result.authoritative_evidence.evidence_source == "high-quality"
 
 
+def test_unsupported_higher_quality_evidence_cannot_win(db: Connection) -> None:
+    security_id = configure_source(
+        db, "daily_price", accepted_evidence_types=("official",)
+    )
+    artifact, run = seed_lineage(db, "daily_price", digest_char="4")
+    version = insert_price(db, security_id, artifact, run)
+    official = insert_evidence(
+        db,
+        version,
+        artifact,
+        run,
+        quality=80,
+        evidence_type="official",
+        evidence_source="official-release",
+    )
+    insert_evidence(
+        db,
+        version,
+        artifact,
+        run,
+        quality=100,
+        evidence_type="estimated",
+        evidence_source="unsupported-estimate",
+    )
+
+    result = PITResolver().resolve(
+        db,
+        dataset_code="daily_price",
+        logical_key=key(security_id),
+        context=MarketPITContext(datetime(2020, 1, 3, tzinfo=UTC), future()),
+    )
+    assert result is not None
+    assert result.authoritative_evidence is not None
+    assert result.authoritative_evidence.evidence_id == official
+    assert result.authoritative_evidence.evidence_type == "official"
+
+
+def test_only_unsupported_evidence_is_market_invisible(db: Connection) -> None:
+    security_id = configure_source(
+        db, "daily_price", accepted_evidence_types=("official",)
+    )
+    artifact, run = seed_lineage(db, "daily_price", digest_char="5")
+    version = insert_price(db, security_id, artifact, run)
+    insert_evidence(
+        db,
+        version,
+        artifact,
+        run,
+        evidence_type="estimated",
+        evidence_source="unsupported-estimate",
+    )
+
+    assert PITResolver().resolve(
+        db,
+        dataset_code="daily_price",
+        logical_key=key(security_id),
+        context=MarketPITContext(datetime(2020, 1, 3, tzinfo=UTC), future()),
+    ) is None
+
+
+def test_accepted_evidence_type_policy_cannot_be_empty(db: Connection) -> None:
+    with pytest.raises(sa.exc.IntegrityError):
+        with db.begin_nested():
+            configure_source(
+                db,
+                "empty_evidence_policy",
+                accepted_evidence_types=(),
+            )
+
+
+def test_accepted_evidence_types_are_isolated_by_source(db: Connection) -> None:
+    source_a_security = configure_source(
+        db,
+        "daily_price",
+        "source_a",
+        canonical=True,
+        accepted_evidence_types=("official",),
+    )
+    source_b_security = configure_source(
+        db,
+        "daily_price",
+        "source_b",
+        canonical=False,
+        accepted_evidence_types=("official", "verified_proxy"),
+    )
+    artifact_a, run_a = seed_lineage(
+        db, "daily_price", "source_a", digest_char="7"
+    )
+    artifact_b, run_b = seed_lineage(
+        db, "daily_price", "source_b", digest_char="8"
+    )
+    version_a = insert_price(
+        db, source_a_security, artifact_a, run_a, source="source_a"
+    )
+    version_b = insert_price(
+        db, source_b_security, artifact_b, run_b, source="source_b"
+    )
+    insert_evidence(
+        db,
+        version_a,
+        artifact_a,
+        run_a,
+        evidence_type="verified_proxy",
+        source="source_a",
+    )
+    insert_evidence(
+        db,
+        version_b,
+        artifact_b,
+        run_b,
+        evidence_type="verified_proxy",
+        source="source_b",
+    )
+    context = MarketPITContext(datetime(2020, 1, 3, tzinfo=UTC), future())
+    resolver = PITResolver()
+
+    assert resolver.resolve(
+        db,
+        dataset_code="daily_price",
+        source="source_a",
+        logical_key=key(source_a_security),
+        context=context,
+    ) is None
+    source_b_result = resolver.resolve(
+        db,
+        dataset_code="daily_price",
+        source="source_b",
+        logical_key=key(source_b_security),
+        context=context,
+    )
+    assert source_b_result is not None
+    assert source_b_result.authoritative_evidence is not None
+    assert source_b_result.authoritative_evidence.evidence_type == "verified_proxy"
+
+
 def test_market_revision_selection_is_publication_time_then_version_id(db: Connection) -> None:
     security_id = configure_source(db, "daily_price")
     artifact, run = seed_lineage(db, "daily_price", digest_char="6")
@@ -384,6 +527,49 @@ def test_market_revision_selection_is_publication_time_then_version_id(db: Conne
     assert result is not None
     assert result.provenance.version_id == second
     assert result.data["close_price"] == 101
+
+
+def test_competing_revisions_respect_historical_knowledge_cutoff(db: Connection) -> None:
+    security_id = configure_source(db, "daily_price")
+    artifact, run = seed_lineage(db, "daily_price", digest_char="9")
+    first = insert_price(db, security_id, artifact, run, close=100)
+    insert_evidence(
+        db,
+        first,
+        artifact,
+        run,
+        published_at=datetime(2020, 1, 2, 6, tzinfo=UTC),
+    )
+    historical_knowledge = db.scalar(sa.select(sa.func.clock_timestamp()))
+    second = insert_price(db, security_id, artifact, run, close=110)
+    insert_evidence(
+        db,
+        second,
+        artifact,
+        run,
+        published_at=datetime(2020, 1, 2, 7, tzinfo=UTC),
+    )
+    resolver = PITResolver()
+    information = datetime(2020, 1, 3, tzinfo=UTC)
+
+    historical = resolver.resolve(
+        db,
+        dataset_code="daily_price",
+        logical_key=key(security_id),
+        context=MarketPITContext(information, historical_knowledge),
+    )
+    current_best = resolver.resolve(
+        db,
+        dataset_code="daily_price",
+        logical_key=key(security_id),
+        context=MarketPITContext(information, future()),
+    )
+    assert historical is not None
+    assert historical.provenance.version_id == first
+    assert historical.data["close_price"] == 100
+    assert current_best is not None
+    assert current_best.provenance.version_id == second
+    assert current_best.data["close_price"] == 110
 
 
 def test_source_capability_is_exact_and_canonical_selection_is_explicit(db: Connection) -> None:
@@ -552,6 +738,67 @@ def test_unsealed_aggregate_is_invisible_and_seal_is_system_visibility(db: Conne
     )
     assert market_result is not None
     assert market_result.authoritative_evidence is not None
+
+
+def test_tdcc_aggregate_has_the_same_resolver_seal_semantics(db: Connection) -> None:
+    security_id = configure_source(db, "tdcc_snapshot")
+    artifact, run = seed_lineage(db, "tdcc_snapshot", digest_char="f")
+    snapshot = db.execute(
+        sa.text(
+            """
+            INSERT INTO tdcc_snapshot_versions (
+                security_id, source, snapshot_date, business_content_hash,
+                raw_artifact_id, ingest_run_id
+            ) VALUES (
+                :security, 'official', DATE '2020-01-03', :hash,
+                :artifact, :run
+            ) RETURNING id
+            """
+        ),
+        {"security": security_id, "hash": "0" * 64, "artifact": artifact, "run": run},
+    ).scalar_one()
+    db.execute(
+        sa.text(
+            """
+            INSERT INTO tdcc_distribution (
+                snapshot_version_id, bucket_code, holder_count, shares,
+                ownership_percent
+            ) VALUES (:snapshot, '1-999', 10, 1000, 100)
+            """
+        ),
+        {"snapshot": snapshot},
+    )
+    logical_key = {
+        "security_id": security_id,
+        "snapshot_date": datetime(2020, 1, 3).date(),
+    }
+    resolver = PITResolver()
+    assert resolver.resolve(
+        db,
+        dataset_code="tdcc_snapshot",
+        logical_key=logical_key,
+        context=SystemPITContext(future()),
+    ) is None
+
+    db.execute(
+        sa.text(
+            """
+            INSERT INTO tdcc_snapshot_seals (
+                snapshot_version_id, business_content_hash, ingested_at
+            ) VALUES (:snapshot, :hash, TIMESTAMPTZ '2000-01-01+00')
+            """
+        ),
+        {"snapshot": snapshot, "hash": "0" * 64},
+    )
+    result = resolver.resolve(
+        db,
+        dataset_code="tdcc_snapshot",
+        logical_key=logical_key,
+        context=SystemPITContext(future()),
+    )
+    assert result is not None
+    assert result.provenance.aggregate_seal_id == snapshot
+    assert result.provenance.business_content_hash != "0" * 64
 
 
 def test_context_and_logical_key_validation_are_explicit(db: Connection) -> None:
