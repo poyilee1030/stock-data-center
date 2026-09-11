@@ -923,16 +923,16 @@ Requirements:
 
 Acceptance criteria:
 
-- [ ] child insert after seal is rejected
-- [ ] sealed aggregate cannot be updated/deleted
-- [ ] committed unsealed aggregate can exist but is resolver-invisible
-- [ ] caller cannot forge normal historical ingestion time
-- [ ] business hash is storage-generated from canonical business content
-- [ ] evidence update does not create false business revision
-- [ ] correction/retraction can be represented append-only
-- [ ] XBRL context identity supports dimensions
-- [ ] source A capability does not leak to source B
-- [ ] Alembic upgrade/downgrade/upgrade succeeds
+- [x] child insert after seal is rejected
+- [x] sealed aggregate cannot be updated/deleted
+- [x] committed unsealed aggregate can exist but is resolver-invisible
+- [x] caller cannot forge normal historical ingestion time
+- [x] business hash is storage-generated from canonical business content
+- [x] evidence update does not create false business revision
+- [x] correction/retraction can be represented append-only
+- [x] XBRL context identity supports dimensions
+- [x] source A capability does not leak to source B
+- [x] Alembic upgrade/downgrade/upgrade succeeds
 
 ---
 

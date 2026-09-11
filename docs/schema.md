@@ -1,0 +1,130 @@
+# Phase 1 Database Schema
+
+## Scope
+
+Phase 1 establishes PostgreSQL 18 storage and integrity rules. It does not
+implement PIT resolver queries, ingestion adapters, the public API, or caching.
+
+SQLAlchemy metadata lives in `src/stock_data_center/db/metadata.py`. Alembic
+migrations are the deployment record in `migrations/versions/`.
+
+## Core tables
+
+| Area | Tables |
+| --- | --- |
+| Dataset policy | `dataset_catalog`, `dataset_sources` |
+| Security identity | `security`, `security_metadata_versions` |
+| Provenance | `ingest_runs`, `raw_artifacts`, `raw_artifact_observations` |
+| Single-row versions | `daily_price_versions`, `monthly_revenue_versions` |
+| Financial aggregate | `financial_filing_versions`, `financial_facts`, `quarterly_financial_summary`, `financial_filing_seals` |
+| TDCC aggregate | `tdcc_snapshot_versions`, `tdcc_distribution`, `tdcc_snapshot_seals` |
+| Publication knowledge | `publication_evidence` |
+
+All externally meaningful timestamps use `TIMESTAMPTZ`.
+
+## Provenance model
+
+`raw_artifacts` is the immutable content-addressed identity of exact bytes. Its
+lowercase SHA-256 digest and storage URI are unique, and the URI must contain the
+digest. `raw_artifact_observations` records every ingest run that fetched an
+artifact, including repeat fetches of identical bytes.
+
+Every normalized version and publication-evidence row has a composite foreign
+key to `(raw_artifact_id, ingest_run_id)` in the observation table. Insert
+triggers additionally ensure the run's dataset and source match the normalized
+row. This prevents both mismatched IDs and cross-source lineage.
+
+See [ADR-0006](decisions/0006-content-addressed-artifacts-and-fetch-observations.md).
+
+## Version and hash rules
+
+Single-row version insert triggers overwrite caller values for `ingested_at`
+and `business_content_hash`. Hashes are SHA-256 over PostgreSQL-built canonical
+JSON containing only the table's business values. Logical identity, source,
+publication evidence, timestamps, and provenance identifiers are outside the
+business hash. A unique constraint over logical key, source, and business hash
+prevents an unchanged fetch from creating a false revision.
+
+The three hash domains remain separate:
+
+- `business_content_hash` for normalized business values;
+- `publication_evidence_hash` for an evidence assertion and its target; and
+- `raw_artifact_hash` for exact raw bytes.
+
+Normal application SQL cannot preserve a caller-provided authoritative time or
+business/evidence hash. A future historical import requiring timestamp
+preservation must add a separately restricted and audited migration mechanism;
+none is exposed in Phase 1.
+
+Append-only tables reject `UPDATE`, `DELETE`, and `TRUNCATE`; immutability does
+not depend on application repository behavior.
+
+## Publication evidence
+
+`publication_evidence` has real nullable foreign keys to each supported version
+table and a check requiring exactly one target. Its insert trigger verifies that
+the declared dataset/source matches that target and that supersession stays on
+the same target and source.
+
+`recorded_at` and `publication_evidence_hash` are overwritten by trusted DB
+logic. Updates and deletes are rejected. Assertions/corrections require a
+non-null publication instant; unknown/retraction events require a null instant.
+Authoritative evidence selection remains Phase 2 work.
+
+## Immutable aggregates
+
+Financial filings and TDCC snapshots can be committed as drafts. Their official
+visibility surfaces are the `visible_financial_filings` and
+`visible_tdcc_snapshots` views, both of which inner-join the dataset-specific
+seal table.
+
+On seal insertion, PostgreSQL locks the parent, validates that required children
+exist, computes a canonical aggregate business hash from the parent and ordered
+children, overwrites the seal time with `statement_timestamp()`, and copies the
+hash to the parent. After the seal exists, triggers reject:
+
+- parent update/delete;
+- child insert/update/delete; and
+- seal update/delete.
+
+The seal tables use direct foreign keys rather than polymorphic references.
+
+## XBRL context identity
+
+Every financial fact has a non-null, storage-generated `context_hash`. The hash
+includes entity, period shape, explicit and typed dimensions, scenario, and
+segment. PostgreSQL `jsonb` provides canonical object-key ordering. Fact
+uniqueness includes filing, namespace-aware concept QName, context hash, and
+unit identity, so dimensionally distinct facts coexist while a canonical
+duplicate is rejected.
+
+## Source capability
+
+`dataset_sources` has a composite primary key of `(dataset_code, source)` and
+stores market/system PIT capability, evidence status/quality, and canonical
+source status independently. A partial unique index allows at most one
+canonical source per dataset. Resolver enforcement of these flags belongs to
+Phase 2.
+
+## Migration operation
+
+Local PostgreSQL 18 startup:
+
+```bash
+docker compose up -d postgres
+```
+
+Apply, verify, and reverse migrations:
+
+```bash
+DATABASE_URL=postgresql+psycopg://stockdc:stockdc@localhost:5432/stockdc \
+  .venv/bin/alembic upgrade head
+DATABASE_URL=postgresql+psycopg://stockdc:stockdc@localhost:5432/stockdc \
+  .venv/bin/alembic check
+DATABASE_URL=postgresql+psycopg://stockdc:stockdc@localhost:5432/stockdc \
+  .venv/bin/alembic downgrade base
+```
+
+The initial migration has no cache impact: Phase 1 has no cache implementation
+or historical rows. Any later migration that changes temporal meaning must
+include the cache-impact handling required by the roadmap.
