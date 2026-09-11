@@ -104,3 +104,21 @@ def test_every_legacy_field_has_a_complete_valid_disposition() -> None:
         assert item["target"].strip(), item
         assert item["reason"].strip(), item
         assert ".logical_date" not in item["target"], item
+
+
+def test_official_pe_remains_observed_in_json_and_markdown_inventory() -> None:
+    contract = json.loads((ROOT / "docs/data_domain_inventory.json").read_text())
+    official_pe = next(
+        item
+        for item in contract["fields"]
+        if item["legacy_table"] == "valuation_daily"
+        and item["legacy_field"] == "pe_official"
+    )
+    assert official_pe["disposition"] == "observed"
+    assert official_pe["target"] == "official_valuation_versions.pe_ratio"
+
+    inventory = (ROOT / "docs/data_domain_inventory.md").read_text()
+    assert (
+        "Legacy `pe_official` is observed and maps to "
+        "`official_valuation_versions.pe_ratio`"
+    ) in inventory

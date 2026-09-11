@@ -23,12 +23,27 @@ details are in [`docs/schema.md`](../schema.md), with architectural decisions in
 No ingestion pipeline, calculator, resolver, public API, cache implementation,
 or Redis dependency was added.
 
+## Migration evidence
+
+Phase 1 is represented by four ordered Alembic revisions:
+
+1. `94060901029e_create_phase_1_schema.py` — core tables and visibility views;
+2. `b7e1c9a42f10_enforce_phase_1_invariants.py` — trusted hashes/times,
+   append-only histories, lineage, sealing, and concurrency serialization;
+3. `58124040faa4_complete_v1_storage_contract.py` — remaining observed and
+   canonical-derived v1 storage contracts; and
+4. `ae58b8fa158d_enforce_complete_v1_invariants.py` — invariants and PIT indexes
+   for the completed v1 contract.
+
+The migration round-trip test applies all four revisions after a downgrade to
+base and verifies all 31 v1 tables.
+
 ## Required acceptance criteria
 
 | Criterion | Result | Concrete evidence |
 | --- | --- | --- |
 | `docs/data_domain_inventory.md` covers all known legacy tables/domains | PASS | The inventory records the 2026-09-11 audit: 26 retained DB tables plus all 27 `SCHEMA_COLS` categories, including four deprecated pre-XBRL categories. `test_phase1_contract_docs.py` enforces both the retained table set and the field contract. |
-| Every legacy field/domain has an intentional disposition | PASS | `docs/data_domain_inventory.json` contains one explicit record for each of the 416 audited `SCHEMA_COLS` fields, with disposition, target, and reason. Tests enforce uniqueness, 27/416 counts, allowed dispositions, non-empty targets/reasons, and the frozen canonical pair SHA-256 extracted from the old source. |
+| Every legacy field/domain has an intentional disposition | PASS | `docs/data_domain_inventory.json` contains one explicit record for each of the 416 audited `SCHEMA_COLS` fields, with disposition, target, and reason. Tests enforce uniqueness, 27/416 counts, allowed dispositions, non-empty targets/reasons, and the frozen canonical pair SHA-256 extracted from the old source. A targeted regression also requires `valuation_daily.pe_official` to remain observed as `official_valuation_versions.pe_ratio` in both JSON and Markdown. |
 | All known v1 observed domains have a storage contract | PASS | SQLAlchemy metadata and migrations define 31 tables covering core, daily/revenue, XBRL, TDCC, institutional/holding, margin/short/SBL, indices, actions, official valuation, tags, and concept catalog. |
 | All known v1 canonical-derived domains have a materialized/virtual contract | PASS | `derived_dataset_definitions`, `derived_computation_runs`, and `derived_metric_versions` implement the common contract; the inventory explicitly selects a strategy for technical, concentration, valuation, margin, short/SBL and additional reusable datasets. |
 | Child insert after seal is rejected | PASS | Financial and TDCC child protection triggers lock the parent and reject post-seal mutation; sequential and real multi-connection tests cover this. |
@@ -53,7 +68,7 @@ All 19 required criteria pass.
 
 ```text
 PostgreSQL:                 18 (postgres:18)
-pytest:                     27 passed
+pytest:                     28 passed
 Alembic round-trip:         PASS (inside pytest)
 alembic check:              No new upgrade operations detected
 Python compileall:          PASS

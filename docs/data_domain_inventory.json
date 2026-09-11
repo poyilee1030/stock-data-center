@@ -2890,9 +2890,9 @@
     {
       "legacy_table": "valuation_daily",
       "legacy_field": "pe_official",
-      "disposition": "canonical_derived",
-      "target": "derived_metric_versions.metric_code=pe_official (valuation_metrics:v1)",
-      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+      "disposition": "observed",
+      "target": "official_valuation_versions.pe_ratio",
+      "reason": "This legacy value is the source-published official PE, so it remains observed and distinct from Data Center-computed valuation metrics."
     },
     {
       "legacy_table": "valuation_daily",
