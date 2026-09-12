@@ -23,14 +23,21 @@ write 0. The Phase 1 global `shares >= 0` check rejected valid adjustment rows.
 Every TDCC snapshot declares a `distribution_schema` profile.
 `tdcc_distribution_schemas` and `tdcc_distribution_schema_buckets` register each
 profile and its buckets, each with one role: `holding`, `adjustment`, or
-`total`. Profiles are append-only; changed bucket semantics require a new
-profile code, as a changed formula requires a new derivation version.
+`total`. A profile is frozen on first use: its buckets may be defined only while
+no snapshot references it, and existing definitions can never be updated or
+deleted. Changed bucket semantics require a new profile code, as a changed
+formula requires a new derivation version. Because the aggregate hash contains
+only the profile code, not its bucket rows, the code must name one fixed
+contract.
 
 `tdcc-opendata-v1` registers levels 1-15 as `holding`, 16 as `adjustment`, and
 17 as `total`.
 
 PostgreSQL enforces the profile:
 
+- a bucket definition insert locks the profile row and is rejected (`55000`)
+  once any snapshot references the profile; a snapshot insert's foreign-key
+  lock on the same row serializes first use with definition changes;
 - every distribution row must be a bucket of its snapshot's profile;
 - `holding` and `total` rows require a holder count and non-negative shares and
   ownership percent;

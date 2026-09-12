@@ -216,7 +216,8 @@ evidence whose `published_at` precedes the snapshot date in Asia/Taipei.
 Each snapshot declares a registered, append-only distribution profile. Row
 triggers enforce the profile's bucket roles (a signed level-16 adjustment with a
 `NULL` holder count in `tdcc-opendata-v1`), and the seal rejects a snapshot that
-lacks any profile bucket. Existing snapshots are assigned the official profile
+lacks any profile bucket. A profile's bucket definitions freeze once any
+snapshot references it. Existing snapshots are assigned the official profile
 and rehashed; the migration aborts if they do not fit it. See
 [ADR-0012](decisions/0012-tdcc-distribution-profiles-and-seal-completeness.md).
 

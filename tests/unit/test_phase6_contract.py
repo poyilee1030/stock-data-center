@@ -108,6 +108,7 @@ def test_phase6_contract_documents_effective_time_and_defers_derivations() -> No
     assert "level 16 is a signed adjustment" in contract
     assert "holder_count is NULL" in contract
     assert "incomplete snapshot cannot be sealed" in contract
+    assert "A profile is frozen once used" in contract
 
 
 def test_tdcc_package_has_no_cache_or_http_dependency() -> None:

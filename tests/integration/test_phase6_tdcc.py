@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo
@@ -7,7 +8,9 @@ from zoneinfo import ZoneInfo
 import pytest
 import sqlalchemy as sa
 from alembic import command
-from sqlalchemy import Connection
+from threading import Event
+
+from sqlalchemy import Connection, Engine
 from sqlalchemy.exc import DBAPIError
 
 from conftest import alembic_config
@@ -860,6 +863,161 @@ def test_distribution_schema_must_be_a_registered_profile(db: Connection) -> Non
         "55000",
         "DELETE FROM tdcc_distribution_schema_buckets WHERE bucket_code = '17'",
     )
+
+
+PROFILE_BUCKET_INSERT = """
+    INSERT INTO tdcc_distribution_schema_buckets (
+        distribution_schema, bucket_code, bucket_role, description
+    ) VALUES (:profile, :code, 'holding', 'late bucket')
+"""
+
+
+def test_used_profile_definition_is_frozen_and_changes_need_a_new_code(
+    db: Connection,
+) -> None:
+    security_id = configure(db)
+    # Case A: a profile referenced by any snapshot (even a draft) is frozen.
+    first = WRITER.write_snapshot(
+        db, security_id=security_id, source="tdcc",
+        observation=snapshot(), lineage=lineage(db, "1"),
+    )
+    assert_sqlstate(
+        db, "55000", PROFILE_BUCKET_INSERT, profile=TDCC_OPENDATA_V1, code="18"
+    )
+
+    # Case B: an unused profile can still be defined bucket by bucket.
+    v2_roles = {str(level): "holding" for level in range(1, 17)}
+    v2_roles |= {"17": "adjustment", "18": "total"}
+    add_profile(db, "tdcc-opendata-v2", v2_roles)
+
+    # Case D: changed semantics use the new code; the old profile keeps its
+    # 1-17 contract and its sealed snapshots stay complete and resolvable.
+    v2_items = tuple(
+        TDCCBucketObservation(code, None if role == "adjustment" else 1,
+                              Decimal(1), Decimal(1))
+        for code, role in v2_roles.items()
+    )
+    v2 = WRITER.write_snapshot(
+        db, security_id=security_id, source="tdcc",
+        observation=TDCCSnapshotObservation(
+            snapshot_date=date(2024, 1, 12),
+            distribution_schema="tdcc-opendata-v2",
+            distribution=v2_items,
+        ),
+        lineage=lineage(db, "2"),
+    )
+    assert v2.created is True
+    v1_again = WRITER.write_snapshot(
+        db, security_id=security_id, source="tdcc",
+        observation=snapshot(date(2024, 1, 19)), lineage=lineage(db, "3"),
+    )
+    assert v1_again.created is True
+    resolved = SERVICE.snapshot(
+        db, security_code="2330", snapshot_date=SNAPSHOT_DATE,
+        context=SystemPITContext(later()),
+    )
+    assert resolved is not None
+    assert resolved.snapshot.provenance.version_id == first.version_id
+    assert len(resolved.distribution) == 17
+
+    # Case C: once v2 is used, it is frozen as well.
+    assert_sqlstate(
+        db, "55000", PROFILE_BUCKET_INSERT, profile="tdcc-opendata-v2", code="19"
+    )
+
+
+def test_profile_freeze_serializes_with_first_snapshot_use(
+    isolated_database_url: str,
+) -> None:
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        with engine.begin() as setup:
+            security_id = configure(setup)
+            lineage_ref = lineage(setup, "1")
+            add_profile(setup, "test-first-use-v1", {"a": "holding"})
+            add_profile(setup, "test-first-use-v2", {"a": "holding"})
+
+        def begin(connection: Connection, profile: str) -> int:
+            return WRITER.begin_snapshot(
+                connection, security_id=security_id, source="tdcc",
+                snapshot_date=SNAPSHOT_DATE, distribution_schema=profile,
+                lineage=lineage_ref,
+            )
+
+        # First use commits first: the concurrent definition change is rejected.
+        with engine.connect() as user:
+            transaction = user.begin()
+            begin(user, "test-first-use-v1")
+            started = Event()
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(
+                    concurrent_bucket_insert, engine, "test-first-use-v1", started
+                )
+                assert started.wait(timeout=2)
+                with pytest.raises(FutureTimeout):
+                    future.result(timeout=0.25)
+                transaction.commit()
+                assert future.result(timeout=5) == "55000"
+
+        # Definition commits first: the snapshot then uses the extended profile.
+        with engine.connect() as definer:
+            transaction = definer.begin()
+            definer.execute(
+                sa.text(PROFILE_BUCKET_INSERT),
+                {"profile": "test-first-use-v2", "code": "b"},
+            )
+            started = Event()
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(
+                    concurrent_first_use, engine, begin, "test-first-use-v2", started
+                )
+                assert started.wait(timeout=2)
+                with pytest.raises(FutureTimeout):
+                    future.result(timeout=0.25)
+                transaction.commit()
+                assert future.result(timeout=5) == "committed"
+
+        with engine.connect() as check:
+            assert check.scalar(
+                sa.text(
+                    "SELECT count(*) FROM tdcc_distribution_schema_buckets "
+                    "WHERE distribution_schema = :profile"
+                ),
+                {"profile": "test-first-use-v1"},
+            ) == 1
+            assert check.scalar(
+                sa.text(
+                    "SELECT count(*) FROM tdcc_distribution_schema_buckets "
+                    "WHERE distribution_schema = :profile"
+                ),
+                {"profile": "test-first-use-v2"},
+            ) == 2
+    finally:
+        engine.dispose()
+
+
+def concurrent_bucket_insert(engine: Engine, profile: str, started: Event) -> str:
+    try:
+        with engine.begin() as connection:
+            connection.exec_driver_sql("SET LOCAL lock_timeout = '5s'")
+            started.set()
+            connection.execute(
+                sa.text(PROFILE_BUCKET_INSERT), {"profile": profile, "code": "late"}
+            )
+    except DBAPIError as error:
+        return str(getattr(error.orig, "sqlstate", "unknown"))
+    return "committed"
+
+
+def concurrent_first_use(engine: Engine, begin, profile: str, started: Event) -> str:
+    try:
+        with engine.begin() as connection:
+            connection.exec_driver_sql("SET LOCAL lock_timeout = '5s'")
+            started.set()
+            begin(connection, profile)
+    except DBAPIError as error:
+        return str(getattr(error.orig, "sqlstate", "unknown"))
+    return "committed"
 
 
 def test_database_hash_function_matches_seal_and_orders_buckets_bytewise(

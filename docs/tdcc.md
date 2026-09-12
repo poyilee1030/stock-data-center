@@ -59,8 +59,18 @@ this before creating a draft, and PostgreSQL enforces the same rules for every
 write path: per row on insert/update and for completeness at seal. Sealed
 therefore means complete for the declared profile. Arithmetic identities
 between holding, adjustment, and total rows are not enforced; the total is
-retained as the source-published value. Profiles are append-only. A different
-source layout needs its own registered profile instead of a relaxed rule.
+retained as the source-published value.
+
+A profile is frozen once used. Bucket definitions may be added only while no
+snapshot references the profile. After the first snapshot (draft or sealed)
+uses it, PostgreSQL rejects any new bucket for that profile (`55000`), and
+existing definitions can never be updated or deleted. The bucket insert locks
+the profile row, which conflicts with the foreign-key lock taken by a snapshot
+insert, so a definition change and a first use serialize and whichever
+commits first wins. The profile code in the business hash therefore always
+names one fixed contract. Changed semantics or a different source layout need a
+new profile code, for example `tdcc-opendata-v2`, and never a mutation of an
+existing one.
 
 ## Aggregate and lineage contract
 

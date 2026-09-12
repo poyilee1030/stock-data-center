@@ -8,7 +8,8 @@ Adds many-observation lineage for TDCC snapshot versions (backfilled from the
 existing parent lineage) and versioned distribution-schema profiles. Every
 snapshot declares a profile; each distribution row must be a bucket of that
 profile and obey its role (holding, signed adjustment, total), and a seal is
-accepted only when every bucket of the profile is present. Adjustment rows
+accepted only when every bucket of the profile is present. A profile's bucket
+definitions freeze once any snapshot references it. Adjustment rows
 store holder_count as NULL (source blank and source 0 are canonicalized to
 NULL). The canonical aggregate hash becomes a reusable DB function that covers
 the profile and orders buckets byte-wise (COLLATE "C"). TDCC publication
@@ -177,6 +178,7 @@ def upgrade() -> None:
         ["distribution_schema"],
         ondelete="RESTRICT",
     )
+    _create_profile_freeze()
     op.alter_column("tdcc_distribution", "holder_count", nullable=True)
     op.drop_constraint(
         op.f("ck_tdcc_distribution_shares_nonnegative"), "tdcc_distribution", type_="check"
@@ -489,6 +491,36 @@ def _create_distribution_schemas() -> None:
     )
 
 
+def _create_profile_freeze() -> None:
+    op.execute(
+        """
+        CREATE FUNCTION stockdc_freeze_used_tdcc_profile()
+        RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+            -- A snapshot insert takes FOR KEY SHARE on this profile row through
+            -- its foreign key, so locking it serializes the definition change
+            -- with first use: whichever commits first wins.
+            PERFORM 1 FROM tdcc_distribution_schemas
+             WHERE distribution_schema = NEW.distribution_schema FOR UPDATE;
+            IF EXISTS (
+                SELECT 1 FROM tdcc_snapshot_versions
+                 WHERE distribution_schema = NEW.distribution_schema
+            ) THEN
+                RAISE EXCEPTION
+                    'distribution schema % is in use; define a new profile code',
+                    NEW.distribution_schema USING ERRCODE = '55000';
+            END IF;
+            RETURN NEW;
+        END;
+        $$;
+
+        CREATE TRIGGER freeze_used_tdcc_profile
+        BEFORE INSERT ON tdcc_distribution_schema_buckets
+        FOR EACH ROW EXECUTE FUNCTION stockdc_freeze_used_tdcc_profile();
+        """
+    )
+
+
 def _create_publication_time_rule() -> None:
     op.execute(
         """
@@ -587,6 +619,7 @@ def downgrade() -> None:
     op.drop_column("tdcc_snapshot_versions", "distribution_schema")
     op.drop_table("tdcc_distribution_schema_buckets")
     op.drop_table("tdcc_distribution_schemas")
+    op.execute("DROP FUNCTION IF EXISTS stockdc_freeze_used_tdcc_profile()")
     op.execute(
         """
         DROP TRIGGER IF EXISTS no_truncate_tdcc_snapshot_observations
