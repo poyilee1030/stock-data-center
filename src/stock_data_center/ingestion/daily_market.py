@@ -5,6 +5,7 @@ from __future__ import annotations
 import calendar
 import json
 import subprocess
+from dataclasses import dataclass
 from datetime import date, datetime
 from hashlib import sha256
 from uuid import UUID, uuid4
@@ -36,6 +37,7 @@ from stock_data_center.ingestion.models import (
 )
 from stock_data_center.ingestion.raw_storage import (
     LocalRawArtifactStore,
+    RawArtifactIntegrityError,
     StoredRawArtifact,
 )
 from stock_data_center.market_data import (
@@ -43,6 +45,15 @@ from stock_data_center.market_data import (
     MarketDataWriter,
     PublicationObservation,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class _CapturedResource:
+    run_id: UUID
+    artifact_id: UUID
+    artifact_hash: str
+    storage_uri: str
+    byte_size: int
 
 
 class DailyMarketImporter:
@@ -106,29 +117,63 @@ class DailyMarketImporter:
             )
             if resumed is not None:
                 return resumed
-
-        try:
-            fetched = self._fetcher.fetch(resource)
-            stored = self._raw_store.put(fetched.content)
-        except Exception as error:
-            with self._engine.begin() as connection:
-                self._fail_manifest(connection, import_id, f"fetch failed: {error}")
-            raise
-
-        with self._engine.begin() as connection:
-            run_id, artifact_id, artifact_created = self._capture_raw(
-                connection,
-                import_id=import_id,
-                adapter=adapter,
-                resource_key=resource.resource_key,
-                stored=stored,
-                source_uri=fetched.source_uri,
-                fetched_at=fetched.fetched_at,
-                media_type=fetched.media_type,
+            captured = self._captured_checkpoint(
+                connection, import_id, resource.resource_key
             )
 
+        if captured is not None:
+            try:
+                content = self._raw_store.read(
+                    storage_uri=captured.storage_uri,
+                    expected_digest=captured.artifact_hash,
+                    expected_byte_size=captured.byte_size,
+                )
+            except RawArtifactIntegrityError as error:
+                with self._engine.begin() as connection:
+                    self._quarantine(
+                        connection,
+                        import_id=import_id,
+                        resource_key=resource.resource_key,
+                        run_id=captured.run_id,
+                        artifact_id=captured.artifact_id,
+                        reason_code="raw_artifact_integrity",
+                        detail=str(error),
+                    )
+                raise ResourceQuarantinedError(
+                    f"{resource.resource_key} retained raw artifact failed "
+                    f"integrity validation: {error}"
+                ) from error
+            run_id = captured.run_id
+            artifact_id = captured.artifact_id
+            artifact_hash = captured.artifact_hash
+            artifact_created = False
+        else:
+            try:
+                fetched = self._fetcher.fetch(resource)
+                stored = self._raw_store.put(fetched.content)
+            except Exception as error:
+                with self._engine.begin() as connection:
+                    self._fail_manifest(
+                        connection, import_id, f"fetch failed: {error}"
+                    )
+                raise
+
+            with self._engine.begin() as connection:
+                run_id, artifact_id, artifact_created = self._capture_raw(
+                    connection,
+                    import_id=import_id,
+                    adapter=adapter,
+                    resource_key=resource.resource_key,
+                    stored=stored,
+                    source_uri=fetched.source_uri,
+                    fetched_at=fetched.fetched_at,
+                    media_type=fetched.media_type,
+                )
+            content = fetched.content
+            artifact_hash = stored.digest
+
         try:
-            parsed = adapter.parse(fetched.content, request)
+            parsed = adapter.parse(content, request)
             with self._engine.begin() as connection:
                 result = self._write_parsed(
                     connection,
@@ -138,7 +183,7 @@ class DailyMarketImporter:
                     resource_key=resource.resource_key,
                     run_id=run_id,
                     artifact_id=artifact_id,
-                    artifact_hash=stored.digest,
+                    artifact_hash=artifact_hash,
                     artifact_created=artifact_created,
                     parsed=parsed,
                 )
@@ -323,6 +368,50 @@ class DailyMarketImporter:
             coverage_start=_optional_date(reconciliation.get("coverage_start")),
             coverage_end=_optional_date(reconciliation.get("coverage_end")),
             resumed_from_checkpoint=True,
+        )
+
+    @staticmethod
+    def _captured_checkpoint(
+        connection: Connection,
+        import_id: UUID,
+        resource_key: str,
+    ) -> _CapturedResource | None:
+        row = connection.execute(
+            sa.select(
+                import_checkpoints.c.last_ingest_run_id,
+                import_checkpoints.c.last_raw_artifact_id,
+                raw_artifacts.c.raw_artifact_hash,
+                raw_artifacts.c.storage_uri,
+                raw_artifacts.c.byte_size,
+                ingest_runs.c.status.label("run_status"),
+            )
+            .join(
+                raw_artifacts,
+                raw_artifacts.c.id == import_checkpoints.c.last_raw_artifact_id,
+            )
+            .join(
+                ingest_runs,
+                ingest_runs.c.id == import_checkpoints.c.last_ingest_run_id,
+            )
+            .where(
+                import_checkpoints.c.import_id == import_id,
+                import_checkpoints.c.resource_key == resource_key,
+                import_checkpoints.c.status == "captured",
+            )
+            .with_for_update(of=import_checkpoints)
+        ).mappings().one_or_none()
+        if row is None:
+            return None
+        if row["run_status"] != "running":
+            raise RuntimeError(
+                "captured checkpoint must reference its original running ingest run"
+            )
+        return _CapturedResource(
+            run_id=row["last_ingest_run_id"],
+            artifact_id=row["last_raw_artifact_id"],
+            artifact_hash=row["raw_artifact_hash"],
+            storage_uri=row["storage_uri"],
+            byte_size=row["byte_size"],
         )
 
     @staticmethod
@@ -539,7 +628,8 @@ class DailyMarketImporter:
             "coverage_end": (
                 parsed.coverage_end.isoformat() if parsed.coverage_end else None
             ),
-            "coverage_gaps": [],
+            "coverage_validation": "not_evaluated",
+            "coverage_gaps": None,
             "warnings_anomalies": quarantine_details,
             "source_units": {
                 "traded_quantity": adapter.semantics.traded_quantity_unit.value,
@@ -659,7 +749,8 @@ class DailyMarketImporter:
                 reconciliation={
                     "coverage_start": None,
                     "coverage_end": None,
-                    "coverage_gaps": ["resource rejected before canonical commit"],
+                    "coverage_validation": "not_evaluated",
+                    "coverage_gaps": None,
                     "warnings_anomalies": [safe_detail],
                 },
                 warnings=[safe_detail],
@@ -685,7 +776,8 @@ class DailyMarketImporter:
                 reconciliation={
                     "coverage_start": None,
                     "coverage_end": None,
-                    "coverage_gaps": ["source resource could not be fetched"],
+                    "coverage_validation": "not_evaluated",
+                    "coverage_gaps": None,
                     "warnings_anomalies": [detail],
                 },
                 warnings=[detail],

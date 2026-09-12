@@ -83,8 +83,12 @@ def upgrade() -> None:
         sa.Column("resource_key", sa.Text(), nullable=False),
         sa.Column("status", sa.String(24), nullable=False),
         sa.Column("attempt_count", sa.Integer(), nullable=False),
-        sa.Column("last_ingest_run_id", postgresql.UUID(as_uuid=True)),
-        sa.Column("last_raw_artifact_id", postgresql.UUID(as_uuid=True)),
+        sa.Column(
+            "last_ingest_run_id", postgresql.UUID(as_uuid=True), nullable=False
+        ),
+        sa.Column(
+            "last_raw_artifact_id", postgresql.UUID(as_uuid=True), nullable=False
+        ),
         sa.Column(
             "updated_at",
             postgresql.TIMESTAMP(timezone=True),
@@ -96,10 +100,6 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "attempt_count > 0",
             name=op.f("ck_import_checkpoints_attempt_count_positive"),
-        ),
-        sa.CheckConstraint(
-            "(last_ingest_run_id IS NULL) = (last_raw_artifact_id IS NULL)",
-            name=op.f("ck_import_checkpoints_lineage_pair"),
         ),
         sa.CheckConstraint(
             "resource_key <> ''",

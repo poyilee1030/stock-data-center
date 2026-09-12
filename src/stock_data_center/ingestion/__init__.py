@@ -16,6 +16,7 @@ from stock_data_center.ingestion.models import (
 )
 from stock_data_center.ingestion.raw_storage import (
     LocalRawArtifactStore,
+    RawArtifactIntegrityError,
     StoredRawArtifact,
 )
 
@@ -27,6 +28,7 @@ __all__ = [
     "ImportManifestResult",
     "LocalRawArtifactStore",
     "ParsedDailyMarket",
+    "RawArtifactIntegrityError",
     "ResourceImportResult",
     "ResourceQuarantinedError",
     "SourceDataError",

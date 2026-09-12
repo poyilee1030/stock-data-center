@@ -231,8 +231,8 @@ import_checkpoints = sa.Table(
     sa.Column("resource_key", sa.Text(), nullable=False),
     sa.Column("status", sa.String(24), nullable=False),
     sa.Column("attempt_count", sa.Integer(), nullable=False),
-    sa.Column("last_ingest_run_id", uuid_type),
-    sa.Column("last_raw_artifact_id", uuid_type),
+    sa.Column("last_ingest_run_id", uuid_type, nullable=False),
+    sa.Column("last_raw_artifact_id", uuid_type, nullable=False),
     sa.Column(
         "updated_at",
         aware_timestamp,
@@ -259,10 +259,6 @@ import_checkpoints = sa.Table(
     ),
     sa.CheckConstraint("attempt_count > 0", name="attempt_count_positive"),
     sa.CheckConstraint("resource_key <> ''", name="resource_key_nonempty"),
-    sa.CheckConstraint(
-        "(last_ingest_run_id IS NULL) = (last_raw_artifact_id IS NULL)",
-        name="lineage_pair",
-    ),
 )
 
 

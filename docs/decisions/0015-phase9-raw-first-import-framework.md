@@ -20,6 +20,13 @@ new import of the same resource creates a new ingest run and raw observation;
 storage-generated business and publication-evidence hashes continue to dedupe
 unchanged semantic identities.
 
+A `captured` checkpoint is also a complete restart input. Resume reads the
+checkpoint's original content-addressed file, verifies its byte size and
+SHA-256 against PostgreSQL, and continues with the original ingest run without
+calling the external source. A missing or corrupt retained artifact is
+quarantined and the run is terminated as failed; it is never replaced silently
+with newly fetched bytes.
+
 The initial adapters intentionally cover one daily-market security/month from
 each exchange:
 
@@ -41,6 +48,11 @@ are visible under System PIT only after their actual PostgreSQL insertion time
 and remain Market-PIT invisible until separate reliable publication evidence is
 recorded. Neither trade dates nor fetch times are copied into `ingested_at` or
 `published_at`.
+
+Pilot 1 does not yet own a trustworthy expected trading-day calendar. Monthly
+coverage therefore records `coverage_validation = "not_evaluated"` and
+`coverage_gaps = null`. An empty gap list is reserved for a future check that
+actually compares the response with authoritative expected trading dates.
 
 ## Scope boundary
 

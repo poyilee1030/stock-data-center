@@ -15,28 +15,28 @@ to other domains or full-market history.
 | Trusted PostgreSQL write | PASS | Both adapters call `MarketDataWriter`; PostgreSQL generates business hashes and actual `ingested_at`. |
 | Publication-time honesty | PASS | Historical endpoint responses create `unknown` evidence with `published_at = NULL`. |
 | PIT result | PASS | Live and controlled integration regressions resolve imported rows under System PIT. The controlled regression confirms the unknown-publication row is Market-PIT invisible. |
-| Idempotent repeat | PASS | Same import ID resumes without refetch, and changed scope cannot reuse that ID. A new import preserves a new run/raw observation while unchanged business and evidence identities dedupe. A quarantined attempt can retry under the same ID; its prior failure remains in the final manifest. |
+| Idempotent restart | PASS | A successful import resumes without refetch, and changed scope cannot reuse that ID. The crash-boundary regression also stops after committed raw capture, then resumes from the exact retained/hash-verified bytes with the original ingest run while a fetcher that fails if called remains unused. No stale running run or fake business revision remains. |
 | Quarantine | PASS | A changed TPEx field contract retains raw bytes, fails before canonical writes, marks the run failed, and appends an immutable quarantine reason. |
-| Reconciliation manifest | PASS | PostgreSQL records source, adapter, scope/fingerprint, coverage, raw/business/evidence/dedup/unknown/rejection counts, units, gaps, and warnings. |
+| Reconciliation manifest | PASS | PostgreSQL records source, adapter, scope/fingerprint, observed coverage, raw/business/evidence/dedup/unknown/rejection counts, units, and warnings. Because Pilot 1 has no authoritative exchange calendar, it truthfully records `coverage_validation=not_evaluated` and `coverage_gaps=null`; the partial-month regression prevents an empty-list false claim. |
 | Phase boundary | PASS | No derived calculator and no Redis/cache code was added. |
 
 ## Executed checks
 
 ```text
 pytest tests/unit/test_phase9_daily_market_adapters.py
-    5 passed
+    6 passed
 
 pytest tests/integration/test_phase9_real_ingestion_framework.py
        -m "integration and not live_source"
-    1 passed, 1 deselected
+    3 passed, 1 deselected
 
 RUN_LIVE_SOURCE_TESTS=1 pytest
        tests/integration/test_phase9_real_ingestion_framework.py
        -m live_source
-    1 passed, 1 deselected
+    1 passed, 3 deselected
 
 full suite on a new database
-    170 passed, 1 skipped (live source is opt-in)
+    173 passed, 1 skipped (live source is opt-in)
 ```
 
 ## Remaining Phase 9 work

@@ -9,6 +9,7 @@ import pytest
 from stock_data_center.ingestion import (
     DailyMarketRequest,
     LocalRawArtifactStore,
+    RawArtifactIntegrityError,
     SourceDataError,
 )
 from stock_data_center.ingestion.adapters import (
@@ -128,3 +129,22 @@ def test_raw_store_is_content_addressed_and_idempotent(tmp_path) -> None:
     assert (tmp_path / "raw" / first.digest[:2] / first.digest).read_bytes() == (
         b"official source bytes"
     )
+    assert store.read(
+        storage_uri=first.storage_uri,
+        expected_digest=first.digest,
+        expected_byte_size=first.byte_size,
+    ) == b"official source bytes"
+
+
+def test_raw_store_rejects_retained_bytes_that_fail_hash_validation(tmp_path) -> None:
+    store = LocalRawArtifactStore(tmp_path / "raw")
+    stored = store.put(b"original raw bytes")
+    path = tmp_path / "raw" / stored.digest[:2] / stored.digest
+    path.write_bytes(b"tampered raw bytes")
+
+    with pytest.raises(RawArtifactIntegrityError, match="SHA-256"):
+        store.read(
+            storage_uri=stored.storage_uri,
+            expected_digest=stored.digest,
+            expected_byte_size=stored.byte_size,
+        )

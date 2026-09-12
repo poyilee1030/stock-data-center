@@ -42,15 +42,20 @@ python -m stock_data_center.ingestion.cli daily-market \
 
 The command prints the persisted manifest/reconciliation without connection
 credentials. Reusing the same successful `import_id` and identical scope reads
-the checkpoint and does not fetch again. A different configuration cannot be
-silently attached to an existing import ID.
+the checkpoint and does not fetch again. If execution stopped immediately after
+raw capture, the same command reads and hash-verifies those retained bytes,
+uses the original ingest run, and continues without contacting the source. A
+different configuration cannot be silently attached to an existing import ID.
 
 ## Reconciliation fields
 
 Each resource records requested/actual security and month coverage, raw count,
 new and deduplicated business/evidence identities, repeated evidence
 observations, unknown-publication count, rejected/quarantined count, source and
-canonical units, gaps, and warnings. Parser or writer ambiguity is quarantined
+canonical units, coverage-validation state, and warnings. Pilot 1 has no
+authoritative trading calendar, so successful monthly imports state
+`coverage_validation = "not_evaluated"` and `coverage_gaps = null`; they do not
+claim gap-free coverage. Parser or writer ambiguity is quarantined
 after raw capture; network failures are reported as fetch failures because no
 source artifact was received.
 

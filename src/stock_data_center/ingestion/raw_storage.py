@@ -17,6 +17,10 @@ class StoredRawArtifact:
     created: bool
 
 
+class RawArtifactIntegrityError(RuntimeError):
+    """Retained bytes are missing, outside the store, or fail hash validation."""
+
+
 class LocalRawArtifactStore:
     """Store bytes by SHA-256 without overwriting an existing digest path."""
 
@@ -68,3 +72,36 @@ class LocalRawArtifactStore:
             byte_size=len(content),
             created=created,
         )
+
+    def read(
+        self,
+        *,
+        storage_uri: str,
+        expected_digest: str,
+        expected_byte_size: int,
+    ) -> bytes:
+        """Read retained bytes only after validating location, size, and SHA-256."""
+        root = self._root.resolve()
+        path = Path(storage_uri).resolve()
+        try:
+            path.relative_to(root)
+        except ValueError as error:
+            raise RawArtifactIntegrityError(
+                "raw artifact URI is outside the configured store"
+            ) from error
+        try:
+            content = path.read_bytes()
+        except OSError as error:
+            raise RawArtifactIntegrityError(
+                f"retained raw artifact cannot be read: {error}"
+            ) from error
+        if len(content) != expected_byte_size:
+            raise RawArtifactIntegrityError(
+                "retained raw artifact byte size does not match PostgreSQL"
+            )
+        actual_digest = sha256(content).hexdigest()
+        if actual_digest != expected_digest:
+            raise RawArtifactIntegrityError(
+                "retained raw artifact SHA-256 does not match PostgreSQL"
+            )
+        return content
