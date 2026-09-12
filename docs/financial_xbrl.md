@@ -94,6 +94,33 @@ A `quarter` source fact must use a duration of at most 100 days ending at the
 filing period end. `ytd` must start at the filing period start, and `annual`
 must use a full-year Q4 duration.
 
+### Source context classifier
+
+Duration length is only a defensive sanity check; it is not the authoritative
+classifier. Before creating `basic_eps`, a source adapter must produce a
+`SourceContextClassification` containing the source-native context reference,
+the versioned classifier rule, the exact expected context dates, and one of
+these validated source roles:
+
+```text
+current_single_quarter
+current_year_to_date
+current_full_year
+other
+```
+
+`classify_eps_period_basis` maps only the first three roles to `quarter`, `ytd`,
+or `annual`, verifies the role against the actual normalized XBRL context and
+filing period, and rejects `other` or inconsistent/suspicious contexts. The
+writer requires this classification for every `basic_eps` summary. Thus a
+short duration alone can never authorize a quarter classification; the DB
+duration rule remains a second-line invariant for all write paths.
+
+The future real MOPS adapter must implement and permanently test its versioned
+source-role rule (for example `mops-xbrl-context-role:v1`) and pass every EPS
+context through this classifier before constructing a curated summary. It must
+not label a context from dates alone.
+
 `FinancialFilingService.actual_eps` requires the caller to specify this basis,
 first resolves the filing through the same seal, source, evidence, and PIT
 rules, and then reads the matching `basic_eps` from that exact version. A Q4
@@ -102,7 +129,8 @@ The service never searches the current database for an EPS value.
 
 The summary is not a derived-metric engine. Reusable TTM EPS, profitability,
 margin, and valuation calculations remain in the later canonical-derived phase
-and must inherit PIT visibility from these resolved inputs.
+and must inherit PIT visibility from these resolved inputs. In particular,
+`annual EPS - Q1 - Q2 - Q3` is not performed in Phase 5.
 
 Legacy summary rows can migrate only when exactly one same-filing numeric fact
 matches their value/unit and the legacy metric code explicitly identifies a

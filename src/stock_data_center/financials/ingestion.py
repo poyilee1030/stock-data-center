@@ -21,7 +21,14 @@ from stock_data_center.db.metadata import (
     publication_evidence_observations,
     quarterly_financial_summary,
 )
-from stock_data_center.financials.models import SummaryPeriodBasis, XBRLContext
+from stock_data_center.financials.classification import (
+    SourceContextClassification,
+    classify_eps_period_basis,
+)
+from stock_data_center.financials.models import (
+    SummaryPeriodBasis,
+    XBRLContext,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,6 +96,16 @@ class QuarterlySummaryObservation:
     value: Decimal
     unit_identity: str
     source_fact_id: int
+    source_context_classification: SourceContextClassification | None = None
+
+    def __post_init__(self) -> None:
+        if (
+            self.metric_code == "basic_eps"
+            and self.source_context_classification is None
+        ):
+            raise ValueError(
+                "basic_eps requires a validated source context classification"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -226,9 +243,65 @@ class FinancialFilingWriter:
         version_id: int,
         observation: QuarterlySummaryObservation,
     ) -> int:
+        values = _dataclass_values(observation)
+        classification = values.pop("source_context_classification")
+        if observation.metric_code == "basic_eps":
+            assert isinstance(classification, SourceContextClassification)
+            row = connection.execute(
+                sa.select(
+                    financial_facts.c.entity_identifier,
+                    financial_facts.c.period_type,
+                    financial_facts.c.instant_date,
+                    financial_facts.c.period_start,
+                    financial_facts.c.period_end,
+                    financial_facts.c.explicit_dimensions,
+                    financial_facts.c.typed_dimensions,
+                    financial_facts.c.scenario,
+                    financial_facts.c.segment,
+                    financial_filing_versions.c.period_start.label(
+                        "filing_period_start"
+                    ),
+                    financial_filing_versions.c.period_end.label(
+                        "filing_period_end"
+                    ),
+                    financial_filing_versions.c.report_quarter,
+                )
+                .select_from(
+                    financial_facts.join(
+                        financial_filing_versions,
+                        financial_filing_versions.c.id
+                        == financial_facts.c.filing_version_id,
+                    )
+                )
+                .where(financial_facts.c.id == observation.source_fact_id)
+            ).mappings().one_or_none()
+            if row is None:
+                raise ValueError("source fact does not exist")
+            context = XBRLContext(
+                entity_identifier=row["entity_identifier"],
+                period_type=row["period_type"],
+                instant_date=row["instant_date"],
+                period_start=row["period_start"],
+                period_end=row["period_end"],
+                explicit_dimensions=row["explicit_dimensions"],
+                typed_dimensions=row["typed_dimensions"],
+                scenario=row["scenario"],
+                segment=row["segment"],
+            )
+            classified_basis = classify_eps_period_basis(
+                context=context,
+                filing_period_start=row["filing_period_start"],
+                filing_period_end=row["filing_period_end"],
+                report_quarter=row["report_quarter"],
+                classification=classification,
+            )
+            if classified_basis.value != observation.period_basis.value:
+                raise ValueError(
+                    "summary period_basis does not match source classification"
+                )
         return connection.execute(
             quarterly_financial_summary.insert()
-            .values(filing_version_id=version_id, **_dataclass_values(observation))
+            .values(filing_version_id=version_id, **values)
             .returning(quarterly_financial_summary.c.id)
         ).scalar_one()
 

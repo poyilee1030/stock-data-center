@@ -1,5 +1,10 @@
 """PIT-safe financial filing and XBRL contract."""
 
+from stock_data_center.financials.classification import (
+    SourceContextClassification,
+    SourcePeriodRole,
+    classify_eps_period_basis,
+)
 from stock_data_center.financials.ingestion import (
     FilingLineageRef,
     FinancialFactObservation,
@@ -39,7 +44,10 @@ __all__ = [
     "QuarterlySummaryObservation",
     "ResolvedFinancialFiling",
     "SealedFiling",
+    "SourceContextClassification",
+    "SourcePeriodRole",
     "SummaryPeriodBasis",
     "WrittenFiling",
     "XBRLContext",
+    "classify_eps_period_basis",
 ]

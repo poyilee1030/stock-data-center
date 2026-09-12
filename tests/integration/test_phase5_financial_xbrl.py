@@ -20,6 +20,8 @@ from stock_data_center.financials import (
     FinancialFilingWriter,
     FinancialPublication,
     QuarterlySummaryObservation,
+    SourceContextClassification,
+    SourcePeriodRole,
     SummaryPeriodBasis,
     XBRLContext,
 )
@@ -126,6 +128,20 @@ def duration_context(**overrides: object) -> XBRLContext:
     return XBRLContext(**values)  # type: ignore[arg-type]
 
 
+def classified(
+    context: XBRLContext, role: SourcePeriodRole
+) -> SourceContextClassification:
+    assert context.period_start is not None
+    assert context.period_end is not None
+    return SourceContextClassification(
+        source_context_ref=f"context-{role.value}",
+        classifier_rule="mops-xbrl-context-role:v1",
+        period_role=role,
+        expected_start=context.period_start,
+        expected_end=context.period_end,
+    )
+
+
 def begin_with_eps(
     db: Connection,
     security_id: int,
@@ -141,12 +157,13 @@ def begin_with_eps(
         observation=filing_observation(key),
         lineage=lineage_ref,
     )
+    context = duration_context()
     fact_id = WRITER.append_fact(
         db,
         version_id=written.version_id,
         observation=FinancialFactObservation(
             concept_qname="{https://xbrl.ifrs.org/taxonomy/2024}BasicEarningsLossPerShare",
-            context=duration_context(),
+            context=context,
             unit_identity="TWD/shares",
             numeric_value=Decimal(amount),
             decimals="2",
@@ -161,6 +178,9 @@ def begin_with_eps(
             value=Decimal(amount),
             unit_identity="TWD/shares",
             source_fact_id=fact_id,
+            source_context_classification=classified(
+                context, SourcePeriodRole.CURRENT_FULL_YEAR
+            ),
         ),
     )
     return written.version_id
@@ -287,42 +307,43 @@ def test_eps_basis_and_source_fact_lineage_are_unambiguous(db: Connection) -> No
         lineage=lineage_ref,
     ).version_id
     qname = "{https://xbrl.ifrs.org/taxonomy/2024}BasicEarningsLossPerShare"
+    annual_context = duration_context()
     annual_fact = WRITER.append_fact(
         db,
         version_id=version_id,
         observation=FinancialFactObservation(
             concept_qname=qname,
-            context=duration_context(),
+            context=annual_context,
             unit_identity="TWD/shares",
             numeric_value=Decimal("14"),
         ),
     )
-    ytd_fact = WRITER.append_fact(
-        db,
-        version_id=version_id,
-        observation=FinancialFactObservation(
-            concept_qname=qname,
-            context=duration_context(
-                explicit_dimensions={"{urn:test}BasisAxis": "{urn:test}YTD"}
-            ),
-            unit_identity="TWD/shares",
-            numeric_value=Decimal("14"),
-        ),
-    )
+    quarter_context = duration_context(period_start=date(2024, 10, 1))
     quarter_fact = WRITER.append_fact(
         db,
         version_id=version_id,
         observation=FinancialFactObservation(
             concept_qname=qname,
-            context=duration_context(period_start=date(2024, 10, 1)),
+            context=quarter_context,
             unit_identity="TWD/shares",
             numeric_value=Decimal("5"),
         ),
     )
-    for basis, value, fact_id in (
-        (SummaryPeriodBasis.ANNUAL, "14", annual_fact),
-        (SummaryPeriodBasis.YTD, "14", ytd_fact),
-        (SummaryPeriodBasis.QUARTER, "5", quarter_fact),
+    for basis, value, fact_id, context, role in (
+        (
+            SummaryPeriodBasis.ANNUAL,
+            "14",
+            annual_fact,
+            annual_context,
+            SourcePeriodRole.CURRENT_FULL_YEAR,
+        ),
+        (
+            SummaryPeriodBasis.QUARTER,
+            "5",
+            quarter_fact,
+            quarter_context,
+            SourcePeriodRole.CURRENT_SINGLE_QUARTER,
+        ),
     ):
         WRITER.append_summary(
             db,
@@ -333,6 +354,7 @@ def test_eps_basis_and_source_fact_lineage_are_unambiguous(db: Connection) -> No
                 value=Decimal(value),
                 unit_identity="TWD/shares",
                 source_fact_id=fact_id,
+                source_context_classification=classified(context, role),
             ),
         )
     instant_fact = WRITER.append_fact(
@@ -372,6 +394,9 @@ def test_eps_basis_and_source_fact_lineage_are_unambiguous(db: Connection) -> No
                     value=Decimal("999"),
                     unit_identity="TWD/shares",
                     source_fact_id=annual_fact,
+                    source_context_classification=classified(
+                        annual_context, SourcePeriodRole.CURRENT_FULL_YEAR
+                    ),
                 ),
             )
     assert mismatch.value.orig.sqlstate == "23514"
@@ -394,6 +419,9 @@ def test_eps_basis_and_source_fact_lineage_are_unambiguous(db: Connection) -> No
                     value=Decimal("14"),
                     unit_identity="TWD/shares",
                     source_fact_id=annual_fact,
+                    source_context_classification=classified(
+                        annual_context, SourcePeriodRole.CURRENT_FULL_YEAR
+                    ),
                 ),
             )
     assert cross_filing.value.orig.sqlstate == "23514"
@@ -425,7 +453,7 @@ def test_eps_basis_and_source_fact_lineage_are_unambiguous(db: Connection) -> No
     assert results[EPSPeriodBasis.QUARTER] is not None
     assert results[EPSPeriodBasis.QUARTER].value == Decimal("5")
     assert results[EPSPeriodBasis.ANNUAL].value == Decimal("14")
-    assert results[EPSPeriodBasis.YTD].value == Decimal("14")
+    assert results[EPSPeriodBasis.YTD] is None
     assert results[EPSPeriodBasis.QUARTER].source_fact.fact_id == quarter_fact
     assert results[EPSPeriodBasis.QUARTER].source_fact.context.period_start == date(
         2024, 10, 1

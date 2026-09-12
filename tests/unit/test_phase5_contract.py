@@ -9,7 +9,10 @@ from stock_data_center.financials import (
     FilingPeriod,
     FinancialFactObservation,
     FinancialFilingObservation,
+    SourceContextClassification,
+    SourcePeriodRole,
     XBRLContext,
+    classify_eps_period_basis,
 )
 
 
@@ -91,3 +94,112 @@ def test_financial_package_has_no_cache_or_http_dependency() -> None:
     source = "\n".join(path.read_text() for path in package.glob("*.py"))
     assert "redis" not in source.lower()
     assert "fastapi" not in source.lower()
+
+
+def source_classification(
+    context: XBRLContext, role: SourcePeriodRole
+) -> SourceContextClassification:
+    assert context.period_start is not None and context.period_end is not None
+    return SourceContextClassification(
+        source_context_ref="mops-context-id",
+        classifier_rule="mops-xbrl-context-role:v1",
+        period_role=role,
+        expected_start=context.period_start,
+        expected_end=context.period_end,
+    )
+
+
+def test_source_classifier_accepts_valid_single_quarter_context() -> None:
+    context = XBRLContext(
+        entity_identifier="TW-2330",
+        period_type="duration",
+        period_start=date(2024, 4, 1),
+        period_end=date(2024, 6, 30),
+    )
+    result = classify_eps_period_basis(
+        context=context,
+        filing_period_start=date(2024, 1, 1),
+        filing_period_end=date(2024, 6, 30),
+        report_quarter=2,
+        classification=source_classification(
+            context, SourcePeriodRole.CURRENT_SINGLE_QUARTER
+        ),
+    )
+    assert result is EPSPeriodBasis.QUARTER
+
+
+def test_source_classifier_never_treats_full_year_as_quarter() -> None:
+    context = XBRLContext(
+        entity_identifier="TW-2330",
+        period_type="duration",
+        period_start=date(2024, 1, 1),
+        period_end=date(2024, 12, 31),
+    )
+    annual = classify_eps_period_basis(
+        context=context,
+        filing_period_start=date(2024, 1, 1),
+        filing_period_end=date(2024, 12, 31),
+        report_quarter=4,
+        classification=source_classification(
+            context, SourcePeriodRole.CURRENT_FULL_YEAR
+        ),
+    )
+    assert annual is EPSPeriodBasis.ANNUAL
+    with pytest.raises(ValueError, match="implausible duration"):
+        classify_eps_period_basis(
+            context=context,
+            filing_period_start=date(2024, 1, 1),
+            filing_period_end=date(2024, 12, 31),
+            report_quarter=4,
+            classification=source_classification(
+                context, SourcePeriodRole.CURRENT_SINGLE_QUARTER
+            ),
+        )
+
+
+def test_source_classifier_keeps_long_ytd_context_out_of_quarter() -> None:
+    context = XBRLContext(
+        entity_identifier="TW-2330",
+        period_type="duration",
+        period_start=date(2024, 1, 1),
+        period_end=date(2024, 9, 30),
+    )
+    ytd = classify_eps_period_basis(
+        context=context,
+        filing_period_start=date(2024, 1, 1),
+        filing_period_end=date(2024, 9, 30),
+        report_quarter=3,
+        classification=source_classification(
+            context, SourcePeriodRole.CURRENT_YEAR_TO_DATE
+        ),
+    )
+    assert ytd is EPSPeriodBasis.YTD
+    with pytest.raises(ValueError, match="implausible duration"):
+        classify_eps_period_basis(
+            context=context,
+            filing_period_start=date(2024, 1, 1),
+            filing_period_end=date(2024, 9, 30),
+            report_quarter=3,
+            classification=source_classification(
+                context, SourcePeriodRole.CURRENT_SINGLE_QUARTER
+            ),
+        )
+
+
+def test_source_classifier_rejects_suspicious_short_context() -> None:
+    context = XBRLContext(
+        entity_identifier="TW-2330",
+        period_type="duration",
+        period_start=date(2024, 6, 1),
+        period_end=date(2024, 6, 30),
+    )
+    with pytest.raises(ValueError, match="implausible duration"):
+        classify_eps_period_basis(
+            context=context,
+            filing_period_start=date(2024, 1, 1),
+            filing_period_end=date(2024, 6, 30),
+            report_quarter=2,
+            classification=source_classification(
+                context, SourcePeriodRole.CURRENT_SINGLE_QUARTER
+            ),
+        )

@@ -199,8 +199,10 @@ an explicit `quarter`/`ytd`/`annual` summary basis.
 The service returns children only after the shared PIT resolver selects a
 sealed filing. Curated `basic_eps` requires an explicit requested period basis,
 retains its source fact, and therefore inherits the selected filing's
-Market/System PIT, publication-evidence, source, and provenance semantics. See
-[the Phase 5 contract](financial_xbrl.md).
+Market/System PIT, publication-evidence, source, and provenance semantics. The
+canonical writer additionally requires a versioned source/context
+classification; DB duration checks are defensive and never act as the source
+classifier. See [the Phase 5 contract](financial_xbrl.md).
 
 ## Migration operation
 
