@@ -41,6 +41,10 @@ JSON contract resolve the exact target and rationale:
 | `pced_file`, `pced_row`, `pced_col` | Raw-artifact-only parser/source coordinates. |
 | `publish_time` | `publication_evidence.published_at`; never folded into business content. |
 
+All Phase 7 per-security stock quantities use canonical shares. A source value
+in lots is explicitly scaled by 1,000 before canonical observation, storage,
+and business hashing; an untyped quantity is rejected at the source boundary.
+
 ## Complete legacy table and field mapping
 
 | Legacy table | Legacy fields reviewed | v1 disposition |
@@ -59,13 +63,13 @@ JSON contract resolve the exact target and rationale:
 | `quarterly_reports_xbrl` | year/quarter and normalized quarterly report values | Observed filing identity/facts; reusable normalized metrics use `quarterly_financial_summary`; no nullable-date fact identity survives. |
 | `xbrl_codebook` | `statement_type`, `account_code`, Chinese/English account names | Observed `xbrl_concept_catalog_versions`; account code becomes namespace-aware `concept_qname`. |
 | `shareholding` | snapshot date, holding-level bucket, holder count, shares, ownership percent | Observed immutable `tdcc_snapshot_versions` aggregate with `tdcc_distribution`; only a seal makes it visible. |
-| `institutional_investors` | foreign, foreign-dealer, trust, dealer-self, dealer-hedge buy/sell/net; dealer and total net; date/market/symbol/name; `pced_*` | All published flow columns are observed in `institutional_investor_versions`; identity/name and raw coordinates map as above. |
+| `institutional_investors` | foreign, foreign-dealer, trust, dealer-self, dealer-hedge buy/sell/net; dealer and total net; date/market/symbol/name; `pced_*` | All published per-security flow columns are normalized to shares and observed in `institutional_investor_versions`; identity/name and raw coordinates map as above. |
 | `institutional_summary` | market/date/institution, buy, sell, net | Observed source-published market totals in `institutional_market_summary_versions`; they are not silently recomputed from security rows. |
-| `foreign_holding` | issued, investable and held shares; investable/held ratio; foreign/mainland legal-limit ratios; change reason; source update date; `pced_*` | Observed `foreign_holding_versions`; raw coordinates are raw-only. |
-| `trust_holding` | date/symbol, cumulative trust holding and ratio | Canonical derived `institutional_holding:v1` from PIT-safe trust flows and issued shares; materialized through generic derived metrics. It is not reclassified as an observed source fact. |
-| `dealer_holding` | date/symbol, cumulative dealer holding and ratio | Canonical derived `institutional_holding:v1`; same PIT and lineage contract as trust holding. |
-| `margin_trading` | margin buy/sell/cash repayment/previous balance/balance/next limit/utilization; short buy/sell/stock repayment/previous balance/balance/next limit/utilization; offset balance | Source-published values are observed in `margin_trading_versions`. Ratios recomputed by Data Center are separately versioned canonical derived metrics. |
-| `margin_sbl` | margin-short previous balance/buy/sell/balance; SBL previous balance/borrowed/returned/balance/limit/available/adjustment/note | Margin-short observations map to `margin_trading_versions`; SBL observations map to `securities_lending_versions`. Source notes remain observed. |
+| `foreign_holding` | issued, investable and held shares; investable/held ratio; foreign/mainland legal-limit ratios; change reason; source update date; `pced_*` | Share counts are normalized to shares and observed in `foreign_holding_versions`; raw coordinates are raw-only. |
+| `trust_holding` | date/symbol, legacy cumulative “holding” and ratio | The legacy zero-origin calculation is not an absolute holding. It maps to the canonical proxy `institutional_cumulative_flow:v1` (`trust_cumulative_net_shares` and ratio) from PIT-safe flows and issued shares. |
+| `dealer_holding` | date/symbol, legacy cumulative “holding” and ratio | The legacy zero-origin calculation maps to `institutional_cumulative_flow:v1` (`dealer_cumulative_net_shares` and ratio), not actual dealer ownership. |
+| `margin_trading` | margin buy/sell/cash repayment/previous balance/balance/next limit/utilization; short buy/sell/stock repayment/previous balance/balance/next limit/utilization; offset balance | Source quantities are normalized from explicit shares/lots to shares and observed in `margin_trading_versions`. Ratios recomputed by Data Center are separately versioned canonical derived metrics. |
+| `margin_sbl` | margin-short previous balance/buy/sell/balance; SBL previous balance/borrowed/returned/balance/limit/available/adjustment/note | Margin-short observations map to `margin_trading_versions`; SBL observations map to `securities_lending_versions`; all stock quantities use shares. Source notes remain observed. |
 | `margin_summary` | market/date aggregate margin and short balances/changes | Canonical derived `margin_market_summary:v1` when reconstructed; source-published totals, if onboarded later, require a distinct observed definition. |
 | `market_indices` | date/market/index symbol/name, close, change points; available OHLC/change percent/trade value; `pced_*` | `market_index` identity plus observed `market_index_versions`; raw coordinates are raw-only. |
 | `dividend` | date/symbol/name, close before event, reference price, rights/dividend value, action type | Observed `corporate_action_versions`; v1 also permits cash dividend, stock dividend, rights, ex-date, record/payment dates, subscription price, and source-specific terms. |
@@ -101,7 +105,7 @@ JSON contract resolve the exact target and rationale:
 | `margin_metrics:v1` | canonical derived | security/date/metric/PIT/input fingerprint | PIT-safe margin inputs | materialized | selection/API |
 | `short_interest_metrics:v1` | canonical derived | security/date/metric/PIT/input fingerprint | PIT-safe margin/SBL inputs | materialized | selection/API |
 | `monthly_revenue_growth:v1` | canonical derived | security/month/metric/PIT/input fingerprint | PIT-safe revenue history | virtual initially | both ML repos/API |
-| `institutional_holding:v1` | canonical derived | security/date/category/PIT/input fingerprint | PIT-safe flows and issued shares | materialized | selection/API |
+| `institutional_cumulative_flow:v1` | canonical derived proxy | security/date/category/PIT/input fingerprint | zero-origin cumulative PIT-safe net flows, optionally divided by PIT-safe issued shares; not absolute holdings | materialized | selection/API |
 | `institutional_streaks:v1` | canonical derived | security/date/category/PIT/input fingerprint | PIT-safe institutional flows | materialized | selection/API |
 | `margin_market_summary:v1` | canonical derived | market/date/metric/PIT/input fingerprint | PIT-safe constituent inputs | virtual initially | market analysis |
 

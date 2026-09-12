@@ -77,12 +77,14 @@ The service depends on a cache abstraction.
 - [ADR-0010: source-specific evidence types](decisions/0010-source-specific-evidence-type-policy.md)
 - [ADR-0011: effective-dated security market](decisions/0011-effective-dated-security-market.md)
 - [ADR-0012: TDCC distribution profiles and seal completeness](decisions/0012-tdcc-distribution-profiles-and-seal-completeness.md)
+- [ADR-0013: Phase 7 observed source semantics](decisions/0013-phase7-observed-source-semantics.md)
 - [Canonical derived data contract](derived_data.md)
 - [Core PIT resolver contract](pit_resolver.md)
 - [Security metadata and daily market data](security_daily_market.md)
 - [Monthly revenue](monthly_revenue.md)
 - [Financial filings and XBRL](financial_xbrl.md)
 - [TDCC shareholding distribution](tdcc.md)
+- [Institutional flow and securities financing](institutional_financing.md)
 - [Cache contract](cache.md)
 
 Changes to an accepted decision require a superseding ADR and, when the change

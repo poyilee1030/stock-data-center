@@ -595,6 +595,26 @@ institutional_investor_versions = sa.Table(
         "security_id", "source", "trade_date", "business_content_hash",
         name="uq_institutional_investor_business_revision",
     ),
+    sa.CheckConstraint(
+        "num_nonnulls(foreign_buy, foreign_sell, foreign_net, foreign_dealer_buy, "
+        "foreign_dealer_sell, foreign_dealer_net, trust_buy, trust_sell, trust_net, "
+        "dealer_self_buy, dealer_self_sell, dealer_self_net, dealer_hedge_buy, "
+        "dealer_hedge_sell, dealer_hedge_net, dealer_net, total_net) > 0",
+        name="institutional_value_present",
+    ),
+    sa.CheckConstraint(
+        "(foreign_buy IS NULL OR foreign_buy >= 0) AND "
+        "(foreign_sell IS NULL OR foreign_sell >= 0) AND "
+        "(foreign_dealer_buy IS NULL OR foreign_dealer_buy >= 0) AND "
+        "(foreign_dealer_sell IS NULL OR foreign_dealer_sell >= 0) AND "
+        "(trust_buy IS NULL OR trust_buy >= 0) AND "
+        "(trust_sell IS NULL OR trust_sell >= 0) AND "
+        "(dealer_self_buy IS NULL OR dealer_self_buy >= 0) AND "
+        "(dealer_self_sell IS NULL OR dealer_self_sell >= 0) AND "
+        "(dealer_hedge_buy IS NULL OR dealer_hedge_buy >= 0) AND "
+        "(dealer_hedge_sell IS NULL OR dealer_hedge_sell >= 0)",
+        name="institutional_gross_nonnegative",
+    ),
 )
 
 foreign_holding_versions = sa.Table(
@@ -623,6 +643,29 @@ foreign_holding_versions = sa.Table(
         "security_id", "source", "trade_date", "business_content_hash",
         name="uq_foreign_holding_business_revision",
     ),
+    sa.CheckConstraint(
+        "num_nonnulls(issued_shares, investable_shares, held_shares, "
+        "investable_ratio, held_ratio, foreign_legal_limit_ratio, "
+        "mainland_legal_limit_ratio) > 0",
+        name="foreign_holding_value_present",
+    ),
+    sa.CheckConstraint(
+        "(issued_shares IS NULL OR issued_shares >= 0) AND "
+        "(investable_shares IS NULL OR investable_shares >= 0) AND "
+        "(held_shares IS NULL OR held_shares >= 0)",
+        name="foreign_holding_shares_nonnegative",
+    ),
+    sa.CheckConstraint(
+        "(investable_ratio IS NULL OR investable_ratio BETWEEN 0 AND 100) AND "
+        "(held_ratio IS NULL OR held_ratio BETWEEN 0 AND 100) AND "
+        "(foreign_legal_limit_ratio IS NULL OR foreign_legal_limit_ratio BETWEEN 0 AND 100) AND "
+        "(mainland_legal_limit_ratio IS NULL OR mainland_legal_limit_ratio BETWEEN 0 AND 100)",
+        name="foreign_holding_ratios_percent",
+    ),
+    sa.CheckConstraint(
+        "change_reason IS NULL OR change_reason <> ''",
+        name="foreign_holding_change_reason_nonempty",
+    ),
 )
 
 institutional_market_summary_versions = sa.Table(
@@ -644,6 +687,18 @@ institutional_market_summary_versions = sa.Table(
     sa.UniqueConstraint(
         "market", "source", "trade_date", "institution", "business_content_hash",
         name="uq_institutional_summary_business_revision",
+    ),
+    sa.CheckConstraint("market <> ''", name="institutional_summary_market_nonempty"),
+    sa.CheckConstraint(
+        "institution <> ''", name="institutional_summary_institution_nonempty"
+    ),
+    sa.CheckConstraint(
+        "num_nonnulls(buy, sell, net) > 0",
+        name="institutional_summary_value_present",
+    ),
+    sa.CheckConstraint(
+        "(buy IS NULL OR buy >= 0) AND (sell IS NULL OR sell >= 0)",
+        name="institutional_summary_gross_nonnegative",
     ),
 )
 
@@ -679,6 +734,35 @@ margin_trading_versions = sa.Table(
         "security_id", "source", "trade_date", "business_content_hash",
         name="uq_margin_trading_business_revision",
     ),
+    sa.CheckConstraint(
+        "num_nonnulls(margin_buy, margin_sell, margin_cash_repayment, "
+        "margin_previous_balance, margin_balance, margin_next_limit, "
+        "margin_utilization_ratio, short_buy, short_sell, "
+        "short_stock_repayment, short_previous_balance, short_balance, "
+        "short_next_limit, short_utilization_ratio, offset_balance) > 0",
+        name="margin_trading_value_present",
+    ),
+    sa.CheckConstraint(
+        "(margin_buy IS NULL OR margin_buy >= 0) AND "
+        "(margin_sell IS NULL OR margin_sell >= 0) AND "
+        "(margin_cash_repayment IS NULL OR margin_cash_repayment >= 0) AND "
+        "(margin_previous_balance IS NULL OR margin_previous_balance >= 0) AND "
+        "(margin_balance IS NULL OR margin_balance >= 0) AND "
+        "(margin_next_limit IS NULL OR margin_next_limit >= 0) AND "
+        "(short_buy IS NULL OR short_buy >= 0) AND "
+        "(short_sell IS NULL OR short_sell >= 0) AND "
+        "(short_stock_repayment IS NULL OR short_stock_repayment >= 0) AND "
+        "(short_previous_balance IS NULL OR short_previous_balance >= 0) AND "
+        "(short_balance IS NULL OR short_balance >= 0) AND "
+        "(short_next_limit IS NULL OR short_next_limit >= 0) AND "
+        "(offset_balance IS NULL OR offset_balance >= 0)",
+        name="margin_trading_quantities_nonnegative",
+    ),
+    sa.CheckConstraint(
+        "(margin_utilization_ratio IS NULL OR margin_utilization_ratio BETWEEN 0 AND 100) AND "
+        "(short_utilization_ratio IS NULL OR short_utilization_ratio BETWEEN 0 AND 100)",
+        name="margin_trading_ratios_percent",
+    ),
 )
 
 securities_lending_versions = sa.Table(
@@ -706,6 +790,69 @@ securities_lending_versions = sa.Table(
         "security_id", "source", "trade_date", "business_content_hash",
         name="uq_securities_lending_business_revision",
     ),
+    sa.CheckConstraint(
+        "num_nonnulls(previous_balance, borrowed, returned, balance, next_limit, "
+        "next_available_limit, adjustment) > 0",
+        name="securities_lending_value_present",
+    ),
+    sa.CheckConstraint(
+        "(previous_balance IS NULL OR previous_balance >= 0) AND "
+        "(borrowed IS NULL OR borrowed >= 0) AND "
+        "(returned IS NULL OR returned >= 0) AND "
+        "(balance IS NULL OR balance >= 0) AND "
+        "(next_limit IS NULL OR next_limit >= 0) AND "
+        "(next_available_limit IS NULL OR next_available_limit >= 0)",
+        name="securities_lending_quantities_nonnegative",
+    ),
+    sa.CheckConstraint(
+        "note IS NULL OR note <> ''", name="securities_lending_note_nonempty"
+    ),
+)
+
+
+def _observed_version_observations(
+    table_name: str,
+    version_column: str,
+    version_table: str,
+) -> sa.Table:
+    return sa.Table(
+        table_name,
+        metadata,
+        sa.Column(version_column, sa.BigInteger(), nullable=False),
+        sa.Column("raw_artifact_id", uuid_type, nullable=False),
+        sa.Column("ingest_run_id", uuid_type, nullable=False),
+        sa.PrimaryKeyConstraint(version_column, "raw_artifact_id", "ingest_run_id"),
+        sa.ForeignKeyConstraint(
+            [version_column], [f"{version_table}.id"], ondelete="RESTRICT"
+        ),
+        *lineage_constraints(),
+    )
+
+
+institutional_investor_version_observations = _observed_version_observations(
+    "institutional_investor_version_observations",
+    "institutional_investor_version_id",
+    "institutional_investor_versions",
+)
+foreign_holding_version_observations = _observed_version_observations(
+    "foreign_holding_version_observations",
+    "foreign_holding_version_id",
+    "foreign_holding_versions",
+)
+institutional_market_summary_version_observations = _observed_version_observations(
+    "institutional_market_summary_version_observations",
+    "institutional_market_summary_version_id",
+    "institutional_market_summary_versions",
+)
+margin_trading_version_observations = _observed_version_observations(
+    "margin_trading_version_observations",
+    "margin_trading_version_id",
+    "margin_trading_versions",
+)
+securities_lending_version_observations = _observed_version_observations(
+    "securities_lending_version_observations",
+    "securities_lending_version_id",
+    "securities_lending_versions",
 )
 
 market_index = sa.Table(
