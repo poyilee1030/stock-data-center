@@ -21,7 +21,7 @@ from stock_data_center.db.metadata import (
     publication_evidence_observations,
     quarterly_financial_summary,
 )
-from stock_data_center.financials.models import XBRLContext
+from stock_data_center.financials.models import SummaryPeriodBasis, XBRLContext
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +61,7 @@ class FinancialFactObservation:
     unit_identity: str
     numeric_value: Decimal | None = None
     text_value: str | None = None
+    is_nil: bool = False
     decimals: str | None = None
 
     def __post_init__(self) -> None:
@@ -70,15 +71,24 @@ class FinancialFactObservation:
         namespace, local = qname[1:].split("}", 1)
         if not namespace or not local or "{" in local or "}" in local:
             raise ValueError("concept_qname must use canonical {namespace}local form")
-        if (self.numeric_value is None) == (self.text_value is None):
-            raise ValueError("exactly one of numeric_value and text_value is required")
+        value_count = int(self.numeric_value is not None) + int(
+            self.text_value is not None
+        )
+        if self.is_nil and value_count:
+            raise ValueError("nil facts cannot contain numeric or text values")
+        if not self.is_nil and value_count != 1:
+            raise ValueError(
+                "non-nil facts require exactly one numeric or text value"
+            )
 
 
 @dataclass(frozen=True, slots=True)
 class QuarterlySummaryObservation:
     metric_code: str
+    period_basis: SummaryPeriodBasis
     value: Decimal
     unit_identity: str
+    source_fact_id: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -203,6 +213,7 @@ class FinancialFilingWriter:
                 unit_identity=observation.unit_identity,
                 numeric_value=observation.numeric_value,
                 text_value=observation.text_value,
+                is_nil=observation.is_nil,
                 decimals=observation.decimals,
             )
             .returning(financial_facts.c.id)

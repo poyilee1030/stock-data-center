@@ -41,8 +41,8 @@ Concepts use canonical Clark notation:
 ```
 
 This prevents two taxonomies with the same local concept name from colliding.
-Each fact contains exactly one numeric or text value. Its storage-generated
-`context_hash` covers:
+Each non-nil fact contains exactly one numeric or text value. Its
+storage-generated `context_hash` covers:
 
 ```text
 entity identifier
@@ -56,6 +56,11 @@ segment
 PostgreSQL JSONB canonicalizes object-key order. Fact identity is filing,
 QName, context hash, and unit, so dimensional facts coexist and a semantically
 duplicate fact is rejected.
+
+Legal XBRL `xsi:nil="true"` facts are stored as `is_nil=true` with both value
+columns null. A non-nil fact must have exactly one numeric/text value. Nil is
+therefore distinct from an absent fact and numeric zero, and `is_nil` is part of
+the sealed aggregate's canonical business hash.
 
 ## Publication and Q4 semantics
 
@@ -73,11 +78,33 @@ instant and only under a knowledge cutoff that includes that evidence.
 ## Curated actual EPS
 
 `quarterly_financial_summary` exposes stable curated facts from the selected
-filing. `basic_eps` is the Phase 5 actual-EPS metric code and retains its unit.
-`FinancialFilingService.actual_eps` first resolves the filing through the same
-seal, source, evidence, and PIT rules, then reads `basic_eps` from that exact
-version. It never searches the current database for an EPS value.
+filing. Every row has a required composite same-filing foreign key to its exact
+`financial_facts` source. A DB trigger requires the summary value/unit to equal
+that non-nil numeric fact and checks that its duration matches the declared
+period basis. Sealing revalidates the same contract so a draft fact cannot be
+changed underneath an existing summary. The service returns the complete source
+fact, including QName, context hash, dimensions, and unit, with each summary
+metric.
+
+`basic_eps` is the Phase 5 actual-EPS metric code. Its `period_basis` is always
+one of `quarter`, `ytd`, or `annual`; these values can coexist without a summary
+identity collision. Other curated balance-sheet metrics may explicitly use the
+`instant` basis. The writer never infers basis from `report_quarter` alone.
+A `quarter` source fact must use a duration of at most 100 days ending at the
+filing period end. `ytd` must start at the filing period start, and `annual`
+must use a full-year Q4 duration.
+
+`FinancialFilingService.actual_eps` requires the caller to specify this basis,
+first resolves the filing through the same seal, source, evidence, and PIT
+rules, and then reads the matching `basic_eps` from that exact version. A Q4
+full-year value is consequently available as `annual`, never as `quarter`.
+The service never searches the current database for an EPS value.
 
 The summary is not a derived-metric engine. Reusable TTM EPS, profitability,
 margin, and valuation calculations remain in the later canonical-derived phase
 and must inherit PIT visibility from these resolved inputs.
+
+Legacy summary rows can migrate only when exactly one same-filing numeric fact
+matches their value/unit and the legacy metric code explicitly identifies a
+quarter, accumulated/YTD, or annual basis. The migration aborts instead of
+guessing for ambiguous metrics such as an unqualified `basic_eps`.

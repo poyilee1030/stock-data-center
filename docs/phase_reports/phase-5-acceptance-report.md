@@ -14,7 +14,9 @@ financial/XBRL reads:
 - canonical namespace-aware concept QNames and full context identity;
 - independent append-only publication evidence;
 - Q4 visibility governed only by authoritative evidence;
-- actual basic EPS from the exact PIT-resolved filing version; and
+- actual basic EPS from the exact PIT-resolved filing version;
+- explicit quarter/YTD/annual EPS basis with direct source-fact lineage;
+- explicit, hash-significant XBRL nil facts; and
 - many-observation lineage for unchanged filing/evidence fetches.
 
 Primary evidence:
@@ -24,13 +26,23 @@ Primary evidence:
 - `tests/unit/test_phase5_contract.py`
 - `tests/integration/test_phase1_schema.py`
 - `migrations/versions/e51d9b7f204a_enforce_phase5_financial_contract.py`
+- `migrations/versions/f62a8c9d315e_fix_phase5_eps_summary_nil.py`
 - [Financial/XBRL contract](../financial_xbrl.md)
 
-The repository now contains nine sequential migrations. The Phase 5 migration
-adds filing observation lineage, backfills existing filing lineage, requires a
-canonical Clark QName, and requires exactly one numeric/text fact value. It has
-no cache impact. No REST API, Redis/cache implementation, or canonical-derived
+The repository now contains ten sequential migrations. The Phase 5 migrations
+add filing observation lineage, backfill existing filing lineage, require a
+canonical Clark QName, represent XBRL nil explicitly, and bind every curated
+summary to an exact same-filing source fact and period basis. They have no cache
+impact. No REST API, Redis/cache implementation, or canonical-derived
 calculator was added.
+
+## Review blocker closure
+
+| Finding | Result | Concrete evidence |
+| --- | --- | --- |
+| Actual EPS period basis | PASS | `EPSPeriodBasis` freezes `quarter`, `ytd`, and `annual`; `actual_eps` requires one explicitly. A full-year Q4 fact resolves as annual and a quarter lookup returns no value. Explicit Q4 quarter, YTD, and annual summary rows coexist. |
+| Summary source-fact lineage | PASS | Every summary has a composite FK to a fact in the same filing. DB insert and seal validation reject nil/text facts, value/unit mismatch, stale draft facts, cross-filing references, and incompatible duration basis. Service results expose the complete source fact. |
+| XBRL nil representation | PASS | `is_nil=true` requires both value columns null; non-nil requires exactly one. Nil is distinct from absence and zero, participates in the aggregate hash, and remains immutable after seal. |
 
 ## Required acceptance criteria
 
@@ -42,8 +54,8 @@ calculator was added.
 | Dimensional facts coexist correctly | PASS | Five facts with distinct explicit dimensions, typed dimensions, scenario, or segment receive five distinct storage-generated context hashes and coexist under the same QName/unit. |
 | Canonical duplicate facts are rejected | PASS | Repeating an equivalent full context under the same filing/QName/unit violates `uq_financial_fact_identity`; DB checks also reject a local-name-only concept and a fact with both value types. |
 | Q4 availability is evidence-controlled | PASS | A sealed 2024-Q4 filing published on 2025-03-15 remains invisible at the February cutoff and becomes visible only after the evidence publication instant. No period/calendar shortcut exists in the service. |
-| Historical EPS actuals are PIT-safe | PASS | `actual_eps` resolves the sealed filing first. It is absent before public availability and at a knowledge cutoff before evidence recording, then returns `basic_eps` from that exact resolved version. |
-| Dataset-specific regression tests exist | PASS | Twelve focused Phase 5 tests cover value contracts, seal visibility/immutability, Q4/two-clock EPS, unknown evidence, full context identity, duplicate/QName constraints, repeated lineage, cross-source rejection, populated migration backfill, scope, and dependency boundaries. |
+| Historical EPS actuals are PIT-safe | PASS | `actual_eps` requires a period basis and resolves the sealed filing first. It is absent before public availability and at a knowledge cutoff before evidence recording, then returns `basic_eps` plus its exact source fact from that resolved version. |
+| Dataset-specific regression tests exist | PASS | Seventeen focused Phase 5 tests cover value/nil contracts, seal visibility/immutability, Q4/two-clock and basis-specific EPS, source-fact lineage, full context identity, duplicates, repeated lineage, cross-source rejection, migration backfill, competing revisions, correction/retraction, scope, and dependency boundaries. |
 
 ## Additional invariant evidence
 
@@ -56,11 +68,18 @@ source-specific accepted evidence policy                 PASS (shared resolver)
 deterministic correction/retraction ranking               PASS (shared resolver)
 namespace-aware concept identity                          PASS
 full explicit/typed/scenario/segment context identity     PASS
+quarter / YTD / annual EPS basis                          PASS
+summary -> exact same-filing source fact                  PASS
+summary value/unit equality                               PASS
+explicit nil vs absent vs numeric zero                    PASS
+nil participation in aggregate business hash              PASS
 unchanged filing / no fake business revision              PASS
 version-linked repeated observations                      PASS
 evidence-linked repeated observations                     PASS
 cross-source lineage mismatch rejected                    PASS
 populated filing-lineage migration backfill               PASS
+competing filing revisions / knowledge cutoff             PASS
+financial evidence correction / retraction                PASS
 no TTM EPS / ROE / valuation calculators                  PASS
 CACHE_BACKEND=none / no Redis dependency                  PASS
 ```
@@ -69,10 +88,10 @@ CACHE_BACKEND=none / no Redis dependency                  PASS
 
 ```text
 PostgreSQL:                 18 (postgres:18)
-pytest:                     87 passed
-Phase 5 focused tests:      12 passed (8 integration, 4 unit)
+pytest:                     92 passed
+Phase 5 focused tests:      17 passed (13 integration, 4 unit)
 financial seal concurrency: PASS (real separate connections)
-alembic migrations:         9, single head e51d9b7f204a
+alembic migrations:         10, single head f62a8c9d315e
 alembic check:              No new upgrade operations detected
 Python compileall:          PASS
 git diff --check:           PASS

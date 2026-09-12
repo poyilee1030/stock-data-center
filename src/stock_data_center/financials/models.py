@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
+from enum import Enum
 from types import MappingProxyType
 from typing import Any, Literal, Mapping
 from uuid import UUID
@@ -26,6 +27,19 @@ class FilingPeriod:
             raise ValueError("report_year must be between 1900 and 9999")
         if not 1 <= self.report_quarter <= 4:
             raise ValueError("report_quarter must be between 1 and 4")
+
+
+class EPSPeriodBasis(str, Enum):
+    QUARTER = "quarter"
+    YTD = "ytd"
+    ANNUAL = "annual"
+
+
+class SummaryPeriodBasis(str, Enum):
+    QUARTER = "quarter"
+    YTD = "ytd"
+    ANNUAL = "annual"
+    INSTANT = "instant"
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,14 +94,17 @@ class FinancialFact:
     unit_identity: str
     numeric_value: Decimal | None
     text_value: str | None
+    is_nil: bool
     decimals: str | None
 
 
 @dataclass(frozen=True, slots=True)
 class QuarterlyMetric:
     metric_code: str
+    period_basis: SummaryPeriodBasis
     value: Decimal
     unit_identity: str
+    source_fact: FinancialFact
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,6 +118,8 @@ class ResolvedFinancialFiling:
 class ActualEPS:
     value: Decimal
     unit_identity: str
+    period_basis: EPSPeriodBasis
+    source_fact: FinancialFact
     filing: ResolvedRecord
 
 

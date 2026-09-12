@@ -190,12 +190,15 @@ evidence corrections, and all results retain Phase 2 provenance. See
 
 Phase 5 adds the `financials` package over the existing sealed filing tables.
 Facts require canonical Clark-notation QNames and exactly one numeric/text
-value. The storage-generated context hash continues to cover full period and
-dimensional context. A focused migration adds append-only, source-validated
-many-observation lineage for filing versions and backfills existing filings.
+value, unless `is_nil` explicitly represents an XBRL nil fact. The
+storage-generated context hash continues to cover full period and dimensional
+context. Focused migrations add append-only, source-validated many-observation
+lineage for filing versions, direct same-filing fact lineage for summaries, and
+an explicit `quarter`/`ytd`/`annual` summary basis.
 
 The service returns children only after the shared PIT resolver selects a
-sealed filing. Curated `basic_eps` therefore inherits the selected filing's
+sealed filing. Curated `basic_eps` requires an explicit requested period basis,
+retains its source fact, and therefore inherits the selected filing's
 Market/System PIT, publication-evidence, source, and provenance semantics. See
 [the Phase 5 contract](financial_xbrl.md).
 

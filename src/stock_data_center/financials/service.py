@@ -16,11 +16,13 @@ from stock_data_center.db.metadata import (
 )
 from stock_data_center.financials.models import (
     ActualEPS,
+    EPSPeriodBasis,
     FilingLineageObservation,
     FilingPeriod,
     FinancialFact,
     QuarterlyMetric,
     ResolvedFinancialFiling,
+    SummaryPeriodBasis,
     XBRLContext,
 )
 from stock_data_center.pit import PITResolver
@@ -68,43 +70,48 @@ class FinancialFilingService:
                 financial_facts.c.unit_identity,
             )
         ).mappings()
-        summaries = connection.execute(
+        summary_rows = connection.execute(
             sa.select(quarterly_financial_summary)
             .where(quarterly_financial_summary.c.filing_version_id == version_id)
             .order_by(quarterly_financial_summary.c.metric_code)
         ).mappings()
+        resolved_facts = tuple(
+            FinancialFact(
+                fact_id=row["id"],
+                concept_qname=row["concept_qname"],
+                context_hash=row["context_hash"],
+                context=XBRLContext(
+                    entity_identifier=row["entity_identifier"],
+                    period_type=row["period_type"],
+                    instant_date=row["instant_date"],
+                    period_start=row["period_start"],
+                    period_end=row["period_end"],
+                    explicit_dimensions=row["explicit_dimensions"],
+                    typed_dimensions=row["typed_dimensions"],
+                    scenario=row["scenario"],
+                    segment=row["segment"],
+                ),
+                unit_identity=row["unit_identity"],
+                numeric_value=row["numeric_value"],
+                text_value=row["text_value"],
+                is_nil=row["is_nil"],
+                decimals=row["decimals"],
+            )
+            for row in facts
+        )
+        facts_by_id = {fact.fact_id: fact for fact in resolved_facts}
         return ResolvedFinancialFiling(
             filing=resolved,
-            facts=tuple(
-                FinancialFact(
-                    fact_id=row["id"],
-                    concept_qname=row["concept_qname"],
-                    context_hash=row["context_hash"],
-                    context=XBRLContext(
-                        entity_identifier=row["entity_identifier"],
-                        period_type=row["period_type"],
-                        instant_date=row["instant_date"],
-                        period_start=row["period_start"],
-                        period_end=row["period_end"],
-                        explicit_dimensions=row["explicit_dimensions"],
-                        typed_dimensions=row["typed_dimensions"],
-                        scenario=row["scenario"],
-                        segment=row["segment"],
-                    ),
-                    unit_identity=row["unit_identity"],
-                    numeric_value=row["numeric_value"],
-                    text_value=row["text_value"],
-                    decimals=row["decimals"],
-                )
-                for row in facts
-            ),
+            facts=resolved_facts,
             summary=tuple(
                 QuarterlyMetric(
                     metric_code=row["metric_code"],
+                    period_basis=SummaryPeriodBasis(row["period_basis"]),
                     value=row["value"],
                     unit_identity=row["unit_identity"],
+                    source_fact=facts_by_id[row["source_fact_id"]],
                 )
-                for row in summaries
+                for row in summary_rows
             ),
         )
 
@@ -114,6 +121,7 @@ class FinancialFilingService:
         *,
         security_code: str,
         period: FilingPeriod,
+        period_basis: EPSPeriodBasis,
         context: PITContext,
         source: str | None = None,
     ) -> ActualEPS | None:
@@ -127,12 +135,21 @@ class FinancialFilingService:
         if filing is None:
             return None
         matches = [
-            item for item in filing.summary if item.metric_code == "basic_eps"
+            item
+            for item in filing.summary
+            if item.metric_code == "basic_eps"
+            and item.period_basis.value == period_basis.value
         ]
         if not matches:
             return None
         metric = matches[0]
-        return ActualEPS(metric.value, metric.unit_identity, filing.filing)
+        return ActualEPS(
+            metric.value,
+            metric.unit_identity,
+            period_basis,
+            metric.source_fact,
+            filing.filing,
+        )
 
     def observations(
         self, connection: Connection, *, version_id: int

@@ -12,17 +12,20 @@ from stock_data_center.financials.ingestion import (
 )
 from stock_data_center.financials.models import (
     ActualEPS,
+    EPSPeriodBasis,
     FilingLineageObservation,
     FilingPeriod,
     FinancialFact,
     QuarterlyMetric,
     ResolvedFinancialFiling,
+    SummaryPeriodBasis,
     XBRLContext,
 )
 from stock_data_center.financials.service import FinancialFilingService
 
 __all__ = [
     "ActualEPS",
+    "EPSPeriodBasis",
     "FilingLineageObservation",
     "FilingLineageRef",
     "FilingPeriod",
@@ -36,6 +39,7 @@ __all__ = [
     "QuarterlySummaryObservation",
     "ResolvedFinancialFiling",
     "SealedFiling",
+    "SummaryPeriodBasis",
     "WrittenFiling",
     "XBRLContext",
 ]
