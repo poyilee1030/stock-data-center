@@ -1106,9 +1106,9 @@
     {
       "legacy_table": "market_indices",
       "legacy_field": "market",
-      "disposition": "identity",
-      "target": "market_index.market",
-      "reason": "Market is part of the market-index identity contract."
+      "disposition": "observed",
+      "target": "market_index_metadata_versions.market",
+      "reason": "Market/provider classification is source-observed effective-dated metadata, not stable index identity."
     },
     {
       "legacy_table": "market_indices",
@@ -1121,7 +1121,7 @@
       "legacy_table": "market_indices",
       "legacy_field": "index_name",
       "disposition": "observed",
-      "target": "market_index.name",
+      "target": "market_index_metadata_versions.name",
       "reason": "Source-observable value is retained in the versioned v1 domain contract."
     },
     {

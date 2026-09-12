@@ -32,13 +32,13 @@ remains separate from business history.
 
 No reliable v1 absolute holding baseline exists for trust/dealer holdings.
 Daily flows can reproduce only a zero-origin cumulative-net-flow proxy, not an
-absolute holding. The Phase 9 definition is therefore frozen as
+absolute holding. The Phase 10 definition is therefore frozen as
 `institutional_cumulative_flow:v1` with explicit
 `*_cumulative_net_shares`/`*_cumulative_net_ratio` metric names. Adding a real
 baseline later requires a new observed contract and derivation version.
 
 Derived chip-flow, margin pressure, short-interest, and holding metrics are not
-source facts. They remain versioned PIT-safe canonical derivations for Phase 9
+source facts. They remain versioned PIT-safe canonical derivations for Phase 10
 or model-specific downstream features according to the inventory.
 
 ## Consequences

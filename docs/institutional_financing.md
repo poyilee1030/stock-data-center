@@ -119,7 +119,7 @@ change this proxy.
 Margin usage recomputation, short-interest ratios, SBL pressure, and
 `margin_pressure_score` likewise belong to the canonical-derived or
 downstream-model boundary documented in the inventory. Canonical calculations
-begin in Phase 9 and must consume PIT-resolved inputs.
+begin in Phase 10 and must consume PIT-resolved inputs.
 
 shareholding concentration is specifically not computed from these source
 tables or from raw/partial TDCC distributions. It must derive from a PIT-safe

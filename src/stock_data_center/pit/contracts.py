@@ -122,12 +122,17 @@ DATASET_CONTRACTS: dict[str, DatasetContract] = {
             "trade_date",
         ),
         _single(
+            "market_index_metadata",
+            "market_index_metadata_versions",
+            "market_index_metadata_version_id",
+            "market_index_id",
+            "effective_from",
+        ),
+        _single(
             "corporate_action",
             "corporate_action_versions",
             "corporate_action_version_id",
-            "security_id",
-            "action_type",
-            "ex_date",
+            "event_id",
         ),
         _single(
             "official_valuation",

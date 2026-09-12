@@ -30,6 +30,7 @@ V1_TABLES = {
     "institutional_investor_versions", "foreign_holding_versions",
     "institutional_market_summary_versions", "margin_trading_versions",
     "securities_lending_versions", "market_index", "market_index_versions",
+    "market_index_metadata_versions", "corporate_action_events",
     "corporate_action_versions", "official_valuation_versions",
     "security_tag_versions", "xbrl_concept_catalog_versions",
     "derived_dataset_definitions", "derived_computation_runs",
@@ -734,8 +735,7 @@ def test_other_single_row_business_hashes_are_storage_generated(db: Connection) 
         ("institutional_market_summary_versions", "institutional_market_summary", "market, source, trade_date, institution", "'TWSE', 'official', DATE '2026-09-10', 'foreign'", ", net", ", -1"),
         ("margin_trading_versions", "margin_trading", "security_id, source, trade_date", ":security_id, 'official', DATE '2026-09-10'", ", margin_balance", ", 1"),
         ("securities_lending_versions", "securities_lending", "security_id, source, trade_date", ":security_id, 'official', DATE '2026-09-10'", ", adjustment", ", -1"),
-        ("corporate_action_versions", "corporate_action", "security_id, source, action_type, ex_date", ":security_id, 'official', 'cash_dividend', DATE '2026-09-10'", "", ""),
-        ("official_valuation_versions", "official_valuation", "security_id, source, trade_date", ":security_id, 'official', DATE '2026-09-10'", "", ""),
+        ("official_valuation_versions", "official_valuation", "security_id, source, trade_date", ":security_id, 'official', DATE '2026-09-10'", ", pe_ratio", ", 10"),
         ("security_tag_versions", "security_tag", "security_id, source, tag, effective_from", ":security_id, 'official', 'listed', DATE '2026-01-01'", "", ""),
         ("xbrl_concept_catalog_versions", "xbrl_concept_catalog", "source, concept_qname, statement_type", "'official', '{https://example.test/tifrs}Assets', 'balance_sheet'", "", ""),
     ],
@@ -778,7 +778,7 @@ def test_new_observed_domains_enforce_lineage_hash_time_and_immutability(
 def test_market_index_version_and_extended_publication_target(db: Connection) -> None:
     _, artifact_id, run_id = seed_lineage(db, "market_index", digest_char="8")
     index_id = db.execute(
-        sa.text("INSERT INTO market_index (index_code, market, name) VALUES ('TAIEX', 'TWSE', 'Taiwan Capitalization Weighted Index') RETURNING id")
+        sa.text("INSERT INTO market_index (index_code) VALUES ('TAIEX') RETURNING id")
     ).scalar_one()
     version = db.execute(
         sa.text(
