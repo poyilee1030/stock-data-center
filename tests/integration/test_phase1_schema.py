@@ -724,17 +724,20 @@ def test_other_single_row_business_hashes_are_storage_generated(db: Connection) 
 
 
 @pytest.mark.parametrize(
-    ("table", "dataset", "identity_columns", "identity_values"),
+    (
+        "table", "dataset", "identity_columns", "identity_values",
+        "extra_columns", "extra_values",
+    ),
     [
-        ("institutional_investor_versions", "institutional_investor", "security_id, source, trade_date", ":security_id, 'official', DATE '2026-09-10'"),
-        ("foreign_holding_versions", "foreign_holding", "security_id, source, trade_date", ":security_id, 'official', DATE '2026-09-10'"),
-        ("institutional_market_summary_versions", "institutional_market_summary", "market, source, trade_date, institution", "'TWSE', 'official', DATE '2026-09-10', 'foreign'"),
-        ("margin_trading_versions", "margin_trading", "security_id, source, trade_date", ":security_id, 'official', DATE '2026-09-10'"),
-        ("securities_lending_versions", "securities_lending", "security_id, source, trade_date", ":security_id, 'official', DATE '2026-09-10'"),
-        ("corporate_action_versions", "corporate_action", "security_id, source, action_type, ex_date", ":security_id, 'official', 'cash_dividend', DATE '2026-09-10'"),
-        ("official_valuation_versions", "official_valuation", "security_id, source, trade_date", ":security_id, 'official', DATE '2026-09-10'"),
-        ("security_tag_versions", "security_tag", "security_id, source, tag, effective_from", ":security_id, 'official', 'listed', DATE '2026-01-01'"),
-        ("xbrl_concept_catalog_versions", "xbrl_concept_catalog", "source, concept_qname, statement_type", "'official', '{https://example.test/tifrs}Assets', 'balance_sheet'"),
+        ("institutional_investor_versions", "institutional_investor", "security_id, source, trade_date", ":security_id, 'official', DATE '2026-09-10'", ", foreign_net", ", -1"),
+        ("foreign_holding_versions", "foreign_holding", "security_id, source, trade_date", ":security_id, 'official', DATE '2026-09-10'", ", held_shares", ", 1"),
+        ("institutional_market_summary_versions", "institutional_market_summary", "market, source, trade_date, institution", "'TWSE', 'official', DATE '2026-09-10', 'foreign'", ", net", ", -1"),
+        ("margin_trading_versions", "margin_trading", "security_id, source, trade_date", ":security_id, 'official', DATE '2026-09-10'", ", margin_balance", ", 1"),
+        ("securities_lending_versions", "securities_lending", "security_id, source, trade_date", ":security_id, 'official', DATE '2026-09-10'", ", adjustment", ", -1"),
+        ("corporate_action_versions", "corporate_action", "security_id, source, action_type, ex_date", ":security_id, 'official', 'cash_dividend', DATE '2026-09-10'", "", ""),
+        ("official_valuation_versions", "official_valuation", "security_id, source, trade_date", ":security_id, 'official', DATE '2026-09-10'", "", ""),
+        ("security_tag_versions", "security_tag", "security_id, source, tag, effective_from", ":security_id, 'official', 'listed', DATE '2026-01-01'", "", ""),
+        ("xbrl_concept_catalog_versions", "xbrl_concept_catalog", "source, concept_qname, statement_type", "'official', '{https://example.test/tifrs}Assets', 'balance_sheet'", "", ""),
     ],
 )
 def test_new_observed_domains_enforce_lineage_hash_time_and_immutability(
@@ -743,16 +746,18 @@ def test_new_observed_domains_enforce_lineage_hash_time_and_immutability(
     dataset: str,
     identity_columns: str,
     identity_values: str,
+    extra_columns: str,
+    extra_values: str,
 ) -> None:
     security_id, artifact_id, run_id = seed_lineage(db, dataset)
     row = db.execute(
         sa.text(
             f"""
             INSERT INTO {table} (
-                {identity_columns}, business_content_hash, ingested_at,
+                {identity_columns}{extra_columns}, business_content_hash, ingested_at,
                 raw_artifact_id, ingest_run_id
             ) VALUES (
-                {identity_values}, :forged_hash,
+                {identity_values}{extra_values}, :forged_hash,
                 TIMESTAMPTZ '2000-01-01+00', :artifact_id, :run_id
             ) RETURNING id, business_content_hash, ingested_at
             """

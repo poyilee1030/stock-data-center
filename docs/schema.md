@@ -14,7 +14,7 @@ migrations are the deployment record in `migrations/versions/`.
 | --- | --- |
 | Dataset policy | `dataset_catalog`, `dataset_sources` |
 | Security identity/history | `security`, `security_metadata_versions` |
-| Provenance | `ingest_runs`, `raw_artifacts`, `raw_artifact_observations`, `monthly_revenue_version_observations`, `financial_filing_version_observations`, `tdcc_snapshot_version_observations`, `publication_evidence_observations` |
+| Provenance | `ingest_runs`, `raw_artifacts`, `raw_artifact_observations`, dataset-specific `*_version_observations`, `publication_evidence_observations` |
 | Market/revenue versions | `daily_price_versions`, `monthly_revenue_versions` |
 | Financial aggregate | `financial_filing_versions`, `financial_facts`, `quarterly_financial_summary`, `financial_filing_seals` |
 | TDCC aggregate | `tdcc_snapshot_versions`, `tdcc_distribution`, `tdcc_snapshot_seals`, `tdcc_distribution_schemas`, `tdcc_distribution_schema_buckets` |
@@ -224,6 +224,25 @@ and rehashed; the migration aborts if they do not fit it. See
 The writer reuses an identical sealed revision instead of creating a fake one,
 and the service reads a distribution only after the shared PIT resolver selects
 a sealed version. See [the Phase 6 contract](tdcc.md).
+
+## Phase 7 domain access
+
+Phase 7 adds normalized writers and PIT-safe reads for institutional investor
+flows, market-level institutional summaries, foreign holdings, margin/short
+trading, and securities lending. The five existing source-version tables gain
+append-only, source-validated observation associations so unchanged refetches
+retain every artifact/run without creating fake revisions.
+
+PostgreSQL enforces non-negative gross quantities, balances, holdings, and
+limits while retaining signed published net-flow values and signed SBL
+adjustments. Published ratios use percent units. Business hashes exclude
+logical keys and provenance; ingestion time remains trusted server time.
+Publication evidence cannot predate the trade date in Asia/Taipei.
+
+No pressure score or cross-dataset ratio is materialized in this phase.
+Canonical metrics remain Phase 9 work over PIT-resolved inputs. See
+[the Phase 7 contract](institutional_financing.md) and
+[ADR-0013](decisions/0013-phase7-observed-source-semantics.md).
 
 ## Migration operation
 

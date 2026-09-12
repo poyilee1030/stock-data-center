@@ -1643,12 +1643,12 @@ Do not store model-specific interpretations here.
 
 Acceptance criteria:
 
-- [ ] each source domain has explicit logical/revision keys
-- [ ] publication/effective-time semantics are documented
-- [ ] historical backfill preserves system PIT
-- [ ] source-specific provenance is preserved
-- [ ] old model-selection raw dependencies can be reconstructed from Data Center source data
-- [ ] dataset-specific regression tests exist
+- [x] each source domain has explicit logical/revision keys
+- [x] publication/effective-time semantics are documented
+- [x] historical backfill preserves system PIT
+- [x] source-specific provenance is preserved
+- [x] old model-selection raw dependencies can be reconstructed from Data Center source data
+- [x] dataset-specific regression tests exist
 
 ---
 
