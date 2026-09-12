@@ -249,6 +249,22 @@ Canonical metrics remain Phase 9 work over PIT-resolved inputs. See
 [the Phase 7 contract](institutional_financing.md) and
 [ADR-0013](decisions/0013-phase7-observed-source-semantics.md).
 
+## Phase 8 market reference access
+
+Phase 8 adds normalized writers and PIT-safe reads for market indices,
+corporate actions, and official source valuation. Their version tables gain
+append-only, source-validated observation links. Business hashes exclude
+logical keys and provenance, and migration rehashing preserves original
+trusted ingestion timestamps.
+
+Index and official valuation `trade_date` values are effective observation
+dates. Corporate action `announcement_date` and effective `ex_date` are
+separate: reliable publication may make an action visible before its ex-date.
+TWD amounts normalize to major units at the canonical boundary. Source-
+published valuation remains observed and separate from Phase 9 computed
+`valuation_metrics:v1`. See [the Phase 8 contract](market_reference.md) and
+[ADR-0014](decisions/0014-phase8-market-reference-semantics.md).
+
 ## Migration operation
 
 Local PostgreSQL 18 startup:

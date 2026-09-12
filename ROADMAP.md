@@ -1696,11 +1696,11 @@ preserve them as observed source data with source/revision semantics.
 
 Acceptance criteria:
 
-- [ ] index history is PIT-safe
-- [ ] corporate actions have explicit effective/announcement semantics
-- [ ] source-published valuation is distinguishable from computed valuation
-- [ ] backfill/revision provenance is preserved
-- [ ] dataset-specific regression tests exist
+- [x] index history is PIT-safe
+- [x] corporate actions have explicit effective/announcement semantics
+- [x] source-published valuation is distinguishable from computed valuation
+- [x] backfill/revision provenance is preserved
+- [x] dataset-specific regression tests exist
 
 ---
 

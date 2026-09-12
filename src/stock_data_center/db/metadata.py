@@ -864,6 +864,9 @@ market_index = sa.Table(
     sa.Column("name", sa.Text(), nullable=False),
     sa.Column("created_at", aware_timestamp, nullable=False,
               server_default=sa.text("statement_timestamp()")),
+    sa.CheckConstraint("index_code <> ''", name="market_index_code_nonempty"),
+    sa.CheckConstraint("market <> ''", name="market_index_market_nonempty"),
+    sa.CheckConstraint("name <> ''", name="market_index_name_nonempty"),
 )
 
 market_index_versions = sa.Table(
@@ -889,6 +892,31 @@ market_index_versions = sa.Table(
     sa.UniqueConstraint(
         "market_index_id", "source", "trade_date", "business_content_hash",
         name="uq_market_index_business_revision",
+    ),
+    sa.CheckConstraint(
+        "open_value IS NULL OR open_value >= 0", name="market_index_open_nonnegative"
+    ),
+    sa.CheckConstraint(
+        "high_value IS NULL OR high_value >= 0", name="market_index_high_nonnegative"
+    ),
+    sa.CheckConstraint(
+        "low_value IS NULL OR low_value >= 0", name="market_index_low_nonnegative"
+    ),
+    sa.CheckConstraint("close_value >= 0", name="market_index_close_nonnegative"),
+    sa.CheckConstraint(
+        "trade_value IS NULL OR trade_value >= 0",
+        name="market_index_trade_value_nonnegative",
+    ),
+    sa.CheckConstraint(
+        "high_value IS NULL OR (high_value >= close_value AND "
+        "(open_value IS NULL OR high_value >= open_value) AND "
+        "(low_value IS NULL OR high_value >= low_value))",
+        name="market_index_high_consistent",
+    ),
+    sa.CheckConstraint(
+        "low_value IS NULL OR (low_value <= close_value AND "
+        "(open_value IS NULL OR low_value <= open_value))",
+        name="market_index_low_consistent",
     ),
 )
 
@@ -926,6 +954,27 @@ corporate_action_versions = sa.Table(
         "'ex_dividend', 'ex_right', 'capital_reduction', 'other')",
         name="action_type_value",
     ),
+    sa.CheckConstraint(
+        "announcement_date IS NULL OR announcement_date <= ex_date",
+        name="corporate_action_announcement_by_ex_date",
+    ),
+    sa.CheckConstraint(
+        "num_nonnulls(announcement_date, record_date, payment_date, "
+        "cash_dividend_per_share, stock_dividend_ratio, rights_ratio, "
+        "subscription_price, close_before, reference_price, "
+        "rights_dividend_value) > 0 OR terms <> '{}'::jsonb",
+        name="corporate_action_value_present",
+    ),
+    sa.CheckConstraint(
+        "(cash_dividend_per_share IS NULL OR cash_dividend_per_share >= 0) AND "
+        "(stock_dividend_ratio IS NULL OR stock_dividend_ratio >= 0) AND "
+        "(rights_ratio IS NULL OR rights_ratio >= 0) AND "
+        "(subscription_price IS NULL OR subscription_price >= 0) AND "
+        "(close_before IS NULL OR close_before >= 0) AND "
+        "(reference_price IS NULL OR reference_price >= 0) AND "
+        "(rights_dividend_value IS NULL OR rights_dividend_value >= 0)",
+        name="corporate_action_values_nonnegative",
+    ),
 )
 
 official_valuation_versions = sa.Table(
@@ -951,6 +1000,41 @@ official_valuation_versions = sa.Table(
         "security_id", "source", "trade_date", "business_content_hash",
         name="uq_official_valuation_business_revision",
     ),
+    sa.CheckConstraint(
+        "num_nonnulls(pe_ratio, pb_ratio, dividend_yield, dividend_per_share) > 0",
+        name="official_valuation_value_present",
+    ),
+    sa.CheckConstraint(
+        "(pe_ratio IS NULL OR pe_ratio > 0) AND "
+        "(pb_ratio IS NULL OR pb_ratio > 0) AND "
+        "(dividend_yield IS NULL OR dividend_yield >= 0) AND "
+        "(dividend_per_share IS NULL OR dividend_per_share >= 0)",
+        name="official_valuation_values_valid",
+    ),
+    sa.CheckConstraint(
+        "dividend_year IS NULL OR dividend_year BETWEEN 1900 AND 9999",
+        name="official_valuation_dividend_year_valid",
+    ),
+    sa.CheckConstraint(
+        "report_period IS NULL OR report_period <> ''",
+        name="official_valuation_report_period_nonempty",
+    ),
+)
+
+market_index_version_observations = _observed_version_observations(
+    "market_index_version_observations",
+    "market_index_version_id",
+    "market_index_versions",
+)
+corporate_action_version_observations = _observed_version_observations(
+    "corporate_action_version_observations",
+    "corporate_action_version_id",
+    "corporate_action_versions",
+)
+official_valuation_version_observations = _observed_version_observations(
+    "official_valuation_version_observations",
+    "official_valuation_version_id",
+    "official_valuation_versions",
 )
 
 security_tag_versions = sa.Table(
