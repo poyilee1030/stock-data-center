@@ -1578,14 +1578,14 @@ Historical actual EPS and other canonical financial facts must become available 
 
 Acceptance criteria:
 
-- [ ] unsealed filings are invisible
-- [ ] child insert after seal fails
-- [ ] concurrent seal/child behavior preserves aggregate hash correctness
-- [ ] dimensional facts can coexist correctly
-- [ ] canonical duplicate facts are rejected
-- [ ] Q4 availability is controlled by evidence, not calendar shortcuts
-- [ ] historical EPS actuals are PIT-safe
-- [ ] dataset-specific regression tests exist
+- [x] unsealed filings are invisible
+- [x] child insert after seal fails
+- [x] concurrent seal/child behavior preserves aggregate hash correctness
+- [x] dimensional facts can coexist correctly
+- [x] canonical duplicate facts are rejected
+- [x] Q4 availability is controlled by evidence, not calendar shortcuts
+- [x] historical EPS actuals are PIT-safe
+- [x] dataset-specific regression tests exist
 
 ---
 
