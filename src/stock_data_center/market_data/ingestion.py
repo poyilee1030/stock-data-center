@@ -136,6 +136,68 @@ class MarketDataWriter:
             lineage=lineage,
         )
 
+    def append_security_metadata_snapshot(
+        self,
+        connection: Connection,
+        *,
+        security_id: int,
+        source: str,
+        observation: SecurityMetadataObservation,
+        lineage: LineageRef,
+    ) -> WrittenVersion:
+        """Reuse the latest equal state instead of inventing daily revisions.
+
+        Current-list endpoints identify when their snapshot was produced, not
+        when every unchanged name/industry/venue field originally took effect.
+        A later equal snapshot is therefore provenance for the existing state,
+        not a new business revision.  A changed state starts no earlier than the
+        first snapshot on which this importer observed it.
+        """
+        state_fields = (
+            "effective_to",
+            "market",
+            "name",
+            "industry",
+            "listed_on",
+            "delisted_on",
+        )
+        latest = connection.execute(
+            sa.select(
+                security_metadata_versions.c.id,
+                security_metadata_versions.c.business_content_hash,
+                security_metadata_versions.c.ingested_at,
+                *(security_metadata_versions.c[name] for name in state_fields),
+            )
+            .where(
+                security_metadata_versions.c.security_id == security_id,
+                security_metadata_versions.c.source == source,
+                security_metadata_versions.c.effective_from
+                <= observation.effective_from,
+            )
+            .order_by(
+                security_metadata_versions.c.effective_from.desc(),
+                security_metadata_versions.c.ingested_at.desc(),
+                security_metadata_versions.c.id.desc(),
+            )
+            .limit(1)
+        ).mappings().one_or_none()
+        if latest is not None and all(
+            latest[name] == getattr(observation, name) for name in state_fields
+        ):
+            return WrittenVersion(
+                version_id=latest["id"],
+                business_content_hash=latest["business_content_hash"],
+                ingested_at=latest["ingested_at"],
+                created=False,
+            )
+        return self.append_security_metadata(
+            connection,
+            security_id=security_id,
+            source=source,
+            observation=observation,
+            lineage=lineage,
+        )
+
     def append_daily_price(
         self,
         connection: Connection,
