@@ -37,6 +37,14 @@ is applied only after metadata resolution. Listing membership uses the half-open
 provide a start bound; visible metadata remains eligible until `delisted_on`.
 Callers can request `listed_only=False` to inspect PIT-visible delisted states.
 
+Phase 9 current-company adapters deliberately distinguish the official snapshot
+report date from the listing date. Current name, industry, and venue state uses
+the report date as `effective_from`; `listed_on` retains the source listing
+date. Equal later snapshots reuse the existing business version. Snapshot
+absence does not prove delisting, and current snapshots are not used to invent
+historical market-transfer intervals. See
+[ADR-0016](decisions/0016-current-security-metadata-snapshots.md).
+
 ## Daily market-data contract
 
 The query contract supports one trade date or an inclusive date window. Every

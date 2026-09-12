@@ -5,9 +5,17 @@ from stock_data_center.ingestion.adapters.daily_market import (
     TPExDailyMarketAdapter,
     TWSEDailyMarketAdapter,
 )
+from stock_data_center.ingestion.adapters.security_metadata import (
+    SecurityMetadataAdapter,
+    TPExSecurityMetadataAdapter,
+    TWSESecurityMetadataAdapter,
+)
 
 __all__ = [
     "DailyMarketAdapter",
+    "SecurityMetadataAdapter",
     "TPExDailyMarketAdapter",
+    "TPExSecurityMetadataAdapter",
     "TWSEDailyMarketAdapter",
+    "TWSESecurityMetadataAdapter",
 ]
