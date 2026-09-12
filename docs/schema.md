@@ -14,7 +14,7 @@ migrations are the deployment record in `migrations/versions/`.
 | --- | --- |
 | Dataset policy | `dataset_catalog`, `dataset_sources` |
 | Security identity/history | `security`, `security_metadata_versions` |
-| Provenance | `ingest_runs`, `raw_artifacts`, `raw_artifact_observations`, `monthly_revenue_version_observations`, `financial_filing_version_observations`, `publication_evidence_observations` |
+| Provenance | `ingest_runs`, `raw_artifacts`, `raw_artifact_observations`, `monthly_revenue_version_observations`, `financial_filing_version_observations`, `tdcc_snapshot_version_observations`, `publication_evidence_observations` |
 | Market/revenue versions | `daily_price_versions`, `monthly_revenue_versions` |
 | Financial aggregate | `financial_filing_versions`, `financial_facts`, `quarterly_financial_summary`, `financial_filing_seals` |
 | TDCC aggregate | `tdcc_snapshot_versions`, `tdcc_distribution`, `tdcc_snapshot_seals` |
@@ -203,6 +203,19 @@ Market/System PIT, publication-evidence, source, and provenance semantics. The
 canonical writer additionally requires a versioned source/context
 classification; DB duration checks are defensive and never act as the source
 classifier. See [the Phase 5 contract](financial_xbrl.md).
+
+## Phase 6 domain access
+
+Phase 6 adds the `tdcc` package over the existing sealed snapshot tables. A
+focused migration adds append-only, source-validated many-observation lineage
+for snapshot versions (backfilled from existing parent lineage), exposes the
+seal's canonical aggregate hash as `stockdc_tdcc_snapshot_business_hash` with
+byte-order (`COLLATE "C"`) bucket ordering, and rejects TDCC publication
+evidence whose `published_at` precedes the snapshot date in Asia/Taipei.
+
+The writer reuses an identical sealed revision instead of creating a fake one,
+and the service reads a distribution only after the shared PIT resolver selects
+a sealed version. See [the Phase 6 contract](tdcc.md).
 
 ## Migration operation
 

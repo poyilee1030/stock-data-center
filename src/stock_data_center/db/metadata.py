@@ -470,6 +470,23 @@ tdcc_snapshot_versions = sa.Table(
     *lineage_constraints(),
 )
 
+tdcc_snapshot_version_observations = sa.Table(
+    "tdcc_snapshot_version_observations",
+    metadata,
+    sa.Column("snapshot_version_id", sa.BigInteger(), nullable=False),
+    sa.Column("raw_artifact_id", uuid_type, nullable=False),
+    sa.Column("ingest_run_id", uuid_type, nullable=False),
+    sa.PrimaryKeyConstraint(
+        "snapshot_version_id", "raw_artifact_id", "ingest_run_id"
+    ),
+    sa.ForeignKeyConstraint(
+        ["snapshot_version_id"],
+        ["tdcc_snapshot_versions.id"],
+        ondelete="RESTRICT",
+    ),
+    *lineage_constraints(),
+)
+
 tdcc_distribution = sa.Table(
     "tdcc_distribution",
     metadata,

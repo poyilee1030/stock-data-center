@@ -81,6 +81,7 @@ The service depends on a cache abstraction.
 - [Security metadata and daily market data](security_daily_market.md)
 - [Monthly revenue](monthly_revenue.md)
 - [Financial filings and XBRL](financial_xbrl.md)
+- [TDCC shareholding distribution](tdcc.md)
 - [Cache contract](cache.md)
 
 Changes to an accepted decision require a superseding ADR and, when the change
