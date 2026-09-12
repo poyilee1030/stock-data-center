@@ -21,10 +21,21 @@ generates ingestion time and a canonical business hash that excludes logical
 keys and provenance. Identical refetches reuse a business revision while
 append-only dataset-specific observation tables preserve every raw/run lineage.
 
-Gross quantities, balances, holdings, and limits are non-negative integers.
-Published net-flow fields and SBL adjustment are signed source facts and are not
-recomputed. Published ratios are percentages. Publication evidence cannot
-predate the local observation date and remains separate from business history.
+All per-security stock quantities use canonical shares. Source adapters must
+declare `SHARE` or `LOT`; one lot normalizes to 1,000 shares before observation,
+storage, and hashing. Canonical observation fields reject untyped numeric
+quantities. Gross quantities, balances, holdings, and limits are non-negative
+integers. Published net-flow fields and SBL adjustment remain signed source
+facts after normalization and are not recomputed. Published ratios are
+percentages. Publication evidence cannot predate the local observation date and
+remains separate from business history.
+
+No reliable v1 absolute holding baseline exists for trust/dealer holdings.
+Daily flows can reproduce only a zero-origin cumulative-net-flow proxy, not an
+absolute holding. The Phase 9 definition is therefore frozen as
+`institutional_cumulative_flow:v1` with explicit
+`*_cumulative_net_shares`/`*_cumulative_net_ratio` metric names. Adding a real
+baseline later requires a new observed contract and derivation version.
 
 Derived chip-flow, margin pressure, short-interest, and holding metrics are not
 source facts. They remain versioned PIT-safe canonical derivations for Phase 9
@@ -36,4 +47,6 @@ or model-specific downstream features according to the inventory.
 - Historical backfills cannot falsify System PIT.
 - Late evidence cannot enter an earlier knowledge cutoff.
 - Repeat fetch provenance is complete without fake business revisions.
+- Equivalent lot/share representations have one canonical business identity.
+- The Data Center does not mislabel cumulative flow as absolute ownership.
 - Redis/cache impact is none because Phase 7 has no cache implementation.

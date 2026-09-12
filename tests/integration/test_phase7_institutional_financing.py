@@ -18,9 +18,12 @@ from stock_data_center.institutional_financing import (
     InstitutionalInvestorObservation,
     InstitutionalMarketSummaryObservation,
     MarginTradingObservation,
+    QuantityScale,
     SecuritiesLendingObservation,
+    ShareQuantity,
     SourceLineageRef,
     SourcePublication,
+    SourceShareQuantity,
 )
 from stock_data_center.pit import MarketPITContext, SystemPITContext
 
@@ -31,6 +34,10 @@ WRITER = InstitutionalFinancingWriter()
 SERVICE = InstitutionalFinancingService()
 TRADE_DATE = date(2025, 6, 2)
 _DIGESTS = count(1000)
+
+
+def q(value: str) -> ShareQuantity:
+    return ShareQuantity(Decimal(value))
 
 
 def configure_dataset(
@@ -138,12 +145,12 @@ def test_all_phase7_domains_round_trip_with_source_faithful_fields(
             "institutional_investor",
             InstitutionalInvestorObservation(
                 TRADE_DATE,
-                foreign_buy=Decimal("1000"),
-                foreign_sell=Decimal("1200"),
-                foreign_net=Decimal("-200"),
-                trust_net=Decimal("75"),
-                dealer_net=Decimal("-25"),
-                total_net=Decimal("-150"),
+                foreign_buy=q("1000"),
+                foreign_sell=q("1200"),
+                foreign_net=q("-200"),
+                trust_net=q("75"),
+                dealer_net=q("-25"),
+                total_net=q("-150"),
             ),
             lambda line, obs: WRITER.append_institutional_investor(
                 db, security_id=security_id, source=source, observation=obs, lineage=line
@@ -155,9 +162,9 @@ def test_all_phase7_domains_round_trip_with_source_faithful_fields(
             "foreign_holding",
             ForeignHoldingObservation(
                 TRADE_DATE,
-                issued_shares=Decimal("10000"),
-                investable_shares=Decimal("8000"),
-                held_shares=Decimal("5000"),
+                issued_shares=q("10000"),
+                investable_shares=q("8000"),
+                held_shares=q("5000"),
                 held_ratio=Decimal("50.125"),
             ),
             lambda line, obs: WRITER.append_foreign_holding(
@@ -170,10 +177,10 @@ def test_all_phase7_domains_round_trip_with_source_faithful_fields(
             "margin_trading",
             MarginTradingObservation(
                 TRADE_DATE,
-                margin_balance=Decimal("9000"),
-                margin_next_limit=Decimal("20000"),
+                margin_balance=q("9000"),
+                margin_next_limit=q("20000"),
                 margin_utilization_ratio=Decimal("45"),
-                short_balance=Decimal("700"),
+                short_balance=q("700"),
             ),
             lambda line, obs: WRITER.append_margin_trading(
                 db, security_id=security_id, source=source, observation=obs, lineage=line
@@ -185,11 +192,11 @@ def test_all_phase7_domains_round_trip_with_source_faithful_fields(
             "securities_lending",
             SecuritiesLendingObservation(
                 TRADE_DATE,
-                previous_balance=Decimal("4000"),
-                borrowed=Decimal("300"),
-                returned=Decimal("100"),
-                balance=Decimal("4175"),
-                adjustment=Decimal("-25"),
+                previous_balance=q("4000"),
+                borrowed=q("300"),
+                returned=q("100"),
+                balance=q("4175"),
+                adjustment=q("-25"),
             ),
             lambda line, obs: WRITER.append_securities_lending(
                 db, security_id=security_id, source=source, observation=obs, lineage=line
@@ -264,7 +271,7 @@ def test_repeat_fetch_reuses_revision_and_preserves_each_observation(
     source = "twse"
     configure_dataset(db, dataset, source)
     security_id = add_security(db)
-    observation = MarginTradingObservation(TRADE_DATE, margin_balance=Decimal("50"))
+    observation = MarginTradingObservation(TRADE_DATE, margin_balance=q("50"))
     first = WRITER.append_margin_trading(
         db,
         security_id=security_id,
@@ -288,6 +295,68 @@ def test_repeat_fetch_reuses_revision_and_preserves_each_observation(
     assert len(observations) == 2
 
 
+def test_tpex_lots_and_share_inputs_dedupe_after_share_normalization(
+    db: Connection,
+) -> None:
+    dataset = "margin_trading"
+    source = "tpex"
+    configure_dataset(db, dataset, source)
+    security_id = add_security(db)
+    from_lots = MarginTradingObservation(
+        TRADE_DATE,
+        margin_previous_balance=SourceShareQuantity(
+            Decimal("500"), QuantityScale.LOT
+        ).to_canonical(),
+        short_previous_balance=SourceShareQuantity(
+            Decimal("2"), QuantityScale.LOT
+        ).to_canonical(),
+        offset_balance=SourceShareQuantity(
+            Decimal("1"), QuantityScale.LOT
+        ).to_canonical(),
+    )
+    from_shares = MarginTradingObservation(
+        TRADE_DATE,
+        margin_previous_balance=SourceShareQuantity(
+            Decimal("500000"), QuantityScale.SHARE
+        ).to_canonical(),
+        short_previous_balance=SourceShareQuantity(
+            Decimal("2000"), QuantityScale.SHARE
+        ).to_canonical(),
+        offset_balance=SourceShareQuantity(
+            Decimal("1000"), QuantityScale.SHARE
+        ).to_canonical(),
+    )
+    first = WRITER.append_margin_trading(
+        db,
+        security_id=security_id,
+        source=source,
+        observation=from_lots,
+        lineage=lineage(db, dataset, source),
+    )
+    second = WRITER.append_margin_trading(
+        db,
+        security_id=security_id,
+        source=source,
+        observation=from_shares,
+        lineage=lineage(db, dataset, source),
+    )
+    resolved = SERVICE.margin_trading(
+        db,
+        security_code="2330-phase7",
+        trade_date=TRADE_DATE,
+        context=SystemPITContext(datetime.now(UTC) + timedelta(days=1)),
+        source=source,
+    )
+    assert first.created is True
+    assert second.created is False
+    assert first.version_id == second.version_id
+    assert first.business_content_hash == second.business_content_hash
+    assert resolved is not None
+    assert resolved.data["margin_previous_balance"] == Decimal("500000")
+    assert resolved.data["short_previous_balance"] == Decimal("2000")
+    assert resolved.data["offset_balance"] == Decimal("1000")
+
+
 def test_backfill_uses_actual_ingestion_and_evidence_knowledge_times(
     db: Connection,
 ) -> None:
@@ -302,7 +371,7 @@ def test_backfill_uses_actual_ingestion_and_evidence_knowledge_times(
         security_id=security_id,
         source=source,
         observation=SecuritiesLendingObservation(
-            date(2019, 1, 2), balance=Decimal("500")
+            date(2019, 1, 2), balance=q("500")
         ),
         lineage=source_lineage,
     )
@@ -354,7 +423,7 @@ def test_source_histories_are_independent_and_history_is_inclusive(
                 security_id=security_id,
                 source=source,
                 observation=ForeignHoldingObservation(
-                    date(2025, 6, day), held_shares=Decimal(value)
+                    date(2025, 6, day), held_shares=q(value)
                 ),
                 lineage=lineage(db, dataset, source),
             )
@@ -394,7 +463,7 @@ def test_publication_before_trade_date_and_wrong_lineage_are_rejected(
         security_id=security_id,
         source=source,
         observation=InstitutionalInvestorObservation(
-            TRADE_DATE, foreign_net=Decimal("-1")
+            TRADE_DATE, foreign_net=q("-1")
         ),
         lineage=source_lineage,
     )
@@ -471,7 +540,7 @@ def test_database_guards_values_and_generates_hash_and_ingestion_time(
         security_id=security_id,
         source=source,
         observation=SecuritiesLendingObservation(
-            TRADE_DATE, balance=Decimal("10"), adjustment=Decimal("-3")
+            TRADE_DATE, balance=q("10"), adjustment=q("-3")
         ),
         lineage=source_lineage,
     )
@@ -488,7 +557,7 @@ def test_phase7_observation_links_are_append_only(db: Connection) -> None:
         db,
         security_id=security_id,
         source=source,
-        observation=MarginTradingObservation(TRADE_DATE, margin_balance=Decimal("1")),
+        observation=MarginTradingObservation(TRADE_DATE, margin_balance=q("1")),
         lineage=lineage(db, dataset, source),
     )
     with pytest.raises(DBAPIError) as mutation:

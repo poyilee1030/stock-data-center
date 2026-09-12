@@ -8,10 +8,13 @@ from stock_data_center.institutional_financing.models import (
     InstitutionalInvestorObservation,
     InstitutionalMarketSummaryObservation,
     MarginTradingObservation,
+    QuantityScale,
     SecuritiesLendingObservation,
+    ShareQuantity,
     SourceLineageObservation,
     SourceLineageRef,
     SourcePublication,
+    SourceShareQuantity,
     WrittenSourceVersion,
 )
 from stock_data_center.institutional_financing.service import (
@@ -25,9 +28,12 @@ __all__ = [
     "InstitutionalInvestorObservation",
     "InstitutionalMarketSummaryObservation",
     "MarginTradingObservation",
+    "QuantityScale",
     "SecuritiesLendingObservation",
+    "ShareQuantity",
     "SourceLineageObservation",
     "SourceLineageRef",
     "SourcePublication",
+    "SourceShareQuantity",
     "WrittenSourceVersion",
 ]

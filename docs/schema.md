@@ -233,13 +233,18 @@ trading, and securities lending. The five existing source-version tables gain
 append-only, source-validated observation associations so unchanged refetches
 retain every artifact/run without creating fake revisions.
 
-PostgreSQL enforces non-negative gross quantities, balances, holdings, and
-limits while retaining signed published net-flow values and signed SBL
-adjustments. Published ratios use percent units. Business hashes exclude
-logical keys and provenance; ingestion time remains trusted server time.
-Publication evidence cannot predate the trade date in Asia/Taipei.
+Every per-security stock quantity is normalized to shares before storage and
+hashing; canonical observations reject quantities without an explicit
+share/lot source-boundary conversion. PostgreSQL enforces non-negative gross
+quantities, balances, holdings, and limits while retaining signed published
+net-flow values and signed SBL adjustments. Published ratios use percent units.
+Business hashes exclude logical keys and provenance; ingestion time remains
+trusted server time. Publication evidence cannot predate the trade date in
+Asia/Taipei.
 
 No pressure score or cross-dataset ratio is materialized in this phase.
+Trust/dealer daily flows support only explicitly named cumulative-net-flow
+proxies; without a real baseline they do not reconstruct absolute holdings.
 Canonical metrics remain Phase 9 work over PIT-resolved inputs. See
 [the Phase 7 contract](institutional_financing.md) and
 [ADR-0013](decisions/0013-phase7-observed-source-semantics.md).

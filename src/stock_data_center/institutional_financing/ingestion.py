@@ -19,6 +19,7 @@ from stock_data_center.institutional_financing.models import (
     InstitutionalInvestorObservation,
     InstitutionalMarketSummaryObservation,
     MarginTradingObservation,
+    ShareQuantity,
     SecuritiesLendingObservation,
     SourceLineageRef,
     SourcePublication,
@@ -291,7 +292,11 @@ class InstitutionalFinancingWriter:
 
 
 def _dataclass_values(instance: object) -> dict[str, Any]:
-    return {field.name: getattr(instance, field.name) for field in fields(instance)}
+    values = {}
+    for field in fields(instance):
+        value = getattr(instance, field.name)
+        values[field.name] = value.value if isinstance(value, ShareQuantity) else value
+    return values
 
 
 def _written(

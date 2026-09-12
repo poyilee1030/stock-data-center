@@ -9,7 +9,10 @@ from stock_data_center.institutional_financing import (
     InstitutionalInvestorObservation,
     InstitutionalMarketSummaryObservation,
     MarginTradingObservation,
+    QuantityScale,
     SecuritiesLendingObservation,
+    ShareQuantity,
+    SourceShareQuantity,
 )
 from stock_data_center.db.metadata import metadata
 
@@ -17,27 +20,47 @@ from stock_data_center.db.metadata import metadata
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def q(value: str) -> ShareQuantity:
+    return ShareQuantity(Decimal(value))
+
+
 def test_signed_source_fields_are_preserved() -> None:
     institutional = InstitutionalInvestorObservation(
         trade_date=date(2025, 6, 2),
-        foreign_buy=Decimal("100"),
-        foreign_sell=Decimal("150"),
-        foreign_net=Decimal("-50"),
+        foreign_buy=q("100"),
+        foreign_sell=q("150"),
+        foreign_net=q("-50"),
     )
     lending = SecuritiesLendingObservation(
         trade_date=date(2025, 6, 2),
-        previous_balance=Decimal("1000"),
-        adjustment=Decimal("-25"),
+        previous_balance=q("1000"),
+        adjustment=q("-25"),
     )
-    assert institutional.foreign_net == Decimal("-50")
-    assert lending.adjustment == Decimal("-25")
+    assert institutional.foreign_net == q("-50")
+    assert lending.adjustment == q("-25")
+
+
+def test_lots_and_shares_normalize_to_the_same_canonical_quantity() -> None:
+    lots = SourceShareQuantity(Decimal("500"), QuantityScale.LOT).to_canonical()
+    shares = SourceShareQuantity(
+        Decimal("500000"), QuantityScale.SHARE
+    ).to_canonical()
+    assert lots == shares == q("500000")
+
+
+def test_quantity_fields_reject_ambiguous_raw_decimals() -> None:
+    with pytest.raises(ValueError, match="explicitly canonical ShareQuantity"):
+        MarginTradingObservation(
+            trade_date=date(2025, 6, 2),
+            margin_balance=Decimal("500"),  # type: ignore[arg-type]
+        )
 
 
 @pytest.mark.parametrize(
     "factory",
     [
         lambda: InstitutionalInvestorObservation(
-            trade_date=date(2025, 6, 2), foreign_buy=Decimal("-1")
+            trade_date=date(2025, 6, 2), foreign_buy=q("-1")
         ),
         lambda: InstitutionalMarketSummaryObservation(
             trade_date=date(2025, 6, 2),
@@ -46,13 +69,13 @@ def test_signed_source_fields_are_preserved() -> None:
             buy=Decimal("-1"),
         ),
         lambda: MarginTradingObservation(
-            trade_date=date(2025, 6, 2), margin_balance=Decimal("-1")
+            trade_date=date(2025, 6, 2), margin_balance=q("-1")
         ),
         lambda: ForeignHoldingObservation(
             trade_date=date(2025, 6, 2), held_ratio=Decimal("100.00000001")
         ),
         lambda: SecuritiesLendingObservation(
-            trade_date=date(2025, 6, 2), balance=Decimal("1.5")
+            trade_date=date(2025, 6, 2), balance=q("1.5")
         ),
     ],
 )
@@ -72,6 +95,20 @@ def test_phase7_owns_observed_facts_not_derived_signals() -> None:
     assert "Phase 9" in contract
     assert "shareholding concentration" in contract
     assert "sealed TDCC" in contract
+    assert "QuantityScale.SHARE" in contract
+    assert "QuantityScale.LOT" in contract
+    assert "institutional_cumulative_flow:v1" in contract
+    assert "do not identify absolute holdings" in contract
+
+
+def test_legacy_holding_inventory_names_only_cumulative_flow_proxies() -> None:
+    inventory = (ROOT / "docs" / "data_domain_inventory.json").read_text()
+    assert "trust_cumulative_net_shares" in inventory
+    assert "dealer_cumulative_net_shares" in inventory
+    assert "institutional_cumulative_flow:v1" in inventory
+    assert "metric_code=trust_held_shares" not in inventory
+    assert "metric_code=dealer_held_shares" not in inventory
+    assert "institutional_holding:v1" not in inventory
 
 
 def test_phase7_package_has_no_cache_http_or_model_dependency() -> None:

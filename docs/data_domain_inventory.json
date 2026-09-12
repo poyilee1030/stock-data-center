@@ -14,7 +14,8 @@
     "name": "security_metadata_versions.name",
     "date": "domain logical observation/report/snapshot/event date",
     "pced_file/pced_row/pced_col": "raw-artifact-only parser provenance",
-    "publish_time": "publication_evidence.published_at"
+    "publish_time": "publication_evidence.published_at",
+    "phase7_stock_quantity": "canonical shares; explicit source lots multiply by 1000 before observation, storage, and hashing"
   },
   "fields": [
     {
@@ -406,7 +407,7 @@
       "legacy_table": "trust_holding",
       "legacy_field": "date",
       "disposition": "identity",
-      "target": "derived_metric_versions.observation_date (institutional_holding:v1)",
+      "target": "derived_metric_versions.observation_date (institutional_cumulative_flow:v1)",
       "reason": "Date is the domain observation, report, snapshot, or event logical key."
     },
     {
@@ -435,21 +436,21 @@
       "legacy_field": "issued_shares",
       "disposition": "observed",
       "target": "foreign_holding_versions.issued_shares",
-      "reason": "Issued shares is a source observation used as a derived holding-ratio input."
+      "reason": "Issued shares is a source observation used as the denominator of an explicitly non-absolute cumulative-flow proxy ratio."
     },
     {
       "legacy_table": "trust_holding",
       "legacy_field": "trust_held_shares",
       "disposition": "canonical_derived",
-      "target": "derived_metric_versions.metric_code=trust_held_shares (institutional_holding:v1)",
-      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+      "target": "derived_metric_versions.metric_code=trust_cumulative_net_shares (institutional_cumulative_flow:v1)",
+      "reason": "The legacy zero-origin cumulative-flow value is reproducible, but without a real holding baseline it is a proxy and not absolute trust ownership."
     },
     {
       "legacy_table": "trust_holding",
       "legacy_field": "trust_held_ratio",
       "disposition": "canonical_derived",
-      "target": "derived_metric_versions.metric_code=trust_held_ratio (institutional_holding:v1)",
-      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+      "target": "derived_metric_versions.metric_code=trust_cumulative_net_ratio (institutional_cumulative_flow:v1)",
+      "reason": "This is cumulative trust net shares divided by PIT-safe issued shares; it is explicitly a proxy, not an absolute holding ratio."
     },
     {
       "legacy_table": "trust_holding",
@@ -476,7 +477,7 @@
       "legacy_table": "dealer_holding",
       "legacy_field": "date",
       "disposition": "identity",
-      "target": "derived_metric_versions.observation_date (institutional_holding:v1)",
+      "target": "derived_metric_versions.observation_date (institutional_cumulative_flow:v1)",
       "reason": "Date is the domain observation, report, snapshot, or event logical key."
     },
     {
@@ -505,21 +506,21 @@
       "legacy_field": "issued_shares",
       "disposition": "observed",
       "target": "foreign_holding_versions.issued_shares",
-      "reason": "Issued shares is a source observation used as a derived holding-ratio input."
+      "reason": "Issued shares is a source observation used as the denominator of an explicitly non-absolute cumulative-flow proxy ratio."
     },
     {
       "legacy_table": "dealer_holding",
       "legacy_field": "dealer_held_shares",
       "disposition": "canonical_derived",
-      "target": "derived_metric_versions.metric_code=dealer_held_shares (institutional_holding:v1)",
-      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+      "target": "derived_metric_versions.metric_code=dealer_cumulative_net_shares (institutional_cumulative_flow:v1)",
+      "reason": "The legacy zero-origin cumulative-flow value is reproducible, but without a real holding baseline it is a proxy and not absolute dealer ownership."
     },
     {
       "legacy_table": "dealer_holding",
       "legacy_field": "dealer_held_ratio",
       "disposition": "canonical_derived",
-      "target": "derived_metric_versions.metric_code=dealer_held_ratio (institutional_holding:v1)",
-      "reason": "Deterministic reusable metric with explicit derivation version, PIT context, and input fingerprint."
+      "target": "derived_metric_versions.metric_code=dealer_cumulative_net_ratio (institutional_cumulative_flow:v1)",
+      "reason": "This is cumulative dealer net shares divided by PIT-safe issued shares; it is explicitly a proxy, not an absolute holding ratio."
     },
     {
       "legacy_table": "dealer_holding",
