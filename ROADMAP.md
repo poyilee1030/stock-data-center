@@ -1519,12 +1519,12 @@ The implementation must follow the Phase 1 disposition of legacy `daily_quotes` 
 
 Acceptance criteria:
 
-- [ ] no survivorship-only current security list
-- [ ] historical security state is queryable
-- [ ] daily market data is source/revision aware
-- [ ] intentionally preserved legacy observable fields are queryable
-- [ ] intentionally dropped fields are documented
-- [ ] dataset-specific regression tests exist
+- [x] no survivorship-only current security list
+- [x] historical security state is queryable
+- [x] daily market data is source/revision aware
+- [x] intentionally preserved legacy observable fields are queryable
+- [x] intentionally dropped fields are documented
+- [x] dataset-specific regression tests exist
 
 ---
 

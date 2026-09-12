@@ -83,10 +83,16 @@ def seed_lineage(
     security_id = db.execute(
         sa.text(
             """
-            INSERT INTO security (security_code, market)
-            VALUES (:security_code, 'TWSE')
-            ON CONFLICT (security_code) DO UPDATE SET market = EXCLUDED.market
-            RETURNING id
+            WITH inserted AS (
+                INSERT INTO security (security_code)
+                VALUES (:security_code)
+                ON CONFLICT (security_code) DO NOTHING
+                RETURNING id
+            )
+            SELECT id FROM inserted
+            UNION ALL
+            SELECT id FROM security WHERE security_code = :security_code
+            LIMIT 1
             """
         ),
         {"security_code": f"{dataset_code[:10]}-{source[:8]}"},
@@ -651,10 +657,10 @@ def test_other_single_row_business_hashes_are_storage_generated(db: Connection) 
         sa.text(
             """
             INSERT INTO security_metadata_versions (
-                security_id, source, effective_from, name, industry,
+                security_id, source, effective_from, market, name, industry,
                 business_content_hash, ingested_at, raw_artifact_id, ingest_run_id
             ) VALUES (
-                :security_id, 'official', DATE '2026-01-01', 'Example Corp',
+                :security_id, 'official', DATE '2026-01-01', 'TWSE', 'Example Corp',
                 'Semiconductor', :hash, TIMESTAMPTZ '2000-01-01+00',
                 :artifact_id, :run_id
             ) RETURNING business_content_hash, ingested_at

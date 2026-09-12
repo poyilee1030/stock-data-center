@@ -68,10 +68,16 @@ def configure_source(
     return db.execute(
         sa.text(
             """
-            INSERT INTO security (security_code, market)
-            VALUES (:code, 'TWSE')
-            ON CONFLICT (security_code) DO UPDATE SET market = EXCLUDED.market
-            RETURNING id
+            WITH inserted AS (
+                INSERT INTO security (security_code)
+                VALUES (:code)
+                ON CONFLICT (security_code) DO NOTHING
+                RETURNING id
+            )
+            SELECT id FROM inserted
+            UNION ALL
+            SELECT id FROM security WHERE security_code = :code
+            LIMIT 1
             """
         ),
         {"code": f"{dataset[:12]}-{source[:8]}"},

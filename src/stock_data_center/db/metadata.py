@@ -86,13 +86,13 @@ security = sa.Table(
     metadata,
     sa.Column("id", sa.BigInteger(), sa.Identity(), primary_key=True),
     sa.Column("security_code", sa.String(32), nullable=False, unique=True),
-    sa.Column("market", sa.String(32), nullable=False),
     sa.Column(
         "created_at",
         aware_timestamp,
         nullable=False,
         server_default=sa.text("statement_timestamp()"),
     ),
+    sa.CheckConstraint("security_code <> ''", name="security_code_nonempty"),
 )
 
 ingest_runs = sa.Table(
@@ -189,6 +189,7 @@ security_metadata_versions = sa.Table(
     sa.Column("source", sa.String(64), nullable=False),
     sa.Column("effective_from", sa.Date(), nullable=False),
     sa.Column("effective_to", sa.Date()),
+    sa.Column("market", sa.String(32), nullable=False),
     sa.Column("name", sa.Text(), nullable=False),
     sa.Column("industry", sa.Text()),
     sa.Column("listed_on", sa.Date()),
@@ -214,6 +215,7 @@ security_metadata_versions = sa.Table(
         "delisted_on IS NULL OR listed_on IS NULL OR delisted_on >= listed_on",
         name="listing_range",
     ),
+    sa.CheckConstraint("market <> ''", name="market_nonempty"),
 )
 
 daily_price_versions = sa.Table(

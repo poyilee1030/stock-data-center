@@ -27,6 +27,10 @@ PostgreSQL 18 is the only authoritative store. It contains business history,
 publication evidence, ingestion history, and provenance. Raw artifacts are
 immutable, content-addressed evidence held behind a storage abstraction.
 
+For securities, `security_code` is stable identity while market/listing venue is
+source-observed, effective-dated metadata. Historical universe filtering occurs
+after PIT metadata resolution; no current identity-row market is authoritative.
+
 Redis, when configured, is only a disposable cache of already-resolved query
 responses. Removing every Redis key, disabling Redis, or losing Redis must not
 change the business result or provenance returned for a canonical request.
@@ -68,8 +72,10 @@ The service depends on a cache abstraction.
 - [ADR-0007: canonical derived ownership and PIT](decisions/0007-canonical-derived-data-ownership-and-pit.md)
 - [ADR-0009: aggregate market PIT seal cutoff](decisions/0009-aggregate-market-pit-seal-cutoff.md)
 - [ADR-0010: source-specific evidence types](decisions/0010-source-specific-evidence-type-policy.md)
+- [ADR-0011: effective-dated security market](decisions/0011-effective-dated-security-market.md)
 - [Canonical derived data contract](derived_data.md)
 - [Core PIT resolver contract](pit_resolver.md)
+- [Security metadata and daily market data](security_daily_market.md)
 - [Cache contract](cache.md)
 
 Changes to an accepted decision require a superseding ADR and, when the change

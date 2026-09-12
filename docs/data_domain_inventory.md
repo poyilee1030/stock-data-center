@@ -35,7 +35,7 @@ JSON contract resolve the exact target and rationale:
 | Legacy field | Disposition |
 | --- | --- |
 | `symbol` | Stable `security.security_code`, except index symbols which map to `market_index.index_code`. |
-| `market` | Security/source identity or the applicable market-level logical identity. |
+| `market` | Effective-dated `security_metadata_versions.market` for securities, or the applicable market-level domain identity. |
 | `name` | Observed, effective-dated `security_metadata_versions.name`. |
 | `date` | The applicable observation, report, snapshot, or event logical date—not publication or ingestion time. |
 | `pced_file`, `pced_row`, `pced_col` | Raw-artifact-only parser/source coordinates. |
@@ -45,9 +45,9 @@ JSON contract resolve the exact target and rationale:
 
 | Legacy table | Legacy fields reviewed | v1 disposition |
 | --- | --- | --- |
-| `stock_info` | `symbol`, `name`, `market`, industry/category, listing and delisting dates | `security` identity plus observed `security_metadata_versions`; names/categories and effective dates are revisioned. |
+| `stock_info` | `symbol`, `name`, `market`, industry/category, listing and delisting dates | Stable `security` identity plus observed `security_metadata_versions`; market, names/categories, and effective dates are revisioned. |
 | `stock_tags` | `symbol`, tag/category, effective dates | Observed `security_tag_versions`; source and effective interval are explicit. |
-| `daily_quotes` | `date`, `market`, `symbol`, `name`; OHLC; `volume`, `value`, `transactions`; `change`, `direction`; `bid`, `ask`; parsed last bid/ask price and volume; `pced_file`, `pced_row`, `pced_col` | OHLC, volume, trade value/count, change/direction, source bid/ask snapshots, and parsed last bid/ask values are observed in `daily_price_versions`. Market/symbol resolve through `security`; name through metadata. `pced_*` is raw-only parser provenance tied to `raw_artifacts`/`ingest_runs`, not business content. |
+| `daily_quotes` | `date`, `market`, `symbol`, `name`; OHLC; `volume`, `value`, `transactions`; `change`, `direction`; `bid`, `ask`; parsed last bid/ask price and volume; `pced_file`, `pced_row`, `pced_col` | OHLC, volume, trade value/count, change/direction, source bid/ask snapshots, and parsed last bid/ask values are observed in `daily_price_versions`. Symbol resolves through stable `security`; market/name through effective-dated metadata. `pced_*` is raw-only parser provenance tied to `raw_artifacts`/`ingest_runs`, not business content. |
 | `monthly_revenue` | year/month, current revenue, currency; MoM, YoY, cumulative revenue, cumulative YoY; comment; publication timestamp; `pced_*` | Current revenue/currency are observed in `monthly_revenue_versions`. Source-published commentary remains in raw artifact v1. Ratios and cumulative values are canonical derived (`monthly_revenue_growth:v1`) unless a future source-value contract is added. Publication time belongs only in `publication_evidence`; `pced_*` is raw-only. |
 | `income_statement` | All 40 declared legacy identity, statement, quarterly/accumulated metric, and `pced_*` fields | Deprecated pre-XBRL category. Namespace-aware `financial_facts` and sealed summaries are the v1 replacement; the JSON contract gives every field an explicit disposition. |
 | `balance_sheet` | All 24 declared legacy identity, statement, balance, ratio, and `pced_*` fields | Deprecated pre-XBRL category; replaced by namespace-aware financial facts and versioned summaries. |
@@ -80,7 +80,7 @@ JSON contract resolve the exact target and rationale:
 
 | Domain / dataset code | Kind | Logical identity | Revision / PIT contract | Storage strategy | Planned consumers |
 | --- | --- | --- | --- | --- | --- |
-| `security_metadata` | observed | security, source, effective-from | business hash revisions; evidence governs market PIT, ingest time system PIT | materialized | both ML repos/API |
+| `security_metadata` | observed | security, source, effective-from | market/name/listing business hash revisions; evidence governs market PIT, ingest time system PIT | materialized | both ML repos/API |
 | `daily_price` | observed | security, source, trade date | complete quote business hash; evidence + ingestion cutoffs | materialized | indicators, valuation, backtests |
 | `monthly_revenue` | observed | security, source, revenue year/month | revenue/currency revision; evidence + ingestion cutoffs | materialized | EPS and selection |
 | `financial_filing` | observed aggregate | security, source, filing key | draft invisible; trusted seal time; evidence targets sealed version | materialized/sealed | EPS, canonical fundamentals |
