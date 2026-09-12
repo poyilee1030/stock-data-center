@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import json
 import os
+import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from threading import Event
 from uuid import uuid4
 
 import pytest
@@ -14,6 +17,7 @@ from stock_data_center.ingestion import (
     DailyMarketRequest,
     FetchedArtifact,
     LocalRawArtifactStore,
+    RawArtifactIntegrityError,
     ResourceQuarantinedError,
 )
 from stock_data_center.ingestion.adapters import (
@@ -21,7 +25,7 @@ from stock_data_center.ingestion.adapters import (
     TWSEDailyMarketAdapter,
 )
 from stock_data_center.ingestion.http import HttpSourceFetcher
-from stock_data_center.market_data import MarketDataService
+from stock_data_center.market_data import MarketDataService, MarketDataWriter
 from stock_data_center.pit import MarketPITContext, SystemPITContext
 
 pytestmark = pytest.mark.integration
@@ -108,6 +112,28 @@ class SimulatedProcessCrash(BaseException):
 class CrashAfterCaptureAdapter(TPExDailyMarketAdapter):
     def parse(self, content, request):
         raise SimulatedProcessCrash
+
+
+class UnexpectedAdapterFailure(TPExDailyMarketAdapter):
+    def parse(self, content, request):
+        raise RuntimeError("simulated adapter bug")
+
+
+class UnexpectedWriterFailure(MarketDataWriter):
+    def append_daily_price(self, *args, **kwargs):
+        raise RuntimeError("simulated writer bug")
+
+
+class BlockingFetcher(StaticFetcher):
+    def __init__(self, content: bytes, entered: Event, release: Event) -> None:
+        super().__init__(content)
+        self.entered = entered
+        self.release = release
+
+    def fetch(self, resource):
+        self.entered.set()
+        assert self.release.wait(timeout=10)
+        return super().fetch(resource)
 
 
 class FetchMustNotRun:
@@ -378,7 +404,7 @@ def test_captured_checkpoint_resumes_original_raw_and_run_without_refetch(
         engine.dispose()
 
 
-def test_captured_checkpoint_rejects_corrupt_raw_without_refetch(
+def test_captured_checkpoint_retains_corrupt_raw_as_operational_failure(
     isolated_database_url: str, tmp_path: Path
 ) -> None:
     engine = sa.create_engine(isolated_database_url)
@@ -413,7 +439,7 @@ def test_captured_checkpoint_rejects_corrupt_raw_without_refetch(
         original = retained_path.read_bytes()
         retained_path.write_bytes(original[:-1] + bytes([original[-1] ^ 1]))
 
-        with pytest.raises(ResourceQuarantinedError, match="integrity validation"):
+        with pytest.raises(RawArtifactIntegrityError, match="SHA-256"):
             DailyMarketImporter(
                 engine,
                 raw_store=raw_store,
@@ -438,13 +464,341 @@ def test_captured_checkpoint_rejects_corrupt_raw_without_refetch(
                 {"import_id": import_id},
             ).mappings().one()
             assert state == {
-                "status": "quarantined",
+                "status": "captured",
                 "error_code": "raw_artifact_integrity",
-                "run_status": "failed",
+                "run_status": "running",
             }
+            assert connection.scalar(
+                sa.text("SELECT count(*) FROM import_quarantine")
+            ) == 0
             assert connection.scalar(
                 sa.text("SELECT count(*) FROM daily_price_versions")
             ) == 0
+    finally:
+        engine.dispose()
+
+
+def test_unexpected_adapter_failure_keeps_original_raw_resumable(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    engine = sa.create_engine(isolated_database_url)
+    request = DailyMarketRequest("6488", date(2025, 9, 1))
+    import_id = uuid4()
+    raw_store = LocalRawArtifactStore(tmp_path / "operational-raw")
+    try:
+        with pytest.raises(RuntimeError, match="simulated adapter bug"):
+            DailyMarketImporter(
+                engine,
+                raw_store=raw_store,
+                fetcher=StaticFetcher(_tpex_payload()),
+            ).run(
+                adapter=UnexpectedAdapterFailure(),
+                request=request,
+                import_id=import_id,
+                git_commit="test-commit",
+            )
+
+        with engine.connect() as connection:
+            failed_state = connection.execute(
+                sa.text(
+                    """
+                    SELECT c.status, c.error_code, c.last_ingest_run_id,
+                           c.last_raw_artifact_id, r.status AS run_status
+                    FROM import_checkpoints c
+                    JOIN ingest_runs r ON r.id=c.last_ingest_run_id
+                    WHERE c.import_id=:import_id
+                    """
+                ),
+                {"import_id": import_id},
+            ).mappings().one()
+            assert failed_state["status"] == "captured"
+            assert failed_state["error_code"] == "adapter_operational_error"
+            assert failed_state["run_status"] == "running"
+            assert connection.scalar(
+                sa.text("SELECT count(*) FROM import_quarantine")
+            ) == 0
+
+        resumed = DailyMarketImporter(
+            engine,
+            raw_store=raw_store,
+            fetcher=FetchMustNotRun(),
+        ).run(
+            adapter=TPExDailyMarketAdapter(),
+            request=request,
+            import_id=import_id,
+            git_commit="test-commit",
+        )
+        assert resumed.business_versions_created == 1
+        with engine.connect() as connection:
+            resumed_state = connection.execute(
+                sa.text(
+                    """
+                    SELECT c.status, c.last_ingest_run_id, c.last_raw_artifact_id,
+                           r.status AS run_status
+                    FROM import_checkpoints c
+                    JOIN ingest_runs r ON r.id=c.last_ingest_run_id
+                    WHERE c.import_id=:import_id
+                    """
+                ),
+                {"import_id": import_id},
+            ).mappings().one()
+            assert resumed_state == {
+                "status": "succeeded",
+                "last_ingest_run_id": failed_state["last_ingest_run_id"],
+                "last_raw_artifact_id": failed_state["last_raw_artifact_id"],
+                "run_status": "succeeded",
+            }
+    finally:
+        engine.dispose()
+
+
+def test_raw_store_configuration_is_part_of_import_fingerprint(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    engine = sa.create_engine(isolated_database_url)
+    request = DailyMarketRequest("6488", date(2025, 9, 1))
+    import_id = uuid4()
+    try:
+        with pytest.raises(SimulatedProcessCrash):
+            DailyMarketImporter(
+                engine,
+                raw_store=LocalRawArtifactStore(tmp_path / "raw-a"),
+                fetcher=StaticFetcher(_tpex_payload()),
+            ).run(
+                adapter=CrashAfterCaptureAdapter(),
+                request=request,
+                import_id=import_id,
+                git_commit="test-commit",
+            )
+
+        with pytest.raises(ValueError, match="changed configuration"):
+            DailyMarketImporter(
+                engine,
+                raw_store=LocalRawArtifactStore(tmp_path / "raw-b"),
+                fetcher=FetchMustNotRun(),
+            ).run(
+                adapter=TPExDailyMarketAdapter(),
+                request=request,
+                import_id=import_id,
+                git_commit="test-commit",
+            )
+    finally:
+        engine.dispose()
+
+
+def test_unexpected_writer_failure_keeps_original_raw_resumable(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    engine = sa.create_engine(isolated_database_url)
+    request = DailyMarketRequest("6488", date(2025, 9, 1))
+    import_id = uuid4()
+    raw_store = LocalRawArtifactStore(tmp_path / "writer-failure-raw")
+    try:
+        with pytest.raises(RuntimeError, match="simulated writer bug"):
+            DailyMarketImporter(
+                engine,
+                raw_store=raw_store,
+                fetcher=StaticFetcher(_tpex_payload()),
+                writer=UnexpectedWriterFailure(),
+            ).run(
+                adapter=TPExDailyMarketAdapter(),
+                request=request,
+                import_id=import_id,
+                git_commit="test-commit",
+            )
+
+        with engine.connect() as connection:
+            failed_state = connection.execute(
+                sa.text(
+                    """
+                    SELECT c.status, c.error_code, c.last_ingest_run_id,
+                           c.last_raw_artifact_id, r.status AS run_status
+                    FROM import_checkpoints c
+                    JOIN ingest_runs r ON r.id=c.last_ingest_run_id
+                    WHERE c.import_id=:import_id
+                    """
+                ),
+                {"import_id": import_id},
+            ).mappings().one()
+            assert failed_state["status"] == "captured"
+            assert failed_state["error_code"] == "writer_operational_error"
+            assert failed_state["run_status"] == "running"
+            assert connection.scalar(
+                sa.text("SELECT count(*) FROM import_quarantine")
+            ) == 0
+            assert connection.scalar(
+                sa.text("SELECT count(*) FROM daily_price_versions")
+            ) == 0
+
+        resumed = DailyMarketImporter(
+            engine,
+            raw_store=raw_store,
+            fetcher=FetchMustNotRun(),
+        ).run(
+            adapter=TPExDailyMarketAdapter(),
+            request=request,
+            import_id=import_id,
+            git_commit="test-commit",
+        )
+        assert resumed.business_versions_created == 1
+        with engine.connect() as connection:
+            succeeded = connection.execute(
+                sa.text(
+                    """
+                    SELECT c.status, c.last_ingest_run_id, c.last_raw_artifact_id,
+                           r.status AS run_status
+                    FROM import_checkpoints c
+                    JOIN ingest_runs r ON r.id=c.last_ingest_run_id
+                    WHERE c.import_id=:import_id
+                    """
+                ),
+                {"import_id": import_id},
+            ).mappings().one()
+            assert succeeded == {
+                "status": "succeeded",
+                "last_ingest_run_id": failed_state["last_ingest_run_id"],
+                "last_raw_artifact_id": failed_state["last_raw_artifact_id"],
+                "run_status": "succeeded",
+            }
+    finally:
+        engine.dispose()
+
+
+def test_same_import_resource_is_serialized_across_workers(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    engine = sa.create_engine(isolated_database_url)
+    request = DailyMarketRequest("6488", date(2025, 9, 1))
+    import_id = uuid4()
+    raw_store = LocalRawArtifactStore(tmp_path / "concurrent-raw")
+    entered = Event()
+    release = Event()
+    first_fetcher = BlockingFetcher(_tpex_payload(), entered, release)
+    second_fetcher = StaticFetcher(_tpex_payload())
+
+    def run_first():
+        return DailyMarketImporter(
+            engine, raw_store=raw_store, fetcher=first_fetcher
+        ).run(
+            adapter=TPExDailyMarketAdapter(),
+            request=request,
+            import_id=import_id,
+            git_commit="test-commit",
+        )
+
+    def run_second(started: Event):
+        started.set()
+        return DailyMarketImporter(
+            engine, raw_store=raw_store, fetcher=second_fetcher
+        ).run(
+            adapter=TPExDailyMarketAdapter(),
+            request=request,
+            import_id=import_id,
+            git_commit="test-commit",
+        )
+
+    try:
+        second_started = Event()
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            first_future = executor.submit(run_first)
+            assert entered.wait(timeout=10)
+            second_future = executor.submit(run_second, second_started)
+            assert second_started.wait(timeout=10)
+            deadline = time.monotonic() + 10
+            waiting_on_advisory_lock = False
+            while time.monotonic() < deadline:
+                with engine.connect() as connection:
+                    waiting_on_advisory_lock = bool(
+                        connection.scalar(
+                            sa.text(
+                                "SELECT count(*) FROM pg_locks "
+                                "WHERE locktype='advisory' AND NOT granted"
+                            )
+                        )
+                    )
+                if waiting_on_advisory_lock:
+                    break
+                time.sleep(0.01)
+            assert waiting_on_advisory_lock
+            assert second_fetcher.calls == 0
+            release.set()
+            first = first_future.result(timeout=20)
+            second = second_future.result(timeout=20)
+
+        assert first.business_versions_created == 1
+        assert second.resumed_from_checkpoint is True
+        assert first_fetcher.calls == 1
+        assert second_fetcher.calls == 0
+        with engine.connect() as connection:
+            audit = connection.execute(
+                sa.text(
+                    """
+                    SELECT c.status, r.status AS run_status
+                    FROM import_checkpoints c
+                    JOIN ingest_runs r ON r.id=c.last_ingest_run_id
+                    WHERE c.import_id=:import_id
+                    """
+                ),
+                {"import_id": import_id},
+            ).mappings().one()
+            assert audit == {"status": "succeeded", "run_status": "succeeded"}
+            assert connection.scalar(
+                sa.text(
+                    "SELECT count(*) FROM ingest_runs "
+                    "WHERE run_metadata->>'import_id'=:import_id"
+                ),
+                {"import_id": str(import_id)},
+            ) == 1
+            assert connection.scalar(
+                sa.text("SELECT count(*) FROM daily_price_versions")
+            ) == 1
+
+        with engine.begin() as connection:
+            connection.execute(
+                sa.text(
+                    "UPDATE ingest_runs SET status='running', completed_at=NULL "
+                    "WHERE id=(SELECT last_ingest_run_id FROM import_checkpoints "
+                    "WHERE import_id=:import_id)"
+                ),
+                {"import_id": import_id},
+            )
+        with pytest.raises(
+            RuntimeError,
+            match="succeeded checkpoint must reference a succeeded ingest run",
+        ):
+            DailyMarketImporter(
+                engine,
+                raw_store=raw_store,
+                fetcher=FetchMustNotRun(),
+            ).run(
+                adapter=TPExDailyMarketAdapter(),
+                request=request,
+                import_id=import_id,
+                git_commit="test-commit",
+            )
+    finally:
+        release.set()
+        engine.dispose()
+
+
+def test_phase9_migration_adds_daily_price_sanity_constraints(
+    isolated_database_url: str,
+) -> None:
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        constraint_names = {
+            item["name"]
+            for item in sa.inspect(engine).get_check_constraints(
+                "daily_price_versions"
+            )
+        }
+        assert {
+            "ck_daily_price_versions_prices_nonnegative",
+            "ck_daily_price_versions_open_not_below_low",
+            "ck_daily_price_versions_open_not_above_high",
+            "ck_daily_price_versions_close_not_below_low",
+            "ck_daily_price_versions_close_not_above_high",
+        } <= constraint_names
     finally:
         engine.dispose()
 

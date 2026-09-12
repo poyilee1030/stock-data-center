@@ -23,9 +23,23 @@ unchanged semantic identities.
 A `captured` checkpoint is also a complete restart input. Resume reads the
 checkpoint's original content-addressed file, verifies its byte size and
 SHA-256 against PostgreSQL, and continues with the original ingest run without
-calling the external source. A missing or corrupt retained artifact is
-quarantined and the run is terminated as failed; it is never replaced silently
-with newly fetched bytes.
+calling the external source. The local store canonicalizes its root once,
+persists absolute locators, and contributes its backend/root identity to the
+configuration fingerprint, so process CWD changes cannot silently redirect a
+resume. A missing or corrupt retained artifact is an operational storage
+failure: the checkpoint stays captured for repair/retry and is never replaced
+silently with newly fetched bytes.
+
+Only explicit `SourceDataError` validation failures enter quarantine.
+Infrastructure, database, storage, and unexpected programming errors preserve
+the captured checkpoint, raw identity, and original running ingest run so a
+retry continues from the retained artifact. The manifest records the
+operational failure without increasing the rejected/quarantined count.
+
+One PostgreSQL session advisory lock serializes the full lifecycle of each
+`import_id + resource_key`. State transitions additionally compare the
+checkpoint's captured status, ingest-run ID, and raw-artifact ID. A completed
+checkpoint is reusable only when its referenced ingest run is also successful.
 
 The initial adapters intentionally cover one daily-market security/month from
 each exchange:
@@ -38,6 +52,9 @@ each exchange:
 These unit contracts are adapter constants. Numeric magnitude is never used to
 guess a scale. An unexpected field list, identity, month, numeric shape, or row
 ordering rejects the resource and records its raw artifact in quarantine.
+Negative OHLC/volume/value/count and prices outside the reported low/high range
+are explicit source-data failures. Equivalent PostgreSQL checks protect the
+canonical daily-price table from bypassing adapter validation.
 
 ## PIT consequences
 

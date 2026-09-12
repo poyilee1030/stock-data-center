@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import calendar
 import json
+import logging
 import subprocess
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -46,6 +47,8 @@ from stock_data_center.market_data import (
     PublicationObservation,
 )
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass(frozen=True, slots=True)
 class _CapturedResource:
@@ -82,6 +85,38 @@ class DailyMarketImporter:
     ) -> ResourceImportResult:
         import_id = import_id or uuid4()
         resource = adapter.resource(request)
+        lock_key = _advisory_lock_key(import_id, resource.resource_key)
+        with self._engine.connect() as lock_connection:
+            lock_connection.execute(
+                sa.text("SELECT pg_advisory_lock(:lock_key)"),
+                {"lock_key": lock_key},
+            )
+            lock_connection.commit()
+            try:
+                return self._run_locked(
+                    adapter=adapter,
+                    request=request,
+                    import_id=import_id,
+                    git_commit=git_commit,
+                )
+            finally:
+                if lock_connection.in_transaction():
+                    lock_connection.rollback()
+                lock_connection.execute(
+                    sa.text("SELECT pg_advisory_unlock(:lock_key)"),
+                    {"lock_key": lock_key},
+                )
+                lock_connection.commit()
+
+    def _run_locked(
+        self,
+        *,
+        adapter: DailyMarketAdapter,
+        request: DailyMarketRequest,
+        import_id: UUID,
+        git_commit: str | None,
+    ) -> ResourceImportResult:
+        resource = adapter.resource(request)
         scope = {
             "security_code": request.security_code,
             "month": request.month.isoformat(),
@@ -99,6 +134,7 @@ class DailyMarketImporter:
                     ),
                     "trade_value_unit": adapter.semantics.trade_value_unit.value,
                 },
+                "raw_store": self._raw_store.configuration_identity,
                 "scope": scope,
             }
         )
@@ -130,7 +166,7 @@ class DailyMarketImporter:
                 )
             except RawArtifactIntegrityError as error:
                 with self._engine.begin() as connection:
-                    self._quarantine(
+                    self._record_operational_failure(
                         connection,
                         import_id=import_id,
                         resource_key=resource.resource_key,
@@ -139,10 +175,7 @@ class DailyMarketImporter:
                         reason_code="raw_artifact_integrity",
                         detail=str(error),
                     )
-                raise ResourceQuarantinedError(
-                    f"{resource.resource_key} retained raw artifact failed "
-                    f"integrity validation: {error}"
-                ) from error
+                raise
             run_id = captured.run_id
             artifact_id = captured.artifact_id
             artifact_hash = captured.artifact_hash
@@ -174,8 +207,37 @@ class DailyMarketImporter:
 
         try:
             parsed = adapter.parse(content, request)
+        except SourceDataError as error:
             with self._engine.begin() as connection:
-                result = self._write_parsed(
+                self._quarantine(
+                    connection,
+                    import_id=import_id,
+                    resource_key=resource.resource_key,
+                    run_id=run_id,
+                    artifact_id=artifact_id,
+                    reason_code=error.reason_code,
+                    detail=str(error),
+                )
+            raise ResourceQuarantinedError(
+                f"{resource.resource_key} quarantined as "
+                f"{error.reason_code}: {error}"
+            ) from error
+        except Exception as error:
+            with self._engine.begin() as connection:
+                self._record_operational_failure(
+                    connection,
+                    import_id=import_id,
+                    resource_key=resource.resource_key,
+                    run_id=run_id,
+                    artifact_id=artifact_id,
+                    reason_code="adapter_operational_error",
+                    detail=str(error),
+                )
+            raise
+
+        try:
+            with self._engine.begin() as connection:
+                return self._write_parsed(
                     connection,
                     import_id=import_id,
                     adapter=adapter,
@@ -187,26 +249,23 @@ class DailyMarketImporter:
                     artifact_created=artifact_created,
                     parsed=parsed,
                 )
-            return result
         except Exception as error:
-            reason_code = (
-                error.reason_code
-                if isinstance(error, SourceDataError)
-                else "normalization_or_write_error"
-            )
-            with self._engine.begin() as connection:
-                self._quarantine(
-                    connection,
-                    import_id=import_id,
-                    resource_key=resource.resource_key,
-                    run_id=run_id,
-                    artifact_id=artifact_id,
-                    reason_code=reason_code,
-                    detail=str(error),
-                )
-            raise ResourceQuarantinedError(
-                f"{resource.resource_key} quarantined as {reason_code}: {error}"
-            ) from error
+            try:
+                with self._engine.begin() as connection:
+                    self._record_operational_failure(
+                        connection,
+                        import_id=import_id,
+                        resource_key=resource.resource_key,
+                        run_id=run_id,
+                        artifact_id=artifact_id,
+                        reason_code="writer_operational_error",
+                        detail=str(error),
+                    )
+            except sa.exc.SQLAlchemyError:
+                # Preserve the original writer/DB failure even when audit storage
+                # is affected by the same operational outage.
+                logger.exception("could not record writer operational failure")
+            raise
 
     @staticmethod
     def manifest(connection: Connection, import_id: UUID) -> ImportManifestResult:
@@ -328,10 +387,18 @@ class DailyMarketImporter:
         source: str,
     ) -> ResourceImportResult | None:
         row = connection.execute(
-            sa.select(import_checkpoints, raw_artifacts.c.raw_artifact_hash)
+            sa.select(
+                import_checkpoints,
+                raw_artifacts.c.raw_artifact_hash,
+                ingest_runs.c.status.label("run_status"),
+            )
             .outerjoin(
                 raw_artifacts,
                 raw_artifacts.c.id == import_checkpoints.c.last_raw_artifact_id,
+            )
+            .join(
+                ingest_runs,
+                ingest_runs.c.id == import_checkpoints.c.last_ingest_run_id,
             )
             .where(
                 import_checkpoints.c.import_id == import_id,
@@ -341,6 +408,10 @@ class DailyMarketImporter:
         ).mappings().one_or_none()
         if row is None:
             return None
+        if row["run_status"] != "succeeded":
+            raise RuntimeError(
+                "succeeded checkpoint must reference a succeeded ingest run"
+            )
         manifest = connection.execute(
             sa.select(
                 import_manifests.c.result_counts,
@@ -641,16 +712,14 @@ class DailyMarketImporter:
             },
             "publication_time": "unknown",
         }
-        connection.execute(
-            ingest_runs.update()
-            .where(ingest_runs.c.id == run_id)
-            .values(status="succeeded", completed_at=sa.func.statement_timestamp())
-        )
-        connection.execute(
+        checkpoint_update = connection.execute(
             import_checkpoints.update()
             .where(
                 import_checkpoints.c.import_id == import_id,
                 import_checkpoints.c.resource_key == resource_key,
+                import_checkpoints.c.status == "captured",
+                import_checkpoints.c.last_ingest_run_id == run_id,
+                import_checkpoints.c.last_raw_artifact_id == artifact_id,
             )
             .values(
                 status="succeeded",
@@ -659,6 +728,15 @@ class DailyMarketImporter:
                 error_detail=None,
             )
         )
+        if checkpoint_update.rowcount != 1:
+            raise RuntimeError("captured checkpoint ownership changed before commit")
+        run_update = connection.execute(
+            ingest_runs.update()
+            .where(ingest_runs.c.id == run_id, ingest_runs.c.status == "running")
+            .values(status="succeeded", completed_at=sa.func.statement_timestamp())
+        )
+        if run_update.rowcount != 1:
+            raise RuntimeError("ingest run was not running at commit")
         connection.execute(
             import_manifests.update()
             .where(import_manifests.c.import_id == import_id)
@@ -713,11 +791,14 @@ class DailyMarketImporter:
                 reason_detail=safe_detail,
             )
         )
-        connection.execute(
+        checkpoint_update = connection.execute(
             import_checkpoints.update()
             .where(
                 import_checkpoints.c.import_id == import_id,
                 import_checkpoints.c.resource_key == resource_key,
+                import_checkpoints.c.status == "captured",
+                import_checkpoints.c.last_ingest_run_id == run_id,
+                import_checkpoints.c.last_raw_artifact_id == artifact_id,
             )
             .values(
                 status="quarantined",
@@ -726,6 +807,8 @@ class DailyMarketImporter:
                 error_detail=safe_detail,
             )
         )
+        if checkpoint_update.rowcount != 1:
+            raise RuntimeError("captured checkpoint ownership changed before quarantine")
         connection.execute(
             import_manifests.update()
             .where(import_manifests.c.import_id == import_id)
@@ -745,6 +828,68 @@ class DailyMarketImporter:
                     "unknown_publication_count": 0,
                     "normalized_row_count": 0,
                     "rejected_quarantined_count": 1,
+                },
+                reconciliation={
+                    "coverage_start": None,
+                    "coverage_end": None,
+                    "coverage_validation": "not_evaluated",
+                    "coverage_gaps": None,
+                    "warnings_anomalies": [safe_detail],
+                },
+                warnings=[safe_detail],
+            )
+        )
+
+    @staticmethod
+    def _record_operational_failure(
+        connection: Connection,
+        *,
+        import_id: UUID,
+        resource_key: str,
+        run_id: UUID,
+        artifact_id: UUID,
+        reason_code: str,
+        detail: str,
+    ) -> None:
+        safe_detail = detail or "operational failure without detail"
+        checkpoint_update = connection.execute(
+            import_checkpoints.update()
+            .where(
+                import_checkpoints.c.import_id == import_id,
+                import_checkpoints.c.resource_key == resource_key,
+                import_checkpoints.c.status == "captured",
+                import_checkpoints.c.last_ingest_run_id == run_id,
+                import_checkpoints.c.last_raw_artifact_id == artifact_id,
+            )
+            .values(
+                updated_at=sa.func.statement_timestamp(),
+                error_code=reason_code,
+                error_detail=safe_detail,
+            )
+        )
+        if checkpoint_update.rowcount != 1:
+            raise RuntimeError(
+                "captured checkpoint ownership changed during operational failure"
+            )
+        connection.execute(
+            import_manifests.update()
+            .where(import_manifests.c.import_id == import_id)
+            .values(
+                status="failed",
+                completed_at=sa.func.statement_timestamp(),
+                result_counts={
+                    "requested_resource_count": 1,
+                    "completed_resource_count": 0,
+                    "raw_artifact_count": 1,
+                    "raw_observation_count": 1,
+                    "business_version_count": 0,
+                    "dedup_count": 0,
+                    "evidence_count": 0,
+                    "evidence_dedup_count": 0,
+                    "evidence_observation_count": 0,
+                    "unknown_publication_count": 0,
+                    "normalized_row_count": 0,
+                    "rejected_quarantined_count": 0,
                 },
                 reconciliation={
                     "coverage_start": None,
@@ -790,6 +935,11 @@ def _fingerprint(value: object) -> str:
         value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
     return sha256(canonical).hexdigest()
+
+
+def _advisory_lock_key(import_id: UUID, resource_key: str) -> int:
+    identity = f"{import_id}:{resource_key}".encode()
+    return int.from_bytes(sha256(identity).digest()[:8], "big", signed=True)
 
 
 def _git_commit() -> str:

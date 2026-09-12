@@ -51,6 +51,7 @@ class DailyMarketAdapter(ABC):
     ) -> DailyPriceObservation:
         volume = _whole(source_volume, "source volume")
         if volume is not None:
+            _require_nonnegative(volume, "source volume")
             if self.semantics.traded_quantity_unit is SourceQuantityUnit.SHARE:
                 pass
             elif (
@@ -63,6 +64,7 @@ class DailyMarketAdapter(ABC):
 
         trade_value = _decimal(source_trade_value, "source trade value")
         if trade_value is not None:
+            _require_nonnegative(trade_value, "source trade value")
             if self.semantics.trade_value_unit is SourceMoneyUnit.TWD:
                 pass
             elif self.semantics.trade_value_unit is SourceMoneyUnit.THOUSAND_TWD:
@@ -70,16 +72,28 @@ class DailyMarketAdapter(ABC):
             else:  # pragma: no cover - enum protects current implementations
                 raise SourceDataError("unknown_unit", "unsupported money unit")
 
+        parsed_open = _decimal(open_price, "open price")
+        parsed_high = _decimal(high_price, "high price")
+        parsed_low = _decimal(low_price, "low price")
+        parsed_close = _decimal(close_price, "close price")
+        parsed_trade_count = _integer(trade_count, "trade count")
+        _validate_market_values(
+            open_price=parsed_open,
+            high_price=parsed_high,
+            low_price=parsed_low,
+            close_price=parsed_close,
+            trade_count=parsed_trade_count,
+        )
         change, direction = _signed_change(price_change)
         return DailyPriceObservation(
             trade_date=trade_date,
-            open_price=_decimal(open_price, "open price"),
-            high_price=_decimal(high_price, "high price"),
-            low_price=_decimal(low_price, "low price"),
-            close_price=_decimal(close_price, "close price"),
+            open_price=parsed_open,
+            high_price=parsed_high,
+            low_price=parsed_low,
+            close_price=parsed_close,
             volume=volume,
             trade_value=trade_value,
-            trade_count=_integer(trade_count, "trade count"),
+            trade_count=parsed_trade_count,
             price_change=change,
             price_direction=direction,
         )
@@ -329,6 +343,38 @@ def _whole(value: str, field: str) -> Decimal | None:
 def _integer(value: str, field: str) -> int | None:
     result = _whole(value, field)
     return int(result) if result is not None else None
+
+
+def _require_nonnegative(value: Decimal | int, field: str) -> None:
+    if value < 0:
+        raise SourceDataError("impossible_value", f"{field} must be non-negative")
+
+
+def _validate_market_values(
+    *,
+    open_price: Decimal | None,
+    high_price: Decimal | None,
+    low_price: Decimal | None,
+    close_price: Decimal | None,
+    trade_count: int | None,
+) -> None:
+    for field, value in (
+        ("open price", open_price),
+        ("high price", high_price),
+        ("low price", low_price),
+        ("close price", close_price),
+    ):
+        if value is not None:
+            _require_nonnegative(value, field)
+    if trade_count is not None:
+        _require_nonnegative(trade_count, "trade count")
+    if high_price is not None and low_price is not None and high_price < low_price:
+        raise SourceDataError("impossible_value", "high price is below low price")
+    for field, value in (("open price", open_price), ("close price", close_price)):
+        if value is not None and low_price is not None and value < low_price:
+            raise SourceDataError("impossible_value", f"{field} is below low price")
+        if value is not None and high_price is not None and value > high_price:
+            raise SourceDataError("impossible_value", f"{field} is above high price")
 
 
 def _signed_change(value: str) -> tuple[Decimal | None, str | None]:

@@ -391,6 +391,29 @@ daily_price_versions = sa.Table(
         "high_price IS NULL OR low_price IS NULL OR high_price >= low_price",
         name="high_not_below_low",
     ),
+    sa.CheckConstraint(
+        "(open_price IS NULL OR open_price >= 0) AND "
+        "(high_price IS NULL OR high_price >= 0) AND "
+        "(low_price IS NULL OR low_price >= 0) AND "
+        "(close_price IS NULL OR close_price >= 0)",
+        name="prices_nonnegative",
+    ),
+    sa.CheckConstraint(
+        "open_price IS NULL OR low_price IS NULL OR open_price >= low_price",
+        name="open_not_below_low",
+    ),
+    sa.CheckConstraint(
+        "open_price IS NULL OR high_price IS NULL OR open_price <= high_price",
+        name="open_not_above_high",
+    ),
+    sa.CheckConstraint(
+        "close_price IS NULL OR low_price IS NULL OR close_price >= low_price",
+        name="close_not_below_low",
+    ),
+    sa.CheckConstraint(
+        "close_price IS NULL OR high_price IS NULL OR close_price <= high_price",
+        name="close_not_above_high",
+    ),
 )
 
 monthly_revenue_versions = sa.Table(

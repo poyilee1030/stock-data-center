@@ -25,7 +25,15 @@ class LocalRawArtifactStore:
     """Store bytes by SHA-256 without overwriting an existing digest path."""
 
     def __init__(self, root: Path | str = Path("data/raw")) -> None:
-        self._root = Path(root)
+        self._root = Path(root).expanduser().resolve()
+
+    @property
+    def configuration_identity(self) -> dict[str, str]:
+        """Return the stable storage identity included in import configuration."""
+        return {
+            "backend": "local-filesystem:v1",
+            "root": self._root.as_posix(),
+        }
 
     def put(self, content: bytes) -> StoredRawArtifact:
         digest = sha256(content).hexdigest()
@@ -81,7 +89,7 @@ class LocalRawArtifactStore:
         expected_byte_size: int,
     ) -> bytes:
         """Read retained bytes only after validating location, size, and SHA-256."""
-        root = self._root.resolve()
+        root = self._root
         path = Path(storage_uri).resolve()
         try:
             path.relative_to(root)

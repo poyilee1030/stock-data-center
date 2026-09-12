@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
@@ -89,6 +90,34 @@ def test_tpex_lots_and_thousand_twd_normalize_before_observation() -> None:
     assert result.rows[0].price_direction == "+"
 
 
+@pytest.mark.parametrize(
+    ("field_index", "invalid_value", "message"),
+    [
+        (3, "-1", "open price must be non-negative"),
+        (4, "-1", "high price must be non-negative"),
+        (5, "-1", "low price must be non-negative"),
+        (6, "-1", "close price must be non-negative"),
+        (3, "375", "open price is above high price"),
+        (6, "363", "close price is below low price"),
+        (1, "-1", "source volume must be non-negative"),
+        (2, "-1", "source trade value must be non-negative"),
+        (8, "-1", "trade count must be non-negative"),
+    ],
+)
+def test_adapter_rejects_impossible_market_values(
+    field_index: int, invalid_value: str, message: str
+) -> None:
+    payload = json.loads(encoded(TPEX_PAYLOAD))
+    payload["tables"][0]["data"][0][field_index] = invalid_value
+
+    with pytest.raises(SourceDataError, match=message) as error:
+        TPExDailyMarketAdapter().parse(
+            encoded(payload), DailyMarketRequest("6488", date(2025, 9, 1))
+        )
+
+    assert error.value.reason_code == "impossible_value"
+
+
 def test_twse_x_change_marker_is_preserved_instead_of_guessed() -> None:
     payload = dict(TWSE_PAYLOAD)
     payload["data"] = [list(TWSE_PAYLOAD["data"][0])]
@@ -134,6 +163,31 @@ def test_raw_store_is_content_addressed_and_idempotent(tmp_path) -> None:
         expected_digest=first.digest,
         expected_byte_size=first.byte_size,
     ) == b"official source bytes"
+
+
+def test_raw_store_locator_is_independent_of_process_working_directory(
+    tmp_path, monkeypatch
+) -> None:
+    initial_cwd = tmp_path / "initial"
+    restarted_cwd = tmp_path / "restarted"
+    initial_cwd.mkdir()
+    restarted_cwd.mkdir()
+    monkeypatch.chdir(initial_cwd)
+    store = LocalRawArtifactStore("data/raw")
+    stored = store.put(b"retained across restart")
+
+    assert Path(stored.storage_uri).is_absolute()
+    assert store.configuration_identity == {
+        "backend": "local-filesystem:v1",
+        "root": (initial_cwd / "data/raw").as_posix(),
+    }
+
+    monkeypatch.chdir(restarted_cwd)
+    assert store.read(
+        storage_uri=stored.storage_uri,
+        expected_digest=stored.digest,
+        expected_byte_size=stored.byte_size,
+    ) == b"retained across restart"
 
 
 def test_raw_store_rejects_retained_bytes_that_fail_hash_validation(tmp_path) -> None:

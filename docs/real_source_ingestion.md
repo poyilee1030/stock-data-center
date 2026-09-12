@@ -46,6 +46,14 @@ the checkpoint and does not fetch again. If execution stopped immediately after
 raw capture, the same command reads and hash-verifies those retained bytes,
 uses the original ingest run, and continues without contacting the source. A
 different configuration cannot be silently attached to an existing import ID.
+The local raw root is resolved to an absolute location when the store starts;
+stored locators therefore do not change meaning with the process working
+directory. The raw backend/root identity is part of the import fingerprint.
+
+Workers serialize the complete lifecycle of one `import_id + resource_key`
+with a PostgreSQL advisory lock. Successful and quarantine transitions also
+compare the checkpoint's run/artifact ownership, and a successful checkpoint
+is accepted only when its referenced ingest run is successful.
 
 ## Reconciliation fields
 
@@ -55,9 +63,16 @@ observations, unknown-publication count, rejected/quarantined count, source and
 canonical units, coverage-validation state, and warnings. Pilot 1 has no
 authoritative trading calendar, so successful monthly imports state
 `coverage_validation = "not_evaluated"` and `coverage_gaps = null`; they do not
-claim gap-free coverage. Parser or writer ambiguity is quarantined
-after raw capture; network failures are reported as fetch failures because no
-source artifact was received.
+claim gap-free coverage. Explicit source/schema/domain violations are
+quarantined after raw capture. Infrastructure, database, and unexpected
+programming failures are not mislabeled as bad source data: the checkpoint
+remains `captured`, retains its original raw artifact and ingest run, and can
+resume without a refetch. Network failures before capture are reported as
+fetch failures because no source artifact was received.
+
+Adapters reject negative OHLC, volume, trade value, or trade count, as well as
+OHLC values outside the reported low/high range. PostgreSQL independently
+enforces the canonical price constraints as a final storage boundary.
 
 Run the permanent real-endpoint pilot regression explicitly:
 
@@ -67,4 +82,5 @@ RUN_LIVE_SOURCE_TESTS=1 pytest -m live_source \
 ```
 
 The default suite skips network access while retaining parser, raw-first,
-restart, deduplication, quarantine, and PIT regressions.
+restart, operational-failure resume, concurrency, deduplication, quarantine,
+and PIT regressions.

@@ -184,9 +184,40 @@ def upgrade() -> None:
         "BEFORE TRUNCATE ON import_quarantine "
         "FOR EACH STATEMENT EXECUTE FUNCTION stockdc_reject_mutation()"
     )
+    op.create_check_constraint(
+        op.f("ck_daily_price_versions_prices_nonnegative"),
+        "daily_price_versions",
+        "(open_price IS NULL OR open_price >= 0) AND "
+        "(high_price IS NULL OR high_price >= 0) AND "
+        "(low_price IS NULL OR low_price >= 0) AND "
+        "(close_price IS NULL OR close_price >= 0)",
+    )
+    for name, condition in (
+        ("open_not_below_low", "open_price IS NULL OR low_price IS NULL OR open_price >= low_price"),
+        ("open_not_above_high", "open_price IS NULL OR high_price IS NULL OR open_price <= high_price"),
+        ("close_not_below_low", "close_price IS NULL OR low_price IS NULL OR close_price >= low_price"),
+        ("close_not_above_high", "close_price IS NULL OR high_price IS NULL OR close_price <= high_price"),
+    ):
+        op.create_check_constraint(
+            op.f(f"ck_daily_price_versions_{name}"),
+            "daily_price_versions",
+            condition,
+        )
 
 
 def downgrade() -> None:
+    for name in (
+        "close_not_above_high",
+        "close_not_below_low",
+        "open_not_above_high",
+        "open_not_below_low",
+        "prices_nonnegative",
+    ):
+        op.drop_constraint(
+            op.f(f"ck_daily_price_versions_{name}"),
+            "daily_price_versions",
+            type_="check",
+        )
     op.execute(
         "DROP TRIGGER no_truncate_import_quarantine ON import_quarantine; "
         "DROP TRIGGER immutable_import_quarantine ON import_quarantine"
