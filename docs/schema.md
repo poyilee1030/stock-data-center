@@ -14,7 +14,7 @@ migrations are the deployment record in `migrations/versions/`.
 | --- | --- |
 | Dataset policy | `dataset_catalog`, `dataset_sources` |
 | Security identity/history | `security`, `security_metadata_versions` |
-| Provenance | `ingest_runs`, `raw_artifacts`, `raw_artifact_observations`, `monthly_revenue_version_observations`, `publication_evidence_observations` |
+| Provenance | `ingest_runs`, `raw_artifacts`, `raw_artifact_observations`, `monthly_revenue_version_observations`, `financial_filing_version_observations`, `publication_evidence_observations` |
 | Market/revenue versions | `daily_price_versions`, `monthly_revenue_versions` |
 | Financial aggregate | `financial_filing_versions`, `financial_facts`, `quarterly_financial_summary`, `financial_filing_seals` |
 | TDCC aggregate | `tdcc_snapshot_versions`, `tdcc_distribution`, `tdcc_snapshot_seals` |
@@ -185,6 +185,19 @@ append-only writes, single-period and inclusive-history PIT queries, and linked
 observation access. Revenue/currency business revisions remain independent from
 evidence corrections, and all results retain Phase 2 provenance. See
 [the Phase 4 contract](monthly_revenue.md).
+
+## Phase 5 domain access
+
+Phase 5 adds the `financials` package over the existing sealed filing tables.
+Facts require canonical Clark-notation QNames and exactly one numeric/text
+value. The storage-generated context hash continues to cover full period and
+dimensional context. A focused migration adds append-only, source-validated
+many-observation lineage for filing versions and backfills existing filings.
+
+The service returns children only after the shared PIT resolver selects a
+sealed filing. Curated `basic_eps` therefore inherits the selected filing's
+Market/System PIT, publication-evidence, source, and provenance semantics. See
+[the Phase 5 contract](financial_xbrl.md).
 
 ## Migration operation
 

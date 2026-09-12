@@ -335,6 +335,23 @@ financial_filing_versions = sa.Table(
     sa.CheckConstraint("currency ~ '^[A-Z]{3}$'", name="currency_format"),
 )
 
+financial_filing_version_observations = sa.Table(
+    "financial_filing_version_observations",
+    metadata,
+    sa.Column("filing_version_id", sa.BigInteger(), nullable=False),
+    sa.Column("raw_artifact_id", uuid_type, nullable=False),
+    sa.Column("ingest_run_id", uuid_type, nullable=False),
+    sa.PrimaryKeyConstraint(
+        "filing_version_id", "raw_artifact_id", "ingest_run_id"
+    ),
+    sa.ForeignKeyConstraint(
+        ["filing_version_id"],
+        ["financial_filing_versions.id"],
+        ondelete="RESTRICT",
+    ),
+    *lineage_constraints(),
+)
+
 financial_facts = sa.Table(
     "financial_facts",
     metadata,
@@ -375,7 +392,10 @@ financial_facts = sa.Table(
         name="period_shape",
     ),
     sa.CheckConstraint(
-        "numeric_value IS NOT NULL OR text_value IS NOT NULL", name="value_present"
+        "num_nonnulls(numeric_value, text_value) = 1", name="exactly_one_value"
+    ),
+    sa.CheckConstraint(
+        "concept_qname ~ '^\\{[^{}]+\\}[^{}]+$'", name="canonical_qname"
     ),
 )
 
