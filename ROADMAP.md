@@ -1549,11 +1549,11 @@ Canonical revenue-derived metrics such as MoM/YoY may be implemented here or in 
 
 Acceptance criteria:
 
-- [ ] unknown publication is market-invisible
-- [ ] official publication evidence can later improve reconstruction
-- [ ] knowledge cutoff prevents using evidence learned later
-- [ ] same business content with new evidence does not create business revision
-- [ ] dataset-specific PIT tests exist
+- [x] unknown publication is market-invisible
+- [x] official publication evidence can later improve reconstruction
+- [x] knowledge cutoff prevents using evidence learned later
+- [x] same business content with new evidence does not create business revision
+- [x] dataset-specific PIT tests exist
 
 ---
 

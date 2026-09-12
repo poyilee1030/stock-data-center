@@ -171,6 +171,15 @@ revision, and provenance rules. See
 [the Phase 3 contract](security_daily_market.md) and
 [ADR-0011](decisions/0011-effective-dated-security-market.md).
 
+## Phase 4 domain access
+
+Phase 4 uses the existing `monthly_revenue_versions` and publication-evidence
+schema without another migration. The `monthly_revenue` package provides
+append-only normalized writes plus single-period and inclusive-history PIT
+queries. Revenue/currency business revisions remain independent from evidence
+corrections, and all results retain Phase 2 provenance. See
+[the Phase 4 contract](monthly_revenue.md).
+
 ## Migration operation
 
 Local PostgreSQL 18 startup:
