@@ -13,6 +13,7 @@ from stock_data_center.db.metadata import (
     raw_artifacts,
     security,
     tdcc_distribution,
+    tdcc_distribution_schema_buckets,
     tdcc_snapshot_seals,
     tdcc_snapshot_version_observations,
     tdcc_snapshot_versions,
@@ -160,12 +161,24 @@ class TDCCSnapshotService:
         )
         if resolved is None:
             return None
+        profile_buckets = tdcc_distribution_schema_buckets
         rows = connection.execute(
             sa.select(
                 tdcc_distribution.c.bucket_code,
+                profile_buckets.c.bucket_role,
                 tdcc_distribution.c.holder_count,
                 tdcc_distribution.c.shares,
                 tdcc_distribution.c.ownership_percent,
+            )
+            .select_from(
+                tdcc_distribution.join(
+                    profile_buckets,
+                    sa.and_(
+                        profile_buckets.c.distribution_schema
+                        == resolved.data["distribution_schema"],
+                        profile_buckets.c.bucket_code == tdcc_distribution.c.bucket_code,
+                    ),
+                )
             )
             .where(
                 tdcc_distribution.c.snapshot_version_id

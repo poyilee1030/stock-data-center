@@ -14,6 +14,7 @@ from stock_data_center.db.metadata import (
     publication_evidence,
     publication_evidence_observations,
     tdcc_distribution,
+    tdcc_distribution_schema_buckets,
     tdcc_snapshot_seals,
     tdcc_snapshot_version_observations,
     tdcc_snapshot_versions,
@@ -21,6 +22,7 @@ from stock_data_center.db.metadata import (
 from stock_data_center.tdcc.models import (
     SealedSnapshot,
     TDCCBucketObservation,
+    TDCCDistributionError,
     TDCCLineageRef,
     TDCCPublication,
     TDCCSnapshotObservation,
@@ -45,9 +47,11 @@ class TDCCSnapshotWriter:
     ) -> WrittenSnapshot:
         """Write and seal one complete snapshot without creating fake revisions.
 
+        The distribution must be complete and valid for its declared profile.
         An identical sealed snapshot is reused: the draft is discarded and only
         the new artifact/run observation is linked to the existing version.
         """
+        self.validate_distribution(connection, observation)
         draft_hash: str | None = None
         existing: SealedSnapshot | None = None
         savepoint = connection.begin_nested()
@@ -57,6 +61,7 @@ class TDCCSnapshotWriter:
                 security_id=security_id,
                 source=source,
                 snapshot_date=observation.snapshot_date,
+                distribution_schema=observation.distribution_schema,
                 lineage=lineage,
             )
             for bucket in observation.distribution:
@@ -105,6 +110,55 @@ class TDCCSnapshotWriter:
             created=False,
         )
 
+    @staticmethod
+    def validate_distribution(
+        connection: Connection, observation: TDCCSnapshotObservation
+    ) -> None:
+        """Check the distribution against its registered profile before writing.
+
+        PostgreSQL enforces the same rules per row and at seal; this check makes
+        the canonical ingestion path fail before any draft is created.
+        """
+        profile = tdcc_distribution_schema_buckets
+        roles = dict(
+            connection.execute(
+                sa.select(profile.c.bucket_code, profile.c.bucket_role).where(
+                    profile.c.distribution_schema == observation.distribution_schema
+                )
+            ).tuples().all()
+        )
+        if not roles:
+            raise TDCCDistributionError(
+                f"unknown distribution schema {observation.distribution_schema!r}"
+            )
+        supplied = {bucket.bucket_code for bucket in observation.distribution}
+        if unknown := sorted(supplied - roles.keys()):
+            raise TDCCDistributionError(
+                f"buckets not in {observation.distribution_schema}: {', '.join(unknown)}"
+            )
+        if missing := sorted(roles.keys() - supplied, key=_code_order):
+            raise TDCCDistributionError(
+                f"incomplete {observation.distribution_schema} distribution; "
+                f"missing buckets: {', '.join(missing)}"
+            )
+        for bucket in observation.distribution:
+            role = roles[bucket.bucket_code]
+            if role == "adjustment":
+                if bucket.holder_count not in (None, 0):
+                    raise TDCCDistributionError(
+                        f"adjustment bucket {bucket.bucket_code} cannot carry "
+                        f"holder_count {bucket.holder_count}"
+                    )
+            elif (
+                bucket.holder_count is None
+                or bucket.shares < 0
+                or bucket.ownership_percent < 0
+            ):
+                raise TDCCDistributionError(
+                    f"{role} bucket {bucket.bucket_code} requires holder_count and "
+                    "non-negative shares/percent"
+                )
+
     def begin_snapshot(
         self,
         connection: Connection,
@@ -112,6 +166,7 @@ class TDCCSnapshotWriter:
         security_id: int,
         source: str,
         snapshot_date: date,
+        distribution_schema: str,
         lineage: TDCCLineageRef,
     ) -> int:
         version_id = connection.execute(
@@ -120,6 +175,7 @@ class TDCCSnapshotWriter:
                 security_id=security_id,
                 source=source,
                 snapshot_date=snapshot_date,
+                distribution_schema=distribution_schema,
                 business_content_hash=None,
                 raw_artifact_id=lineage.raw_artifact_id,
                 ingest_run_id=lineage.ingest_run_id,
@@ -267,6 +323,10 @@ class TDCCSnapshotWriter:
             )
             .on_conflict_do_nothing()
         )
+
+
+def _code_order(code: str) -> tuple[int, int, str]:
+    return (0, int(code), code) if code.isascii() and code.isdigit() else (1, 0, code)
 
 
 def _dataclass_values(instance: object) -> dict[str, object]:

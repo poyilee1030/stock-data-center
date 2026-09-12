@@ -456,6 +456,30 @@ sa.Index(
     postgresql_where=financial_filing_versions.c.business_content_hash.is_not(None),
 )
 
+tdcc_distribution_schemas = sa.Table(
+    "tdcc_distribution_schemas",
+    metadata,
+    sa.Column("distribution_schema", sa.String(64), primary_key=True),
+    sa.Column("description", sa.Text(), nullable=False),
+)
+
+tdcc_distribution_schema_buckets = sa.Table(
+    "tdcc_distribution_schema_buckets",
+    metadata,
+    sa.Column("distribution_schema", sa.String(64), primary_key=True),
+    sa.Column("bucket_code", sa.String(32), primary_key=True),
+    sa.Column("bucket_role", sa.String(16), nullable=False),
+    sa.Column("description", sa.Text(), nullable=False),
+    sa.ForeignKeyConstraint(
+        ["distribution_schema"],
+        ["tdcc_distribution_schemas.distribution_schema"],
+        ondelete="RESTRICT",
+    ),
+    sa.CheckConstraint(
+        "bucket_role IN ('holding', 'adjustment', 'total')", name="bucket_role_valid"
+    ),
+)
+
 tdcc_snapshot_versions = sa.Table(
     "tdcc_snapshot_versions",
     metadata,
@@ -466,7 +490,13 @@ tdcc_snapshot_versions = sa.Table(
     sa.Column("business_content_hash", sa.CHAR(64)),
     sa.Column("raw_artifact_id", uuid_type, nullable=False),
     sa.Column("ingest_run_id", uuid_type, nullable=False),
+    sa.Column("distribution_schema", sa.String(64), nullable=False),
     sa.ForeignKeyConstraint(["security_id"], ["security.id"], ondelete="RESTRICT"),
+    sa.ForeignKeyConstraint(
+        ["distribution_schema"],
+        ["tdcc_distribution_schemas.distribution_schema"],
+        ondelete="RESTRICT",
+    ),
     *lineage_constraints(),
 )
 
@@ -493,7 +523,8 @@ tdcc_distribution = sa.Table(
     sa.Column("id", sa.BigInteger(), sa.Identity(), primary_key=True),
     sa.Column("snapshot_version_id", sa.BigInteger(), nullable=False),
     sa.Column("bucket_code", sa.String(32), nullable=False),
-    sa.Column("holder_count", sa.BigInteger(), nullable=False),
+    # NULL only for adjustment buckets; see docs/tdcc.md.
+    sa.Column("holder_count", sa.BigInteger()),
     sa.Column("shares", sa.Numeric(30, 0), nullable=False),
     sa.Column("ownership_percent", sa.Numeric(12, 8), nullable=False),
     sa.ForeignKeyConstraint(
@@ -503,9 +534,10 @@ tdcc_distribution = sa.Table(
         "snapshot_version_id", "bucket_code", name="uq_tdcc_distribution_bucket"
     ),
     sa.CheckConstraint("holder_count >= 0", name="holder_count_nonnegative"),
-    sa.CheckConstraint("shares >= 0", name="shares_nonnegative"),
+    # Signed values are allowed for adjustment buckets; per-role rules are
+    # enforced by the validate_tdcc_distribution_row trigger.
     sa.CheckConstraint(
-        "ownership_percent BETWEEN 0 AND 100", name="ownership_percent_range"
+        "ownership_percent BETWEEN -100 AND 100", name="ownership_percent_range"
     ),
 )
 

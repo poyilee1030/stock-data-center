@@ -43,6 +43,29 @@ def rejected(db: Connection, sql: str, **params: Any) -> None:
             db.execute(sa.text(sql), params)
 
 
+def register_tdcc_profile(db: Connection, profile: str, *bucket_codes: str) -> str:
+    """Register a test-only TDCC distribution profile of holding buckets."""
+    db.execute(
+        sa.text(
+            "INSERT INTO tdcc_distribution_schemas (distribution_schema, description) "
+            "VALUES (:profile, 'test profile')"
+        ),
+        {"profile": profile},
+    )
+    for code in bucket_codes:
+        db.execute(
+            sa.text(
+                """
+                INSERT INTO tdcc_distribution_schema_buckets (
+                    distribution_schema, bucket_code, bucket_role, description
+                ) VALUES (:profile, :code, 'holding', 'test bucket')
+                """
+            ),
+            {"profile": profile, "code": code},
+        )
+    return profile
+
+
 def seed_lineage(
     db: Connection,
     dataset_code: str,
@@ -523,15 +546,16 @@ def test_tdcc_seal_controls_visibility_and_immutability(db: Connection) -> None:
     security_id, artifact_id, run_id = seed_lineage(
         db, "tdcc_snapshot", digest_char="c"
     )
+    register_tdcc_profile(db, "test-one-bucket-v1", "1-999")
     snapshot_id = db.execute(
         sa.text(
             """
             INSERT INTO tdcc_snapshot_versions (
                 security_id, source, snapshot_date, business_content_hash,
-                raw_artifact_id, ingest_run_id
+                raw_artifact_id, ingest_run_id, distribution_schema
             ) VALUES (
                 :security_id, 'official', DATE '2026-09-04', :forged_hash,
-                :artifact_id, :run_id
+                :artifact_id, :run_id, 'test-one-bucket-v1'
             ) RETURNING id, business_content_hash
             """
         ),
@@ -1083,12 +1107,21 @@ def test_tdcc_seal_serializes_with_concurrent_child_mutation(
             security_id, artifact_id, run_id = seed_lineage(
                 setup, "tdcc_snapshot", digest_char="8"
             )
+            complete_with_one = register_tdcc_profile(
+                setup, "test-one-bucket-v1", "1-999"
+            )
+            # The seal can only pass completeness if it sees the child that
+            # commits while it waits for the aggregate lock.
+            needs_concurrent_child = register_tdcc_profile(
+                setup, "test-two-bucket-v1", "1-999", "1000-5000"
+            )
             first_snapshot = insert_snapshot_with_distribution(
                 setup,
                 security_id,
                 artifact_id,
                 run_id,
                 snapshot_date="2026-09-04",
+                distribution_schema=complete_with_one,
             )
             second_snapshot = insert_snapshot_with_distribution(
                 setup,
@@ -1096,6 +1129,7 @@ def test_tdcc_seal_serializes_with_concurrent_child_mutation(
                 artifact_id,
                 run_id,
                 snapshot_date="2026-09-11",
+                distribution_schema=needs_concurrent_child,
             )
 
         seal_connection = test_engine.connect()
@@ -1183,22 +1217,24 @@ def insert_snapshot_with_distribution(
     run_id: str,
     *,
     snapshot_date: str,
+    distribution_schema: str,
 ) -> int:
     snapshot_id = db.execute(
         sa.text(
             """
             INSERT INTO tdcc_snapshot_versions (
                 security_id, source, snapshot_date,
-                raw_artifact_id, ingest_run_id
+                raw_artifact_id, ingest_run_id, distribution_schema
             ) VALUES (
                 :security_id, 'official', CAST(:snapshot_date AS date),
-                :artifact_id, :run_id
+                :artifact_id, :run_id, :distribution_schema
             ) RETURNING id
             """
         ),
         {
             "security_id": security_id,
             "snapshot_date": snapshot_date,
+            "distribution_schema": distribution_schema,
             "artifact_id": artifact_id,
             "run_id": run_id,
         },

@@ -18,20 +18,49 @@ resolved here.
 ## Logical key and revisions
 
 The logical key is `(security, source, snapshot_date)`. A business revision is
-identified by the storage-generated aggregate hash of the snapshot date and the
-complete ordered distribution. A changed distribution for the same key is a
-new, independent sealed version; the older version remains queryable under
-earlier cutoffs. Publication evidence is appended separately, so learning,
+identified by the storage-generated aggregate hash of the snapshot date, the
+declared distribution profile, and the complete ordered distribution. A
+changed distribution for the same key is a new, independent sealed version; the
+older version remains queryable under earlier cutoffs. Publication evidence is appended separately, so learning,
 correcting, or retracting a publication time never mutates the snapshot or
 creates a false business revision.
 
-Each distribution row retains the source-native `bucket_code` verbatim
-(including source aggregate rows such as adjustment or total levels) together
-with `holder_count`, `shares`, and `ownership_percent`. Phase 6 does not
-interpret bucket ranges; that belongs to the derivation definition. The writer
-rejects values that storage would otherwise silently round: `shares` must be a
-whole number and `ownership_percent` must have at most 8 decimal places and lie
-between 0 and 100. A snapshot needs at least one row and unique bucket codes.
+Each distribution row retains the source-native `bucket_code` verbatim together
+with `holder_count`, `shares`, and `ownership_percent`. The writer rejects
+values that storage would otherwise silently round: `shares` must be a whole
+number and `ownership_percent` must have at most 8 decimal places and lie
+between -100 and 100. Bucket codes must be unique.
+
+## Distribution profiles and completeness
+
+Every snapshot declares a `distribution_schema` profile registered in
+`tdcc_distribution_schemas` / `tdcc_distribution_schema_buckets`
+([ADR-0012](decisions/0012-tdcc-distribution-profiles-and-seal-completeness.md)).
+Each profile bucket has one role. The official profile is `tdcc-opendata-v1`:
+
+| Bucket codes | Role | Contract |
+| --- | --- | --- |
+| `1`-`15` | `holding` | holding range; holder count required; shares and percent non-negative |
+| `16` | `adjustment` | difference adjustment; shares and percent may be signed; holder count is `NULL` |
+| `17` | `total` | source-published total; holder count required; shares and percent non-negative |
+
+In this profile, level 16 is a signed adjustment. A value such as
+`shares = -2000` is stored and hashed exactly as received. It is never clamped
+to 0 or dropped.
+
+For an adjustment bucket, holder_count is NULL. Historical files leave the
+field blank and open-data forms may write 0. PostgreSQL canonicalizes both to
+`NULL`, so the two forms of the same snapshot have the same business content,
+and it rejects any other adjustment holder count. Adapters do not decide this.
+
+An incomplete snapshot cannot be sealed. A distribution must contain every
+bucket of its profile and no bucket outside it. The canonical writer checks
+this before creating a draft, and PostgreSQL enforces the same rules for every
+write path: per row on insert/update and for completeness at seal. Sealed
+therefore means complete for the declared profile. Arithmetic identities
+between holding, adjustment, and total rows are not enforced; the total is
+retained as the source-published value. Profiles are append-only. A different
+source layout needs its own registered profile instead of a relaxed rule.
 
 ## Aggregate and lineage contract
 
@@ -48,11 +77,13 @@ falls back to the same reuse path. The lower-level `begin_snapshot`,
 
 The canonical hash is computed only in PostgreSQL by
 `stockdc_tdcc_snapshot_business_hash`, which the seal trigger also uses. Its
-payload is the snapshot date plus every distribution row ordered by
-`bucket_code COLLATE "C"`, so the hash is byte-order deterministic and does
-not depend on the database default collation. For numeric TDCC level codes
-this is the same order as the Phase 1 seal, and existing seal hashes are
-unchanged.
+payload is the snapshot date, the profile code, and every distribution row
+ordered by `bucket_code COLLATE "C"`, so the hash is byte-order deterministic
+and does not depend on the database default collation. The Phase
+6 migration assigns existing snapshots `tdcc-opendata-v1`, canonicalizes
+existing adjustment holder counts of 0 to `NULL`, and rehashes sealed snapshots
+under this payload. It aborts instead of guessing if an existing row does not
+fit the profile or a sealed snapshot is incomplete.
 
 Seal and child mutation serialize on the same parent row lock: a child that
 locks first is included in the seal hash, and a seal that locks first causes
@@ -105,6 +136,6 @@ snapshot date and the fetch time are never substituted for publication time.
 reads the distribution of that exact sealed version. `history` resolves each
 snapshot date in an inclusive range independently and omits dates with no
 visible version; it never returns a draft or a version outside the context.
-Distributions are returned with numeric bucket codes in numeric order followed
-by other codes in byte order. `observations` lists every artifact/run pair
-linked to a version.
+Each returned bucket carries its profile role. Distributions are returned with
+numeric bucket codes in numeric order followed by other codes in byte order.
+`observations` lists every artifact/run pair linked to a version.

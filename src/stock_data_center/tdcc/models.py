@@ -14,6 +14,14 @@ from stock_data_center.pit import ResolvedRecord
 # Storage scale of tdcc_distribution.ownership_percent (NUMERIC(12, 8)).
 _PERCENT_SCALE = 8
 
+# The official TDCC shareholding-distribution profile registered in
+# tdcc_distribution_schemas: levels 1-15 holding, 16 adjustment, 17 total.
+TDCC_OPENDATA_V1 = "tdcc-opendata-v1"
+
+
+class TDCCDistributionError(ValueError):
+    """Raised when a distribution does not satisfy its declared profile."""
+
 
 @dataclass(frozen=True, slots=True)
 class TDCCLineageRef:
@@ -23,10 +31,14 @@ class TDCCLineageRef:
 
 @dataclass(frozen=True, slots=True)
 class TDCCBucketObservation:
-    """One source-native holding-level row, retained verbatim."""
+    """One source-native holding-level row, retained verbatim.
+
+    Sign and holder-count rules depend on the bucket's role in the declared
+    distribution profile and are checked by the writer and PostgreSQL.
+    """
 
     bucket_code: str
-    holder_count: int
+    holder_count: int | None
     shares: Decimal
     ownership_percent: Decimal
 
@@ -35,17 +47,15 @@ class TDCCBucketObservation:
             raise ValueError(
                 "bucket_code must be non-empty without surrounding whitespace"
             )
-        if self.holder_count < 0:
+        if self.holder_count is not None and self.holder_count < 0:
             raise ValueError("holder_count must not be negative")
         shares = Decimal(self.shares)
-        if shares < 0:
-            raise ValueError("shares must not be negative")
         if shares != shares.to_integral_value():
             raise ValueError("shares must be a whole number")
         object.__setattr__(self, "shares", shares.quantize(Decimal(1)))
         percent = Decimal(self.ownership_percent)
-        if not Decimal(0) <= percent <= Decimal(100):
-            raise ValueError("ownership_percent must be between 0 and 100")
+        if not Decimal(-100) <= percent <= Decimal(100):
+            raise ValueError("ownership_percent must be between -100 and 100")
         if percent != percent.quantize(Decimal(1).scaleb(-_PERCENT_SCALE)):
             raise ValueError(
                 f"ownership_percent must have at most {_PERCENT_SCALE} decimal places"
@@ -58,6 +68,7 @@ class TDCCSnapshotObservation:
     """A complete distribution for one security and snapshot (data) date."""
 
     snapshot_date: date
+    distribution_schema: str
     distribution: tuple[TDCCBucketObservation, ...]
 
     def __post_init__(self) -> None:
@@ -94,7 +105,8 @@ class TDCCPublication:
 @dataclass(frozen=True, slots=True)
 class TDCCBucket:
     bucket_code: str
-    holder_count: int
+    bucket_role: str
+    holder_count: int | None
     shares: Decimal
     ownership_percent: Decimal
 
