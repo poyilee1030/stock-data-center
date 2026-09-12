@@ -16,6 +16,7 @@ migrations are the deployment record in `migrations/versions/`.
 | Security identity/history | `security`, `security_metadata_versions` |
 | Provenance | `ingest_runs`, `raw_artifacts`, `raw_artifact_observations`, dataset-specific `*_version_observations`, `publication_evidence_observations` |
 | Market/revenue versions | `daily_price_versions`, `monthly_revenue_versions` |
+| Real-import audit | `import_manifests`, `import_checkpoints`, `import_quarantine` |
 | Financial aggregate | `financial_filing_versions`, `financial_facts`, `quarterly_financial_summary`, `financial_filing_seals` |
 | TDCC aggregate | `tdcc_snapshot_versions`, `tdcc_distribution`, `tdcc_snapshot_seals`, `tdcc_distribution_schemas`, `tdcc_distribution_schema_buckets` |
 | Institutional data | `institutional_investor_versions`, `institutional_market_summary_versions`, `foreign_holding_versions` |

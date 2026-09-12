@@ -168,6 +168,133 @@ raw_artifact_observations = sa.Table(
 )
 
 
+import_manifests = sa.Table(
+    "import_manifests",
+    metadata,
+    sa.Column("import_id", uuid_type, primary_key=True),
+    sa.Column("dataset_code", sa.String(64), nullable=False),
+    sa.Column("source", sa.String(64), nullable=False),
+    sa.Column("adapter_version", sa.String(64), nullable=False),
+    sa.Column("git_commit", sa.String(64), nullable=False),
+    sa.Column("source_scope", jsonb_type, nullable=False),
+    sa.Column("configuration_fingerprint", sa.CHAR(64), nullable=False),
+    sa.Column("status", sa.String(24), nullable=False),
+    sa.Column(
+        "started_at",
+        aware_timestamp,
+        nullable=False,
+        server_default=sa.text("statement_timestamp()"),
+    ),
+    sa.Column("completed_at", aware_timestamp),
+    sa.Column(
+        "result_counts",
+        jsonb_type,
+        nullable=False,
+        server_default=sa.text("'{}'::jsonb"),
+    ),
+    sa.Column(
+        "reconciliation",
+        jsonb_type,
+        nullable=False,
+        server_default=sa.text("'{}'::jsonb"),
+    ),
+    sa.Column(
+        "warnings",
+        jsonb_type,
+        nullable=False,
+        server_default=sa.text("'[]'::jsonb"),
+    ),
+    sa.ForeignKeyConstraint(
+        ["dataset_code", "source"],
+        ["dataset_sources.dataset_code", "dataset_sources.source"],
+        ondelete="RESTRICT",
+    ),
+    sa.CheckConstraint(
+        "configuration_fingerprint ~ '^[0-9a-f]{64}$'",
+        name="configuration_fingerprint_lower_hex",
+    ),
+    sa.CheckConstraint(
+        "status IN ('running', 'succeeded', 'failed')",
+        name="status_value",
+    ),
+    sa.CheckConstraint(
+        "completed_at IS NULL OR completed_at >= started_at",
+        name="completed_after_started",
+    ),
+)
+
+
+import_checkpoints = sa.Table(
+    "import_checkpoints",
+    metadata,
+    sa.Column("import_id", uuid_type, nullable=False),
+    sa.Column("resource_key", sa.Text(), nullable=False),
+    sa.Column("status", sa.String(24), nullable=False),
+    sa.Column("attempt_count", sa.Integer(), nullable=False),
+    sa.Column("last_ingest_run_id", uuid_type, nullable=False),
+    sa.Column("last_raw_artifact_id", uuid_type, nullable=False),
+    sa.Column(
+        "updated_at",
+        aware_timestamp,
+        nullable=False,
+        server_default=sa.text("statement_timestamp()"),
+    ),
+    sa.Column("error_code", sa.String(64)),
+    sa.Column("error_detail", sa.Text()),
+    sa.PrimaryKeyConstraint("import_id", "resource_key"),
+    sa.ForeignKeyConstraint(
+        ["import_id"], ["import_manifests.import_id"], ondelete="RESTRICT"
+    ),
+    sa.ForeignKeyConstraint(
+        ["last_raw_artifact_id", "last_ingest_run_id"],
+        [
+            "raw_artifact_observations.raw_artifact_id",
+            "raw_artifact_observations.ingest_run_id",
+        ],
+        ondelete="RESTRICT",
+    ),
+    sa.CheckConstraint(
+        "status IN ('captured', 'succeeded', 'quarantined')",
+        name="status_value",
+    ),
+    sa.CheckConstraint("attempt_count > 0", name="attempt_count_positive"),
+    sa.CheckConstraint("resource_key <> ''", name="resource_key_nonempty"),
+)
+
+
+import_quarantine = sa.Table(
+    "import_quarantine",
+    metadata,
+    sa.Column("id", sa.BigInteger(), sa.Identity(), primary_key=True),
+    sa.Column("import_id", uuid_type, nullable=False),
+    sa.Column("resource_key", sa.Text(), nullable=False),
+    sa.Column("ingest_run_id", uuid_type, nullable=False),
+    sa.Column("raw_artifact_id", uuid_type, nullable=False),
+    sa.Column("reason_code", sa.String(64), nullable=False),
+    sa.Column("reason_detail", sa.Text(), nullable=False),
+    sa.Column(
+        "quarantined_at",
+        aware_timestamp,
+        nullable=False,
+        server_default=sa.text("statement_timestamp()"),
+    ),
+    sa.ForeignKeyConstraint(
+        ["import_id"], ["import_manifests.import_id"], ondelete="RESTRICT"
+    ),
+    sa.ForeignKeyConstraint(
+        ["raw_artifact_id", "ingest_run_id"],
+        [
+            "raw_artifact_observations.raw_artifact_id",
+            "raw_artifact_observations.ingest_run_id",
+        ],
+        ondelete="RESTRICT",
+    ),
+    sa.CheckConstraint("resource_key <> ''", name="resource_key_nonempty"),
+    sa.CheckConstraint("reason_code <> ''", name="reason_code_nonempty"),
+    sa.CheckConstraint("reason_detail <> ''", name="reason_detail_nonempty"),
+)
+
+
 def lineage_constraints() -> tuple[sa.ForeignKeyConstraint, ...]:
     return (
         sa.ForeignKeyConstraint(
@@ -263,6 +390,29 @@ daily_price_versions = sa.Table(
     sa.CheckConstraint(
         "high_price IS NULL OR low_price IS NULL OR high_price >= low_price",
         name="high_not_below_low",
+    ),
+    sa.CheckConstraint(
+        "(open_price IS NULL OR open_price >= 0) AND "
+        "(high_price IS NULL OR high_price >= 0) AND "
+        "(low_price IS NULL OR low_price >= 0) AND "
+        "(close_price IS NULL OR close_price >= 0)",
+        name="prices_nonnegative",
+    ),
+    sa.CheckConstraint(
+        "open_price IS NULL OR low_price IS NULL OR open_price >= low_price",
+        name="open_not_below_low",
+    ),
+    sa.CheckConstraint(
+        "open_price IS NULL OR high_price IS NULL OR open_price <= high_price",
+        name="open_not_above_high",
+    ),
+    sa.CheckConstraint(
+        "close_price IS NULL OR low_price IS NULL OR close_price >= low_price",
+        name="close_not_below_low",
+    ),
+    sa.CheckConstraint(
+        "close_price IS NULL OR high_price IS NULL OR close_price <= high_price",
+        name="close_not_above_high",
     ),
 )
 
