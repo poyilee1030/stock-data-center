@@ -15,6 +15,7 @@ from sqlalchemy.dialects.postgresql import insert
 from stock_data_center.db.metadata import (
     daily_price_versions,
     publication_evidence,
+    publication_evidence_observations,
     security,
     security_metadata_versions,
 )
@@ -193,20 +194,30 @@ class MarketDataWriter:
             .returning(publication_evidence.c.id)
         ).scalar_one_or_none()
         if inserted is not None:
-            return inserted
-
-        predicates = [
-            publication_evidence.c.dataset_code == dataset_code,
-            publication_evidence.c.source == source,
-            publication_evidence.c[target_column] == version_id,
-        ]
-        predicates.extend(
-            publication_evidence.c[name].is_not_distinct_from(value)
-            for name, value in _dataclass_values(observation).items()
+            evidence_id = inserted
+        else:
+            predicates = [
+                publication_evidence.c.dataset_code == dataset_code,
+                publication_evidence.c.source == source,
+                publication_evidence.c[target_column] == version_id,
+            ]
+            predicates.extend(
+                publication_evidence.c[name].is_not_distinct_from(value)
+                for name, value in _dataclass_values(observation).items()
+            )
+            evidence_id = connection.execute(
+                sa.select(publication_evidence.c.id).where(*predicates)
+            ).scalar_one()
+        connection.execute(
+            insert(publication_evidence_observations)
+            .values(
+                publication_evidence_id=evidence_id,
+                raw_artifact_id=lineage.raw_artifact_id,
+                ingest_run_id=lineage.ingest_run_id,
+            )
+            .on_conflict_do_nothing()
         )
-        return connection.execute(
-            sa.select(publication_evidence.c.id).where(*predicates)
-        ).scalar_one()
+        return evidence_id
 
     @staticmethod
     def _append_version(

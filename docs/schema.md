@@ -14,7 +14,7 @@ migrations are the deployment record in `migrations/versions/`.
 | --- | --- |
 | Dataset policy | `dataset_catalog`, `dataset_sources` |
 | Security identity/history | `security`, `security_metadata_versions` |
-| Provenance | `ingest_runs`, `raw_artifacts`, `raw_artifact_observations` |
+| Provenance | `ingest_runs`, `raw_artifacts`, `raw_artifact_observations`, `monthly_revenue_version_observations`, `publication_evidence_observations` |
 | Market/revenue versions | `daily_price_versions`, `monthly_revenue_versions` |
 | Financial aggregate | `financial_filing_versions`, `financial_facts`, `quarterly_financial_summary`, `financial_filing_seals` |
 | TDCC aggregate | `tdcc_snapshot_versions`, `tdcc_distribution`, `tdcc_snapshot_seals` |
@@ -170,6 +170,21 @@ Every business record still resolves through the Phase 2 source, evidence,
 revision, and provenance rules. See
 [the Phase 3 contract](security_daily_market.md) and
 [ADR-0011](decisions/0011-effective-dated-security-market.md).
+
+## Phase 4 domain access
+
+Phase 4 retains the existing `monthly_revenue_versions` shape and freezes
+`revenue` as currency-major units. One focused migration adds append-only
+many-observation lineage for monthly revenue versions and publication evidence.
+The association triggers validate that the observation's ingest run has the
+same dataset/source as its version or evidence target. Existing rows are
+backfilled with their original artifact/run association.
+
+The `monthly_revenue` package provides scale-explicit normalization,
+append-only writes, single-period and inclusive-history PIT queries, and linked
+observation access. Revenue/currency business revisions remain independent from
+evidence corrections, and all results retain Phase 2 provenance. See
+[the Phase 4 contract](monthly_revenue.md).
 
 ## Migration operation
 
