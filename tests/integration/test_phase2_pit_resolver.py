@@ -69,8 +69,8 @@ def configure_source(
         sa.text(
             """
             WITH inserted AS (
-                INSERT INTO security (security_code, market)
-                VALUES (:code, 'TWSE')
+                INSERT INTO security (security_code)
+                VALUES (:code)
                 ON CONFLICT (security_code) DO NOTHING
                 RETURNING id
             )

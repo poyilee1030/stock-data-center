@@ -14,9 +14,12 @@ class SecurityState:
 
     security_id: int
     security_code: str
-    market: str
     effective_on: date
     record: ResolvedRecord
+
+    @property
+    def market(self) -> str:
+        return self.record.data["market"]
 
     @property
     def is_listed(self) -> bool:

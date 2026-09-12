@@ -13,7 +13,7 @@ migrations are the deployment record in `migrations/versions/`.
 | Area | Tables |
 | --- | --- |
 | Dataset policy | `dataset_catalog`, `dataset_sources` |
-| Security identity | `security`, `security_metadata_versions` |
+| Security identity/history | `security`, `security_metadata_versions` |
 | Provenance | `ingest_runs`, `raw_artifacts`, `raw_artifact_observations` |
 | Market/revenue versions | `daily_price_versions`, `monthly_revenue_versions` |
 | Financial aggregate | `financial_filing_versions`, `financial_facts`, `quarterly_financial_summary`, `financial_filing_seals` |
@@ -159,14 +159,17 @@ flags and filters evidence types before supersession/ranking.
 ## Phase 3 domain access
 
 Phase 3 uses the existing `security_metadata_versions` and
-`daily_price_versions` shape. One focused migration makes stable `security`
-identity immutable, enforces non-empty identity values, and makes `created_at`
-DB-controlled. The `market_data` package supplies normalized append-only
+`daily_price_versions` foundation. The Phase 3 migrations make stable
+`security_code` identity immutable and DB-timestamped, then move market into
+`security_metadata_versions` as effective-dated, business-hashed state. Existing
+metadata rows are backfilled from their former identity market and rehashed.
+The `market_data` package supplies normalized append-only
 writers and cache-free domain queries for historical security state, historical
 listed universes, single-date daily prices, and inclusive daily-price windows.
 Every business record still resolves through the Phase 2 source, evidence,
 revision, and provenance rules. See
-[the Phase 3 contract](security_daily_market.md).
+[the Phase 3 contract](security_daily_market.md) and
+[ADR-0011](decisions/0011-effective-dated-security-market.md).
 
 ## Migration operation
 

@@ -74,7 +74,6 @@ class MarketDataService:
         statement = sa.select(
             security.c.id,
             security.c.security_code,
-            security.c.market,
         ).where(
             sa.exists(
                 sa.select(1).where(
@@ -84,9 +83,6 @@ class MarketDataService:
                 )
             )
         )
-        if market is not None:
-            statement = statement.where(security.c.market == market)
-
         states = []
         for identity in connection.execute(statement).mappings():
             state = self._security_state_for_identity(
@@ -96,7 +92,11 @@ class MarketDataService:
                 context=context,
                 source=policy.source,
             )
-            if state is not None and (state.is_listed or not listed_only):
+            if (
+                state is not None
+                and (market is None or state.market == market)
+                and (state.is_listed or not listed_only)
+            ):
                 states.append(state)
         return tuple(sorted(states, key=lambda item: item.security_code))
 
@@ -173,7 +173,6 @@ class MarketDataService:
             sa.select(
                 security.c.id,
                 security.c.security_code,
-                security.c.market,
             ).where(security.c.security_code == security_code)
         ).mappings().one_or_none()
 
@@ -215,7 +214,6 @@ class MarketDataService:
             return SecurityState(
                 security_id=identity["id"],
                 security_code=identity["security_code"],
-                market=identity["market"],
                 effective_on=effective_on,
                 record=record,
             )

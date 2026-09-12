@@ -5,9 +5,11 @@ from decimal import Decimal
 
 import pytest
 import sqlalchemy as sa
+from alembic import command
 from sqlalchemy import Connection
 from sqlalchemy.exc import DBAPIError
 
+from conftest import alembic_config
 from stock_data_center.market_data import (
     DailyPriceObservation,
     InvalidDateRangeError,
@@ -15,7 +17,6 @@ from stock_data_center.market_data import (
     MarketDataService,
     MarketDataWriter,
     PublicationObservation,
-    SecurityIdentityConflictError,
     SecurityMetadataObservation,
 )
 from stock_data_center.pit import MarketPITContext, SystemPITContext
@@ -172,8 +173,8 @@ def add_price(
 def test_historical_universe_is_not_current_survivors_only(db: Connection) -> None:
     configure_source(db, "security_metadata", "twse")
     source_lineage = lineage(db, "security_metadata", "twse", "1")
-    old_id = WRITER.register_security(db, security_code="1111", market="TWSE")
-    new_id = WRITER.register_security(db, security_code="2222", market="TWSE")
+    old_id = WRITER.register_security(db, security_code="1111")
+    new_id = WRITER.register_security(db, security_code="2222")
     add_metadata(
         db,
         security_id=old_id,
@@ -181,6 +182,7 @@ def test_historical_universe_is_not_current_survivors_only(db: Connection) -> No
         lineage_ref=source_lineage,
         observation=SecurityMetadataObservation(
             effective_from=date(2010, 1, 1),
+            market="TWSE",
             name="Old Listed Company",
             listed_on=date(2010, 1, 1),
             delisted_on=date(2021, 6, 1),
@@ -194,6 +196,7 @@ def test_historical_universe_is_not_current_survivors_only(db: Connection) -> No
         lineage_ref=source_lineage,
         observation=SecurityMetadataObservation(
             effective_from=date(2021, 7, 1),
+            market="TWSE",
             name="New Listed Company",
             listed_on=date(2021, 7, 1),
         ),
@@ -220,7 +223,7 @@ def test_historical_universe_is_not_current_survivors_only(db: Connection) -> No
 def test_security_name_and_listing_history_are_queryable(db: Connection) -> None:
     configure_source(db, "security_metadata", "twse")
     source_lineage = lineage(db, "security_metadata", "twse", "2")
-    security_id = WRITER.register_security(db, security_code="2330", market="TWSE")
+    security_id = WRITER.register_security(db, security_code="2330")
     add_metadata(
         db,
         security_id=security_id,
@@ -228,6 +231,7 @@ def test_security_name_and_listing_history_are_queryable(db: Connection) -> None
         lineage_ref=source_lineage,
         observation=SecurityMetadataObservation(
             effective_from=date(1994, 9, 5),
+            market="TWSE",
             effective_to=date(2020, 12, 31),
             name="Historical Name",
             industry="Semiconductor",
@@ -242,6 +246,7 @@ def test_security_name_and_listing_history_are_queryable(db: Connection) -> None
         lineage_ref=source_lineage,
         observation=SecurityMetadataObservation(
             effective_from=date(2021, 1, 1),
+            market="TWSE",
             name="Current Name",
             industry="Semiconductor",
             listed_on=date(1994, 9, 5),
@@ -273,12 +278,148 @@ def test_security_name_and_listing_history_are_queryable(db: Connection) -> None
     )
 
 
+def test_market_transfer_is_effective_dated_on_one_stable_identity(
+    db: Connection,
+) -> None:
+    configure_source(db, "security_metadata", "official")
+    source_lineage = lineage(db, "security_metadata", "official", "c")
+    security_id = WRITER.register_security(db, security_code="5236")
+    add_metadata(
+        db,
+        security_id=security_id,
+        source="official",
+        lineage_ref=source_lineage,
+        observation=SecurityMetadataObservation(
+            effective_from=date(2020, 1, 1),
+            effective_to=date(2026, 7, 15),
+            market="TPEx",
+            name="Market Transfer Company",
+            listed_on=date(2020, 1, 1),
+        ),
+        published_at=datetime(2020, 1, 1, tzinfo=UTC),
+    )
+    add_metadata(
+        db,
+        security_id=security_id,
+        source="official",
+        lineage_ref=source_lineage,
+        observation=SecurityMetadataObservation(
+            effective_from=date(2026, 7, 16),
+            market="TWSE",
+            name="Market Transfer Company",
+            listed_on=date(2020, 1, 1),
+        ),
+        published_at=datetime(2026, 7, 16, tzinfo=UTC),
+    )
+
+    before = SERVICE.security_state(
+        db,
+        security_code="5236",
+        effective_on=date(2025, 6, 1),
+        context=market_context(2025),
+        source="official",
+    )
+    after = SERVICE.security_state(
+        db,
+        security_code="5236",
+        effective_on=date(2026, 8, 1),
+        context=market_context(2026),
+        source="official",
+    )
+    tpex_before = SERVICE.security_universe(
+        db,
+        effective_on=date(2025, 6, 1),
+        context=market_context(2025),
+        source="official",
+        market="TPEx",
+    )
+    twse_before = SERVICE.security_universe(
+        db,
+        effective_on=date(2025, 6, 1),
+        context=market_context(2025),
+        source="official",
+        market="TWSE",
+    )
+    tpex_after = SERVICE.security_universe(
+        db,
+        effective_on=date(2026, 8, 1),
+        context=market_context(2026),
+        source="official",
+        market="TPEx",
+    )
+    twse_after = SERVICE.security_universe(
+        db,
+        effective_on=date(2026, 8, 1),
+        context=market_context(2026),
+        source="official",
+        market="TWSE",
+    )
+
+    assert before is not None and before.market == "TPEx"
+    assert after is not None and after.market == "TWSE"
+    assert before.security_id == after.security_id == security_id
+    assert [item.security_code for item in tpex_before] == ["5236"]
+    assert twse_before == ()
+    assert tpex_after == ()
+    assert [item.security_code for item in twse_after] == ["5236"]
+
+
+def test_market_transfer_daily_sources_share_security_identity(
+    db: Connection,
+) -> None:
+    configure_source(db, "daily_price", "tpex")
+    configure_source(db, "daily_price", "twse")
+    tpex_lineage = lineage(db, "daily_price", "tpex", "d")
+    twse_lineage = lineage(db, "daily_price", "twse", "e")
+    security_id = WRITER.register_security(db, security_code="5236")
+    add_price(
+        db,
+        security_id=security_id,
+        source="tpex",
+        lineage_ref=tpex_lineage,
+        observation=DailyPriceObservation(
+            trade_date=date(2025, 6, 2), close_price=Decimal("80")
+        ),
+        published_at=datetime(2025, 6, 2, 6, tzinfo=UTC),
+    )
+    add_price(
+        db,
+        security_id=security_id,
+        source="twse",
+        lineage_ref=twse_lineage,
+        observation=DailyPriceObservation(
+            trade_date=date(2026, 8, 3), close_price=Decimal("100")
+        ),
+        published_at=datetime(2026, 8, 3, 6, tzinfo=UTC),
+    )
+
+    old_price = SERVICE.daily_price(
+        db,
+        security_code="5236",
+        trade_date=date(2025, 6, 2),
+        context=market_context(2025),
+        source="tpex",
+    )
+    new_price = SERVICE.daily_price(
+        db,
+        security_code="5236",
+        trade_date=date(2026, 8, 3),
+        context=market_context(2026),
+        source="twse",
+    )
+
+    assert old_price is not None and old_price.data["security_id"] == security_id
+    assert new_price is not None and new_price.data["security_id"] == security_id
+    assert old_price.source == "tpex"
+    assert new_price.source == "twse"
+
+
 def test_expired_latest_metadata_interval_does_not_revive_older_state(
     db: Connection,
 ) -> None:
     configure_source(db, "security_metadata", "twse")
     source_lineage = lineage(db, "security_metadata", "twse", "b")
-    security_id = WRITER.register_security(db, security_code="1234", market="TWSE")
+    security_id = WRITER.register_security(db, security_code="1234")
     add_metadata(
         db,
         security_id=security_id,
@@ -286,6 +427,7 @@ def test_expired_latest_metadata_interval_does_not_revive_older_state(
         lineage_ref=source_lineage,
         observation=SecurityMetadataObservation(
             effective_from=date(2010, 1, 1),
+            market="TWSE",
             name="Original",
             listed_on=date(2010, 1, 1),
         ),
@@ -298,6 +440,7 @@ def test_expired_latest_metadata_interval_does_not_revive_older_state(
         lineage_ref=source_lineage,
         observation=SecurityMetadataObservation(
             effective_from=date(2020, 1, 1),
+            market="TWSE",
             effective_to=date(2020, 12, 31),
             name="Terminal State",
             listed_on=date(2010, 1, 1),
@@ -318,7 +461,7 @@ def test_expired_latest_metadata_interval_does_not_revive_older_state(
 def test_daily_price_exposes_every_preserved_legacy_observable(db: Connection) -> None:
     configure_source(db, "daily_price", "twse")
     source_lineage = lineage(db, "daily_price", "twse", "3")
-    security_id = WRITER.register_security(db, security_code="0050", market="TWSE")
+    security_id = WRITER.register_security(db, security_code="0050")
     observed = DailyPriceObservation(
         trade_date=date(2020, 1, 2),
         open_price=Decimal("100.1"),
@@ -365,7 +508,7 @@ def test_daily_price_revision_respects_knowledge_cutoff(db: Connection) -> None:
     configure_source(db, "daily_price", "twse")
     first_lineage = lineage(db, "daily_price", "twse", "4")
     second_lineage = lineage(db, "daily_price", "twse", "5")
-    security_id = WRITER.register_security(db, security_code="2317", market="TWSE")
+    security_id = WRITER.register_security(db, security_code="2317")
     add_price(
         db,
         security_id=security_id,
@@ -415,7 +558,7 @@ def test_daily_price_source_histories_remain_independent(db: Connection) -> None
     configure_source(db, "daily_price", "vendor")
     twse_lineage = lineage(db, "daily_price", "twse", "6")
     vendor_lineage = lineage(db, "daily_price", "vendor", "7")
-    security_id = WRITER.register_security(db, security_code="2303", market="TWSE")
+    security_id = WRITER.register_security(db, security_code="2303")
     for source, source_lineage, close in (
         ("twse", twse_lineage, "50"),
         ("vendor", vendor_lineage, "51"),
@@ -457,7 +600,7 @@ def test_duplicate_fetch_preserves_lineage_without_false_revision(
     configure_source(db, "daily_price", "twse")
     first_lineage = lineage(db, "daily_price", "twse", "8")
     second_lineage = lineage(db, "daily_price", "twse", "9")
-    security_id = WRITER.register_security(db, security_code="2882", market="TWSE")
+    security_id = WRITER.register_security(db, security_code="2882")
     observed = DailyPriceObservation(
         trade_date=date(2020, 1, 2), close_price=Decimal("40")
     )
@@ -506,7 +649,7 @@ def test_duplicate_fetch_preserves_lineage_without_false_revision(
 def test_daily_history_uses_system_pit_and_validates_range(db: Connection) -> None:
     configure_source(db, "daily_price", "twse")
     source_lineage = lineage(db, "daily_price", "twse", "a")
-    security_id = WRITER.register_security(db, security_code="2891", market="TWSE")
+    security_id = WRITER.register_security(db, security_code="2891")
     for day, close in ((2, "20"), (3, "21")):
         WRITER.append_daily_price(
             db,
@@ -540,18 +683,18 @@ def test_daily_history_uses_system_pit_and_validates_range(db: Connection) -> No
         )
 
 
-def test_security_code_cannot_silently_change_market(db: Connection) -> None:
-    WRITER.register_security(db, security_code="1101", market="TWSE")
-    with pytest.raises(SecurityIdentityConflictError):
-        WRITER.register_security(db, security_code="1101", market="TPEx")
+def test_register_security_reuses_stable_code_identity(db: Connection) -> None:
+    first = WRITER.register_security(db, security_code="1101")
+    repeated = WRITER.register_security(db, security_code="1101")
+    assert repeated == first
 
 
 def test_security_identity_is_db_timestamped_and_immutable(db: Connection) -> None:
     created_at = db.execute(
         sa.text(
             """
-            INSERT INTO security (security_code, market, created_at)
-            VALUES ('7777', 'TWSE', TIMESTAMPTZ '1900-01-01+00')
+            INSERT INTO security (security_code, created_at)
+            VALUES ('7777', TIMESTAMPTZ '1900-01-01+00')
             RETURNING created_at
             """
         )
@@ -562,10 +705,87 @@ def test_security_identity_is_db_timestamped_and_immutable(db: Connection) -> No
         with db.begin_nested():
             db.execute(
                 sa.text(
-                    "UPDATE security SET market = 'TPEx' "
+                    "UPDATE security SET security_code = '7778' "
                     "WHERE security_code = '7777'"
                 )
             )
     with pytest.raises(DBAPIError, match="append-only"):
         with db.begin_nested():
             db.execute(sa.text("DELETE FROM security WHERE security_code = '7777'"))
+
+
+def test_market_history_migration_backfills_and_rehashes_existing_metadata(
+    isolated_database_url: str,
+) -> None:
+    config = alembic_config(isolated_database_url)
+    command.downgrade(config, "d81b5c9a3f20")
+    migration_engine = sa.create_engine(isolated_database_url)
+    try:
+        with migration_engine.begin() as connection:
+            configure_source(connection, "security_metadata", "official")
+            source_lineage = lineage(
+                connection, "security_metadata", "official", "f"
+            )
+            security_id = connection.execute(
+                sa.text(
+                    """
+                    INSERT INTO security (security_code, market)
+                    VALUES ('5236', 'TPEx')
+                    RETURNING id
+                    """
+                )
+            ).scalar_one()
+            old_hash = connection.execute(
+                sa.text(
+                    """
+                    INSERT INTO security_metadata_versions (
+                        security_id, source, effective_from, name, listed_on,
+                        business_content_hash, ingested_at,
+                        raw_artifact_id, ingest_run_id
+                    ) VALUES (
+                        :security, 'official', DATE '2020-01-01',
+                        'Market Transfer Company', DATE '2020-01-01',
+                        :hash, statement_timestamp(), :artifact, :run
+                    ) RETURNING business_content_hash
+                    """
+                ),
+                {
+                    "security": security_id,
+                    "hash": "0" * 64,
+                    "artifact": source_lineage.raw_artifact_id,
+                    "run": source_lineage.ingest_run_id,
+                },
+            ).scalar_one()
+        migration_engine.dispose()
+
+        command.upgrade(config, "head")
+        migration_engine = sa.create_engine(isolated_database_url)
+        with migration_engine.connect() as connection:
+            migrated = connection.execute(
+                sa.text(
+                    """
+                    SELECT market, business_content_hash
+                    FROM security_metadata_versions
+                    WHERE security_id = :security
+                    """
+                ),
+                {"security": security_id},
+            ).mappings().one()
+            identity_columns = set(
+                connection.scalars(
+                    sa.text(
+                        """
+                        SELECT column_name
+                        FROM information_schema.columns
+                        WHERE table_schema = current_schema()
+                          AND table_name = 'security'
+                        """
+                    )
+                )
+            )
+
+            assert migrated["market"] == "TPEx"
+            assert migrated["business_content_hash"] != old_hash
+            assert "market" not in identity_columns
+    finally:
+        migration_engine.dispose()

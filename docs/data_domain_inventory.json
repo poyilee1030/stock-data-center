@@ -10,7 +10,7 @@
   },
   "global_rules": {
     "symbol": "security or index identity",
-    "market": "security/source or market-level identity",
+    "market": "effective-dated security metadata or market-level domain identity",
     "name": "security_metadata_versions.name",
     "date": "domain logical observation/report/snapshot/event date",
     "pced_file/pced_row/pced_col": "raw-artifact-only parser provenance",
@@ -27,9 +27,9 @@
     {
       "legacy_table": "daily_quotes",
       "legacy_field": "market",
-      "disposition": "identity",
-      "target": "security.market or domain market identity",
-      "reason": "Market is part of security or market-level logical identity."
+      "disposition": "observed",
+      "target": "security_metadata_versions.market",
+      "reason": "Security market is source-observed, effective-dated metadata rather than stable identity."
     },
     {
       "legacy_table": "daily_quotes",
@@ -153,9 +153,9 @@
     {
       "legacy_table": "institutional_investors",
       "legacy_field": "market",
-      "disposition": "identity",
-      "target": "security.market or domain market identity",
-      "reason": "Market is part of security or market-level logical identity."
+      "disposition": "observed",
+      "target": "security_metadata_versions.market",
+      "reason": "Security market is source-observed, effective-dated metadata rather than stable identity."
     },
     {
       "legacy_table": "institutional_investors",
@@ -321,9 +321,9 @@
     {
       "legacy_table": "foreign_holding",
       "legacy_field": "market",
-      "disposition": "identity",
-      "target": "security.market or domain market identity",
-      "reason": "Market is part of security or market-level logical identity."
+      "disposition": "observed",
+      "target": "security_metadata_versions.market",
+      "reason": "Security market is source-observed, effective-dated metadata rather than stable identity."
     },
     {
       "legacy_table": "foreign_holding",
@@ -412,9 +412,9 @@
     {
       "legacy_table": "trust_holding",
       "legacy_field": "market",
-      "disposition": "identity",
-      "target": "security.market or domain market identity",
-      "reason": "Market is part of security or market-level logical identity."
+      "disposition": "observed",
+      "target": "security_metadata_versions.market",
+      "reason": "Security market is source-observed, effective-dated metadata rather than stable identity."
     },
     {
       "legacy_table": "trust_holding",
@@ -482,9 +482,9 @@
     {
       "legacy_table": "dealer_holding",
       "legacy_field": "market",
-      "disposition": "identity",
-      "target": "security.market or domain market identity",
-      "reason": "Market is part of security or market-level logical identity."
+      "disposition": "observed",
+      "target": "security_metadata_versions.market",
+      "reason": "Security market is source-observed, effective-dated metadata rather than stable identity."
     },
     {
       "legacy_table": "dealer_holding",
@@ -552,9 +552,9 @@
     {
       "legacy_table": "margin_trading",
       "legacy_field": "market",
-      "disposition": "identity",
-      "target": "security.market or domain market identity",
-      "reason": "Market is part of security or market-level logical identity."
+      "disposition": "observed",
+      "target": "security_metadata_versions.market",
+      "reason": "Security market is source-observed, effective-dated metadata rather than stable identity."
     },
     {
       "legacy_table": "margin_trading",
@@ -692,9 +692,9 @@
     {
       "legacy_table": "margin_sbl",
       "legacy_field": "market",
-      "disposition": "identity",
-      "target": "security.market or domain market identity",
-      "reason": "Market is part of security or market-level logical identity."
+      "disposition": "observed",
+      "target": "security_metadata_versions.market",
+      "reason": "Security market is source-observed, effective-dated metadata rather than stable identity."
     },
     {
       "legacy_table": "margin_sbl",
@@ -797,9 +797,9 @@
     {
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "market",
-      "disposition": "identity",
-      "target": "security.market or domain market identity",
-      "reason": "Market is part of security or market-level logical identity."
+      "disposition": "observed",
+      "target": "security_metadata_versions.market",
+      "reason": "Security market is source-observed, effective-dated metadata rather than stable identity."
     },
     {
       "legacy_table": "margin_pressure_analysis",
@@ -930,9 +930,9 @@
     {
       "legacy_table": "short_interest_analysis",
       "legacy_field": "market",
-      "disposition": "identity",
-      "target": "security.market or domain market identity",
-      "reason": "Market is part of security or market-level logical identity."
+      "disposition": "observed",
+      "target": "security_metadata_versions.market",
+      "reason": "Security market is source-observed, effective-dated metadata rather than stable identity."
     },
     {
       "legacy_table": "short_interest_analysis",
@@ -1049,9 +1049,9 @@
     {
       "legacy_table": "pe_ratio",
       "legacy_field": "market",
-      "disposition": "identity",
-      "target": "security.market or domain market identity",
-      "reason": "Market is part of security or market-level logical identity."
+      "disposition": "observed",
+      "target": "security_metadata_versions.market",
+      "reason": "Security market is source-observed, effective-dated metadata rather than stable identity."
     },
     {
       "legacy_table": "pe_ratio",
@@ -1106,8 +1106,8 @@
       "legacy_table": "market_indices",
       "legacy_field": "market",
       "disposition": "identity",
-      "target": "security.market or domain market identity",
-      "reason": "Market is part of security or market-level logical identity."
+      "target": "market_index.market",
+      "reason": "Market is part of the market-index identity contract."
     },
     {
       "legacy_table": "market_indices",
@@ -1343,9 +1343,9 @@
     {
       "legacy_table": "monthly_revenue",
       "legacy_field": "market",
-      "disposition": "identity",
-      "target": "security.market or domain market identity",
-      "reason": "Market is part of security or market-level logical identity."
+      "disposition": "observed",
+      "target": "security_metadata_versions.market",
+      "reason": "Security market is source-observed, effective-dated metadata rather than stable identity."
     },
     {
       "legacy_table": "monthly_revenue",
@@ -1462,9 +1462,9 @@
     {
       "legacy_table": "income_statement",
       "legacy_field": "market",
-      "disposition": "identity",
-      "target": "security.market",
-      "reason": "Legacy market still resolves to security identity; the surrounding pre-XBRL table shape is deprecated."
+      "disposition": "observed",
+      "target": "security_metadata_versions.market",
+      "reason": "Legacy security market resolves to effective-dated metadata; the surrounding pre-XBRL table shape is deprecated."
     },
     {
       "legacy_table": "income_statement",
@@ -1742,9 +1742,9 @@
     {
       "legacy_table": "balance_sheet",
       "legacy_field": "market",
-      "disposition": "identity",
-      "target": "security.market",
-      "reason": "Legacy market still resolves to security identity; the surrounding pre-XBRL table shape is deprecated."
+      "disposition": "observed",
+      "target": "security_metadata_versions.market",
+      "reason": "Legacy security market resolves to effective-dated metadata; the surrounding pre-XBRL table shape is deprecated."
     },
     {
       "legacy_table": "balance_sheet",
@@ -1910,9 +1910,9 @@
     {
       "legacy_table": "cash_flow",
       "legacy_field": "market",
-      "disposition": "identity",
-      "target": "security.market",
-      "reason": "Legacy market still resolves to security identity; the surrounding pre-XBRL table shape is deprecated."
+      "disposition": "observed",
+      "target": "security_metadata_versions.market",
+      "reason": "Legacy security market resolves to effective-dated metadata; the surrounding pre-XBRL table shape is deprecated."
     },
     {
       "legacy_table": "cash_flow",
@@ -2064,9 +2064,9 @@
     {
       "legacy_table": "quarterly_reports",
       "legacy_field": "market",
-      "disposition": "identity",
-      "target": "security.market",
-      "reason": "Legacy market still resolves to security identity; the surrounding pre-XBRL table shape is deprecated."
+      "disposition": "observed",
+      "target": "security_metadata_versions.market",
+      "reason": "Legacy security market resolves to effective-dated metadata; the surrounding pre-XBRL table shape is deprecated."
     },
     {
       "legacy_table": "quarterly_reports",
@@ -2309,9 +2309,9 @@
     {
       "legacy_table": "quarterly_reports_xbrl",
       "legacy_field": "market",
-      "disposition": "identity",
-      "target": "security.market or domain market identity",
-      "reason": "Market is part of security or market-level logical identity."
+      "disposition": "observed",
+      "target": "security_metadata_versions.market",
+      "reason": "Security market is source-observed, effective-dated metadata rather than stable identity."
     },
     {
       "legacy_table": "quarterly_reports_xbrl",
@@ -2722,9 +2722,9 @@
     {
       "legacy_table": "stock_info",
       "legacy_field": "market",
-      "disposition": "identity",
-      "target": "security.market or domain market identity",
-      "reason": "Market is part of security or market-level logical identity."
+      "disposition": "observed",
+      "target": "security_metadata_versions.market",
+      "reason": "Security market is source-observed, effective-dated metadata rather than stable identity."
     },
     {
       "legacy_table": "stock_info",

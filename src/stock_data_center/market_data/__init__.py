@@ -5,7 +5,6 @@ from stock_data_center.market_data.ingestion import (
     LineageRef,
     MarketDataWriter,
     PublicationObservation,
-    SecurityIdentityConflictError,
     SecurityMetadataObservation,
     WrittenVersion,
 )
@@ -22,7 +21,6 @@ __all__ = [
     "MarketDataService",
     "MarketDataWriter",
     "PublicationObservation",
-    "SecurityIdentityConflictError",
     "SecurityMetadataObservation",
     "SecurityState",
     "WrittenVersion",

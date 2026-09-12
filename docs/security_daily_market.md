@@ -16,12 +16,13 @@ current-state security list for a historical universe.
 
 `security.security_code` is stable identity. PostgreSQL rejects identity UPDATE,
 DELETE, and TRUNCATE, and overwrites caller-provided `created_at` with trusted
-statement time. The writer also raises an explicit conflict when the same code
-is registered for another market.
+statement time. Registering an already-known code returns the same `security_id`.
+Market is not stored on this identity row.
 
-Observed names, industry, listing dates, delisting dates, and effective ranges
-live in append-only `security_metadata_versions`. A security state on business
-date `D` is selected as follows:
+Observed market membership, names, industry, listing dates, delisting dates, and
+effective ranges live in append-only `security_metadata_versions`. Market is
+included in the metadata business hash. A security state on business date `D`
+is selected as follows:
 
 1. resolve each source-specific metadata logical key with `effective_from <= D`
    under the requested market or system PIT context;
@@ -30,7 +31,8 @@ date `D` is selected as follows:
 4. retain the full resolver provenance and authoritative evidence.
 
 The historical listed universe applies the resolved state on `D`, not the
-security's latest metadata. Listing membership uses the half-open interval
+security's latest metadata or an identity-row market. An optional market filter
+is applied only after metadata resolution. Listing membership uses the half-open interval
 `listed_on <= D < delisted_on`. A missing `listed_on` means the source did not
 provide a start bound; visible metadata remains eligible until `delisted_on`.
 Callers can request `listed_only=False` to inspect PIT-visible delisted states.
@@ -66,8 +68,9 @@ record:
 | parsed last bid/ask price and volume | `last_bid_price`, `last_ask_price`, `last_bid_volume`, `last_ask_volume` |
 
 `date`, `symbol`, `market`, and `name` are not dropped: they resolve to the
-trade-date logical key, stable security identity, security market, and
-effective-dated metadata respectively.
+trade-date logical key, stable security identity, and effective-dated metadata.
+The same `security_id` can therefore carry TPEx prices before a transfer and
+TWSE prices afterward without merging the two source histories.
 
 The only intentionally non-queryable normalized columns from legacy
 `daily_quotes` are `pced_file`, `pced_row`, and `pced_col`. They are parser/source

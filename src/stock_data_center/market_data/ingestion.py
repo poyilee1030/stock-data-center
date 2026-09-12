@@ -20,10 +20,6 @@ from stock_data_center.db.metadata import (
 )
 
 
-class SecurityIdentityConflictError(ValueError):
-    """Raised when a stable security code is reused for another market."""
-
-
 @dataclass(frozen=True, slots=True)
 class LineageRef:
     raw_artifact_id: UUID
@@ -33,6 +29,7 @@ class LineageRef:
 @dataclass(frozen=True, slots=True)
 class SecurityMetadataObservation:
     effective_from: date
+    market: str
     name: str
     effective_to: date | None = None
     industry: str | None = None
@@ -97,27 +94,23 @@ class MarketDataWriter:
         connection: Connection,
         *,
         security_code: str,
-        market: str,
     ) -> int:
         inserted = connection.execute(
             insert(security)
-            .values(security_code=security_code, market=market)
+            .values(security_code=security_code)
             .on_conflict_do_nothing(index_elements=[security.c.security_code])
             .returning(security.c.id)
         ).scalar_one_or_none()
         if inserted is not None:
             return inserted
-        existing = connection.execute(
-            sa.select(security.c.id, security.c.market).where(
+        existing = connection.scalar(
+            sa.select(security.c.id).where(
                 security.c.security_code == security_code
             )
-        ).mappings().one()
-        if existing["market"] != market:
-            raise SecurityIdentityConflictError(
-                f"security {security_code!r} is already registered in "
-                f"{existing['market']!r}"
-            )
-        return existing["id"]
+        )
+        if existing is None:
+            raise RuntimeError("conflicting security identity disappeared")
+        return existing
 
     def append_security_metadata(
         self,
