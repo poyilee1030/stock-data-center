@@ -749,15 +749,26 @@ def test_unsealed_aggregate_is_invisible_and_seal_is_system_visibility(db: Conne
 def test_tdcc_aggregate_has_the_same_resolver_seal_semantics(db: Connection) -> None:
     security_id = configure_source(db, "tdcc_snapshot")
     artifact, run = seed_lineage(db, "tdcc_snapshot", digest_char="f")
+    db.execute(
+        sa.text(
+            """
+            INSERT INTO tdcc_distribution_schemas (distribution_schema, description)
+            VALUES ('test-one-bucket-v1', 'test profile');
+            INSERT INTO tdcc_distribution_schema_buckets (
+                distribution_schema, bucket_code, bucket_role, description
+            ) VALUES ('test-one-bucket-v1', '1-999', 'holding', 'test bucket');
+            """
+        )
+    )
     snapshot = db.execute(
         sa.text(
             """
             INSERT INTO tdcc_snapshot_versions (
                 security_id, source, snapshot_date, business_content_hash,
-                raw_artifact_id, ingest_run_id
+                raw_artifact_id, ingest_run_id, distribution_schema
             ) VALUES (
                 :security, 'official', DATE '2020-01-03', :hash,
-                :artifact, :run
+                :artifact, :run, 'test-one-bucket-v1'
             ) RETURNING id
             """
         ),

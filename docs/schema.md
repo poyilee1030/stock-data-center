@@ -14,10 +14,10 @@ migrations are the deployment record in `migrations/versions/`.
 | --- | --- |
 | Dataset policy | `dataset_catalog`, `dataset_sources` |
 | Security identity/history | `security`, `security_metadata_versions` |
-| Provenance | `ingest_runs`, `raw_artifacts`, `raw_artifact_observations`, `monthly_revenue_version_observations`, `financial_filing_version_observations`, `publication_evidence_observations` |
+| Provenance | `ingest_runs`, `raw_artifacts`, `raw_artifact_observations`, `monthly_revenue_version_observations`, `financial_filing_version_observations`, `tdcc_snapshot_version_observations`, `publication_evidence_observations` |
 | Market/revenue versions | `daily_price_versions`, `monthly_revenue_versions` |
 | Financial aggregate | `financial_filing_versions`, `financial_facts`, `quarterly_financial_summary`, `financial_filing_seals` |
-| TDCC aggregate | `tdcc_snapshot_versions`, `tdcc_distribution`, `tdcc_snapshot_seals` |
+| TDCC aggregate | `tdcc_snapshot_versions`, `tdcc_distribution`, `tdcc_snapshot_seals`, `tdcc_distribution_schemas`, `tdcc_distribution_schema_buckets` |
 | Institutional data | `institutional_investor_versions`, `institutional_market_summary_versions`, `foreign_holding_versions` |
 | Credit/short data | `margin_trading_versions`, `securities_lending_versions` |
 | Reference/event data | `market_index`, `market_index_versions`, `corporate_action_versions`, `security_tag_versions` |
@@ -203,6 +203,27 @@ Market/System PIT, publication-evidence, source, and provenance semantics. The
 canonical writer additionally requires a versioned source/context
 classification; DB duration checks are defensive and never act as the source
 classifier. See [the Phase 5 contract](financial_xbrl.md).
+
+## Phase 6 domain access
+
+Phase 6 adds the `tdcc` package over the existing sealed snapshot tables. A
+focused migration adds append-only, source-validated many-observation lineage
+for snapshot versions (backfilled from existing parent lineage), exposes the
+seal's canonical aggregate hash as `stockdc_tdcc_snapshot_business_hash` with
+byte-order (`COLLATE "C"`) bucket ordering, and rejects TDCC publication
+evidence whose `published_at` precedes the snapshot date in Asia/Taipei.
+
+Each snapshot declares a registered, append-only distribution profile. Row
+triggers enforce the profile's bucket roles (a signed level-16 adjustment with a
+`NULL` holder count in `tdcc-opendata-v1`), and the seal rejects a snapshot that
+lacks any profile bucket. A profile's bucket definitions freeze once any
+snapshot references it. Existing snapshots are assigned the official profile
+and rehashed; the migration aborts if they do not fit it. See
+[ADR-0012](decisions/0012-tdcc-distribution-profiles-and-seal-completeness.md).
+
+The writer reuses an identical sealed revision instead of creating a fake one,
+and the service reads a distribution only after the shared PIT resolver selects
+a sealed version. See [the Phase 6 contract](tdcc.md).
 
 ## Migration operation
 

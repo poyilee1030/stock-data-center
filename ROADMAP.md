@@ -1609,10 +1609,10 @@ TDCC raw distribution is the source dataset for later canonical shareholding-con
 
 Acceptance criteria:
 
-- [ ] snapshot is invisible before seal
-- [ ] distribution cannot mutate after seal
-- [ ] backfilled historical data does not falsify system PIT
-- [ ] dataset-specific regression tests exist
+- [x] snapshot is invisible before seal
+- [x] distribution cannot mutate after seal
+- [x] backfilled historical data does not falsify system PIT
+- [x] dataset-specific regression tests exist
 
 ---
 
