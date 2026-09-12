@@ -14,6 +14,7 @@ EXPECTED_OBSERVED_DATASETS = {
     "margin_trading",
     "securities_lending",
     "market_index",
+    "market_index_metadata",
     "corporate_action",
     "official_valuation",
     "security_tag",

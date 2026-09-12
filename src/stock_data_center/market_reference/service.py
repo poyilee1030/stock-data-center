@@ -31,14 +31,44 @@ class MarketReferenceService:
             logical_key={"market_index_id": index_id, "trade_date": trade_date},
             context=context, source=source)
 
-    def corporate_action(self, connection: Connection, *, security_code: str,
-                         action_type: str, ex_date: date, context: PITContext,
-                         source: str | None = None) -> ResolvedRecord | None:
-        security_id = self._security_id(connection, security_code)
-        if security_id is None:
+    def index_metadata(
+        self, connection: Connection, *, index_code: str, effective_on: date,
+        context: PITContext, source: str | None = None,
+    ) -> ResolvedRecord | None:
+        index_id = connection.scalar(sa.select(metadata.tables["market_index"].c.id).where(
+            metadata.tables["market_index"].c.index_code == index_code
+        ))
+        if index_id is None:
             return None
+        policy = self._policy.resolve(
+            connection, "market_index_metadata", context, source
+        )
+        table = SPECS["market_index_metadata"].table
+        effective_dates = connection.scalars(
+            sa.select(table.c.effective_from).where(
+                table.c.market_index_id == index_id,
+                table.c.source == policy.source,
+                table.c.effective_from <= effective_on,
+            ).distinct().order_by(table.c.effective_from.desc())
+        )
+        for effective_from in effective_dates:
+            record = self._resolver.resolve(
+                connection, dataset_code="market_index_metadata",
+                logical_key={"market_index_id": index_id, "effective_from": effective_from},
+                context=context, source=policy.source,
+            )
+            if record is not None and (
+                record.data["effective_to"] is None
+                or record.data["effective_to"] >= effective_on
+            ):
+                return record
+        return None
+
+    def corporate_action(self, connection: Connection, *, event_id: int,
+                         context: PITContext,
+                         source: str | None = None) -> ResolvedRecord | None:
         return self._resolver.resolve(connection, dataset_code="corporate_action",
-            logical_key={"security_id": security_id, "action_type": action_type, "ex_date": ex_date},
+            logical_key={"event_id": event_id},
             context=context, source=source)
 
     def official_valuation(self, connection: Connection, *, security_code: str,
@@ -69,11 +99,28 @@ class MarketReferenceService:
             security_id = self._security_id(connection, security_code or "")
             if security_id is None:
                 return ()
-            identity = {"security_id": security_id}
             if dataset_code == "corporate_action":
-                if not action_type:
-                    raise ValueError("corporate action history requires action_type")
-                identity["action_type"] = action_type
+                policy = self._policy.resolve(connection, dataset_code, context, source)
+                events = metadata.tables["corporate_action_events"]
+                event_ids = connection.scalars(sa.select(events.c.id).where(
+                    events.c.security_id == security_id,
+                    events.c.source == policy.source,
+                ).order_by(events.c.id))
+                records = []
+                for event_id in event_ids:
+                    record = self._resolver.resolve(
+                        connection, dataset_code=dataset_code,
+                        logical_key={"event_id": event_id}, context=context,
+                        source=policy.source,
+                    )
+                    if record is not None and (
+                        action_type is None or record.data["action_type"] == action_type
+                    ) and start_date <= record.data["ex_date"] <= end_date:
+                        records.append(record)
+                return tuple(sorted(
+                    records, key=lambda row: (row.data["ex_date"], row.data["event_id"])
+                ))
+            identity = {"security_id": security_id}
         policy = self._policy.resolve(connection, dataset_code, context, source)
         table = SPECS[dataset_code].table
         date_column = table.c.ex_date if dataset_code == "corporate_action" else table.c.trade_date

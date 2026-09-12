@@ -3,7 +3,8 @@
 ## Phase 8 scope
 
 Phase 8 implements cache-free normalized writes and PIT-safe reads for the
-observed `market_index`, `corporate_action`, and `official_valuation` datasets.
+observed `market_index`, `market_index_metadata`, `corporate_action`, and
+`official_valuation` datasets.
 PostgreSQL remains authoritative. This phase adds no Redis/cache behavior,
 derived calculator, source fetch adapter, or public HTTP route.
 
@@ -12,7 +13,8 @@ derived calculator, source fetch adapter, or public HTTP route.
 | Dataset | Logical key excluding source | Business revision content |
 | --- | --- | --- |
 | `market_index` | `(market_index_id, trade_date)` | source-published index OHLC, change, and trade value |
-| `corporate_action` | `(security_id, action_type, ex_date)` | announcement/record/payment dates and source terms |
+| `market_index_metadata` | `(market_index_id, effective_from)` | market, official name, and effective end |
+| `corporate_action` | `(event_id)` | action type, announcement/ex/record/payment dates, amounts, ratios, and source terms |
 | `official_valuation` | `(security_id, trade_date)` | source-published PE, PB, dividend yield, dividend year/per-share value, and report period |
 
 `source` keeps histories independent. Changed business content creates an
@@ -20,6 +22,18 @@ immutable revision. An equivalent refetch reuses that revision and appends its
 raw artifact/ingest-run observation. Logical keys, timestamps, source, and
 provenance do not enter `business_content_hash`; PostgreSQL generates the hash
 and trusted `ingested_at`.
+
+`market_index.index_code` is the only stable index identity. Market and name
+are source-observed, effective-dated metadata. A rename therefore creates a
+metadata revision and never mutates or conflicts with the stable index.
+
+Every corporate action first registers a stable event using
+`(security_id, source, source_event_key)`. A source document/event identifier
+is preferred. If a source lacks one, its adapter must document and test a
+source-specific synthetic identity that survives corrections; it must never
+silently use `action_type + ex_date` as a universal fallback. `action_type`,
+all dates, amounts, ratios, and terms are mutable revision content and enter
+the business hash. Two real events can therefore share type and ex-date.
 
 ## Canonical units
 
@@ -61,13 +75,16 @@ source. It never stores a Data Center-computed PE, PB, yield, percentile,
 TTM EPS, ROE, or other derived value as if it were observed.
 
 Computed valuation belongs to a versioned canonical derived definition such as
-`valuation_metrics:v1` in Phase 9. It must consume PIT-safe inputs, preserve
+`valuation_metrics:v1` in Phase 10. It must consume PIT-safe inputs, preserve
 input lineage/fingerprint and PIT context, and remain distinguishable in API
 metadata from source-published valuation.
 
 ## Query and provenance
 
-`MarketReferenceService` provides single-record and inclusive-history queries
+`MarketReferenceService` resolves corporate actions primarily by stable
+`event_id`; security/type/date history fields are filters over PIT-resolved
+event revisions and do not redefine identity. It also provides single-record
+and inclusive-history queries
 through the shared source policy and PIT resolver. Resolved records retain the
 selected source, business hash, evidence, raw artifact, and ingest run.
 `observations()` returns every immutable fetch lineage associated with one

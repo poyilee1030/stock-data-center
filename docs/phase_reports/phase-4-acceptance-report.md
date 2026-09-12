@@ -29,7 +29,7 @@ Primary evidence:
 One focused migration adds append-only version/evidence observation links,
 exact dataset/source validation, and backfill for existing rows. No REST API,
 Redis/cache package, or derived calculator was added. MoM, YoY, cumulative
-revenue, and cumulative YoY remain assigned to the Phase 9
+revenue, and cumulative YoY remain assigned to the Phase 10
 `monthly_revenue_growth:v1` derived contract.
 
 ## Review blocker closure

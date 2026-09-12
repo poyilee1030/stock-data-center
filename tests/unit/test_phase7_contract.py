@@ -92,7 +92,7 @@ def test_empty_source_records_are_rejected() -> None:
 def test_phase7_owns_observed_facts_not_derived_signals() -> None:
     contract = (ROOT / "docs" / "institutional_financing.md").read_text()
     assert "margin_pressure_score" in contract
-    assert "Phase 9" in contract
+    assert "Phase 10" in contract
     assert "shareholding concentration" in contract
     assert "sealed TDCC" in contract
     assert "QuantityScale.SHARE" in contract

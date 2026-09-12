@@ -15,6 +15,7 @@ from stock_data_center.market_reference import (
     AmountScale,
     CorporateActionObservation,
     MarketIndexObservation,
+    MarketIndexMetadataObservation,
     MarketReferenceService,
     MarketReferenceWriter,
     OfficialValuationObservation,
@@ -89,9 +90,7 @@ def market(at: datetime) -> MarketPITContext:
 def test_index_history_is_pit_safe_and_source_isolated(db: Connection) -> None:
     for source, close, canonical in (("twse", "25000", True), ("vendor", "24999", False)):
         configure(db, "market_index", source, canonical=canonical)
-        index_id = WRITER.register_index(
-            db, index_code="TAIEX-P8", market="TWSE", name="TAIEX Phase 8"
-        )
+        index_id = WRITER.register_index(db, index_code="TAIEX-P8")
         link = lineage(db, "market_index", source)
         written = WRITER.append_index(
             db, market_index_id=index_id, source=source,
@@ -125,9 +124,12 @@ def test_index_history_is_pit_safe_and_source_isolated(db: Connection) -> None:
 def test_corporate_action_is_visible_on_announcement_not_ex_date(db: Connection) -> None:
     configure(db, "corporate_action", "mops")
     security_id = add_security(db)
+    event_id = WRITER.register_corporate_action_event(
+        db, security_id=security_id, source="mops", source_event_key="MOPS-1234"
+    )
     link = lineage(db, "corporate_action", "mops")
     written = WRITER.append_corporate_action(
-        db, security_id=security_id, source="mops",
+        db, event_id=event_id, source="mops",
         observation=CorporateActionObservation(
             action_type="cash_dividend", announcement_date=date(2026, 8, 1),
             ex_date=TRADE_DATE, cash_dividend_per_share=TwdAmount(Decimal("3.5")),
@@ -139,12 +141,203 @@ def test_corporate_action_is_visible_on_announcement_not_ex_date(db: Connection)
         version_id=written.version_id, publication=publication(announced_at), lineage=link,
     )
     result = SERVICE.corporate_action(
-        db, security_code="2330-phase8", action_type="cash_dividend",
-        ex_date=TRADE_DATE, context=market(announced_at + timedelta(seconds=1)), source="mops",
+        db, event_id=event_id,
+        context=market(announced_at + timedelta(seconds=1)), source="mops",
     )
     assert result is not None
     assert result.data["announcement_date"] == date(2026, 8, 1)
     assert result.data["ex_date"] == TRADE_DATE
+
+
+def test_corporate_action_corrections_are_revisions_of_one_stable_event(
+    db: Connection,
+) -> None:
+    configure(db, "corporate_action", "mops")
+    security_id = add_security(db)
+    event_id = WRITER.register_corporate_action_event(
+        db, security_id=security_id, source="mops", source_event_key="DOC-2026-77"
+    )
+    initial_lineage = lineage(db, "corporate_action", "mops")
+    initial = WRITER.append_corporate_action(
+        db, event_id=event_id, source="mops",
+        observation=CorporateActionObservation(
+            action_type="cash_dividend", announcement_date=date(2026, 8, 1),
+            ex_date=date(2026, 9, 10), payment_date=date(2026, 10, 1),
+            cash_dividend_per_share=TwdAmount(Decimal("3.5")),
+        ), lineage=initial_lineage,
+    )
+    first_evidence = WRITER.append_publication_evidence(
+        db, dataset_code="corporate_action", source="mops",
+        version_id=initial.version_id,
+        publication=publication(datetime(2026, 8, 1, 6, tzinfo=UTC)),
+        lineage=initial_lineage,
+    )
+    first_recorded = db.scalar(sa.text(
+        "SELECT recorded_at FROM publication_evidence WHERE id=:id"
+    ), {"id": first_evidence})
+
+    corrected_lineage = lineage(db, "corporate_action", "mops")
+    corrected_date = WRITER.append_corporate_action(
+        db, event_id=event_id, source="mops",
+        observation=CorporateActionObservation(
+            action_type="cash_dividend", announcement_date=date(2026, 8, 1),
+            ex_date=date(2026, 9, 15), payment_date=date(2026, 10, 1),
+            cash_dividend_per_share=TwdAmount(Decimal("3.5")),
+        ), lineage=corrected_lineage,
+    )
+    second_evidence = WRITER.append_publication_evidence(
+        db, dataset_code="corporate_action", source="mops",
+        version_id=corrected_date.version_id,
+        publication=publication(datetime(2026, 8, 10, 6, tzinfo=UTC)),
+        lineage=corrected_lineage,
+    )
+    second_recorded = db.scalar(sa.text(
+        "SELECT recorded_at FROM publication_evidence WHERE id=:id"
+    ), {"id": second_evidence})
+
+    amount_lineage = lineage(db, "corporate_action", "mops")
+    corrected_terms = WRITER.append_corporate_action(
+        db, event_id=event_id, source="mops",
+        observation=CorporateActionObservation(
+            action_type="cash_dividend", announcement_date=date(2026, 8, 1),
+            ex_date=date(2026, 9, 15), payment_date=date(2026, 10, 5),
+            cash_dividend_per_share=TwdAmount(Decimal("4")),
+        ), lineage=amount_lineage,
+    )
+    WRITER.append_publication_evidence(
+        db, dataset_code="corporate_action", source="mops",
+        version_id=corrected_terms.version_id,
+        publication=publication(datetime(2026, 8, 20, 6, tzinfo=UTC)),
+        lineage=amount_lineage,
+    )
+    assert len({initial.version_id, corrected_date.version_id,
+                corrected_terms.version_id}) == 3
+    assert initial.business_content_hash != corrected_date.business_content_hash
+    assert corrected_date.business_content_hash != corrected_terms.business_content_hash
+    assert db.scalar(sa.text(
+        "SELECT count(*) FROM corporate_action_versions WHERE event_id=:event"
+    ), {"event": event_id}) == 3
+
+    before_knowledge = SERVICE.corporate_action(
+        db, event_id=event_id, source="mops",
+        context=MarketPITContext(
+            datetime(2026, 8, 11, tzinfo=UTC), first_recorded
+        ),
+    )
+    after_date_correction = SERVICE.corporate_action(
+        db, event_id=event_id, source="mops",
+        context=MarketPITContext(
+            datetime(2026, 8, 21, tzinfo=UTC), second_recorded
+        ),
+    )
+    current = SERVICE.corporate_action(
+        db, event_id=event_id, source="mops",
+        context=market(datetime(2026, 8, 21, tzinfo=UTC)),
+    )
+    assert before_knowledge is not None
+    assert before_knowledge.data["ex_date"] == date(2026, 9, 10)
+    assert before_knowledge.data["cash_dividend_per_share"] == Decimal("3.5")
+    assert after_date_correction is not None
+    assert after_date_correction.data["ex_date"] == date(2026, 9, 15)
+    assert after_date_correction.data["payment_date"] == date(2026, 10, 1)
+    assert after_date_correction.data["cash_dividend_per_share"] == Decimal("3.5")
+    assert current is not None
+    assert current.data["payment_date"] == date(2026, 10, 5)
+    assert current.data["cash_dividend_per_share"] == Decimal("4")
+
+
+def test_distinct_events_can_share_action_type_and_ex_date(db: Connection) -> None:
+    configure(db, "corporate_action", "mops")
+    security_id = add_security(db)
+    event_ids = [
+        WRITER.register_corporate_action_event(
+            db, security_id=security_id, source="mops", source_event_key=key
+        )
+        for key in ("DOC-A", "DOC-B")
+    ]
+    for event_id, amount in zip(event_ids, ("2", "3"), strict=True):
+        WRITER.append_corporate_action(
+            db, event_id=event_id, source="mops",
+            observation=CorporateActionObservation(
+                action_type="cash_dividend", ex_date=TRADE_DATE,
+                announcement_date=date(2026, 8, 1),
+                cash_dividend_per_share=TwdAmount(Decimal(amount)),
+            ), lineage=lineage(db, "corporate_action", "mops"),
+        )
+    assert event_ids[0] != event_ids[1]
+    assert WRITER.register_corporate_action_event(
+        db, security_id=security_id, source="mops", source_event_key="DOC-A"
+    ) == event_ids[0]
+    assert db.scalar(sa.text(
+        "SELECT count(*) FROM corporate_action_versions WHERE event_id=ANY(:events)"
+    ), {"events": event_ids}) == 2
+    with pytest.raises(DBAPIError) as immutable:
+        with db.begin_nested():
+            db.execute(sa.text(
+                "UPDATE corporate_action_events SET source_event_key='changed' WHERE id=:id"
+            ), {"id": event_ids[0]})
+    assert immutable.value.orig.sqlstate == "55000"
+
+
+def test_identical_corporate_action_refetch_keeps_one_revision_and_two_lineages(
+    db: Connection,
+) -> None:
+    configure(db, "corporate_action", "mops")
+    security_id = add_security(db)
+    event_id = WRITER.register_corporate_action_event(
+        db, security_id=security_id, source="mops", source_event_key="DOC-REPEAT"
+    )
+    observation = CorporateActionObservation(
+        action_type="rights", ex_date=TRADE_DATE,
+        announcement_date=date(2026, 8, 1), rights_ratio=Decimal("0.1"),
+    )
+    writes = [
+        WRITER.append_corporate_action(
+            db, event_id=event_id, source="mops", observation=observation,
+            lineage=lineage(db, "corporate_action", "mops"),
+        )
+        for _ in range(2)
+    ]
+    assert writes[0].created is True and writes[1].created is False
+    assert writes[0].version_id == writes[1].version_id
+    assert len(SERVICE.observations(
+        db, dataset_code="corporate_action", version_id=writes[0].version_id
+    )) == 2
+
+
+def test_index_name_is_effective_dated_metadata_not_identity(db: Connection) -> None:
+    configure(db, "market_index_metadata", "twse")
+    index_id = WRITER.register_index(db, index_code="IX0038-P8")
+    assert WRITER.register_index(db, index_code="IX0038-P8") == index_id
+    cases = (
+        (date(2020, 1, 1), "觀光事業類指數"),
+        (date(2023, 7, 3), "觀光餐旅類指數"),
+    )
+    for effective_from, name in cases:
+        link = lineage(db, "market_index_metadata", "twse")
+        written = WRITER.append_index_metadata(
+            db, market_index_id=index_id, source="twse",
+            observation=MarketIndexMetadataObservation(
+                effective_from=effective_from, market="TWSE", name=name
+            ), lineage=link,
+        )
+        WRITER.append_publication_evidence(
+            db, dataset_code="market_index_metadata", source="twse",
+            version_id=written.version_id,
+            publication=publication(datetime.combine(
+                effective_from, datetime.min.time(), tzinfo=UTC
+            )), lineage=link,
+        )
+    old = SERVICE.index_metadata(
+        db, index_code="IX0038-P8", effective_on=date(2023, 7, 2),
+        context=market(datetime(2023, 7, 3, tzinfo=UTC)), source="twse",
+    )
+    renamed = SERVICE.index_metadata(
+        db, index_code="IX0038-P8", effective_on=date(2023, 7, 3),
+        context=market(datetime(2023, 7, 4, tzinfo=UTC)), source="twse",
+    )
+    assert old is not None and old.data["name"] == "觀光事業類指數"
+    assert renamed is not None and renamed.data["name"] == "觀光餐旅類指數"
 
 
 def test_unknown_publication_is_system_visible_but_market_invisible(db: Connection) -> None:
@@ -196,9 +389,7 @@ def test_historical_backfill_uses_actual_ingestion_time(db: Connection) -> None:
 
 def test_equivalent_amounts_deduplicate_while_preserving_fetch_lineage(db: Connection) -> None:
     configure(db, "market_index", "twse")
-    index_id = WRITER.register_index(
-        db, index_code="TAIEX-DEDUP", market="TWSE", name="TAIEX dedupe"
-    )
+    index_id = WRITER.register_index(db, index_code="TAIEX-DEDUP")
     observations = (
         SourceTwdAmount(Decimal("500"), AmountScale.THOUSAND).to_canonical(),
         SourceTwdAmount(Decimal("500000"), AmountScale.MAJOR).to_canonical(),
@@ -269,6 +460,21 @@ def test_populated_phase8_migration_backfills_lineage_and_round_trips_hash(
                 RETURNING id, business_content_hash, ingested_at
             """), {"security": security_id, "artifact": link.raw_artifact_id,
                     "run": link.ingest_run_id}).mappings().one()
+            configure(connection, "market_index", "twse")
+            index_lineage = lineage(connection, "market_index", "twse")
+            legacy_index_id = connection.scalar(sa.text("""
+                INSERT INTO market_index(index_code,market,name)
+                VALUES('IX0038-MIGRATION','TWSE','觀光事業類指數') RETURNING id
+            """))
+            connection.execute(sa.text("""
+                INSERT INTO market_index_versions(
+                    market_index_id,source,trade_date,close_value,
+                    business_content_hash,ingested_at,raw_artifact_id,ingest_run_id
+                ) VALUES(:index,'twse',DATE '2020-01-02',100,repeat('0',64),
+                         statement_timestamp(),:artifact,:run)
+            """), {"index": legacy_index_id,
+                    "artifact": index_lineage.raw_artifact_id,
+                    "run": index_lineage.ingest_run_id})
         command.upgrade(config, "head")
         with isolated_engine.connect() as connection:
             after = connection.execute(sa.text("""
@@ -277,14 +483,39 @@ def test_populated_phase8_migration_backfills_lineage_and_round_trips_hash(
                          WHERE corporate_action_version_id=:id) AS observations
                   FROM corporate_action_versions WHERE id=:id
             """), {"id": before["id"]}).mappings().one()
-            assert after["business_content_hash"] != before["business_content_hash"]
+            # The predecessor already hashed action_type/ex_date as content;
+            # the stable event migration must preserve that correct identity.
+            assert after["business_content_hash"] == before["business_content_hash"]
             assert after["ingested_at"] == before["ingested_at"]
             assert after["observations"] == 1
+            legacy_event = connection.execute(sa.text("""
+                SELECT e.source_event_key,e.security_id
+                  FROM corporate_action_events e
+                  JOIN corporate_action_versions v ON v.event_id=e.id
+                 WHERE v.id=:id
+            """), {"id": before["id"]}).mappings().one()
+            assert legacy_event == {
+                "source_event_key": f"legacy-version:{before['id']}",
+                "security_id": security_id,
+            }
+            migrated_name = connection.execute(sa.text("""
+                SELECT market,name,effective_from
+                  FROM market_index_metadata_versions
+                 WHERE market_index_id=:index
+            """), {"index": legacy_index_id}).mappings().one()
+            assert migrated_name == {
+                "market": "TWSE", "name": "觀光事業類指數",
+                "effective_from": date(2020, 1, 2),
+            }
         command.downgrade(config, "3f7c9a2d6e10")
         with isolated_engine.connect() as connection:
             assert connection.scalar(sa.text(
                 "SELECT business_content_hash FROM corporate_action_versions WHERE id=:id"
             ), {"id": before["id"]}) == before["business_content_hash"]
+            restored = connection.execute(sa.text(
+                "SELECT market,name FROM market_index WHERE id=:id"
+            ), {"id": legacy_index_id}).mappings().one()
+            assert restored == {"market": "TWSE", "name": "觀光事業類指數"}
         command.upgrade(config, "head")
     finally:
         isolated_engine.dispose()

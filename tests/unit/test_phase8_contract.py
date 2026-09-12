@@ -7,6 +7,7 @@ import pytest
 from stock_data_center.market_reference import (
     AmountScale,
     CorporateActionObservation,
+    MarketIndexMetadataObservation,
     MarketIndexObservation,
     OfficialValuationObservation,
     SourceTwdAmount,
@@ -53,6 +54,16 @@ def test_corporate_action_has_distinct_announcement_and_effective_dates() -> Non
         )
 
 
+def test_index_name_is_versioned_metadata() -> None:
+    old = MarketIndexMetadataObservation(
+        effective_from=date(2020, 1, 1), market="TWSE", name="觀光事業類指數"
+    )
+    renamed = MarketIndexMetadataObservation(
+        effective_from=date(2023, 7, 3), market="TWSE", name="觀光餐旅類指數"
+    )
+    assert old.name != renamed.name
+
+
 def test_official_valuation_requires_a_source_published_value() -> None:
     with pytest.raises(ValueError, match="source-published"):
         OfficialValuationObservation(trade_date=date(2026, 9, 10))
@@ -67,6 +78,9 @@ def test_phase8_contract_keeps_observed_and_computed_valuation_distinct() -> Non
     assert "shares per share" in contract
     assert "effective" in contract
     assert "announcement" in contract
+    assert "source_event_key" in contract
+    assert "action_type + ex_date" in contract
+    assert "market_index_metadata" in contract
 
 
 def test_phase8_package_has_no_cache_http_or_calculator_dependency() -> None:

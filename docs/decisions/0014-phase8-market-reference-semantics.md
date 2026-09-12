@@ -14,6 +14,11 @@ with a Data Center-computed PE.
 ## Decision
 
 - Keep independent immutable revisions per dataset, source, and logical key.
+- Keep only `index_code` in stable index identity; version source-observed
+  market/name metadata by effective date.
+- Give every corporate action a stable `(security, source, source_event_key)`
+  event identity. Treat action type, dates, amounts, ratios, and terms as
+  hashed revision content. Never use type plus ex-date as a universal identity.
 - Treat index/valuation `trade_date` as effective observation date.
 - Treat corporate `announcement_date` as source announcement date and
   `ex_date` as event effective date; market visibility follows publication

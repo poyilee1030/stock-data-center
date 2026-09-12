@@ -20,7 +20,7 @@ migrations are the deployment record in `migrations/versions/`.
 | TDCC aggregate | `tdcc_snapshot_versions`, `tdcc_distribution`, `tdcc_snapshot_seals`, `tdcc_distribution_schemas`, `tdcc_distribution_schema_buckets` |
 | Institutional data | `institutional_investor_versions`, `institutional_market_summary_versions`, `foreign_holding_versions` |
 | Credit/short data | `margin_trading_versions`, `securities_lending_versions` |
-| Reference/event data | `market_index`, `market_index_versions`, `corporate_action_versions`, `security_tag_versions` |
+| Reference/event data | `market_index`, `market_index_metadata_versions`, `market_index_versions`, `corporate_action_events`, `corporate_action_versions`, `security_tag_versions` |
 | Official source metrics | `official_valuation_versions`, `xbrl_concept_catalog_versions` |
 | Canonical derived data | `derived_dataset_definitions`, `derived_computation_runs`, `derived_metric_versions` |
 | Publication knowledge | `publication_evidence` |
@@ -245,7 +245,7 @@ Asia/Taipei.
 No pressure score or cross-dataset ratio is materialized in this phase.
 Trust/dealer daily flows support only explicitly named cumulative-net-flow
 proxies; without a real baseline they do not reconstruct absolute holdings.
-Canonical metrics remain Phase 9 work over PIT-resolved inputs. See
+Canonical metrics remain Phase 10 work over PIT-resolved inputs. See
 [the Phase 7 contract](institutional_financing.md) and
 [ADR-0013](decisions/0013-phase7-observed-source-semantics.md).
 
@@ -257,11 +257,13 @@ append-only, source-validated observation links. Business hashes exclude
 logical keys and provenance, and migration rehashing preserves original
 trusted ingestion timestamps.
 
+Only index code is stable identity; market/name are effective-dated metadata.
 Index and official valuation `trade_date` values are effective observation
-dates. Corporate action `announcement_date` and effective `ex_date` are
-separate: reliable publication may make an action visible before its ex-date.
+dates. Corporate actions use a stable source event key. Their action type,
+`announcement_date`, effective `ex_date`, amounts, and terms are revision
+content: reliable publication may make an action visible before its ex-date.
 TWD amounts normalize to major units at the canonical boundary. Source-
-published valuation remains observed and separate from Phase 9 computed
+published valuation remains observed and separate from Phase 10 computed
 `valuation_metrics:v1`. See [the Phase 8 contract](market_reference.md) and
 [ADR-0014](decisions/0014-phase8-market-reference-semantics.md).
 

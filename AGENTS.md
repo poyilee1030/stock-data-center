@@ -1439,7 +1439,252 @@ Caching remains a later optimization phase.
 
 ---
 
-# 70. Derived Implementation Phase Rule
+# 70. Real-Data Import Phase Boundary
+
+Real external-source adapters and bulk historical backfill belong to the dedicated real-data import phase after observed-domain contracts are implemented.
+
+Earlier phases may implement:
+
+```text
+domain writers
+PIT resolvers
+normalization types
+controlled fixture ingestion
+migration tests
+```
+
+Fixture-backed ingestion is not proof that real source import/backfill is complete.
+
+Do not begin canonical-derived calculations merely because fixture data exists.
+
+---
+
+# 71. Raw-First Adapter Rule
+
+For a real external source, preserve the raw artifact before normalization whenever retention is possible.
+
+Required provenance should include as applicable:
+
+```text
+source
+resource/request identity
+fetch time
+raw bytes/export
+raw artifact hash
+ingest run
+adapter/parser version
+```
+
+Do not discard the source representation after extracting canonical rows.
+
+For legacy PostgreSQL migration, preserve an auditable export/manifest even when original source bytes are unavailable.
+
+---
+
+# 72. Source-Native Unit Rule
+
+A real adapter must know the source unit/scale before constructing a canonical observation.
+
+Examples:
+
+```text
+MOPS thousand-TWD -> canonical major currency units
+TPEx lots -> canonical shares
+TWSE shares -> canonical shares
+```
+
+Do not guess a unit from numeric magnitude.
+
+Do not pass ambiguous source-native numbers into canonical writers.
+
+Business hashes use normalized canonical business content.
+
+---
+
+# 73. Historical Backfill Publication-Time Rule
+
+Historical backfill never invents `published_at`.
+
+Allowed:
+
+```text
+published_at = historical public time proven by retained/authoritative evidence
+```
+
+If not provable:
+
+```text
+published_at = NULL
+```
+
+Do not substitute:
+
+```text
+current import time
+filesystem mtime
+effective/observation date
+legacy row existence
+```
+
+for publication time without an explicit source contract.
+
+`recorded_at` is the actual time this Data Center records the evidence.
+
+---
+
+# 74. Historical Backfill System-PIT Rule
+
+Normal backfill records actual Data Center ingestion/seal time.
+
+Do not copy historical market/effective dates into:
+
+```text
+ingested_at
+seal.ingested_at
+```
+
+A trusted migration may preserve old-system ingestion time only if that timestamp genuinely represented completed ingestion and its semantics/provenance are documented and tested.
+
+Otherwise, it is correct for historical Market PIT and current-backfill System PIT to differ.
+
+---
+
+# 75. Legacy Database Migration Rule
+
+The legacy `stock_db` is migration input, not automatically authoritative truth.
+
+Do not bulk-copy old tables into canonical tables without:
+
+```text
+legacy field mapping
+source-semantic validation
+unit normalization
+publication/PIT validation
+provenance capture
+new writer/trusted migration constraints
+```
+
+Do not import legacy derived tables as observed truth merely for compatibility.
+
+Prefer authoritative raw-source reconstruction where reliable history exists.
+
+---
+
+# 76. Backfill Idempotency and Restart Rule
+
+Bulk import/backfill must be safe to rerun and resume.
+
+Required:
+
+```text
+same canonical content -> no fake business revision
+same evidence identity -> no fake evidence revision
+repeated observation -> provenance remains auditable
+partial failure -> restart does not corrupt prior work
+```
+
+Use explicit import IDs, checkpoints, and manifests.
+
+Do not design a one-shot migration that cannot safely resume.
+
+---
+
+# 77. Pilot-Before-Bulk Rule
+
+Before full-market historical backfill, run a representative real-data pilot.
+
+Include enough cases to exercise:
+
+```text
+TWSE
+TPEx
+market-transfer history
+monthly revenue
+financial/XBRL
+TDCC
+institutional/margin/SBL
+market index/corporate action/valuation where supported
+```
+
+The pilot must validate:
+
+```text
+raw artifact
+-> parser
+-> normalization
+-> trusted writer
+-> PostgreSQL
+-> PIT resolver
+-> reconciliation
+```
+
+Do not approve full bulk backfill until the pilot acceptance report passes.
+
+---
+
+# 78. Import Reconciliation Rule
+
+Every real-data import/backfill needs reconciliation.
+
+At minimum report:
+
+```text
+source/domain
+adapter version
+requested/actual coverage
+raw artifact count
+business version count
+evidence count
+dedup count
+unknown-publication count
+rejected/quarantined count
+coverage gaps
+warnings/anomalies
+```
+
+For legacy migration, compare old/new samples and counts where meaningful.
+
+Differences caused by corrected revision/evidence modeling are allowed but must be explained.
+
+Never silently ignore discrepancies.
+
+---
+
+# 79. Import Manifest and Quarantine Rule
+
+Every pilot/bulk import must emit an auditable manifest containing enough information to identify:
+
+```text
+import ID
+git commit
+adapter/parser version
+source/scope
+configuration fingerprint
+start/end time
+input/raw hashes where practical
+result counts
+warnings/errors
+reconciliation result
+```
+
+Suspicious or semantically ambiguous records must fail loudly or enter an explicit quarantine path.
+
+Examples:
+
+```text
+unknown unit
+ambiguous EPS basis
+invalid XBRL context
+incomplete TDCC distribution
+unsupported evidence
+unmappable security/market
+```
+
+Preserve the raw artifact and failure reason.
+
+---
+
+# 80. Derived Implementation Phase Rule
 
 Phase 1 may define canonical derived storage/definition contracts.
 
@@ -1449,7 +1694,7 @@ Do not implement model training logic inside derived calculators.
 
 ---
 
-# 71. Migration Rule
+# 81. Migration Rule
 
 A migration that changes historical temporal or derivation meaning must include a cache-impact section.
 
@@ -1465,7 +1710,7 @@ before/with rollout.
 
 ---
 
-# 72. Redis Configuration Rule
+# 82. Redis Configuration Rule
 
 Redis-specific configuration belongs in deployment/configuration files.
 
@@ -1483,7 +1728,7 @@ inside domain logic.
 
 ---
 
-# 73. Security Rule
+# 83. Security Rule
 
 If Redis is remote:
 
@@ -1496,7 +1741,7 @@ Redis is infrastructure, not a public API.
 
 ---
 
-# 74. Priority Order
+# 84. Priority Order
 
 When tradeoffs exist, prioritize:
 
@@ -1505,21 +1750,23 @@ When tradeoffs exist, prioritize:
 2. historical auditability
 3. complete v1 domain ownership/storage contract
 4. provenance integrity
-5. deterministic behavior
-6. source isolation
-7. derivation-version correctness
-8. cache/result equivalence
-9. maintainability
-10. performance
-11. SSD/read reduction
-12. convenience
+5. real-source semantic correctness and unit normalization
+6. deterministic/idempotent import behavior
+7. source isolation
+8. derivation-version correctness
+9. import reconciliation/auditability
+10. cache/result equivalence
+11. maintainability
+12. performance
+13. SSD/read reduction
+14. convenience
 ```
 
-Never trade the first eight for performance.
+Never trade PIT, auditability, provenance, source semantics, import determinism, source isolation, derivation correctness, reconciliation, or cache correctness for performance.
 
 ---
 
-# 75. Phase Completion Checklist
+# 85. Phase Completion Checklist
 
 Before declaring any phase complete:
 
@@ -1543,6 +1790,20 @@ canonical-derived contracts complete
 derivation-version semantics documented
 ```
 
+For the real-data import/backfill phase additionally:
+
+```text
+real source adapters use explicit source semantics
+raw-first provenance is preserved
+pilot import passes before bulk import
+publication time is proven or unknown
+normal backfill preserves actual System-PIT ingestion time
+backfill is idempotent and restartable
+reconciliation/import manifests exist
+quarantined/anomalous records are reported
+real-data PIT spot checks pass
+```
+
 For cache phases additionally:
 
 ```text
@@ -1555,7 +1816,7 @@ Then publish the phase acceptance report.
 
 ---
 
-# 76. Core Boundary
+# 86. Core Boundary
 
 Remember the repository contract:
 

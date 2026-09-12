@@ -37,7 +37,7 @@ def test_source_amount_normalizes_before_storage_observation() -> None:
 def test_phase4_contract_keeps_derived_metrics_out_of_scope() -> None:
     contract = (ROOT / "docs" / "monthly_revenue.md").read_text()
     assert "monthly_revenue_growth:v1" in contract
-    assert "Phase 9" in contract
+    assert "Phase 10" in contract
     assert "computed_at" not in contract
 
 

@@ -88,7 +88,7 @@ migration upgrade/downgrade hash contract round-trip      PASS
 no model-specific pressure/ranking logic                  PASS
 no absolute trust/dealer holding claim without baseline  PASS
 legacy cumulative-flow proxy explicitly renamed          PASS
-no Phase 9 canonical calculators                          PASS
+no Phase 10 canonical calculators                         PASS
 CACHE_BACKEND=none / no Redis dependency                  PASS
 ```
 

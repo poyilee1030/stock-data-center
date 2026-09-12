@@ -1244,17 +1244,17 @@ cache-key correctness
 
 Acceptance criteria:
 
-- [x] `information_as_of` and `knowledge_as_of` are defined
-- [x] `system_as_of` is defined
-- [x] publication evidence uses `published_at` + DB-controlled `recorded_at`
-- [x] business and evidence revisions are separate
-- [x] only sealed complex aggregates are visible
-- [x] source-level PIT capability is defined
-- [x] observed vs canonical-derived ownership is defined
-- [x] derived `computed_at` is explicitly not market publication time
-- [x] Redis is explicitly optional
-- [x] cache-on/cache-off equivalence is an invariant
-- [x] PIT-aware cache-key fields are documented
+- [ ] `information_as_of` and `knowledge_as_of` are defined
+- [ ] `system_as_of` is defined
+- [ ] publication evidence uses `published_at` + DB-controlled `recorded_at`
+- [ ] business and evidence revisions are separate
+- [ ] only sealed complex aggregates are visible
+- [ ] source-level PIT capability is defined
+- [ ] observed vs canonical-derived ownership is defined
+- [ ] derived `computed_at` is explicitly not market publication time
+- [ ] Redis is explicitly optional
+- [ ] cache-on/cache-off equivalence is an invariant
+- [ ] PIT-aware cache-key fields are documented
 
 ---
 
@@ -1433,25 +1433,25 @@ PIT inheritance semantics
 
 ## Acceptance Criteria
 
-- [x] `docs/data_domain_inventory.md` exists and covers all known legacy tables/domains
-- [x] every legacy field/domain is intentionally mapped, deprecated, derived, raw-only, or downstream-owned
-- [x] all known v1 observed data domains have a defined storage contract
-- [x] all known v1 canonical-derived domains have a defined materialized/virtual contract
-- [x] child insert after seal is rejected
-- [x] sealed aggregate cannot be updated/deleted
-- [x] seal and child mutation serialize on the same aggregate identity
-- [x] committed unsealed aggregate can exist but is resolver-invisible
-- [x] caller cannot forge normal historical ingestion time
-- [x] business hash is storage-generated from canonical business content
-- [x] evidence update does not create false business revision
-- [x] correction/retraction can be represented append-only
-- [x] XBRL context identity supports dimensions
-- [x] source A capability does not leak to source B
-- [x] canonical derived tables/definitions include `derivation_version`
-- [x] derived `computed_at` is not used as market publication time
-- [x] migration tests cover every v1 table
-- [x] Alembic upgrade/downgrade/upgrade succeeds
-- [x] `alembic check` passes
+- [ ] `docs/data_domain_inventory.md` exists and covers all known legacy tables/domains
+- [ ] every legacy field/domain is intentionally mapped, deprecated, derived, raw-only, or downstream-owned
+- [ ] all known v1 observed data domains have a defined storage contract
+- [ ] all known v1 canonical-derived domains have a defined materialized/virtual contract
+- [ ] child insert after seal is rejected
+- [ ] sealed aggregate cannot be updated/deleted
+- [ ] seal and child mutation serialize on the same aggregate identity
+- [ ] committed unsealed aggregate can exist but is resolver-invisible
+- [ ] caller cannot forge normal historical ingestion time
+- [ ] business hash is storage-generated from canonical business content
+- [ ] evidence update does not create false business revision
+- [ ] correction/retraction can be represented append-only
+- [ ] XBRL context identity supports dimensions
+- [ ] source A capability does not leak to source B
+- [ ] canonical derived tables/definitions include `derivation_version`
+- [ ] derived `computed_at` is not used as market publication time
+- [ ] migration tests cover every v1 table
+- [ ] Alembic upgrade/downgrade/upgrade succeeds
+- [ ] `alembic check` passes
 
 ---
 
@@ -1492,10 +1492,10 @@ unsealed aggregate invisibility
 
 Acceptance criteria:
 
-- [x] resolver correctness does not depend on Redis
-- [x] deterministic authoritative-evidence selection exists
-- [x] market/system semantics match Phase 0
-- [x] queries return provenance
+- [ ] resolver correctness does not depend on Redis
+- [ ] deterministic authoritative-evidence selection exists
+- [ ] market/system semantics match Phase 0
+- [ ] queries return provenance
 
 ---
 
@@ -1519,12 +1519,12 @@ The implementation must follow the Phase 1 disposition of legacy `daily_quotes` 
 
 Acceptance criteria:
 
-- [x] no survivorship-only current security list
-- [x] historical security state is queryable
-- [x] daily market data is source/revision aware
-- [x] intentionally preserved legacy observable fields are queryable
-- [x] intentionally dropped fields are documented
-- [x] dataset-specific regression tests exist
+- [ ] no survivorship-only current security list
+- [ ] historical security state is queryable
+- [ ] daily market data is source/revision aware
+- [ ] intentionally preserved legacy observable fields are queryable
+- [ ] intentionally dropped fields are documented
+- [ ] dataset-specific regression tests exist
 
 ---
 
@@ -1545,15 +1545,15 @@ raw provenance
 
 Required historical regression cases include delayed publication around known dates.
 
-Canonical revenue-derived metrics such as MoM/YoY may be implemented here or in Phase 9, but must follow the Phase 1 derivation contract.
+Canonical revenue-derived metrics such as MoM/YoY may be implemented here or in Phase 10, but must follow the Phase 1 derivation contract.
 
 Acceptance criteria:
 
-- [x] unknown publication is market-invisible
-- [x] official publication evidence can later improve reconstruction
-- [x] knowledge cutoff prevents using evidence learned later
-- [x] same business content with new evidence does not create business revision
-- [x] dataset-specific PIT tests exist
+- [ ] unknown publication is market-invisible
+- [ ] official publication evidence can later improve reconstruction
+- [ ] knowledge cutoff prevents using evidence learned later
+- [ ] same business content with new evidence does not create business revision
+- [ ] dataset-specific PIT tests exist
 
 ---
 
@@ -1578,14 +1578,14 @@ Historical actual EPS and other canonical financial facts must become available 
 
 Acceptance criteria:
 
-- [x] unsealed filings are invisible
-- [x] child insert after seal fails
-- [x] concurrent seal/child behavior preserves aggregate hash correctness
-- [x] dimensional facts can coexist correctly
-- [x] canonical duplicate facts are rejected
-- [x] Q4 availability is controlled by evidence, not calendar shortcuts
-- [x] historical EPS actuals are PIT-safe
-- [x] dataset-specific regression tests exist
+- [ ] unsealed filings are invisible
+- [ ] child insert after seal fails
+- [ ] concurrent seal/child behavior preserves aggregate hash correctness
+- [ ] dimensional facts can coexist correctly
+- [ ] canonical duplicate facts are rejected
+- [ ] Q4 availability is controlled by evidence, not calendar shortcuts
+- [ ] historical EPS actuals are PIT-safe
+- [ ] dataset-specific regression tests exist
 
 ---
 
@@ -1609,10 +1609,10 @@ TDCC raw distribution is the source dataset for later canonical shareholding-con
 
 Acceptance criteria:
 
-- [x] snapshot is invisible before seal
-- [x] distribution cannot mutate after seal
-- [x] backfilled historical data does not falsify system PIT
-- [x] dataset-specific regression tests exist
+- [ ] snapshot is invisible before seal
+- [ ] distribution cannot mutate after seal
+- [ ] backfilled historical data does not falsify system PIT
+- [ ] dataset-specific regression tests exist
 
 ---
 
@@ -1643,12 +1643,12 @@ Do not store model-specific interpretations here.
 
 Acceptance criteria:
 
-- [x] each source domain has explicit logical/revision keys
-- [x] publication/effective-time semantics are documented
-- [x] historical backfill preserves system PIT
-- [x] source-specific provenance is preserved
-- [x] old model-selection raw dependencies can be reconstructed from Data Center source data
-- [x] dataset-specific regression tests exist
+- [ ] each source domain has explicit logical/revision keys
+- [ ] publication/effective-time semantics are documented
+- [ ] historical backfill preserves system PIT
+- [ ] source-specific provenance is preserved
+- [ ] old model-selection raw dependencies can be reconstructed from Data Center source data
+- [ ] dataset-specific regression tests exist
 
 ---
 
@@ -1704,7 +1704,463 @@ Acceptance criteria:
 
 ---
 
-# 35. Phase 9 — Canonical Derived Datasets
+# 35. Phase 9 — Real Source Adapters and Historical Backfill
+
+## Goal
+
+Populate PostgreSQL with real historical source data only after the observed-domain storage and PIT contracts are complete.
+
+Earlier phases establish:
+
+```text
+schema
+domain models
+trusted writers
+PIT resolvers
+normalization contracts
+controlled fixture-based regressions
+```
+
+Phase 9 is where the project begins production-like ingestion of:
+
+```text
+real external-source data
+legacy stock_db migration inputs
+historical backfill
+large-scale reconciliation
+```
+
+The required path is:
+
+```text
+authoritative source / retained legacy source
+        |
+        v
+raw artifact captured first
+        |
+        v
+source-specific adapter/parser
+        |
+        v
+explicit unit/time/identity normalization
+        |
+        v
+trusted domain writer
+        |
+        v
+PostgreSQL business versions + evidence + provenance
+        |
+        v
+PIT resolver
+        |
+        v
+reconciliation / audit report
+```
+
+Canonical derived datasets must not be used to compensate for missing or incorrect observed-source imports.
+
+## 35.1 Real Source Adapter Scope
+
+Implement real adapters for the supported v1 observed domains, including as applicable:
+
+```text
+TWSE / TPEx security metadata
+TWSE / TPEx daily market data
+
+MOPS monthly revenue
+MOPS financial / XBRL
+
+TDCC snapshots / distributions
+
+institutional investor flows
+foreign holdings
+margin / short selling
+securities lending / SBL
+
+market indices
+corporate actions
+official source valuation
+```
+
+An adapter must use the trusted domain contract.
+
+Do not write ad hoc rows directly into canonical version tables merely because bulk loading is faster.
+
+## 35.2 Raw-First Rule
+
+For external sources:
+
+> Preserve the raw source artifact before normalization whenever the source can be retained.
+
+Preserve enough provenance to audit parsing:
+
+```text
+source
+resource/request identity
+fetch time
+raw bytes or faithful source export
+raw artifact hash
+adapter/parser version
+ingest run
+```
+
+Do not retain only parsed rows when the underlying source representation is available.
+
+For legacy PostgreSQL migration, preserve an auditable hashed export/manifest or equivalent migration artifact before transforming rows.
+
+## 35.3 Canonical Normalization Boundary
+
+Source-native semantics must be explicit at the adapter boundary.
+
+Examples already frozen by earlier phases:
+
+```text
+monthly revenue:
+    source thousand-TWD
+    -> canonical currency major units
+
+stock quantities:
+    source lots / shares
+    -> canonical shares
+
+TDCC:
+    declared distribution profile
+    signed level-16 adjustment
+    canonical holder_count semantics
+
+security:
+    stable security_code identity
+    effective-dated market membership
+
+financial/XBRL:
+    QName/context identity
+    EPS period basis
+    explicit nil semantics
+```
+
+Do not pass ambiguous bare numeric values into canonical observations when source unit/scale varies by source.
+
+Business hashes use normalized canonical business content.
+
+## 35.4 Publication-Evidence Backfill Rule
+
+Historical backfill must not invent market publication time.
+
+If retained evidence proves historical publication:
+
+```text
+published_at = proven historical public time
+recorded_at  = actual time this Data Center records the evidence
+```
+
+If historical publication time cannot be proved:
+
+```text
+published_at = NULL
+```
+
+Do not substitute these values for publication time without an explicit source contract:
+
+```text
+current import time
+filesystem modification time
+observation/effective date
+legacy row existence
+```
+
+A legacy `publish_time` may be migrated only when its original semantics and source are understood and documented.
+
+## 35.5 System-PIT Backfill Rule
+
+Normal backfill records the actual ingestion history of the new Data Center.
+
+Therefore:
+
+```text
+ingested_at / seal.ingested_at
+=
+actual current Data Center insert/seal time
+```
+
+Do not copy market/effective dates into ingestion time.
+
+A trusted migration may preserve an old-system ingestion timestamp only when:
+
+```text
+the old timestamp truly meant complete ingestion
+its semantics are documented
+the trusted migration path is explicit
+the original provenance is retained
+regression tests prove the intended reconstruction
+```
+
+Otherwise it is correct for:
+
+```text
+Market PIT
+    -> historical source information
+
+System PIT
+    -> information arrived during the new backfill
+```
+
+to show different histories.
+
+## 35.6 Legacy `stock_db` Migration
+
+The old database is migration input, not automatically authoritative truth.
+
+Every migrated domain must pass through:
+
+```text
+legacy-field inventory mapping
+source-semantic validation
+unit normalization
+publication/PIT validation
+provenance capture
+new domain writer or trusted migration constraints
+```
+
+Do not bulk-copy old tables into new canonical tables.
+
+Special rules:
+
+```text
+old derived tables
+    -> do not import as observed truth merely for compatibility
+
+old current-state rows
+    -> row existence today is not historical visibility
+
+old trust/dealer "holding"
+    -> preserve corrected cumulative-flow proxy semantics
+       unless a reliable absolute baseline is introduced
+
+old publication timestamps
+    -> preserve only when semantics/source evidence are validated
+```
+
+Prefer authoritative source reconstruction over legacy derived values when reliable raw history is available.
+
+## 35.7 Idempotent and Restartable Backfill
+
+Backfill jobs must be safe to rerun and resume.
+
+Required behavior:
+
+```text
+same canonical business content
+    -> no fake business revision
+
+same evidence identity
+    -> no fake evidence revision
+
+repeated fetch/import observation
+    -> auditable provenance remains
+
+partial job failure
+    -> restart without corrupting imported history
+```
+
+Use explicit import IDs, checkpoints, and manifests.
+
+Do not design full historical migration as a one-shot process that cannot be resumed safely.
+
+## 35.8 Pilot Before Full Backfill
+
+Do not begin full-market historical backfill immediately.
+
+First run a representative pilot.
+
+The pilot should include, where supported:
+
+```text
+at least one TWSE security
+at least one TPEx security
+at least one security with market-transfer history
+at least one security with revenue + financial/XBRL + TDCC coverage
+representative institutional / margin / SBL records
+representative index / corporate-action / valuation records
+```
+
+The pilot must exercise:
+
+```text
+raw capture
+parser
+normalization
+trusted writer
+PostgreSQL
+publication evidence
+PIT resolver
+history query
+repeat-fetch behavior
+reconciliation
+```
+
+Full historical backfill starts only after the pilot acceptance report passes.
+
+## 35.9 Reconciliation
+
+Every imported domain requires a reconciliation report.
+
+At minimum record:
+
+```text
+source
+adapter/version
+requested date range
+actual coverage range
+raw artifact count
+normalized version count
+dedup count
+publication evidence count
+unknown-publication count
+rejected/quarantined count
+coverage gaps
+source-specific anomalies
+```
+
+For legacy migration also compare, where meaningful:
+
+```text
+legacy row counts
+new canonical version counts
+sampled security/date/value pairs
+known historical edge cases
+intentional semantic differences
+```
+
+Exact count equality is not required when the new design intentionally separates:
+
+```text
+business revisions
+publication evidence
+raw observations
+```
+
+but every material discrepancy must be explained.
+
+## 35.10 Real-Data PIT Spot Checks
+
+Use imported real records for permanent high-risk PIT regressions.
+
+Include cases such as:
+
+```text
+late monthly-revenue publication
+Q4 financial filing before/after publication
+financial revision across knowledge cutoffs
+security market transfer
+TDCC signed adjustment/profile completeness
+institutional/margin lot-to-share normalization
+late historical backfill under System PIT
+```
+
+These complement synthetic fixture-based tests.
+
+## 35.11 Import Manifest
+
+Every pilot or bulk import must emit an auditable manifest/report.
+
+Recommended fields:
+
+```text
+import ID
+git commit
+adapter/parser versions
+source identifiers
+security/date scope
+start/end time
+configuration fingerprint
+input/raw hashes where practical
+business/evidence/observation counts
+warning/error/quarantine counts
+reconciliation result
+```
+
+Do not include credentials or secrets.
+
+## 35.12 Quarantine / Fail-Loudly Rule
+
+Do not coerce suspicious source data merely to finish a backfill.
+
+Examples requiring rejection, quarantine, or an explicit policy:
+
+```text
+unknown unit
+invalid security identity
+unmappable market
+invalid XBRL context
+ambiguous EPS basis
+incomplete TDCC distribution
+unsupported publication evidence
+unexplained impossible negative value
+```
+
+Preserve the raw artifact and failure reason.
+
+## 35.13 Recommended Import Order
+
+Prefer dependency-aware import ordering:
+
+```text
+1. security identity / historical metadata
+2. daily market data
+3. monthly revenue
+4. financial / XBRL
+5. TDCC
+6. institutional / margin / short / SBL
+7. market indices
+8. corporate actions
+9. official valuation
+```
+
+A domain may be imported earlier when its dependencies are already satisfied, but do not create placeholder identities that later need silent reinterpretation.
+
+## 35.14 Phase Boundary
+
+Phase 9 imports observed/source data.
+
+Do not implement canonical derived calculations here:
+
+```text
+MA / RSI / MACD
+shareholding concentration
+TTM EPS
+ROE / ROA
+computed PE / PB
+margin pressure
+short-interest score
+```
+
+Those belong to Phase 10.
+
+Redis/cache is not a prerequisite for import or backfill.
+
+## Acceptance Criteria
+
+- [ ] real adapters exist for every supported v1 observed domain/source
+- [ ] every adapter uses explicit source-unit/time/identity semantics
+- [ ] external raw artifacts are retained before normalization where available
+- [ ] legacy migration has an auditable export/manifest
+- [ ] historical publication times are proven or stored as unknown
+- [ ] normal backfill does not backdate System-PIT ingestion time
+- [ ] repeated imports are idempotent at business/evidence identity
+- [ ] repeated observations preserve provenance
+- [ ] representative pilot import passes end to end
+- [ ] real-data PIT spot checks pass
+- [ ] per-domain reconciliation reports exist
+- [ ] unexplained anomalies are quarantined/reported
+- [ ] historical coverage is documented per source/domain
+- [ ] restart/resume behavior is tested
+- [ ] no canonical derived calculator is implemented in this phase
+- [ ] Redis is not required
+- [ ] Phase 9 acceptance report records imported coverage and reconciliation results
+
+---
+
+# 36. Phase 10 — Canonical Derived Datasets
 
 ## Goal
 
@@ -1765,7 +2221,7 @@ Acceptance criteria:
 
 ---
 
-# 36. Phase 10 — Standardize Public REST Contract
+# 37. Phase 11 — Standardize Public REST Contract
 
 ## Goal
 
@@ -1816,7 +2272,7 @@ Acceptance criteria:
 
 ---
 
-# 37. Phase 11 — Optional Cache Abstraction
+# 38. Phase 12 — Optional Cache Abstraction
 
 ## Goal
 
@@ -1845,7 +2301,7 @@ Acceptance criteria:
 
 ---
 
-# 38. Phase 12 — Redis Backend
+# 39. Phase 13 — Redis Backend
 
 ## Goal
 
@@ -1909,7 +2365,7 @@ Acceptance criteria:
 
 ---
 
-# 39. Phase 13 — Operational Tooling and Observability
+# 40. Phase 14 — Operational Tooling and Observability
 
 ## Goal
 
@@ -1947,7 +2403,7 @@ Do not make performance assumptions without measurement.
 
 ---
 
-# 40. Phase 14 — Full PIT Regression and CI Gate
+# 41. Phase 15 — Full PIT Regression and CI Gate
 
 ## Goal
 
@@ -2003,7 +2459,7 @@ Acceptance criteria:
 
 ---
 
-# 41. Phase 15 — Downstream Readiness
+# 42. Phase 16 — Downstream Readiness
 
 ## Goal
 
@@ -2057,7 +2513,7 @@ Acceptance criteria:
 
 ---
 
-# 42. Suggested Source Layout
+# 43. Suggested Source Layout
 
 ```text
 stock-data-center/
@@ -2100,6 +2556,10 @@ stock-data-center/
 │       │   └── policy.py
 │       ├── storage/
 │       ├── ingestion/
+│       │   ├── adapters/
+│       │   ├── backfill/
+│       │   ├── reconciliation/
+│       │   └── manifests/
 │       └── domain/
 └── tests/
     ├── unit/
@@ -2110,7 +2570,7 @@ stock-data-center/
 
 ---
 
-# 43. Definition of Done for v1
+# 44. Definition of Done for v1
 
 Version 1 is complete when:
 
@@ -2125,6 +2585,11 @@ Version 1 is complete when:
 
 - [ ] all known v1 legacy/source domains have an explicit storage/ownership mapping
 - [ ] all required observed domains have PIT-safe storage/query support
+- [ ] real source adapters exist for supported v1 observed domains
+- [ ] representative pilot and historical backfill have auditable manifests/reconciliation
+- [ ] source-native units are normalized before canonical storage
+- [ ] backfill does not invent publication time or fake System-PIT history
+- [ ] imported raw artifacts/provenance are auditable
 - [ ] reusable canonical derived datasets have versioned derivation semantics
 - [ ] model-specific features remain outside Data Center
 
@@ -2140,7 +2605,7 @@ Version 1 is complete when:
 
 ---
 
-# 44. Core Design Principles
+# 45. Core Design Principles
 
 1. Correct historical visibility before convenience.
 2. Phase 1 defines the complete known v1 storage contract, not only the first few datasets.
@@ -2158,4 +2623,7 @@ Version 1 is complete when:
 14. Cache resolved results, not database implementation details.
 15. Every cache identity must include all PIT/source/derivation semantics.
 16. Downstream ML systems never reproduce PIT rules.
-17. Measure SSD/database behavior before claiming cache benefit.
+17. Real-data import is raw-first, source-explicit, idempotent, and reconciliation-driven.
+18. Historical backfill never invents publication time or System-PIT history.
+19. Full-market backfill follows a successful representative pilot.
+20. Measure SSD/database behavior before claiming cache benefit.

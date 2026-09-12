@@ -70,4 +70,4 @@ Free-form source `comment` and parser coordinates remain raw-artifact-only.
 MoM, YoY, cumulative revenue, and cumulative YoY are not duplicated as observed
 facts. They remain the virtual canonical-derived contract
 `monthly_revenue_growth:v1`, whose actual calculator and PIT-safe input lineage
-belong to Phase 9.
+belong to Phase 10.

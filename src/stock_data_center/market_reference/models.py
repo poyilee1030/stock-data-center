@@ -108,6 +108,20 @@ class MarketIndexObservation:
             raise ValueError("low_value is inconsistent with OHLC")
 
 
+@dataclass(frozen=True, slots=True)
+class MarketIndexMetadataObservation:
+    effective_from: date
+    market: str
+    name: str
+    effective_to: date | None = None
+
+    def __post_init__(self) -> None:
+        if not self.market or not self.name:
+            raise ValueError("market and name must be nonempty")
+        if self.effective_to is not None and self.effective_to < self.effective_from:
+            raise ValueError("effective_to must not precede effective_from")
+
+
 ActionType = Literal[
     "cash_dividend", "stock_dividend", "rights", "ex_dividend", "ex_right",
     "capital_reduction", "other",

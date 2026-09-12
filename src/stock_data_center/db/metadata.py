@@ -860,13 +860,37 @@ market_index = sa.Table(
     metadata,
     sa.Column("id", sa.BigInteger(), sa.Identity(), primary_key=True),
     sa.Column("index_code", sa.String(64), nullable=False, unique=True),
-    sa.Column("market", sa.String(32), nullable=False),
-    sa.Column("name", sa.Text(), nullable=False),
     sa.Column("created_at", aware_timestamp, nullable=False,
               server_default=sa.text("statement_timestamp()")),
     sa.CheckConstraint("index_code <> ''", name="market_index_code_nonempty"),
-    sa.CheckConstraint("market <> ''", name="market_index_market_nonempty"),
-    sa.CheckConstraint("name <> ''", name="market_index_name_nonempty"),
+)
+
+market_index_metadata_versions = sa.Table(
+    "market_index_metadata_versions",
+    metadata,
+    sa.Column("id", sa.BigInteger(), sa.Identity(), primary_key=True),
+    sa.Column("market_index_id", sa.BigInteger(), nullable=False),
+    sa.Column("source", sa.String(64), nullable=False),
+    sa.Column("effective_from", sa.Date(), nullable=False),
+    sa.Column("effective_to", sa.Date()),
+    sa.Column("market", sa.String(32), nullable=False),
+    sa.Column("name", sa.Text(), nullable=False),
+    sa.Column("business_content_hash", sa.CHAR(64), nullable=False),
+    sa.Column("ingested_at", aware_timestamp, nullable=False),
+    sa.Column("raw_artifact_id", uuid_type, nullable=False),
+    sa.Column("ingest_run_id", uuid_type, nullable=False),
+    sa.ForeignKeyConstraint(["market_index_id"], ["market_index.id"], ondelete="RESTRICT"),
+    *lineage_constraints(),
+    sa.UniqueConstraint(
+        "market_index_id", "source", "effective_from", "business_content_hash",
+        name="uq_market_index_metadata_business_revision",
+    ),
+    sa.CheckConstraint("market <> ''", name="market_index_metadata_market_nonempty"),
+    sa.CheckConstraint("name <> ''", name="market_index_metadata_name_nonempty"),
+    sa.CheckConstraint(
+        "effective_to IS NULL OR effective_to >= effective_from",
+        name="market_index_metadata_effective_range",
+    ),
 )
 
 market_index_versions = sa.Table(
@@ -920,11 +944,31 @@ market_index_versions = sa.Table(
     ),
 )
 
+corporate_action_events = sa.Table(
+    "corporate_action_events",
+    metadata,
+    sa.Column("id", sa.BigInteger(), sa.Identity(), primary_key=True),
+    sa.Column("security_id", sa.BigInteger(), nullable=False),
+    sa.Column("source", sa.String(64), nullable=False),
+    sa.Column("source_event_key", sa.Text(), nullable=False),
+    sa.Column("created_at", aware_timestamp, nullable=False,
+              server_default=sa.text("statement_timestamp()")),
+    sa.ForeignKeyConstraint(["security_id"], ["security.id"], ondelete="RESTRICT"),
+    sa.UniqueConstraint(
+        "security_id", "source", "source_event_key",
+        name="uq_corporate_action_event_source_key",
+    ),
+    sa.CheckConstraint("source <> ''", name="corporate_action_event_source_nonempty"),
+    sa.CheckConstraint(
+        "source_event_key <> ''", name="corporate_action_event_key_nonempty"
+    ),
+)
+
 corporate_action_versions = sa.Table(
     "corporate_action_versions",
     metadata,
     sa.Column("id", sa.BigInteger(), sa.Identity(), primary_key=True),
-    sa.Column("security_id", sa.BigInteger(), nullable=False),
+    sa.Column("event_id", sa.BigInteger(), nullable=False),
     sa.Column("source", sa.String(64), nullable=False),
     sa.Column("action_type", sa.String(32), nullable=False),
     sa.Column("announcement_date", sa.Date()),
@@ -943,10 +987,10 @@ corporate_action_versions = sa.Table(
     sa.Column("ingested_at", aware_timestamp, nullable=False),
     sa.Column("raw_artifact_id", uuid_type, nullable=False),
     sa.Column("ingest_run_id", uuid_type, nullable=False),
-    sa.ForeignKeyConstraint(["security_id"], ["security.id"], ondelete="RESTRICT"),
+    sa.ForeignKeyConstraint(["event_id"], ["corporate_action_events.id"], ondelete="RESTRICT"),
     *lineage_constraints(),
     sa.UniqueConstraint(
-        "security_id", "source", "action_type", "ex_date", "business_content_hash",
+        "event_id", "source", "business_content_hash",
         name="uq_corporate_action_business_revision",
     ),
     sa.CheckConstraint(
@@ -1025,6 +1069,11 @@ market_index_version_observations = _observed_version_observations(
     "market_index_version_observations",
     "market_index_version_id",
     "market_index_versions",
+)
+market_index_metadata_version_observations = _observed_version_observations(
+    "market_index_metadata_version_observations",
+    "market_index_metadata_version_id",
+    "market_index_metadata_versions",
 )
 corporate_action_version_observations = _observed_version_observations(
     "corporate_action_version_observations",
@@ -1213,6 +1262,7 @@ publication_evidence = sa.Table(
     sa.Column("margin_trading_version_id", sa.BigInteger()),
     sa.Column("securities_lending_version_id", sa.BigInteger()),
     sa.Column("market_index_version_id", sa.BigInteger()),
+    sa.Column("market_index_metadata_version_id", sa.BigInteger()),
     sa.Column("corporate_action_version_id", sa.BigInteger()),
     sa.Column("official_valuation_version_id", sa.BigInteger()),
     sa.Column("security_tag_version_id", sa.BigInteger()),
@@ -1268,6 +1318,10 @@ publication_evidence = sa.Table(
         ondelete="RESTRICT"
     ),
     sa.ForeignKeyConstraint(
+        ["market_index_metadata_version_id"], ["market_index_metadata_versions.id"],
+        ondelete="RESTRICT"
+    ),
+    sa.ForeignKeyConstraint(
         ["corporate_action_version_id"], ["corporate_action_versions.id"],
         ondelete="RESTRICT"
     ),
@@ -1300,7 +1354,8 @@ publication_evidence = sa.Table(
         "tdcc_snapshot_version_id, institutional_investor_version_id, "
         "foreign_holding_version_id, institutional_market_summary_version_id, "
         "margin_trading_version_id, securities_lending_version_id, "
-        "market_index_version_id, corporate_action_version_id, "
+        "market_index_version_id, market_index_metadata_version_id, "
+        "corporate_action_version_id, "
         "official_valuation_version_id, security_tag_version_id, "
         "xbrl_concept_catalog_version_id) = 1",
         name="exactly_one_target",
@@ -1346,8 +1401,10 @@ for _name, _table, _columns in (
      ("security_id", "source", "trade_date", "ingested_at")),
     ("ix_market_index_pit", market_index_versions,
      ("market_index_id", "source", "trade_date", "ingested_at")),
+    ("ix_market_index_metadata_pit", market_index_metadata_versions,
+     ("market_index_id", "source", "effective_from", "ingested_at")),
     ("ix_corporate_action_pit", corporate_action_versions,
-     ("security_id", "source", "ex_date", "ingested_at")),
+     ("event_id", "source", "ingested_at")),
     ("ix_official_valuation_pit", official_valuation_versions,
      ("security_id", "source", "trade_date", "ingested_at")),
     ("ix_security_tag_pit", security_tag_versions,

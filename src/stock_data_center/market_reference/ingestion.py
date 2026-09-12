@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import insert
 from stock_data_center.db import metadata
 from stock_data_center.db.metadata import publication_evidence, publication_evidence_observations
 from stock_data_center.market_reference.models import (
-    CorporateActionObservation, MarketIndexObservation, OfficialValuationObservation,
+    CorporateActionObservation, MarketIndexMetadataObservation, MarketIndexObservation, OfficialValuationObservation,
     Phase8LineageRef, Phase8Publication, TwdAmount, WrittenPhase8Version,
 )
 
@@ -27,37 +27,67 @@ class _Spec:
 
 SPECS = {
     "market_index": _Spec("market_index", "market_index_versions", "market_index_version_observations", "market_index_version_id", "uq_market_index_business_revision"),
+    "market_index_metadata": _Spec("market_index_metadata", "market_index_metadata_versions", "market_index_metadata_version_observations", "market_index_metadata_version_id", "uq_market_index_metadata_business_revision"),
     "corporate_action": _Spec("corporate_action", "corporate_action_versions", "corporate_action_version_observations", "corporate_action_version_id", "uq_corporate_action_business_revision"),
     "official_valuation": _Spec("official_valuation", "official_valuation_versions", "official_valuation_version_observations", "official_valuation_version_id", "uq_official_valuation_business_revision"),
 }
 
 
 class MarketReferenceWriter:
-    def register_index(self, connection: Connection, *, index_code: str, market: str, name: str) -> int:
-        if not index_code or not market or not name:
-            raise ValueError("index_code, market, and name must be nonempty")
+    def register_index(self, connection: Connection, *, index_code: str) -> int:
+        if not index_code:
+            raise ValueError("index_code must be nonempty")
         created = connection.execute(
             insert(metadata.tables["market_index"])
-            .values(index_code=index_code, market=market, name=name)
+            .values(index_code=index_code)
             .on_conflict_do_nothing(index_elements=[metadata.tables["market_index"].c.index_code])
             .returning(metadata.tables["market_index"].c.id)
         ).scalar_one_or_none()
         if created is not None:
             return created
-        row = connection.execute(sa.select(metadata.tables["market_index"]).where(
+        return connection.scalar(sa.select(metadata.tables["market_index"].c.id).where(
             metadata.tables["market_index"].c.index_code == index_code
-        )).mappings().one()
-        if row["market"] != market or row["name"] != name:
-            raise ValueError("index_code is already registered with different identity")
-        return row["id"]
+        ))
+
+    def register_corporate_action_event(
+        self, connection: Connection, *, security_id: int, source: str,
+        source_event_key: str,
+    ) -> int:
+        if not source or not source_event_key:
+            raise ValueError("source and source_event_key must be nonempty")
+        table = metadata.tables["corporate_action_events"]
+        event_id = connection.execute(
+            insert(table).values(
+                security_id=security_id, source=source,
+                source_event_key=source_event_key,
+            ).on_conflict_do_nothing(
+                constraint="uq_corporate_action_event_source_key"
+            ).returning(table.c.id)
+        ).scalar_one_or_none()
+        if event_id is not None:
+            return event_id
+        return connection.scalar(sa.select(table.c.id).where(
+            table.c.security_id == security_id,
+            table.c.source == source,
+            table.c.source_event_key == source_event_key,
+        ))
 
     def append_index(self, connection: Connection, *, market_index_id: int, source: str,
                      observation: MarketIndexObservation, lineage: Phase8LineageRef) -> WrittenPhase8Version:
         return self._append(connection, SPECS["market_index"], {"market_index_id": market_index_id}, source, observation, lineage)
 
-    def append_corporate_action(self, connection: Connection, *, security_id: int, source: str,
+    def append_index_metadata(
+        self, connection: Connection, *, market_index_id: int, source: str,
+        observation: MarketIndexMetadataObservation, lineage: Phase8LineageRef,
+    ) -> WrittenPhase8Version:
+        return self._append(
+            connection, SPECS["market_index_metadata"],
+            {"market_index_id": market_index_id}, source, observation, lineage,
+        )
+
+    def append_corporate_action(self, connection: Connection, *, event_id: int, source: str,
                                 observation: CorporateActionObservation, lineage: Phase8LineageRef) -> WrittenPhase8Version:
-        return self._append(connection, SPECS["corporate_action"], {"security_id": security_id}, source, observation, lineage)
+        return self._append(connection, SPECS["corporate_action"], {"event_id": event_id}, source, observation, lineage)
 
     def append_official_valuation(self, connection: Connection, *, security_id: int, source: str,
                                   observation: OfficialValuationObservation, lineage: Phase8LineageRef) -> WrittenPhase8Version:
