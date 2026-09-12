@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, fields
 from datetime import UTC, datetime
 from decimal import Decimal
+from enum import Enum
 from typing import Literal
 from uuid import UUID
 
@@ -14,7 +15,9 @@ from sqlalchemy.dialects.postgresql import insert
 
 from stock_data_center.db.metadata import (
     monthly_revenue_versions,
+    monthly_revenue_version_observations,
     publication_evidence,
+    publication_evidence_observations,
 )
 from stock_data_center.monthly_revenue.models import RevenuePeriod
 
@@ -25,11 +28,42 @@ class RevenueLineageRef:
     ingest_run_id: UUID
 
 
+class RevenueScale(str, Enum):
+    """Source-native amount scale relative to the currency's major unit."""
+
+    MAJOR = "major"
+    THOUSAND = "thousand"
+
+    @property
+    def multiplier(self) -> Decimal:
+        return Decimal(1) if self is RevenueScale.MAJOR else Decimal(1000)
+
+
+@dataclass(frozen=True, slots=True)
+class SourceRevenueAmount:
+    value: Decimal
+    currency: str
+    scale: RevenueScale
+
+    def to_major_unit(self) -> tuple[Decimal, str]:
+        return self.value * self.scale.multiplier, self.currency.upper()
+
+
 @dataclass(frozen=True, slots=True)
 class MonthlyRevenueObservation:
     period: RevenuePeriod
     revenue: Decimal
     currency: str
+
+    @classmethod
+    def from_source(
+        cls,
+        *,
+        period: RevenuePeriod,
+        amount: SourceRevenueAmount,
+    ) -> MonthlyRevenueObservation:
+        revenue, currency = amount.to_major_unit()
+        return cls(period=period, revenue=revenue, currency=currency)
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,25 +132,31 @@ class MonthlyRevenueWriter:
             )
         ).mappings().one_or_none()
         if inserted is not None:
-            return _written(inserted, created=True)
-
-        existing = connection.execute(
-            sa.select(
-                monthly_revenue_versions.c.id,
-                monthly_revenue_versions.c.business_content_hash,
-                monthly_revenue_versions.c.ingested_at,
-            ).where(
-                monthly_revenue_versions.c.security_id == security_id,
-                monthly_revenue_versions.c.source == source,
-                monthly_revenue_versions.c.revenue_year
-                == observation.period.year,
-                monthly_revenue_versions.c.revenue_month
-                == observation.period.month,
-                monthly_revenue_versions.c.revenue == observation.revenue,
-                monthly_revenue_versions.c.currency == observation.currency,
-            )
-        ).mappings().one()
-        return _written(existing, created=False)
+            written = _written(inserted, created=True)
+        else:
+            existing = connection.execute(
+                sa.select(
+                    monthly_revenue_versions.c.id,
+                    monthly_revenue_versions.c.business_content_hash,
+                    monthly_revenue_versions.c.ingested_at,
+                ).where(
+                    monthly_revenue_versions.c.security_id == security_id,
+                    monthly_revenue_versions.c.source == source,
+                    monthly_revenue_versions.c.revenue_year
+                    == observation.period.year,
+                    monthly_revenue_versions.c.revenue_month
+                    == observation.period.month,
+                    monthly_revenue_versions.c.revenue == observation.revenue,
+                    monthly_revenue_versions.c.currency == observation.currency,
+                )
+            ).mappings().one()
+            written = _written(existing, created=False)
+        self._link_version_observation(
+            connection,
+            version_id=written.version_id,
+            lineage=lineage,
+        )
+        return written
 
     def append_publication_evidence(
         self,
@@ -147,20 +187,60 @@ class MonthlyRevenueWriter:
             .returning(publication_evidence.c.id)
         ).scalar_one_or_none()
         if inserted is not None:
-            return inserted
-
-        predicates = [
-            publication_evidence.c.dataset_code == "monthly_revenue",
-            publication_evidence.c.source == source,
-            publication_evidence.c.monthly_revenue_version_id == version_id,
-        ]
-        predicates.extend(
-            publication_evidence.c[name].is_not_distinct_from(value)
-            for name, value in evidence_values.items()
+            evidence_id = inserted
+        else:
+            predicates = [
+                publication_evidence.c.dataset_code == "monthly_revenue",
+                publication_evidence.c.source == source,
+                publication_evidence.c.monthly_revenue_version_id == version_id,
+            ]
+            predicates.extend(
+                publication_evidence.c[name].is_not_distinct_from(value)
+                for name, value in evidence_values.items()
+            )
+            evidence_id = connection.execute(
+                sa.select(publication_evidence.c.id).where(*predicates)
+            ).scalar_one()
+        self._link_evidence_observation(
+            connection,
+            evidence_id=evidence_id,
+            lineage=lineage,
         )
-        return connection.execute(
-            sa.select(publication_evidence.c.id).where(*predicates)
-        ).scalar_one()
+        return evidence_id
+
+    @staticmethod
+    def _link_version_observation(
+        connection: Connection,
+        *,
+        version_id: int,
+        lineage: RevenueLineageRef,
+    ) -> None:
+        connection.execute(
+            insert(monthly_revenue_version_observations)
+            .values(
+                monthly_revenue_version_id=version_id,
+                raw_artifact_id=lineage.raw_artifact_id,
+                ingest_run_id=lineage.ingest_run_id,
+            )
+            .on_conflict_do_nothing()
+        )
+
+    @staticmethod
+    def _link_evidence_observation(
+        connection: Connection,
+        *,
+        evidence_id: int,
+        lineage: RevenueLineageRef,
+    ) -> None:
+        connection.execute(
+            insert(publication_evidence_observations)
+            .values(
+                publication_evidence_id=evidence_id,
+                raw_artifact_id=lineage.raw_artifact_id,
+                ingest_run_id=lineage.ingest_run_id,
+            )
+            .on_conflict_do_nothing()
+        )
 
 
 def _dataclass_values(instance: object) -> dict[str, object]:

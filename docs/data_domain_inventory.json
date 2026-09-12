@@ -1366,7 +1366,7 @@
       "legacy_field": "revenue_current",
       "disposition": "observed",
       "target": "monthly_revenue_versions.revenue",
-      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+      "reason": "Source value is normalized before storage to the currency's major unit; source-native scale is never implicit."
     },
     {
       "legacy_table": "monthly_revenue",

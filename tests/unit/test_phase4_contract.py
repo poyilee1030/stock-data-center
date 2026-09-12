@@ -1,8 +1,14 @@
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
-from stock_data_center.monthly_revenue import RevenuePeriod
+from stock_data_center.monthly_revenue import (
+    MonthlyRevenueObservation,
+    RevenuePeriod,
+    RevenueScale,
+    SourceRevenueAmount,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -13,6 +19,19 @@ def test_revenue_period_validation() -> None:
         RevenuePeriod(2025, 0)
     with pytest.raises(ValueError):
         RevenuePeriod(2025, 13)
+
+
+def test_source_amount_normalizes_before_storage_observation() -> None:
+    observation = MonthlyRevenueObservation.from_source(
+        period=RevenuePeriod(2025, 4),
+        amount=SourceRevenueAmount(
+            value=Decimal("410000000"),
+            currency="twd",
+            scale=RevenueScale.THOUSAND,
+        ),
+    )
+    assert observation.revenue == Decimal("410000000000")
+    assert observation.currency == "TWD"
 
 
 def test_phase4_contract_keeps_derived_metrics_out_of_scope() -> None:

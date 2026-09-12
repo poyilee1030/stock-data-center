@@ -5,8 +5,18 @@ from __future__ import annotations
 import sqlalchemy as sa
 from sqlalchemy import Connection
 
-from stock_data_center.db.metadata import monthly_revenue_versions, security
-from stock_data_center.monthly_revenue.models import RevenuePeriod
+from stock_data_center.db.metadata import (
+    ingest_runs,
+    monthly_revenue_versions,
+    monthly_revenue_version_observations,
+    raw_artifact_observations,
+    raw_artifacts,
+    security,
+)
+from stock_data_center.monthly_revenue.models import (
+    RevenueLineageObservation,
+    RevenuePeriod,
+)
 from stock_data_center.pit import PITResolver, ResolvedRecord
 from stock_data_center.pit.models import PITContext
 from stock_data_center.pit.source_policy import SourcePolicyResolver
@@ -102,6 +112,65 @@ class MonthlyRevenueService:
             if record is not None:
                 records.append(record)
         return tuple(records)
+
+    def observations(
+        self,
+        connection: Connection,
+        *,
+        version_id: int,
+    ) -> tuple[RevenueLineageObservation, ...]:
+        rows = connection.execute(
+            sa.select(
+                monthly_revenue_version_observations.c.raw_artifact_id,
+                raw_artifacts.c.raw_artifact_hash,
+                raw_artifacts.c.storage_uri,
+                monthly_revenue_version_observations.c.ingest_run_id,
+                ingest_runs.c.status,
+                raw_artifact_observations.c.source_uri,
+                raw_artifact_observations.c.fetched_at,
+            )
+            .select_from(
+                monthly_revenue_version_observations.join(
+                    raw_artifact_observations,
+                    sa.and_(
+                        raw_artifact_observations.c.raw_artifact_id
+                        == monthly_revenue_version_observations.c.raw_artifact_id,
+                        raw_artifact_observations.c.ingest_run_id
+                        == monthly_revenue_version_observations.c.ingest_run_id,
+                    ),
+                )
+                .join(
+                    raw_artifacts,
+                    raw_artifacts.c.id
+                    == monthly_revenue_version_observations.c.raw_artifact_id,
+                )
+                .join(
+                    ingest_runs,
+                    ingest_runs.c.id
+                    == monthly_revenue_version_observations.c.ingest_run_id,
+                )
+            )
+            .where(
+                monthly_revenue_version_observations.c.monthly_revenue_version_id
+                == version_id
+            )
+            .order_by(
+                raw_artifact_observations.c.fetched_at,
+                monthly_revenue_version_observations.c.ingest_run_id,
+            )
+        ).mappings()
+        return tuple(
+            RevenueLineageObservation(
+                raw_artifact_id=row["raw_artifact_id"],
+                raw_artifact_hash=row["raw_artifact_hash"],
+                raw_artifact_uri=row["storage_uri"],
+                ingest_run_id=row["ingest_run_id"],
+                ingest_run_status=row["status"],
+                source_uri=row["source_uri"],
+                fetched_at=row["fetched_at"],
+            )
+            for row in rows
+        )
 
     @staticmethod
     def _security_id(connection: Connection, security_code: str) -> int | None:

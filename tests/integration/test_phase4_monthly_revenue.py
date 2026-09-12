@@ -5,8 +5,11 @@ from decimal import Decimal
 
 import pytest
 import sqlalchemy as sa
+from alembic import command
 from sqlalchemy import Connection
+from sqlalchemy.exc import DBAPIError
 
+from conftest import alembic_config
 from stock_data_center.monthly_revenue import (
     MonthlyRevenueObservation,
     MonthlyRevenuePublication,
@@ -14,6 +17,8 @@ from stock_data_center.monthly_revenue import (
     MonthlyRevenueWriter,
     RevenueLineageRef,
     RevenuePeriod,
+    RevenueScale,
+    SourceRevenueAmount,
 )
 from stock_data_center.pit import MarketPITContext, SystemPITContext
 
@@ -323,10 +328,16 @@ def test_unchanged_fetch_keeps_one_revision_and_new_evidence(
         kind="unknown",
         published_at=None,
     )
-    evidence(
+    official = evidence(
         db,
         repeated.version_id,
         second_lineage,
+        supersedes=unknown,
+    )
+    repeated_official = evidence(
+        db,
+        repeated.version_id,
+        first_lineage,
         supersedes=unknown,
     )
 
@@ -340,10 +351,184 @@ def test_unchanged_fetch_keeps_one_revision_and_new_evidence(
     assert first.created is True
     assert repeated.created is False
     assert repeated.version_id == first.version_id
+    assert repeated_official == official
     assert resolved is not None
     assert db.scalar(sa.text("SELECT count(*) FROM monthly_revenue_versions")) == 1
     assert db.scalar(sa.text("SELECT count(*) FROM publication_evidence")) == 2
     assert db.scalar(sa.text("SELECT count(*) FROM raw_artifact_observations")) == 2
+    assert db.scalar(
+        sa.text("SELECT count(*) FROM monthly_revenue_version_observations")
+    ) == 2
+    assert db.scalar(
+        sa.text("SELECT count(*) FROM publication_evidence_observations")
+    ) == 3
+    observations = SERVICE.observations(db, version_id=first.version_id)
+    assert {item.raw_artifact_id for item in observations} == {
+        first_lineage.raw_artifact_id,
+        second_lineage.raw_artifact_id,
+    }
+    assert {item.ingest_run_id for item in observations} == {
+        first_lineage.ingest_run_id,
+        second_lineage.ingest_run_id,
+    }
+
+
+def test_source_thousand_scale_normalizes_to_currency_major_unit(
+    db: Connection,
+) -> None:
+    security_id = configure_source(db)
+    source_lineage = lineage(db, digest_character="9")
+    equivalent_lineage = lineage(db, digest_character="a")
+    normalized = MonthlyRevenueObservation.from_source(
+        period=PERIOD,
+        amount=SourceRevenueAmount(
+            value=Decimal("410000000"),
+            currency="TWD",
+            scale=RevenueScale.THOUSAND,
+        ),
+    )
+    canonical = MonthlyRevenueObservation(
+        period=PERIOD,
+        revenue=Decimal("410000000000"),
+        currency="TWD",
+    )
+
+    first = WRITER.append_revenue(
+        db,
+        security_id=security_id,
+        source="mops",
+        observation=normalized,
+        lineage=source_lineage,
+    )
+    equivalent = WRITER.append_revenue(
+        db,
+        security_id=security_id,
+        source="mops",
+        observation=canonical,
+        lineage=equivalent_lineage,
+    )
+
+    assert normalized.revenue == Decimal("410000000000")
+    assert first.version_id == equivalent.version_id
+    assert first.business_content_hash == equivalent.business_content_hash
+    assert equivalent.created is False
+    assert db.scalar(sa.text("SELECT count(*) FROM monthly_revenue_versions")) == 1
+    assert db.scalar(
+        sa.text("SELECT count(*) FROM monthly_revenue_version_observations")
+    ) == 2
+
+
+def test_version_observation_rejects_cross_source_lineage(db: Connection) -> None:
+    security_id = configure_source(db, "mops")
+    configure_source(db, "vendor", canonical=False)
+    mops_lineage = lineage(db, "mops", "b")
+    vendor_lineage = lineage(db, "vendor", "c")
+    version = revenue(db, security_id, mops_lineage)
+
+    with pytest.raises(DBAPIError, match="dataset/source mismatch"):
+        with db.begin_nested():
+            db.execute(
+                sa.text(
+                    """
+                    INSERT INTO monthly_revenue_version_observations (
+                        monthly_revenue_version_id, raw_artifact_id, ingest_run_id
+                    ) VALUES (:version, :artifact, :run)
+                    """
+                ),
+                {
+                    "version": version.version_id,
+                    "artifact": vendor_lineage.raw_artifact_id,
+                    "run": vendor_lineage.ingest_run_id,
+                },
+            )
+
+
+def test_lineage_migration_backfills_existing_version_and_evidence(
+    isolated_database_url: str,
+) -> None:
+    config = alembic_config(isolated_database_url)
+    command.downgrade(config, "f3a74c12e690")
+    migration_engine = sa.create_engine(isolated_database_url)
+    try:
+        with migration_engine.begin() as connection:
+            security_id = configure_source(connection)
+            source_lineage = lineage(connection, digest_character="d")
+            version_id = connection.execute(
+                sa.text(
+                    """
+                    INSERT INTO monthly_revenue_versions (
+                        security_id, source, revenue_year, revenue_month,
+                        revenue, currency, business_content_hash, ingested_at,
+                        raw_artifact_id, ingest_run_id
+                    ) VALUES (
+                        :security, 'mops', 2025, 4, 100, 'TWD', :hash,
+                        statement_timestamp(), :artifact, :run
+                    ) RETURNING id
+                    """
+                ),
+                {
+                    "security": security_id,
+                    "hash": "0" * 64,
+                    "artifact": source_lineage.raw_artifact_id,
+                    "run": source_lineage.ingest_run_id,
+                },
+            ).scalar_one()
+            evidence_id = connection.execute(
+                sa.text(
+                    """
+                    INSERT INTO publication_evidence (
+                        dataset_code, source, evidence_kind, published_at,
+                        evidence_source, evidence_type, quality_rank,
+                        monthly_revenue_version_id, publication_evidence_hash,
+                        recorded_at, raw_artifact_id, ingest_run_id
+                    ) VALUES (
+                        'monthly_revenue', 'mops', 'assertion',
+                        TIMESTAMPTZ '2025-05-10 06:00+00', 'mops', 'official',
+                        100, :version, :hash, statement_timestamp(),
+                        :artifact, :run
+                    ) RETURNING id
+                    """
+                ),
+                {
+                    "version": version_id,
+                    "hash": "0" * 64,
+                    "artifact": source_lineage.raw_artifact_id,
+                    "run": source_lineage.ingest_run_id,
+                },
+            ).scalar_one()
+        migration_engine.dispose()
+
+        command.upgrade(config, "head")
+        migration_engine = sa.create_engine(isolated_database_url)
+        with migration_engine.connect() as connection:
+            version_link = connection.execute(
+                sa.text(
+                    """
+                    SELECT raw_artifact_id, ingest_run_id
+                    FROM monthly_revenue_version_observations
+                    WHERE monthly_revenue_version_id = :version
+                    """
+                ),
+                {"version": version_id},
+            ).one()
+            evidence_link = connection.execute(
+                sa.text(
+                    """
+                    SELECT raw_artifact_id, ingest_run_id
+                    FROM publication_evidence_observations
+                    WHERE publication_evidence_id = :evidence
+                    """
+                ),
+                {"evidence": evidence_id},
+            ).one()
+            expected = (
+                source_lineage.raw_artifact_id,
+                source_lineage.ingest_run_id,
+            )
+            assert version_link == expected
+            assert evidence_link == expected
+    finally:
+        migration_engine.dispose()
 
 
 def test_source_histories_are_independent(db: Connection) -> None:

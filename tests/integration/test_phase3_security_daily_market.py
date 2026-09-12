@@ -644,6 +644,9 @@ def test_duplicate_fetch_preserves_lineage_without_false_revision(
     assert db.scalar(sa.text("SELECT count(*) FROM daily_price_versions")) == 1
     assert db.scalar(sa.text("SELECT count(*) FROM publication_evidence")) == 1
     assert db.scalar(sa.text("SELECT count(*) FROM raw_artifact_observations")) == 2
+    assert db.scalar(
+        sa.text("SELECT count(*) FROM publication_evidence_observations")
+    ) == 2
 
 
 def test_daily_history_uses_system_pit_and_validates_range(db: Connection) -> None:

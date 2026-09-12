@@ -4,10 +4,15 @@ from stock_data_center.monthly_revenue.ingestion import (
     MonthlyRevenueObservation,
     MonthlyRevenuePublication,
     MonthlyRevenueWriter,
+    RevenueScale,
     RevenueLineageRef,
+    SourceRevenueAmount,
     WrittenRevenueVersion,
 )
-from stock_data_center.monthly_revenue.models import RevenuePeriod
+from stock_data_center.monthly_revenue.models import (
+    RevenueLineageObservation,
+    RevenuePeriod,
+)
 from stock_data_center.monthly_revenue.service import MonthlyRevenueService
 
 __all__ = [
@@ -16,6 +21,9 @@ __all__ = [
     "MonthlyRevenueService",
     "MonthlyRevenueWriter",
     "RevenueLineageRef",
+    "RevenueLineageObservation",
     "RevenuePeriod",
+    "RevenueScale",
+    "SourceRevenueAmount",
     "WrittenRevenueVersion",
 ]

@@ -295,6 +295,23 @@ monthly_revenue_versions = sa.Table(
     sa.CheckConstraint("currency ~ '^[A-Z]{3}$'", name="currency_format"),
 )
 
+monthly_revenue_version_observations = sa.Table(
+    "monthly_revenue_version_observations",
+    metadata,
+    sa.Column("monthly_revenue_version_id", sa.BigInteger(), nullable=False),
+    sa.Column("raw_artifact_id", uuid_type, nullable=False),
+    sa.Column("ingest_run_id", uuid_type, nullable=False),
+    sa.PrimaryKeyConstraint(
+        "monthly_revenue_version_id", "raw_artifact_id", "ingest_run_id"
+    ),
+    sa.ForeignKeyConstraint(
+        ["monthly_revenue_version_id"],
+        ["monthly_revenue_versions.id"],
+        ondelete="RESTRICT",
+    ),
+    *lineage_constraints(),
+)
+
 financial_filing_versions = sa.Table(
     "financial_filing_versions",
     metadata,
@@ -968,6 +985,23 @@ publication_evidence = sa.Table(
         "xbrl_concept_catalog_version_id) = 1",
         name="exactly_one_target",
     ),
+)
+
+publication_evidence_observations = sa.Table(
+    "publication_evidence_observations",
+    metadata,
+    sa.Column("publication_evidence_id", sa.BigInteger(), nullable=False),
+    sa.Column("raw_artifact_id", uuid_type, nullable=False),
+    sa.Column("ingest_run_id", uuid_type, nullable=False),
+    sa.PrimaryKeyConstraint(
+        "publication_evidence_id", "raw_artifact_id", "ingest_run_id"
+    ),
+    sa.ForeignKeyConstraint(
+        ["publication_evidence_id"],
+        ["publication_evidence.id"],
+        ondelete="RESTRICT",
+    ),
+    *lineage_constraints(),
 )
 
 # Resolver-oriented prefixes keep source and PIT cutoffs adjacent to each

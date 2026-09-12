@@ -46,6 +46,9 @@ source
 ```
 
 No durable business or evidence write may exist only in Redis.
+Repeated identical fetches remain many-to-one provenance observations of the
+same business/evidence identity; they do not create fake revisions merely to
+retain artifact/run lineage.
 
 ## Read path
 
