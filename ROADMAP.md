@@ -1345,7 +1345,7 @@ Status date: 2026-09-13.
 | #8 | MERGED | Market indices, corporate actions, and official valuation contracts |
 | #9 | MERGED | Raw-first TWSE/TPEx daily-market ingestion pilot |
 | #10 | MERGED | Current TWSE/TPEx security metadata ingestion |
-| #11 | IN REVIEW | Authoritative security listing/delisting/venue lifecycle history |
+| #11 | MERGED | Authoritative security listing/delisting/venue lifecycle history |
 
 The merged PRs establish the storage/PIT foundation and the first production-like raw-first
 ingestion lifecycle. They do **not** mean that all historical source datasets are already
@@ -1512,7 +1512,7 @@ current observed metadata is not backdated to original listing date
 
 ## 27.11 PR #11 — Authoritative Security Lifecycle History
 
-Status: **IN REVIEW**
+Status: **MERGED**
 
 Goal:
 
