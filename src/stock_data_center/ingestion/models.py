@@ -50,6 +50,44 @@ class SecurityMetadataRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class SecurityLifecycleRequest:
+    """Request one official historical listing-lifecycle resource."""
+
+    year: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.year is not None and not 1912 <= self.year <= 9999:
+            raise ValueError("year must be a Gregorian year from 1912 through 9999")
+
+
+@dataclass(frozen=True, slots=True)
+class SecurityLifecycleEvent:
+    security_code: str
+    name: str
+    effective_on: date
+    event_kind: str
+    market: str
+    transfer_from_market: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedSecurityLifecycle:
+    market: str
+    event_kind: str
+    rows: tuple[SecurityLifecycleEvent, ...]
+    source_fields: tuple[str, ...]
+    source_row_count: int
+
+    @property
+    def coverage_start(self) -> date | None:
+        return self.rows[0].effective_on if self.rows else None
+
+    @property
+    def coverage_end(self) -> date | None:
+        return self.rows[-1].effective_on if self.rows else None
+
+
+@dataclass(frozen=True, slots=True)
 class SecurityMetadataRecord:
     security_code: str
     observation: SecurityMetadataObservation

@@ -48,6 +48,25 @@ The endpoints also lack an exact original publication instant. Their versions
 therefore receive `unknown` evidence with `published_at = NULL` and remain
 Market-PIT invisible unless separate reliable publication evidence is added.
 
+## Historical security lifecycle adapters
+
+The third milestone imports authoritative venue events:
+
+- [TWSE listing history](https://www.twse.com.tw/rwd/zh/company/newlisting?response=json);
+- [TWSE delisting history](https://www.twse.com.tw/rwd/zh/company/suspendListing?response=json);
+- [TPEx yearly listing history](https://www.tpex.org.tw/www/zh-tw/company/latest);
+- [TPEx yearly delisting history](https://www.tpex.org.tw/www/zh-tw/company/deListed).
+
+TWSE resources expose their whole available table. TPEx resources require a
+Gregorian year and may validly contain zero events. An event's official venue
+date becomes effective metadata; it does not become `published_at`. TWSE and
+TPEx remain independent source histories. A TWSE `櫃轉市` note is reconciled
+only with a same-code, same-date TPEx exit and does not synthesize a merged
+business version. Import manifests label this relation provisional. Run the
+separate final reconciliation after the relevant source histories are present;
+it recomputes the result from canonical history and is independent of import
+order.
+
 ## Running one resource
 
 Apply migrations, set `DATABASE_URL`, and use an explicit UUID when a job may
@@ -69,6 +88,24 @@ python -m stock_data_center.ingestion.cli security-metadata \
 python -m stock_data_center.ingestion.cli security-metadata \
   --source tpex --expected-report-date 2026-09-12 \
   --import-id 44444444-4444-4444-8444-444444444444
+
+python -m stock_data_center.ingestion.cli security-history \
+  --source tpex --event listing --year 2025 \
+  --import-id 55555555-5555-4555-8555-555555555555
+
+python -m stock_data_center.ingestion.cli security-history \
+  --source tpex --event delisting --year 2025 \
+  --import-id 66666666-6666-4666-8666-666666666666
+
+python -m stock_data_center.ingestion.cli security-history \
+  --source twse --event listing \
+  --import-id 77777777-7777-4777-8777-777777777777
+
+python -m stock_data_center.ingestion.cli security-history \
+  --source twse --event delisting \
+  --import-id 88888888-8888-4888-8888-888888888888
+
+python -m stock_data_center.ingestion.cli security-transfer-reconciliation
 ```
 
 The command prints the persisted manifest/reconciliation without connection
@@ -101,6 +138,15 @@ remains `captured`, retains its original raw artifact and ingest run, and can
 resume without a refetch. Network failures before capture are reported as
 fetch failures because no source artifact was received.
 
+Security-history import manifests record explicit transfer evidence as
+`provisional`; they intentionally omit final matched/unmatched counts. The
+`security-transfer-reconciliation` command emits those final counts and the
+deterministically ordered matched/unmatched event lists from current canonical
+TWSE/TPEx histories. Until the applicable TPEx delisting year has a successful
+manifest, absent counterparts are reported as pending rather than genuinely
+unmatched. Re-running after that source arrives replaces stale audit
+interpretation without mutating an earlier import manifest.
+
 Adapters reject negative OHLC, volume, trade value, or trade count, as well as
 OHLC values outside the reported low/high range. PostgreSQL independently
 enforces the canonical price constraints as a final storage boundary.
@@ -110,7 +156,8 @@ Run the permanent real-endpoint pilot regression explicitly:
 ```bash
 RUN_LIVE_SOURCE_TESTS=1 pytest -m live_source \
   tests/integration/test_phase9_real_ingestion_framework.py \
-  tests/integration/test_phase9_security_metadata_ingestion.py
+  tests/integration/test_phase9_security_metadata_ingestion.py \
+  tests/integration/test_phase9_security_lifecycle_ingestion.py
 ```
 
 The default suite skips network access while retaining parser, raw-first,

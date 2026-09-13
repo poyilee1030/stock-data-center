@@ -353,6 +353,51 @@ security_metadata_versions = sa.Table(
     sa.CheckConstraint("market <> ''", name="market_nonempty"),
 )
 
+security_transfer_events = sa.Table(
+    "security_transfer_events",
+    metadata,
+    sa.Column("id", sa.BigInteger(), sa.Identity(), primary_key=True),
+    sa.Column("entry_version_id", sa.BigInteger(), nullable=False),
+    sa.Column("from_source", sa.String(64), nullable=False),
+    sa.Column("from_market", sa.String(32), nullable=False),
+    sa.Column("source_term", sa.Text(), nullable=False),
+    sa.Column("recorded_at", aware_timestamp, nullable=False),
+    sa.Column("raw_artifact_id", uuid_type, nullable=False),
+    sa.Column("ingest_run_id", uuid_type, nullable=False),
+    sa.ForeignKeyConstraint(
+        ["entry_version_id"],
+        ["security_metadata_versions.id"],
+        ondelete="RESTRICT",
+    ),
+    *lineage_constraints(),
+    sa.UniqueConstraint(
+        "entry_version_id",
+        "from_source",
+        "from_market",
+        name="uq_security_transfer_event",
+    ),
+    sa.CheckConstraint("from_source <> ''", name="from_source_nonempty"),
+    sa.CheckConstraint("from_market <> ''", name="from_market_nonempty"),
+    sa.CheckConstraint("source_term <> ''", name="source_term_nonempty"),
+)
+
+security_transfer_event_observations = sa.Table(
+    "security_transfer_event_observations",
+    metadata,
+    sa.Column("security_transfer_event_id", sa.BigInteger(), nullable=False),
+    sa.Column("raw_artifact_id", uuid_type, nullable=False),
+    sa.Column("ingest_run_id", uuid_type, nullable=False),
+    sa.PrimaryKeyConstraint(
+        "security_transfer_event_id", "raw_artifact_id", "ingest_run_id"
+    ),
+    sa.ForeignKeyConstraint(
+        ["security_transfer_event_id"],
+        ["security_transfer_events.id"],
+        ondelete="RESTRICT",
+    ),
+    *lineage_constraints(),
+)
+
 daily_price_versions = sa.Table(
     "daily_price_versions",
     metadata,

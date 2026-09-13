@@ -14,16 +14,25 @@ import sqlalchemy as sa
 
 from stock_data_center.ingestion.adapters import (
     TPExDailyMarketAdapter,
+    TPExDelistingHistoryAdapter,
+    TPExListingHistoryAdapter,
     TPExSecurityMetadataAdapter,
     TWSEDailyMarketAdapter,
+    TWSEDelistingHistoryAdapter,
+    TWSEListingHistoryAdapter,
     TWSESecurityMetadataAdapter,
 )
 from stock_data_center.ingestion.daily_market import DailyMarketImporter
 from stock_data_center.ingestion.models import (
     DailyMarketRequest,
+    SecurityLifecycleRequest,
     SecurityMetadataRequest,
 )
 from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
+from stock_data_center.ingestion.security_lifecycle import (
+    SecurityLifecycleImporter,
+    reconcile_security_transfers,
+)
 from stock_data_center.ingestion.security_metadata import SecurityMetadataImporter
 
 
@@ -46,13 +55,42 @@ def main(argv: list[str] | None = None) -> int:
     )
     security_metadata.add_argument("--import-id", type=UUID)
     security_metadata.add_argument("--raw-root", type=Path, default=Path("data/raw"))
+    security_history = subparsers.add_parser("security-history")
+    security_history.add_argument("--source", choices=("twse", "tpex"), required=True)
+    security_history.add_argument(
+        "--event", choices=("listing", "delisting"), required=True
+    )
+    security_history.add_argument(
+        "--year",
+        type=int,
+        help="required for TPEx; TWSE official resources are whole-history tables",
+    )
+    security_history.add_argument("--import-id", type=UUID)
+    security_history.add_argument("--raw-root", type=Path, default=Path("data/raw"))
+    subparsers.add_parser(
+        "security-transfer-reconciliation",
+        help="recompute final transfer matching from canonical TWSE/TPEx histories",
+    )
     args = parser.parse_args(argv)
     if not args.database_url:
         parser.error("--database-url or DATABASE_URL is required")
 
-    import_id = args.import_id or uuid4()
     engine = sa.create_engine(args.database_url, pool_pre_ping=True)
     try:
+        if args.command == "security-transfer-reconciliation":
+            with engine.connect() as connection:
+                reconciliation = reconcile_security_transfers(connection)
+            print(
+                json.dumps(
+                    {"reconciliation": asdict(reconciliation)},
+                    ensure_ascii=False,
+                    indent=2,
+                    default=str,
+                )
+            )
+            return 0
+
+        import_id = args.import_id or uuid4()
         if args.command == "daily-market":
             adapter = (
                 TWSEDailyMarketAdapter()
@@ -70,7 +108,7 @@ def main(argv: list[str] | None = None) -> int:
                 ),
                 import_id=import_id,
             )
-        else:
+        elif args.command == "security-metadata":
             adapter = (
                 TWSESecurityMetadataAdapter()
                 if args.source == "twse"
@@ -83,6 +121,27 @@ def main(argv: list[str] | None = None) -> int:
             result = importer.run(
                 adapter=adapter,
                 request=SecurityMetadataRequest(args.expected_report_date),
+                import_id=import_id,
+            )
+        else:
+            adapters = {
+                ("twse", "listing"): TWSEListingHistoryAdapter,
+                ("twse", "delisting"): TWSEDelistingHistoryAdapter,
+                ("tpex", "listing"): TPExListingHistoryAdapter,
+                ("tpex", "delisting"): TPExDelistingHistoryAdapter,
+            }
+            if args.source == "tpex" and args.year is None:
+                parser.error("security-history --source tpex requires --year")
+            if args.source == "twse" and args.year is not None:
+                parser.error("security-history --source twse does not accept --year")
+            adapter = adapters[(args.source, args.event)]()
+            importer = SecurityLifecycleImporter(
+                engine,
+                raw_store=LocalRawArtifactStore(args.raw_root),
+            )
+            result = importer.run(
+                adapter=adapter,
+                request=SecurityLifecycleRequest(args.year),
                 import_id=import_id,
             )
         with engine.connect() as connection:
