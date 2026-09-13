@@ -45,9 +45,37 @@ representations store and hash identically.
 
 Index levels and changes are points; `change_percent` is percentage points.
 Official PE and PB are multiples, and `dividend_yield` is percentage points.
-Corporate `stock_dividend_ratio` and `rights_ratio` are shares per share:
-`0.1` means 0.1 new/right shares per existing share, not an implicit percent
-conversion.
+Corporate `earnings_stock_ratio`, `capital_surplus_stock_ratio`,
+`free_share_ratio`, and `rights_ratio` are shares per share: `0.1` means 0.1
+new/right shares per existing share, not an implicit percent conversion.
+
+## Taiwan corporate-action contract
+
+New observations use explicit action types: `cash_dividend`,
+`earnings_stock_dividend`, `capital_surplus_stock_dividend`, `stock_split`,
+`reverse_split`, `rights_issue`, `capital_reduction`, `ex_dividend`, `ex_right`,
+and `ex_right_dividend`. The predecessor's ambiguous `stock_dividend` and
+`rights` values remain readable only for unchanged legacy history; writers
+reject them for new observations.
+
+Stock dividends retain their legal source category and component ratios.
+Split-style events use explicit `old_shares` and `new_shares`; a stock split
+increases shares, while a reverse split and capital reduction decrease them.
+These categories never collapse merely because some future adjustment formula
+could have similar arithmetic.
+
+Where the source supplies them, revisions retain `close_before`,
+`official_reference_price`, `official_rights_dividend_value`, the original
+`source_event_type`, and structured `source_terms`. These fields and all other
+economic terms enter the storage-generated business hash. An announced event
+may temporarily have no `ex_date`; effective-date history queries exclude it
+until an ex-date revision is available.
+
+Corporate actions are observed evidence only. They are never inferred from a
+price jump. Official daily OHLC remains immutable source truth and is neither
+rewritten nor adjusted by this contract. Adjustment factors, adjusted prices,
+total-return series, real-source ingestion, and historical backfill are outside
+PR #12.
 
 ## Temporal semantics
 

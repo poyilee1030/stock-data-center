@@ -278,8 +278,12 @@ trusted ingestion timestamps.
 Only index code is stable identity; market/name are effective-dated metadata.
 Index and official valuation `trade_date` values are effective observation
 dates. Corporate actions use a stable source event key. Their action type,
-`announcement_date`, effective `ex_date`, amounts, and terms are revision
-content: reliable publication may make an action visible before its ex-date.
+`announcement_date`, optional effective `ex_date`, amounts, and source terms are
+revision content: reliable publication may make an action visible before its
+ex-date is known. Taiwan stock distributions distinguish earnings and capital-
+surplus ratios; split, reverse-split, and capital-reduction events use explicit
+`old_shares`/`new_shares`. Official reference-price fields remain observed
+source values. Raw daily OHLC is never rewritten by corporate-action storage.
 TWD amounts normalize to major units at the canonical boundary. Source-
 published valuation remains observed and separate from Phase 10 computed
 `valuation_metrics:v1`. See [the Phase 8 contract](market_reference.md) and

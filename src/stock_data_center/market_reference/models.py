@@ -123,47 +123,105 @@ class MarketIndexMetadataObservation:
 
 
 ActionType = Literal[
-    "cash_dividend", "stock_dividend", "rights", "ex_dividend", "ex_right",
-    "capital_reduction", "other",
+    "cash_dividend", "earnings_stock_dividend", "capital_surplus_stock_dividend",
+    "stock_split", "reverse_split", "rights_issue", "capital_reduction",
+    "ex_dividend", "ex_right", "ex_right_dividend", "other",
 ]
+
+ACTION_TYPES = frozenset(ActionType.__args__)
 
 
 @dataclass(frozen=True, slots=True)
 class CorporateActionObservation:
     action_type: ActionType
-    ex_date: date
+    ex_date: date | None = None
     announcement_date: date | None = None
     record_date: date | None = None
     payment_date: date | None = None
     cash_dividend_per_share: TwdAmount | None = None
-    stock_dividend_ratio: Decimal | None = None
+    earnings_stock_ratio: Decimal | None = None
+    capital_surplus_stock_ratio: Decimal | None = None
+    free_share_ratio: Decimal | None = None
+    old_shares: Decimal | None = None
+    new_shares: Decimal | None = None
     rights_ratio: Decimal | None = None
     subscription_price: TwdAmount | None = None
     close_before: TwdAmount | None = None
-    reference_price: TwdAmount | None = None
-    rights_dividend_value: TwdAmount | None = None
-    terms: dict[str, object] | None = None
+    official_reference_price: TwdAmount | None = None
+    official_rights_dividend_value: TwdAmount | None = None
+    source_event_type: str | None = None
+    source_terms: dict[str, object] | None = None
 
     def __post_init__(self) -> None:
-        if self.announcement_date is not None and self.announcement_date > self.ex_date:
+        if self.action_type not in ACTION_TYPES:
+            raise ValueError(f"unsupported corporate action type {self.action_type!r}")
+        if (self.announcement_date is not None and self.ex_date is not None
+                and self.announcement_date > self.ex_date):
             raise ValueError("announcement_date must not follow ex_date")
+        if (self.ex_date is not None and self.record_date is not None
+                and self.ex_date > self.record_date):
+            raise ValueError("ex_date must not follow record_date")
+        if (self.record_date is not None and self.payment_date is not None
+                and self.record_date > self.payment_date):
+            raise ValueError("record_date must not follow payment_date")
         money = (
             "cash_dividend_per_share", "subscription_price", "close_before",
-            "reference_price", "rights_dividend_value",
+            "official_reference_price", "official_rights_dividend_value",
         )
         for name in money:
             value = getattr(self, name)
             if value is not None and not isinstance(value, TwdAmount):
                 raise ValueError(f"{name} must be a canonical TwdAmount")
-        for name in ("stock_dividend_ratio", "rights_ratio"):
+        ratios = (
+            "earnings_stock_ratio", "capital_surplus_stock_ratio",
+            "free_share_ratio", "rights_ratio", "old_shares", "new_shares",
+        )
+        for name in ratios:
             _decimal(name, getattr(self, name), 8, positive=True)
+            if getattr(self, name) == 0:
+                raise ValueError(f"{name} must be positive")
+        if (self.old_shares is None) != (self.new_shares is None):
+            raise ValueError("old_shares and new_shares must be supplied together")
+        component_total = sum(
+            value or Decimal(0)
+            for value in (self.earnings_stock_ratio, self.capital_surplus_stock_ratio)
+        )
+        if self.free_share_ratio is not None and self.free_share_ratio < component_total:
+            raise ValueError("free_share_ratio must include its declared components")
+        required = {
+            "cash_dividend": self.cash_dividend_per_share,
+            "earnings_stock_dividend": self.earnings_stock_ratio,
+            "capital_surplus_stock_dividend": self.capital_surplus_stock_ratio,
+            "rights_issue": self.rights_ratio,
+        }
+        if self.action_type in required and required[self.action_type] is None:
+            raise ValueError(f"{self.action_type} requires its explicit economic term")
+        if (self.action_type == "cash_dividend"
+                and self.cash_dividend_per_share is not None
+                and self.cash_dividend_per_share.value == 0):
+            raise ValueError("cash_dividend_per_share must be positive")
+        if self.action_type in {"stock_split", "reverse_split", "capital_reduction"}:
+            if self.old_shares is None or self.new_shares is None:
+                raise ValueError(f"{self.action_type} requires old_shares and new_shares")
+            increasing = self.new_shares > self.old_shares
+            if self.action_type == "stock_split" and not increasing:
+                raise ValueError("stock_split must increase shares")
+            if self.action_type in {"reverse_split", "capital_reduction"} and increasing:
+                raise ValueError(f"{self.action_type} must not increase shares")
+            if self.new_shares == self.old_shares:
+                raise ValueError(f"{self.action_type} must change shares")
+        if (self.action_type in {"ex_dividend", "ex_right", "ex_right_dividend"}
+                and self.ex_date is None):
+            raise ValueError(f"{self.action_type} requires ex_date")
+        if self.source_event_type == "":
+            raise ValueError("source_event_type must be nonempty when supplied")
         if not any(
             getattr(self, name) is not None
             for name in ("announcement_date", "record_date", "payment_date", *money,
-                         "stock_dividend_ratio", "rights_ratio")
-        ) and not self.terms:
+                         *ratios, "source_event_type")
+        ) and self.ex_date is None and not self.source_terms:
             raise ValueError("at least one corporate-action term is required")
-        object.__setattr__(self, "terms", self.terms or {})
+        object.__setattr__(self, "source_terms", self.source_terms or {})
 
 
 @dataclass(frozen=True, slots=True)
