@@ -122,6 +122,37 @@ class MarketDataWriter:
         observation: SecurityMetadataObservation,
         lineage: LineageRef,
     ) -> WrittenVersion:
+        latest = self._latest_security_metadata(
+            connection,
+            security_id=security_id,
+            source=source,
+            effective_on=observation.effective_from,
+        )
+        if (
+            latest is not None
+            and latest["effective_from"] == observation.effective_from
+            and _security_metadata_state_matches(latest, observation)
+        ):
+            return _written(latest, created=False)
+        return self._append_security_metadata_transition(
+            connection,
+            security_id=security_id,
+            source=source,
+            observation=observation,
+            lineage=lineage,
+            predecessor_version_id=latest["id"] if latest is not None else None,
+        )
+
+    def _append_security_metadata_transition(
+        self,
+        connection: Connection,
+        *,
+        security_id: int,
+        source: str,
+        observation: SecurityMetadataObservation,
+        lineage: LineageRef,
+        predecessor_version_id: int | None,
+    ) -> WrittenVersion:
         business = _dataclass_values(observation)
         return self._append_version(
             connection,
@@ -131,6 +162,7 @@ class MarketDataWriter:
                 "security_id": security_id,
                 "source": source,
                 "effective_from": observation.effective_from,
+                "predecessor_version_id": predecessor_version_id,
             },
             business=business,
             lineage=lineage,
@@ -153,26 +185,48 @@ class MarketDataWriter:
         not a new business revision.  A changed state starts no earlier than the
         first snapshot on which this importer observed it.
         """
-        state_fields = (
-            "effective_to",
-            "market",
-            "name",
-            "industry",
-            "listed_on",
-            "delisted_on",
+        latest = self._latest_security_metadata(
+            connection,
+            security_id=security_id,
+            source=source,
+            effective_on=observation.effective_from,
         )
-        latest = connection.execute(
+        if latest is not None and _security_metadata_state_matches(
+            latest, observation
+        ):
+            return _written(latest, created=False)
+        return self._append_security_metadata_transition(
+            connection,
+            security_id=security_id,
+            source=source,
+            observation=observation,
+            lineage=lineage,
+            predecessor_version_id=latest["id"] if latest is not None else None,
+        )
+
+    @staticmethod
+    def _latest_security_metadata(
+        connection: Connection,
+        *,
+        security_id: int,
+        source: str,
+        effective_on: date,
+    ) -> RowMapping | None:
+        return connection.execute(
             sa.select(
                 security_metadata_versions.c.id,
                 security_metadata_versions.c.business_content_hash,
                 security_metadata_versions.c.ingested_at,
-                *(security_metadata_versions.c[name] for name in state_fields),
+                security_metadata_versions.c.effective_from,
+                *(
+                    security_metadata_versions.c[name]
+                    for name in _SECURITY_METADATA_STATE_FIELDS
+                ),
             )
             .where(
                 security_metadata_versions.c.security_id == security_id,
                 security_metadata_versions.c.source == source,
-                security_metadata_versions.c.effective_from
-                <= observation.effective_from,
+                security_metadata_versions.c.effective_from <= effective_on,
             )
             .order_by(
                 security_metadata_versions.c.effective_from.desc(),
@@ -181,22 +235,6 @@ class MarketDataWriter:
             )
             .limit(1)
         ).mappings().one_or_none()
-        if latest is not None and all(
-            latest[name] == getattr(observation, name) for name in state_fields
-        ):
-            return WrittenVersion(
-                version_id=latest["id"],
-                business_content_hash=latest["business_content_hash"],
-                ingested_at=latest["ingested_at"],
-                created=False,
-            )
-        return self.append_security_metadata(
-            connection,
-            security_id=security_id,
-            source=source,
-            observation=observation,
-            lineage=lineage,
-        )
 
     def append_daily_price(
         self,
@@ -329,6 +367,25 @@ class MarketDataWriter:
 
 def _dataclass_values(instance: object) -> dict[str, object]:
     return {field.name: getattr(instance, field.name) for field in fields(instance)}
+
+
+_SECURITY_METADATA_STATE_FIELDS = (
+    "effective_to",
+    "market",
+    "name",
+    "industry",
+    "listed_on",
+    "delisted_on",
+)
+
+
+def _security_metadata_state_matches(
+    row: RowMapping, observation: SecurityMetadataObservation
+) -> bool:
+    return all(
+        row[name] == getattr(observation, name)
+        for name in _SECURITY_METADATA_STATE_FIELDS
+    )
 
 
 def _written(row: RowMapping, *, created: bool) -> WrittenVersion:

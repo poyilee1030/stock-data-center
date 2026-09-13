@@ -50,6 +50,14 @@ business revision starts on the later report date only when that source's state
 changes. Absence from a snapshot does not close an interval or set a delisting
 date.
 
+The source may publish more than one representation with the same report date.
+Consecutive equal observations still reuse the latest version, but an observed
+same-date transition such as `A -> B -> A` creates three append-only revisions.
+The final `A` keeps the same business-content hash as the first `A` while its
+`predecessor_version_id` and trusted `ingested_at` preserve when it became the
+current System-PIT state again. The predecessor is transition metadata, not
+business content, and is not exposed as resolved dataset data.
+
 TWSE and TPEx remain independent source histories. This milestone does not
 reconcile them into a synthetic cross-source transfer history. Historical
 market transfers require retained authoritative event evidence and a separate
@@ -71,6 +79,7 @@ resume from the same raw bytes.
 
 - Current official security metadata can populate stable identities safely.
 - Daily unchanged snapshots do not create fake business revisions.
+- Same-report-date source corrections and reversions remain System-PIT safe.
 - Current snapshots cannot answer historical universe or transfer questions
   from before their report dates.
 - A missing row is not silently interpreted as delisting.

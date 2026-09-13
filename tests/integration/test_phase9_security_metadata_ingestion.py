@@ -269,6 +269,151 @@ def test_changed_snapshot_starts_a_new_observed_state_without_closing_omissions(
         engine.dispose()
 
 
+def test_same_report_date_reassertion_remains_visible_in_system_pit(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    engine = sa.create_engine(isolated_database_url)
+    service = MarketDataService()
+    original_name = "台灣積體電路製造股份有限公司"
+    corrected_name = "台積電股份有限公司"
+    outcomes = []
+    try:
+        for name in (original_name, corrected_name, original_name, original_name):
+            outcomes.append(
+                SecurityMetadataImporter(
+                    engine,
+                    raw_store=LocalRawArtifactStore(tmp_path / "raw"),
+                    fetcher=StaticFetcher(_twse_payload(name=name)),
+                ).run(
+                    adapter=TWSESecurityMetadataAdapter(),
+                    request=SecurityMetadataRequest(date(2026, 9, 11)),
+                    import_id=uuid4(),
+                    git_commit="test-commit",
+                )
+            )
+
+        assert [outcome.business_versions_created for outcome in outcomes] == [
+            2,
+            1,
+            1,
+            0,
+        ]
+
+        with engine.connect() as connection:
+            versions = connection.execute(
+                sa.text(
+                    """
+                    SELECT metadata.id, metadata.name,
+                           metadata.business_content_hash, metadata.ingested_at,
+                           metadata.predecessor_version_id
+                    FROM security_metadata_versions AS metadata
+                    JOIN security AS identity ON identity.id=metadata.security_id
+                    WHERE identity.security_code='2330'
+                      AND metadata.source='twse'
+                      AND metadata.effective_from='2026-09-11'
+                    ORDER BY metadata.ingested_at, metadata.id
+                    """
+                )
+            ).mappings().all()
+
+            assert [row["name"] for row in versions] == [
+                original_name,
+                corrected_name,
+                original_name,
+            ]
+            assert versions[0]["business_content_hash"] == versions[2][
+                "business_content_hash"
+            ]
+            assert [row["predecessor_version_id"] for row in versions] == [
+                None,
+                versions[0]["id"],
+                versions[1]["id"],
+            ]
+
+            for version, expected_name in zip(
+                versions,
+                (original_name, corrected_name, original_name),
+                strict=True,
+            ):
+                resolved = service.security_state(
+                    connection,
+                    security_code="2330",
+                    effective_on=date(2026, 9, 11),
+                    context=SystemPITContext(version["ingested_at"]),
+                    source="twse",
+                )
+                assert resolved is not None
+                assert resolved.record.data["name"] == expected_name
+                assert "predecessor_version_id" not in resolved.record.data
+    finally:
+        engine.dispose()
+
+
+def test_security_metadata_predecessor_integrity_is_db_enforced(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        SecurityMetadataImporter(
+            engine,
+            raw_store=LocalRawArtifactStore(tmp_path / "raw"),
+            fetcher=StaticFetcher(_twse_payload()),
+        ).run(
+            adapter=TWSESecurityMetadataAdapter(),
+            request=SecurityMetadataRequest(date(2026, 9, 11)),
+            import_id=uuid4(),
+            git_commit="test-commit",
+        )
+
+        with engine.begin() as connection:
+            rows = {
+                row["security_code"]: row
+                for row in connection.execute(
+                    sa.text(
+                        """
+                        SELECT identity.security_code, identity.id AS security_id,
+                               metadata.id AS version_id,
+                               metadata.raw_artifact_id, metadata.ingest_run_id
+                        FROM security_metadata_versions AS metadata
+                        JOIN security AS identity ON identity.id=metadata.security_id
+                        """
+                    )
+                ).mappings()
+            }
+            invalid_transitions = (
+                (rows["2330"]["security_id"], date(2026, 9, 11), rows["1101"]["version_id"]),
+                (rows["2330"]["security_id"], date(2026, 9, 10), rows["2330"]["version_id"]),
+            )
+            for security_id, effective_from, predecessor_id in invalid_transitions:
+                with pytest.raises(sa.exc.IntegrityError) as invalid, connection.begin_nested():
+                    connection.execute(
+                        sa.text(
+                            """
+                            INSERT INTO security_metadata_versions (
+                                security_id, source, effective_from, market, name,
+                                business_content_hash, ingested_at, raw_artifact_id,
+                                ingest_run_id, predecessor_version_id
+                            ) VALUES (
+                                :security_id, 'twse', :effective_from, 'TWSE',
+                                'invalid transition', repeat('0', 64),
+                                statement_timestamp(), :artifact_id, :run_id,
+                                :predecessor_id
+                            )
+                            """
+                        ),
+                        {
+                            "security_id": security_id,
+                            "effective_from": effective_from,
+                            "artifact_id": rows["2330"]["raw_artifact_id"],
+                            "run_id": rows["2330"]["ingest_run_id"],
+                            "predecessor_id": predecessor_id,
+                        },
+                    )
+                assert invalid.value.orig.sqlstate == "23514"
+    finally:
+        engine.dispose()
+
+
 def test_security_metadata_captured_checkpoint_resumes_without_refetch(
     isolated_database_url: str, tmp_path: Path
 ) -> None:

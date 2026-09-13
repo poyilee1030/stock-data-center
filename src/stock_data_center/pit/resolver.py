@@ -14,8 +14,8 @@ from stock_data_center.db.metadata import (
     raw_artifacts,
 )
 from stock_data_center.pit.contracts import DatasetContract, get_contract
-from stock_data_center.pit.evidence import PublicationEvidenceResolver
 from stock_data_center.pit.errors import InvalidLogicalKeyError
+from stock_data_center.pit.evidence import PublicationEvidenceResolver
 from stock_data_center.pit.models import (
     AuthoritativeEvidence,
     MarketPITContext,
@@ -26,7 +26,6 @@ from stock_data_center.pit.models import (
 )
 from stock_data_center.pit.source_policy import SourcePolicyResolver
 
-
 _INTERNAL_COLUMNS = {
     "id",
     "source",
@@ -34,6 +33,7 @@ _INTERNAL_COLUMNS = {
     "ingested_at",
     "raw_artifact_id",
     "ingest_run_id",
+    "predecessor_version_id",
     "_seal_ingested_at",
     "_seal_business_content_hash",
     "_seal_version_id",
