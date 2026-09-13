@@ -1,5 +1,7 @@
 # stock-data-center ROADMAP
 
+> Updated for Phase 9 security lifecycle (PR #11 review) and the Taiwan corporate-action / adjusted-price gate.
+
 ## 1. Project Goal
 
 `stock-data-center` is the single source of truth for historical Taiwan stock data used by downstream research and ML systems.
@@ -1670,17 +1672,74 @@ backtesting
 
 ### Corporate actions
 
-Implement:
+Implement explicit observed-source contracts for:
 
 ```text
 cash dividends
-stock dividends
-rights
+earnings stock dividends / 盈餘配股
+capital-surplus stock dividends / 資本公積配股
+rights issues
 ex-dividend / ex-right events
-other supported corporate actions
+stock splits
+reverse splits
+capital reductions
+other explicitly supported corporate actions
 ```
 
-This is the foundation for future adjusted prices and total-return calculations.
+Do not collapse economically similar but legally/source-distinct events into one
+ambiguous type merely because they can produce a similar price adjustment.
+
+At minimum preserve, where officially available:
+
+```text
+announcement_date
+ex_date
+record_date
+payment_date
+
+cash_dividend_per_share
+
+earnings_stock_ratio
+capital_surplus_stock_ratio
+free_share_ratio
+
+old_shares
+new_shares
+
+rights_ratio
+subscription_price
+
+close_before
+official_reference_price
+official_rights_dividend_value
+
+source terms / source event type
+```
+
+For split-style events, prefer unambiguous quantities such as:
+
+```text
+old_shares
+new_shares
+```
+
+rather than relying only on an ambiguous provider-specific `split_ratio`.
+
+Corporate-action rows are observed/source facts. Raw official OHLC rows must remain
+raw and must never be rewritten merely to make the historical chart continuous.
+
+This domain is the foundation for later versioned:
+
+```text
+share adjustment factors
+price adjustment factors
+adjusted OHLC
+total-return series
+```
+
+When an official ex-right/ex-dividend reference price is available, preserve it as
+source data and use it to reconcile—not silently replace—the deterministic
+adjustment calculation.
 
 ### Official valuation
 
@@ -1696,11 +1755,11 @@ preserve them as observed source data with source/revision semantics.
 
 Acceptance criteria:
 
-- [x] index history is PIT-safe
-- [x] corporate actions have explicit effective/announcement semantics
-- [x] source-published valuation is distinguishable from computed valuation
-- [x] backfill/revision provenance is preserved
-- [x] dataset-specific regression tests exist
+- [ ] index history is PIT-safe
+- [ ] corporate actions have explicit effective/announcement semantics
+- [ ] source-published valuation is distinguishable from computed valuation
+- [ ] backfill/revision provenance is preserved
+- [ ] dataset-specific regression tests exist
 
 ---
 
@@ -1729,6 +1788,22 @@ legacy stock_db migration inputs
 historical backfill
 large-scale reconciliation
 ```
+
+Current Phase 9 implementation sequence:
+
+```text
+Pilot 1  raw-first TWSE / TPEx daily-market ingestion          complete
+Pilot 2  current TWSE / TPEx security metadata                 complete
+Pilot 3  authoritative listing/delisting lifecycle history     in review (PR #11)
+
+Next gate before full historical price is treated as analysis-ready:
+    explicit Taiwan corporate-action contract + real-source pilot
+```
+
+Security lifecycle history must preserve independent TWSE / TPEx source histories.
+Cross-source transfer reconciliation is audit metadata, not permission to merge the
+source histories into one synthetic business record.
+
 
 The required path is:
 
@@ -2000,6 +2075,49 @@ reconciliation
 
 Full historical backfill starts only after the pilot acceptance report passes.
 
+### 35.8A Corporate-Action Gate for Historical Price Readiness
+
+Raw daily-price ingestion may proceed in bounded pilots because raw official prices
+are valid source facts.
+
+However, do not declare full historical price data **analysis-ready** and do not
+produce canonical return/technical-indicator series until the corporate-action
+contract can explain mechanical price discontinuities.
+
+Before full-market historical price backfill is accepted for downstream analysis,
+the Data Center must support and pilot, where applicable:
+
+```text
+cash dividend
+earnings stock dividend
+capital-surplus stock dividend
+stock split
+reverse split
+rights issue
+capital reduction
+```
+
+Required rules:
+
+```text
+raw OHLC stays unchanged
+corporate actions are append-only observed/source data
+adjustment factors are derived/versioned data
+no corporate action is inferred solely from a large price move
+large unexplained price jumps are reconciled and reported
+```
+
+The price-history reconciliation should classify large discontinuities as:
+
+```text
+explained by observed corporate action
+explained by other documented market event
+unexplained anomaly
+```
+
+An unexplained anomaly must remain visible in reconciliation/reporting; do not
+silently smooth or forward-adjust it.
+
 ## 35.9 Reconciliation
 
 Every imported domain requires a reconciliation report.
@@ -2020,6 +2138,22 @@ rejected/quarantined count
 coverage gaps
 source-specific anomalies
 ```
+
+For cross-source reconciliation, the final reconciliation truth must not depend on
+which source happened to be imported first.
+
+A reconciliation may be:
+
+```text
+computed after all required source histories are present
+or
+explicitly re-runnable/recomputable from canonical stored histories
+```
+
+Do not permanently stamp a cross-source "matched/unmatched" result into an import
+manifest if that result can become stale merely because the counterpart source is
+imported later. If an import manifest records provisional reconciliation, mark it
+as provisional and provide a deterministic final reconciliation artifact/report.
 
 For legacy migration also compare, where meaningful:
 
@@ -2106,17 +2240,33 @@ Prefer dependency-aware import ordering:
 
 ```text
 1. security identity / historical metadata
-2. daily market data
-3. monthly revenue
-4. financial / XBRL
-5. TDCC
-6. institutional / margin / short / SBL
-7. market indices
-8. corporate actions
-9. official valuation
+2. authoritative security lifecycle / market-transfer history
+3. corporate-action contract + representative real-source pilot
+4. bounded daily-market pilot / raw-price validation
+5. corporate-action historical backfill + price-jump reconciliation
+6. full-market daily historical backfill
+7. monthly revenue
+8. financial / XBRL
+9. TDCC
+10. institutional / margin / short / SBL
+11. market indices
+12. official valuation
 ```
 
-A domain may be imported earlier when its dependencies are already satisfied, but do not create placeholder identities that later need silent reinterpretation.
+The exact ingestion execution order may differ when independent raw datasets are
+available, but dependency claims must remain truthful.
+
+In particular:
+
+```text
+raw daily prices may be stored before corporate-action history is complete
+but
+historical prices must not be declared analysis-ready for returns / indicators
+until corporate-action reconciliation is available
+```
+
+A domain may be imported earlier when its dependencies are already satisfied, but
+do not create placeholder identities that later need silent reinterpretation.
 
 ## 35.14 Phase Boundary
 
@@ -2157,6 +2307,10 @@ Redis/cache is not a prerequisite for import or backfill.
 - [ ] no canonical derived calculator is implemented in this phase
 - [ ] Redis is not required
 - [ ] Phase 9 acceptance report records imported coverage and reconciliation results
+- [ ] cross-source reconciliation is deterministic or explicitly re-runnable and does not depend on import order
+- [ ] security lifecycle transfer reconciliation is validated in both source-import orders
+- [ ] corporate-action source contracts explicitly distinguish stock dividends, splits, rights, and capital reductions
+- [ ] large raw-price discontinuities are reconciled against observed corporate actions before historical prices are declared analysis-ready
 
 ---
 
@@ -2169,6 +2323,9 @@ Implement deterministic reusable calculations shared by downstream repositories.
 Initial canonical domains:
 
 ```text
+corporate-action adjustment factors
+adjusted price history
+total-return history
 technical indicators
 shareholding concentration
 valuation metrics
@@ -2176,9 +2333,24 @@ margin metrics
 short-interest / SBL metrics
 ```
 
+Price-derived calculations must be layered explicitly:
+
+```text
+raw official OHLC
+    + PIT-safe corporate actions
+        -> versioned adjustment factors
+            -> adjusted OHLC / total-return series
+                -> returns / MA / volatility / RSI / MACD
+```
+
 Examples:
 
 ```text
+split/share adjustment factor
+price adjustment factor
+adjusted OHLC
+total-return index/series
+
 MA5 / MA20 / MA60
 historical returns
 historical volatility
@@ -2208,6 +2380,10 @@ Model-specific combinations remain downstream.
 - no use of future inputs
 - `computed_at` is provenance, not market publication time
 - materialized and virtual computation must return equivalent semantics
+- raw observed prices are immutable source facts and are never overwritten by adjusted values
+- adjustment conventions are explicit and versioned
+- stock dividend, stock split, rights issue, and capital reduction remain distinguishable observed events even when adjustment math is similar
+- no adjusted-price/return calculation may use a corporate action before its effective/ex date under the selected PIT context
 
 Acceptance criteria:
 

@@ -1,5 +1,7 @@
 # AGENTS.md
 
+> Updated with deterministic cross-source reconciliation and Taiwan corporate-action / raw-vs-adjusted-price rules.
+
 ## Purpose
 
 This repository implements `stock-data-center`.
@@ -676,6 +678,24 @@ If a canonical source is configured, it must be explicit.
 
 New reconciliation policies require ADR + tests.
 
+Cross-source reconciliation must be deterministic with respect to stored source
+history. Its final truth must not depend on import order.
+
+If reconciliation needs facts from multiple sources, either:
+
+```text
+run reconciliation only after all required histories are available
+or
+make reconciliation explicitly re-runnable from canonical stored histories
+```
+
+A per-import manifest may record a provisional result only if it is clearly marked
+provisional. Do not leave a permanent stale "unmatched" result merely because the
+counterpart source was imported later.
+
+Permanent regression tests must cover materially different source-import orders
+for transfer/reconciliation logic.
+
 ---
 
 # 31. Unknown Publication Rule
@@ -1108,17 +1128,99 @@ Do not migrate old model-specific interpretations as source facts.
 
 # 51. Corporate Action Coverage
 
-The v1 schema must define a corporate-action domain for:
+The v1 schema and real-source adapters must explicitly support, where available:
 
 ```text
 cash dividends
-stock dividends
-rights
+earnings stock dividends / 盈餘配股
+capital-surplus stock dividends / 資本公積配股
+rights issues
 ex-dividend / ex-right events
-other supported corporate actions
+stock splits
+reverse splits
+capital reductions
+other explicitly supported corporate actions
 ```
 
-This is required for future adjusted-price and total-return correctness.
+Do not collapse these into one generic event merely because adjustment math may be
+similar.
+
+Preserve source terms and, where available:
+
+```text
+announcement_date
+ex_date
+record_date
+payment_date
+cash_dividend_per_share
+earnings_stock_ratio
+capital_surplus_stock_ratio
+free_share_ratio
+old_shares
+new_shares
+rights_ratio
+subscription_price
+close_before
+official_reference_price
+official_rights_dividend_value
+```
+
+For splits, prefer `old_shares` + `new_shares` over an ambiguous provider-specific
+ratio.
+
+This is required for adjusted-price and total-return correctness.
+
+## 51.1 Raw vs Adjusted Price Rule
+
+Official daily OHLC is observed source data.
+
+Never rewrite raw historical OHLC merely to remove a discontinuity caused by:
+
+```text
+stock dividend
+stock split
+rights issue
+capital reduction
+cash dividend
+```
+
+Adjusted price, adjustment factors, and total-return series are canonical derived
+data with explicit derivation versions.
+
+Required layering:
+
+```text
+raw price
++ PIT-safe corporate action
+-> versioned adjustment factor
+-> adjusted price / total-return series
+```
+
+Downstream consumers must be able to distinguish raw and adjusted series.
+
+## 51.2 Corporate-Action Inference Rule
+
+Never infer a corporate action solely from a large price jump.
+
+A large unexplained raw-price move must trigger reconciliation/reporting:
+
+```text
+observed corporate action explains it
+other documented market event explains it
+or
+unexplained anomaly
+```
+
+If an official ex-right/ex-dividend reference price exists, preserve it as source
+data and use it for reconciliation of the calculation.
+
+## 51.3 Adjustment Timing Rule
+
+Do not apply an adjustment event before its effective/ex date under the selected
+PIT context.
+
+Historical returns, MA, volatility, RSI/MACD, and other continuity-sensitive
+canonical metrics must declare which price convention they use.
 
 ---
 
@@ -1620,6 +1722,16 @@ raw artifact
 
 Do not approve full bulk backfill until the pilot acceptance report passes.
 
+For historical daily prices, bounded raw-price pilots may run before the entire
+corporate-action history is complete, but do not declare the price history
+analysis-ready for canonical returns/technical indicators until:
+
+```text
+corporate-action contract exists
+representative real-source corporate-action pilot passes
+large discontinuities are reconciled
+```
+
 ---
 
 # 78. Import Reconciliation Rule
@@ -1647,6 +1759,18 @@ For legacy migration, compare old/new samples and counts where meaningful.
 Differences caused by corrected revision/evidence modeling are allowed but must be explained.
 
 Never silently ignore discrepancies.
+
+Cross-source reconciliation must be reproducible from canonical stored histories
+and independent of incidental import order.
+
+For security market transfers, permanent tests must include both:
+
+```text
+exit source imported before entry source
+entry source imported before exit source
+```
+
+The final matched/unmatched reconciliation result must converge to the same answer.
 
 ---
 
@@ -1802,6 +1926,8 @@ backfill is idempotent and restartable
 reconciliation/import manifests exist
 quarantined/anomalous records are reported
 real-data PIT spot checks pass
+cross-source reconciliation converges independent of import order
+corporate-action reconciliation exists before price history is declared analysis-ready
 ```
 
 For cache phases additionally:
