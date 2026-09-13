@@ -61,10 +61,20 @@ Actual insertion time controls System PIT; these backfilled rows remain Market
 PIT invisible until separate retained evidence proves historical publication.
 
 TWSE listing notes containing `櫃轉市` are explicit transfer-in evidence. The
-import reconciliation can match such an event to an already imported TPEx
-same-code, same-date delisting state. This match is audit metadata only: it
-does not copy, merge, overwrite, or synthesize a cross-source business version.
-Independent source histories and one stable security identity are preserved.
+normalized relation is retained append-only in `security_transfer_events`, with
+repeated raw observations linked separately. Import manifests mark their
+transfer result provisional and do not permanently stamp matched/unmatched
+truth based on the database state at import time.
+
+Final reconciliation is a separate, deterministic, re-runnable query over the
+stored transfer entry and TPEx same-code, same-date delisting histories. Before
+the required TPEx delisting year has a successful import manifest, a missing
+counterpart is `pending`, not `unmatched`. After that year is present, the same
+absence is genuinely unmatched. The result therefore converges after both
+histories arrive regardless of import order. The match is audit metadata only:
+it does not copy, merge, overwrite, or synthesize a cross-source business
+version. Independent source histories and one stable security identity are
+preserved.
 
 ## Coverage and restart semantics
 
@@ -74,7 +84,7 @@ resource, not a claim of all-time exchange completeness. As observed on
 from 2001-01-20. TPEx is year-scoped; its listing endpoint first returned a
 non-empty year at 2005 and its delisting endpoint at 1995, with zero-event
 years possible. Each manifest records its requested year, actual event range,
-row count, exact source fields, and transfer reconciliation counts. It records
+row count, exact source fields, and provisional transfer-event counts. It records
 `coverage_completeness = not_evaluated` and does not turn
 `coverage_gaps = null` into a completeness claim.
 
@@ -98,6 +108,8 @@ lineage without creating fake business or evidence revisions.
   independent official venue histories.
 - Transfer matching is explicit reconciliation, not an implicit canonical
   source-selection policy.
+- Reverse source-import order produces the same final matched/unmatched report;
+  genuinely unmatched official histories remain visible.
 - A later source-policy hook, broader performance work, the Taiwan trading
   calendar, and other Phase 9 datasets remain outside this change.
 - Cache impact is none because Phase 9 has no cache.

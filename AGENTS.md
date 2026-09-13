@@ -1,6 +1,6 @@
 # AGENTS.md
 
-> Updated with deterministic cross-source reconciliation and Taiwan corporate-action / raw-vs-adjusted-price rules.
+> Delivery is PR-driven. `ROADMAP.md` is authoritative for PR number, scope, dependencies, acceptance criteria, and out-of-scope work. Historical Phase terminology may remain in old ADRs/reports but must not drive new implementation planning.
 
 ## Purpose
 
@@ -36,7 +36,7 @@ The highest-priority requirement is:
 
 ---
 
-# 1. Canonical Roadmap
+# 1. Canonical Roadmap and Delivery Unit
 
 The canonical roadmap is:
 
@@ -46,19 +46,85 @@ ROADMAP.md
 
 Do not maintain competing version-suffixed roadmaps in the repository root.
 
-Work one phase at a time.
+The delivery unit is a **pull request**.
 
-Do not begin later phases merely because code is convenient to add.
-
-At the end of each phase, produce:
+Before implementation, identify the current PR and read its:
 
 ```text
-docs/phase_reports/phase-N-acceptance-report.md
+goal
+dependencies
+in-scope work
+out-of-scope work
+schema/PIT/provenance impact
+migration impact
+tests
+acceptance criteria
 ```
 
-Each required criterion must be marked PASS/FAIL with concrete evidence.
+Work one PR at a time.
 
-If a required acceptance criterion fails, stop.
+Do not implement later planned PRs merely because adjacent code is convenient to add.
+
+If correctness of the current PR requires a change outside its original implementation detail,
+make the minimum correctness fix and document why it belongs in the current PR.
+
+If review discovers an independent requirement, create/propose a follow-up PR instead of
+silently expanding scope.
+
+New implementation progress is tracked with:
+
+```text
+MERGED
+IN REVIEW
+PLANNED
+BLOCKED
+SUPERSEDED
+```
+
+Do not use "Phase complete" as a progress claim.
+
+Historical artifacts may still contain names such as:
+
+```text
+Phase 9
+Phase 9 Pilot 1
+docs/phase_reports/...
+```
+
+Do not rename historical artifacts solely for terminology cleanup.
+
+For new PR acceptance evidence, prefer:
+
+```text
+docs/pr_reports/pr-<N>-acceptance-report.md
+```
+
+or the repository's current equivalent if a different PR-report convention is already established.
+
+Each required PR criterion must be marked PASS/FAIL with concrete evidence.
+
+If a required correctness criterion fails, stop and keep the PR unmerged.
+
+---
+
+
+## Current PR-Based Sequence
+
+At the time this file was aligned to the PR-based roadmap:
+
+```text
+PR #11  authoritative security lifecycle history        IN REVIEW
+PR #12  Taiwan corporate-action contract               PLANNED
+PR #13  official corporate-action raw-first pilot      PLANNED
+PR #14  authoritative Taiwan trading calendar          PLANNED
+PR #15  historical corporate-action backfill           PLANNED
+PR #16  full daily-market historical backfill          PLANNED
+```
+
+This block is only a convenience snapshot.
+
+`ROADMAP.md` remains authoritative if PR numbering/status changes.
+
 
 ---
 
@@ -676,25 +742,41 @@ choose latest ingest
 
 If a canonical source is configured, it must be explicit.
 
-New reconciliation policies require ADR + tests.
+New reconciliation policies require ADR + permanent regression tests.
 
-Cross-source reconciliation must be deterministic with respect to stored source
-history. Its final truth must not depend on import order.
-
-If reconciliation needs facts from multiple sources, either:
+Final cross-source reconciliation truth must be deterministic with respect to stored source history.
+It must not depend on:
 
 ```text
-run reconciliation only after all required histories are available
-or
-make reconciliation explicitly re-runnable from canonical stored histories
+which source imported first
+worker scheduling
+current process state
 ```
 
-A per-import manifest may record a provisional result only if it is clearly marked
-provisional. Do not leave a permanent stale "unmatched" result merely because the
-counterpart source was imported later.
+If reconciliation requires multiple sources, either:
 
-Permanent regression tests must cover materially different source-import orders
-for transfer/reconciliation logic.
+```text
+run final reconciliation only after the required histories exist
+```
+
+or:
+
+```text
+make reconciliation explicitly re-runnable/recomputable from canonical stored histories
+```
+
+A per-import result may be provisional only if it is clearly labeled provisional and a deterministic
+final reconciliation path exists.
+
+For market-transfer reconciliation, permanent tests must include materially different import orders,
+for example:
+
+```text
+TPEx exit -> TWSE entry -> reconcile
+TWSE entry -> TPEx exit -> reconcile
+```
+
+Both must converge to the same final matched/unmatched truth.
 
 ---
 
@@ -776,8 +858,6 @@ Never compare naive and aware datetimes silently.
 
 # 35. Data Domain Inventory Is Mandatory
 
-Phase 1 must define the complete known v1 storage contract.
-
 Maintain:
 
 ```text
@@ -794,19 +874,25 @@ raw-artifact-only
 deprecated / intentionally removed
 ```
 
-No known v1 legacy domain may remain unmapped when Phase 1 is accepted.
+The v1 inventory/storage ownership contract was established by earlier merged PRs and must remain
+complete as the repository evolves.
+
+A new PR that introduces a domain, removes a field, or changes ownership must update the inventory
+in the same PR.
+
+No known v1 legacy domain may silently become unmapped.
 
 ---
 
-# 36. Phase 1 Is Complete v1 Storage Contract
+# 36. Complete v1 Storage Contract Is a Permanent Invariant
 
-Phase 1 is NOT merely:
+The repository contract is NOT merely:
 
 ```text
 create a few core PIT tables
 ```
 
-Phase 1 must define the complete known v1 storage contract for:
+The known v1 storage contract covers:
 
 ```text
 core identity/provenance
@@ -829,15 +915,14 @@ official valuation source data
 canonical derived dataset definitions/storage strategy
 ```
 
-Later phases may populate and expose these datasets.
-
-Empty-but-correct tables/contracts are acceptable in Phase 1.
+Later PRs may populate, backfill, expose, or derive these datasets, but they must not weaken the
+already-established ownership/storage contract without an explicit ROADMAP/ADR change.
 
 ---
 
 # 37. Legacy Domain Coverage Rule
 
-Before Phase 1 is accepted, review the old DB inventory field-by-field.
+When changing legacy/domain coverage, review the old DB inventory field-by-field.
 
 Do not silently omit old observable data.
 
@@ -1128,22 +1213,27 @@ Do not migrate old model-specific interpretations as source facts.
 
 # 51. Corporate Action Coverage
 
-The v1 schema and real-source adapters must explicitly support, where available:
+The schema and real-source adapters must explicitly support, where available:
 
 ```text
 cash dividends
+
 earnings stock dividends / 盈餘配股
 capital-surplus stock dividends / 資本公積配股
+
 rights issues
 ex-dividend / ex-right events
+
 stock splits
 reverse splits
+
 capital reductions
+
 other explicitly supported corporate actions
 ```
 
-Do not collapse these into one generic event merely because adjustment math may be
-similar.
+Do not collapse economically similar but legally/source-distinct events into one ambiguous type
+merely because their adjustment math may be similar.
 
 Preserve source terms and, where available:
 
@@ -1152,21 +1242,34 @@ announcement_date
 ex_date
 record_date
 payment_date
+
 cash_dividend_per_share
+
 earnings_stock_ratio
 capital_surplus_stock_ratio
 free_share_ratio
+
 old_shares
 new_shares
+
 rights_ratio
 subscription_price
+
 close_before
 official_reference_price
 official_rights_dividend_value
+
+original source event type / terms
 ```
 
-For splits, prefer `old_shares` + `new_shares` over an ambiguous provider-specific
-ratio.
+For split-style events, prefer:
+
+```text
+old_shares
+new_shares
+```
+
+over a provider-specific ambiguous `split_ratio`.
 
 This is required for adjusted-price and total-return correctness.
 
@@ -1177,23 +1280,23 @@ Official daily OHLC is observed source data.
 Never rewrite raw historical OHLC merely to remove a discontinuity caused by:
 
 ```text
+cash dividend
 stock dividend
 stock split
 rights issue
 capital reduction
-cash dividend
 ```
 
-Adjusted price, adjustment factors, and total-return series are canonical derived
-data with explicit derivation versions.
+Adjusted price, adjustment factors, and total-return series are canonical derived data with explicit
+derivation versions.
 
 Required layering:
 
 ```text
-raw price
-+ PIT-safe corporate action
--> versioned adjustment factor
--> adjusted price / total-return series
+raw official OHLC
++ PIT-safe corporate actions
+-> versioned adjustment factors
+-> adjusted OHLC / total-return series
 ```
 
 Downstream consumers must be able to distinguish raw and adjusted series.
@@ -1211,16 +1314,33 @@ or
 unexplained anomaly
 ```
 
-If an official ex-right/ex-dividend reference price exists, preserve it as source
-data and use it for reconciliation of the calculation.
+If an official ex-right/ex-dividend reference price exists, preserve it as source data and use it to
+reconcile the deterministic calculation.
 
 ## 51.3 Adjustment Timing Rule
 
-Do not apply an adjustment event before its effective/ex date under the selected
-PIT context.
+Do not apply an adjustment event before its effective/ex date under the selected PIT context.
 
-Historical returns, MA, volatility, RSI/MACD, and other continuity-sensitive
-canonical metrics must declare which price convention they use.
+Historical returns, MA, volatility, RSI/MACD, and other continuity-sensitive canonical metrics must
+declare which price convention they use.
+
+## 51.4 Historical Price Readiness Gate
+
+Raw daily-price ingestion may occur before all corporate-action history is complete because raw
+official prices are valid source facts.
+
+However, do not declare historical prices **analysis-ready** for canonical returns, technical
+indicators, backtesting, or ML features until:
+
+```text
+corporate-action contract is explicit
+representative real-source corporate-action pilot passes
+supported corporate-action history is backfilled
+large price discontinuities are reconciled
+```
+
+Under the PR-based roadmap, this means the dependency/acceptance criteria for the relevant
+corporate-action and price-backfill PRs must be satisfied before adjusted/derived-price work starts.
 
 ---
 
@@ -1485,67 +1605,66 @@ cache failure fallback
 
 ---
 
-# 67. Phase Scope Discipline
+# 67. PR Scope Discipline
 
-When implementing one ROADMAP phase:
+When implementing one ROADMAP PR:
 
-- implement only that phase
+- implement only that PR's dominant delivery goal
+- honor declared dependencies
+- honor explicit out-of-scope work
 - do not weaken existing acceptance criteria
 - do not silently change PIT semantics
 - do not silently change derivation semantics
 - record architectural changes in ADRs
-- keep phase reports current
+- keep PR acceptance/reconciliation evidence current
 - avoid unrelated refactors
 
-If a later-phase optimization is needed for correctness, document why.
+If a future-PR optimization is needed for current correctness, document why.
+
+Do not use broad historical labels such as "Phase 9" as permission to implement multiple planned PRs
+at once.
 
 ---
 
-# 68. Phase 1 Special Rule
+# 68. Historical Storage-Contract Preservation Rule
 
-Phase 1 must establish the complete known v1 storage and ownership contract.
+Earlier merged PRs established the known v1 storage/ownership contract.
 
-Do not accept Phase 1 merely because the currently implemented core tables are correct.
+Do not regress that contract while implementing later source adapters, backfills, APIs, caches, or
+derived datasets.
 
-Before Phase 1 completion:
+Before changing/removing an existing domain contract:
 
 ```text
-docs/data_domain_inventory.md must be complete
-all known v1 domains must be mapped
-all intended v1 observed domains must have storage contracts
-all intended v1 canonical-derived domains must have materialized/virtual contracts
+update ROADMAP
+update domain inventory
+write/adjust ADR if architectural
+provide migration semantics
+provide regression tests
 ```
 
-Phase 1 may leave tables empty.
-
-Phase 1 does not need to implement all ingestion/calculator pipelines.
+Empty-but-correct contracts established by earlier PRs are not permission to reinterpret their
+semantics during later ingestion work.
 
 ---
 
-# 69. Phase 1 No-Redis Rule
+# 69. Cache Scope Rule
 
-Do not introduce Redis into Phase 1 schema correctness work.
+Do not introduce Redis/cache work into storage, PIT, ingestion, or source-correctness PRs unless the
+current ROADMAP PR explicitly owns cache behavior.
 
-First complete:
+First complete authoritative correctness in PostgreSQL.
 
-```text
-storage contract
-constraints
-PIT metadata
-provenance
-domain coverage
-derived-data contract
-```
-
-Caching remains a later optimization phase.
+Caching remains an optional optimization and must never be required for correctness.
 
 ---
 
-# 70. Real-Data Import Phase Boundary
+# 70. Real-Data Import PR Boundary
 
-Real external-source adapters and bulk historical backfill belong to the dedicated real-data import phase after observed-domain contracts are implemented.
+Real external-source adapters and bulk historical backfills must be delivered through the dedicated
+PRs defined by ROADMAP.md.
 
-Earlier phases may implement:
+Contract PRs may implement:
 
 ```text
 domain writers
@@ -1557,7 +1676,9 @@ migration tests
 
 Fixture-backed ingestion is not proof that real source import/backfill is complete.
 
-Do not begin canonical-derived calculations merely because fixture data exists.
+A bounded real-source pilot is not proof that full historical coverage/backfill is complete.
+
+Do not begin canonical-derived calculations merely because fixture or bounded pilot data exists.
 
 ---
 
@@ -1693,22 +1814,14 @@ Do not design a one-shot migration that cannot safely resume.
 
 # 77. Pilot-Before-Bulk Rule
 
-Before full-market historical backfill, run a representative real-data pilot.
+Before a full historical backfill PR, the relevant real-data pilot and dependency PRs must pass.
 
-Include enough cases to exercise:
+Do not use one giant "pilot phase" as a substitute for domain-specific evidence.
 
-```text
-TWSE
-TPEx
-market-transfer history
-monthly revenue
-financial/XBRL
-TDCC
-institutional/margin/SBL
-market index/corporate action/valuation where supported
-```
+Each bulk-import domain should have representative pilot coverage sufficient to exercise its own
+semantics.
 
-The pilot must validate:
+A real-data pilot must validate, as applicable:
 
 ```text
 raw artifact
@@ -1720,17 +1833,21 @@ raw artifact
 -> reconciliation
 ```
 
-Do not approve full bulk backfill until the pilot acceptance report passes.
+For historical daily prices specifically, do not begin/approve the full backfill merely because
+TWSE/TPEx daily-market raw ingestion works.
 
-For historical daily prices, bounded raw-price pilots may run before the entire
-corporate-action history is complete, but do not declare the price history
-analysis-ready for canonical returns/technical indicators until:
+The ROADMAP dependencies for:
 
 ```text
-corporate-action contract exists
-representative real-source corporate-action pilot passes
-large discontinuities are reconciled
+security lifecycle
+corporate-action contract/pilot/history
+authoritative trading calendar
 ```
+
+must be satisfied according to the current PR plan.
+
+Do not declare daily-price history analysis-ready until corporate-action discontinuity reconciliation
+is available.
 
 ---
 
@@ -1760,8 +1877,8 @@ Differences caused by corrected revision/evidence modeling are allowed but must 
 
 Never silently ignore discrepancies.
 
-Cross-source reconciliation must be reproducible from canonical stored histories
-and independent of incidental import order.
+Cross-source reconciliation must be reproducible from canonical stored histories and independent of
+incidental import order.
 
 For security market transfers, permanent tests must include both:
 
@@ -1770,7 +1887,20 @@ exit source imported before entry source
 entry source imported before exit source
 ```
 
-The final matched/unmatched reconciliation result must converge to the same answer.
+The final matched/unmatched result must converge to the same answer.
+
+If an import-time result can become stale when a counterpart source arrives later, mark it
+provisional and provide a deterministic final reconciliation pass.
+
+For historical price backfills, large discontinuities must be classified as:
+
+```text
+explained_by_corporate_action
+explained_by_other_documented_market_event
+unexplained_anomaly
+```
+
+Do not silently smooth unexplained anomalies.
 
 ---
 
@@ -1808,21 +1938,52 @@ Preserve the raw artifact and failure reason.
 
 ---
 
-# 80. Derived Implementation Phase Rule
+# 80. Derived Implementation PR Rule
 
-Phase 1 may define canonical derived storage/definition contracts.
+Earlier PRs may define canonical derived storage/definition contracts.
 
-Actual calculators belong in the later canonical-derived-data phase unless needed for schema validation.
+Actual calculators belong in the dedicated canonical-derived PRs defined by ROADMAP.md unless a
+minimal implementation is required solely for schema/contract validation.
 
-Do not implement model training logic inside derived calculators.
+Do not implement model training logic inside canonical derived calculators.
+
+For price-derived calculations, enforce the dependency chain:
+
+```text
+raw official OHLC
++ PIT-safe corporate actions
+-> versioned adjustment factors
+-> adjusted OHLC / total-return series
+-> returns / technical indicators
+```
+
+Do not bypass corporate-action readiness by computing indicators directly from mechanically
+discontinuous raw prices.
 
 ---
 
 # 81. Migration Rule
 
-A migration that changes historical temporal or derivation meaning must include a cache-impact section.
+A migration that changes historical temporal, lineage, or derivation meaning must include explicit
+migration/downgrade semantics.
 
-If it can change prior cached query results:
+A downgrade must either:
+
+```text
+safely represent all stored history
+```
+
+or:
+
+```text
+fail explicitly before mutation when the previous schema cannot represent it
+```
+
+Never delete, merge, or collapse valid append-only PIT history merely to make downgrade succeed.
+
+Permanent regressions must cover any guarded-downgrade condition introduced by the migration.
+
+If a migration can change prior cached query results, include a cache-impact section:
 
 ```text
 bump namespace
@@ -1879,22 +2040,26 @@ When tradeoffs exist, prioritize:
 7. source isolation
 8. derivation-version correctness
 9. import reconciliation/auditability
-10. cache/result equivalence
-11. maintainability
-12. performance
-13. SSD/read reduction
-14. convenience
+10. migration/history preservation
+11. cache/result equivalence
+12. maintainability
+13. performance
+14. SSD/read reduction
+15. convenience
 ```
 
-Never trade PIT, auditability, provenance, source semantics, import determinism, source isolation, derivation correctness, reconciliation, or cache correctness for performance.
+Never trade PIT, auditability, provenance, source semantics, import determinism, source isolation,
+derivation correctness, reconciliation, migration safety, or cache correctness for performance.
 
 ---
 
-# 85. Phase Completion Checklist
+# 85. PR Completion Checklist
 
-Before declaring any phase complete:
+Before declaring any PR complete/mergeable:
 
 ```text
+current PR number and ROADMAP scope are identified
+declared dependencies are satisfied
 tests pass
 docs updated
 acceptance criteria evaluated
@@ -1902,35 +2067,56 @@ PIT semantics preserved
 provenance preserved
 no source-capability leakage
 no direct downstream DB/cache dependency introduced
+out-of-scope work was not silently absorbed
+review blockers/majors are resolved
 ```
 
-For Phase 1 additionally:
+For schema/migration PRs additionally:
 
 ```text
-legacy/domain inventory complete
-all known v1 domains mapped
-observed storage contracts complete
-canonical-derived contracts complete
-derivation-version semantics documented
+alembic upgrade passes
+alembic check/schema drift passes
+downgrade passes
+or
+downgrade is deliberately guarded before mutation when old schema cannot represent history
+permanent migration regressions pass
 ```
 
-For the real-data import/backfill phase additionally:
+For real-data ingestion/backfill PRs additionally:
 
 ```text
 real source adapters use explicit source semantics
 raw-first provenance is preserved
-pilot import passes before bulk import
 publication time is proven or unknown
 normal backfill preserves actual System-PIT ingestion time
-backfill is idempotent and restartable
+import is idempotent and restartable
 reconciliation/import manifests exist
 quarantined/anomalous records are reported
 real-data PIT spot checks pass
-cross-source reconciliation converges independent of import order
-corporate-action reconciliation exists before price history is declared analysis-ready
+cross-source reconciliation converges independent of import order where applicable
 ```
 
-For cache phases additionally:
+For full historical daily-price readiness additionally:
+
+```text
+authoritative trading-date coverage exists
+corporate-action contract is explicit
+supported corporate-action history is available
+large discontinuities are reconciled
+unexplained anomalies remain visible
+raw OHLC remains unchanged
+```
+
+For derived-price/indicator PRs additionally:
+
+```text
+adjustment convention is explicit/versioned
+no future corporate action leaks backward
+raw vs adjusted series are distinguishable
+derived inputs are PIT-safe and lineage-complete
+```
+
+For cache PRs additionally:
 
 ```text
 CACHE_BACKEND=none passes
@@ -1938,7 +2124,41 @@ Redis cold/warm equivalence passes
 Redis failure fallback passes
 ```
 
-Then publish the phase acceptance report.
+Then publish/update PR acceptance evidence.
+
+Do not publish a new "Phase completion" claim for implementation progress.
+
+---
+
+# 85.1 Agent Execution Protocol
+
+At the start of implementation work:
+
+```text
+1. Read ROADMAP.md.
+2. Identify the current GitHub PR number.
+3. Confirm the PR status is IN REVIEW/PLANNED as appropriate.
+4. Read dependencies, acceptance criteria, and out-of-scope work.
+5. Inspect current main/head before coding.
+6. Implement only the current PR.
+```
+
+At the end of implementation work, report:
+
+```text
+commit SHA
+files/schema materially changed
+acceptance criteria satisfied
+tests/lint/migration checks
+known limitations
+explicitly deferred next-PR work
+```
+
+If the current GitHub PR number differs from a predicted number in ROADMAP because another PR consumed
+the number, update ROADMAP to the actual number instead of forcing the code/history to match the
+prediction.
+
+Do not create a new broad "Phase" label to group unfinished work.
 
 ---
 

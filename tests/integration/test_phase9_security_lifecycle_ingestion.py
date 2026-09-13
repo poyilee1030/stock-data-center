@@ -15,6 +15,7 @@ from stock_data_center.ingestion import (
     ResourceQuarantinedError,
     SecurityLifecycleImporter,
     SecurityLifecycleRequest,
+    reconcile_security_transfers,
 )
 from stock_data_center.ingestion.adapters import (
     TPExDelistingHistoryAdapter,
@@ -69,28 +70,47 @@ def _tpex(adapter, rows: list[list[object]], year: int) -> bytes:
     ).encode()
 
 
-def _twse_transfer() -> bytes:
+def _twse_transfer(*, include_unmatched: bool = False) -> bytes:
     adapter = TWSEListingHistoryAdapter()
+    rows = [
+        [
+            "5236",
+            "凌陽創新",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "115.07.16",
+            "",
+            100,
+            "櫃轉市",
+        ]
+    ]
+    if include_unmatched:
+        rows.append(
+            [
+                "9999",
+                "未匹配測試",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "115.08.01",
+                "",
+                100,
+                "櫃轉市",
+            ]
+        )
     return json.dumps(
         {
             "fields": list(adapter.fields),
-            "data": [
-                [
-                    "5236",
-                    "凌陽創新",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "115.07.16",
-                    "",
-                    100,
-                    "櫃轉市",
-                ]
-            ],
+            "data": rows,
         },
         ensure_ascii=False,
     ).encode()
@@ -202,10 +222,118 @@ def test_authoritative_transfer_events_preserve_independent_source_histories(
                 connection, transfer_import_id
             )
             assert manifest.reconciliation["explicit_transfer_event_count"] == 1
-            assert manifest.reconciliation["matched_cross_source_transfer_count"] == 1
+            assert manifest.reconciliation["transfer_reconciliation_status"] == (
+                "provisional"
+            )
+            assert "matched_cross_source_transfer_count" not in (
+                manifest.reconciliation
+            )
             assert manifest.reconciliation["coverage_completeness"] == ("not_evaluated")
             assert manifest.result_counts["rejected_quarantined_count"] == 0
             assert manifest.reconciliation["warnings_anomalies"] == []
+
+            final = reconcile_security_transfers(connection)
+            assert final.reconciliation_status == "final"
+            assert final.matched_cross_source_transfer_count == 1
+            assert final.unmatched_cross_source_transfer_count == 0
+            assert final.pending_cross_source_transfer_count == 0
+    finally:
+        engine.dispose()
+
+
+@pytest.mark.parametrize(
+    "entry_first", [False, True], ids=["exit-first", "entry-first"]
+)
+def test_final_transfer_reconciliation_is_import_order_independent(
+    isolated_database_url: str, tmp_path: Path, entry_first: bool
+) -> None:
+    engine = sa.create_engine(isolated_database_url)
+    raw_store = LocalRawArtifactStore(tmp_path / "raw")
+    tpex_delisting = TPExDelistingHistoryAdapter()
+
+    def import_entry() -> None:
+        SecurityLifecycleImporter(
+            engine,
+            raw_store=raw_store,
+            fetcher=StaticFetcher(_twse_transfer(include_unmatched=True)),
+        ).run(
+            adapter=TWSEListingHistoryAdapter(),
+            request=SecurityLifecycleRequest(),
+            import_id=uuid4(),
+            git_commit="test-commit",
+        )
+
+    def import_exit() -> None:
+        SecurityLifecycleImporter(
+            engine,
+            raw_store=raw_store,
+            fetcher=StaticFetcher(
+                _tpex(
+                    tpex_delisting,
+                    [["5236", "凌陽創新科技股份有限公司", "115-07-16", "規則", "url"]],
+                    2026,
+                )
+            ),
+        ).run(
+            adapter=tpex_delisting,
+            request=SecurityLifecycleRequest(2026),
+            import_id=uuid4(),
+            git_commit="test-commit",
+        )
+
+    try:
+        if entry_first:
+            import_entry()
+            with engine.connect() as connection:
+                provisional_state = reconcile_security_transfers(connection)
+                assert provisional_state.reconciliation_status == "provisional"
+                assert provisional_state.matched_cross_source_transfer_count == 0
+                assert provisional_state.unmatched_cross_source_transfer_count == 0
+                assert provisional_state.pending_cross_source_transfer_count == 2
+            import_exit()
+        else:
+            import_exit()
+            import_entry()
+
+        with engine.connect() as connection:
+            final = reconcile_security_transfers(connection)
+            assert final.reconciliation_status == "final"
+            assert final.reconciliation_rule_version == "security-transfer:v1"
+            assert final.explicit_transfer_event_count == 2
+            assert final.matched_cross_source_transfer_count == 1
+            assert final.unmatched_cross_source_transfer_count == 1
+            assert final.pending_cross_source_transfer_count == 0
+            assert [item.security_code for item in final.matched_events] == ["5236"]
+            assert [item.security_code for item in final.unmatched_events] == ["9999"]
+    finally:
+        engine.dispose()
+
+
+def test_repeated_transfer_import_preserves_observation_without_duplicate_event(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    engine = sa.create_engine(isolated_database_url)
+    raw_store = LocalRawArtifactStore(tmp_path / "raw")
+    try:
+        for _ in range(2):
+            SecurityLifecycleImporter(
+                engine,
+                raw_store=raw_store,
+                fetcher=StaticFetcher(_twse_transfer()),
+            ).run(
+                adapter=TWSEListingHistoryAdapter(),
+                request=SecurityLifecycleRequest(),
+                import_id=uuid4(),
+                git_commit="test-commit",
+            )
+
+        with engine.connect() as connection:
+            assert connection.scalar(
+                sa.text("SELECT count(*) FROM security_transfer_events")
+            ) == (1)
+            assert connection.scalar(
+                sa.text("SELECT count(*) FROM security_transfer_event_observations")
+            ) == (2)
     finally:
         engine.dispose()
 
@@ -394,6 +522,11 @@ def test_official_security_lifecycle_resources_reach_postgres(
                     SecurityLifecycleImporter.manifest(connection, import_id)
                 )
         assert manifests[2].reconciliation["explicit_transfer_event_count"] > 0
-        assert manifests[2].reconciliation["matched_cross_source_transfer_count"] > 0
+        assert manifests[2].reconciliation["transfer_reconciliation_status"] == (
+            "provisional"
+        )
+        with engine.connect() as connection:
+            final = reconcile_security_transfers(connection)
+        assert final.matched_cross_source_transfer_count > 0
     finally:
         engine.dispose()

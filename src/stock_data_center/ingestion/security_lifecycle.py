@@ -3,14 +3,20 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
+from datetime import date
 
 import sqlalchemy as sa
 from sqlalchemy import Connection, Engine
+from sqlalchemy.dialects.postgresql import insert
 
 from stock_data_center.db.metadata import (
+    import_manifests,
     publication_evidence,
     security,
     security_metadata_versions,
+    security_transfer_event_observations,
+    security_transfer_events,
 )
 from stock_data_center.ingestion.adapters.security_lifecycle import (
     SecurityLifecycleAdapter,
@@ -33,6 +39,114 @@ from stock_data_center.market_data import (
     PublicationObservation,
     SecurityMetadataObservation,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class SecurityTransferMatch:
+    security_code: str
+    effective_on: date
+    from_source: str
+    from_market: str
+    to_source: str
+    to_market: str
+    source_term: str
+
+
+@dataclass(frozen=True, slots=True)
+class SecurityTransferReconciliation:
+    reconciliation_status: str
+    reconciliation_rule_version: str
+    explicit_transfer_event_count: int
+    matched_cross_source_transfer_count: int
+    unmatched_cross_source_transfer_count: int
+    pending_cross_source_transfer_count: int
+    matched_events: tuple[SecurityTransferMatch, ...]
+    unmatched_events: tuple[SecurityTransferMatch, ...]
+    pending_events: tuple[SecurityTransferMatch, ...]
+
+
+def reconcile_security_transfers(
+    connection: Connection,
+) -> SecurityTransferReconciliation:
+    """Recompute final transfer truth from complete canonical source histories."""
+    completed_delisting_scopes = {
+        (source, int(year))
+        for source, year in connection.execute(
+            sa.select(
+                import_manifests.c.source,
+                import_manifests.c.source_scope["year"].astext,
+            )
+            .where(
+                import_manifests.c.dataset_code == "security_metadata",
+                import_manifests.c.status == "succeeded",
+                import_manifests.c.source_scope["history_event"].astext
+                == "delisting",
+                import_manifests.c.source_scope["year"].astext.is_not(None),
+            )
+            .distinct()
+        )
+    }
+    entry = security_metadata_versions.alias("transfer_entry")
+    exit_state = security_metadata_versions.alias("transfer_exit")
+    matching_exit = sa.exists().where(
+        exit_state.c.security_id == entry.c.security_id,
+        exit_state.c.source == security_transfer_events.c.from_source,
+        exit_state.c.market == security_transfer_events.c.from_market,
+        exit_state.c.effective_from == entry.c.effective_from,
+        exit_state.c.delisted_on == entry.c.effective_from,
+    )
+    rows = connection.execute(
+        sa.select(
+            security.c.security_code,
+            entry.c.effective_from,
+            security_transfer_events.c.from_source,
+            security_transfer_events.c.from_market,
+            entry.c.source.label("to_source"),
+            entry.c.market.label("to_market"),
+            security_transfer_events.c.source_term,
+            matching_exit.label("matched"),
+        )
+        .select_from(
+            security_transfer_events.join(
+                entry, entry.c.id == security_transfer_events.c.entry_version_id
+            ).join(security, security.c.id == entry.c.security_id)
+        )
+        .order_by(
+            security.c.security_code,
+            entry.c.effective_from,
+            security_transfer_events.c.id,
+        )
+    ).mappings()
+    matched: list[SecurityTransferMatch] = []
+    unmatched: list[SecurityTransferMatch] = []
+    pending: list[SecurityTransferMatch] = []
+    for row in rows:
+        item = SecurityTransferMatch(
+            security_code=row["security_code"],
+            effective_on=row["effective_from"],
+            from_source=row["from_source"],
+            from_market=row["from_market"],
+            to_source=row["to_source"],
+            to_market=row["to_market"],
+            source_term=row["source_term"],
+        )
+        if row["matched"]:
+            matched.append(item)
+        elif (item.from_source, item.effective_on.year) in completed_delisting_scopes:
+            unmatched.append(item)
+        else:
+            pending.append(item)
+    return SecurityTransferReconciliation(
+        reconciliation_status="final" if not pending else "provisional",
+        reconciliation_rule_version="security-transfer:v1",
+        explicit_transfer_event_count=len(matched) + len(unmatched) + len(pending),
+        matched_cross_source_transfer_count=len(matched),
+        unmatched_cross_source_transfer_count=len(unmatched),
+        pending_cross_source_transfer_count=len(pending),
+        matched_events=tuple(matched),
+        unmatched_events=tuple(unmatched),
+        pending_events=tuple(pending),
+    )
 
 
 class SecurityLifecycleImporter(
@@ -114,7 +228,6 @@ class SecurityLifecycleImporter(
         evidence_created = 0
         evidence_deduplicated = 0
         explicit_transfers = 0
-        matched_transfers = 0
         evidence_source = (
             f"{adapter.source} official {adapter.event_kind}-history endpoint"
         )
@@ -178,14 +291,13 @@ class SecurityLifecycleImporter(
 
             if event.transfer_from_market is not None:
                 explicit_transfers += 1
-                matched_transfers += int(
-                    self._matching_exit_exists(
-                        connection,
-                        security_code=event.security_code,
-                        source="tpex",
-                        market=event.transfer_from_market,
-                        effective_on=event.effective_on,
-                    )
+                self._append_transfer_event(
+                    connection,
+                    entry_version_id=written.version_id,
+                    from_source="tpex",
+                    from_market=event.transfer_from_market,
+                    source_term="櫃轉市",
+                    lineage=lineage,
                 )
 
         coverage_start = parsed.coverage_start
@@ -218,44 +330,58 @@ class SecurityLifecycleImporter(
                 "system_time": "actual_import_time",
                 "cross_source_write_semantics": "independent_source_histories",
                 "explicit_transfer_event_count": explicit_transfers,
-                "matched_cross_source_transfer_count": matched_transfers,
-                "unmatched_cross_source_transfer_count": (
-                    explicit_transfers - matched_transfers
+                "transfer_reconciliation_status": "provisional",
+                "transfer_reconciliation_next_step": (
+                    "run security-transfer-reconciliation after required TWSE "
+                    "and TPEx histories are present"
                 ),
                 "transfer_match_rule": (
                     "TWSE note contains 櫃轉市 and TPEx has same-code same-date "
-                    "official delisting state; reconciliation only"
+                    "official delisting state; final result is recomputed from "
+                    "canonical histories"
                 ),
                 "source_fields": list(parsed.source_fields),
             },
         )
 
     @staticmethod
-    def _matching_exit_exists(
+    def _append_transfer_event(
         connection: Connection,
         *,
-        security_code: str,
-        source: str,
-        market: str,
-        effective_on,
-    ) -> bool:
-        return bool(
-            connection.scalar(
-                sa.select(
-                    sa.exists()
-                    .select_from(
-                        security_metadata_versions.join(
-                            security,
-                            security.c.id == security_metadata_versions.c.security_id,
-                        )
-                    )
-                    .where(
-                        security.c.security_code == security_code,
-                        security_metadata_versions.c.source == source,
-                        security_metadata_versions.c.market == market,
-                        security_metadata_versions.c.effective_from == effective_on,
-                        security_metadata_versions.c.delisted_on == effective_on,
-                    )
-                )
+        entry_version_id: int,
+        from_source: str,
+        from_market: str,
+        source_term: str,
+        lineage: LineageRef,
+    ) -> None:
+        event_id = connection.execute(
+            insert(security_transfer_events)
+            .values(
+                entry_version_id=entry_version_id,
+                from_source=from_source,
+                from_market=from_market,
+                source_term=source_term,
+                recorded_at=sa.func.statement_timestamp(),
+                raw_artifact_id=lineage.raw_artifact_id,
+                ingest_run_id=lineage.ingest_run_id,
             )
+            .on_conflict_do_nothing(constraint="uq_security_transfer_event")
+            .returning(security_transfer_events.c.id)
+        ).scalar_one_or_none()
+        if event_id is None:
+            event_id = connection.execute(
+                sa.select(security_transfer_events.c.id).where(
+                    security_transfer_events.c.entry_version_id == entry_version_id,
+                    security_transfer_events.c.from_source == from_source,
+                    security_transfer_events.c.from_market == from_market,
+                )
+            ).scalar_one()
+        connection.execute(
+            insert(security_transfer_event_observations)
+            .values(
+                security_transfer_event_id=event_id,
+                raw_artifact_id=lineage.raw_artifact_id,
+                ingest_run_id=lineage.ingest_run_id,
+            )
+            .on_conflict_do_nothing()
         )

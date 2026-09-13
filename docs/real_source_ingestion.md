@@ -62,7 +62,10 @@ Gregorian year and may validly contain zero events. An event's official venue
 date becomes effective metadata; it does not become `published_at`. TWSE and
 TPEx remain independent source histories. A TWSE `櫃轉市` note is reconciled
 only with a same-code, same-date TPEx exit and does not synthesize a merged
-business version.
+business version. Import manifests label this relation provisional. Run the
+separate final reconciliation after the relevant source histories are present;
+it recomputes the result from canonical history and is independent of import
+order.
 
 ## Running one resource
 
@@ -101,6 +104,8 @@ python -m stock_data_center.ingestion.cli security-history \
 python -m stock_data_center.ingestion.cli security-history \
   --source twse --event delisting \
   --import-id 88888888-8888-4888-8888-888888888888
+
+python -m stock_data_center.ingestion.cli security-transfer-reconciliation
 ```
 
 The command prints the persisted manifest/reconciliation without connection
@@ -132,6 +137,15 @@ programming failures are not mislabeled as bad source data: the checkpoint
 remains `captured`, retains its original raw artifact and ingest run, and can
 resume without a refetch. Network failures before capture are reported as
 fetch failures because no source artifact was received.
+
+Security-history import manifests record explicit transfer evidence as
+`provisional`; they intentionally omit final matched/unmatched counts. The
+`security-transfer-reconciliation` command emits those final counts and the
+deterministically ordered matched/unmatched event lists from current canonical
+TWSE/TPEx histories. Until the applicable TPEx delisting year has a successful
+manifest, absent counterparts are reported as pending rather than genuinely
+unmatched. Re-running after that source arrives replaces stale audit
+interpretation without mutating an earlier import manifest.
 
 Adapters reject negative OHLC, volume, trade value, or trade count, as well as
 OHLC values outside the reported low/high range. PostgreSQL independently

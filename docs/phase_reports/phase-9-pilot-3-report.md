@@ -17,12 +17,12 @@ remain outside this milestone.
 | Deterministic normalization | PASS | Listing and delisting observations are constructed solely from the captured event row. Delisting normalization does not copy current DB state, so import order cannot change business content. |
 | Stable identity/source isolation | PASS | Venue stays effective-dated metadata on one stable security-code identity. TWSE and TPEx writes remain independent source histories; no synthetic cross-source version is created. |
 | Listing/delisting semantics | PASS | Listing date is both the venue-state `effective_from` and `listed_on`; delisting date is both terminal `effective_from` and `delisted_on`. Absence never implies delisting. |
-| Transfer reconciliation | PASS | A TWSE note containing `櫃轉市` is explicit transfer-in evidence. Reconciliation matches only a same-code, same-date TPEx terminal state and never merges source histories. The 5236 regression proves TPEx-before/TWSE-after membership on one identity. |
+| Transfer reconciliation | PASS | A TWSE note containing `櫃轉市` is retained as append-only explicit transfer evidence. Final reconciliation is re-runnable from canonical histories, matches only a same-code/same-date TPEx terminal state, and never merges source histories. Permanent regressions cover both source-import orders plus a genuinely unmatched transfer and prove convergence. |
 | PIT honesty | PASS | Event dates are not announcement times. Every imported event has `published_at=NULL`; real-event regressions prove post-import System PIT visibility and Market PIT invisibility. |
 | Idempotency/provenance | PASS | Repeated identical imports deduplicate business/evidence identity while adding raw-artifact and publication-evidence observation lineage. |
 | Restart behavior | PASS | A simulated crash after durable capture resumes from hash-verified retained bytes with a fetcher that fails if called. |
 | Quarantine boundary | PASS | Invalid table width/shape is quarantined after raw capture. Shared operational-failure regressions prove infrastructure/programming failures remain captured and resumable rather than being mislabeled as source data. |
-| Reconciliation/coverage | PASS | Manifests record requested year, event kind, actual event range, source/normalized counts, exact fields, unknown-publication count, coverage semantics, and explicit/matched/unmatched transfer counts. Zero-event TPEx years are valid zero coverage, not fabricated gaps. |
+| Reconciliation/coverage | PASS | Import manifests record requested year, event kind, actual event range, source/normalized counts, exact fields, unknown-publication count, coverage semantics, and provisional explicit-transfer counts. The separate final report classifies each event as matched, genuinely unmatched, or pending required source history. Zero-event TPEx years are valid imported coverage, not fabricated event rows. |
 | Phase boundary | PASS | No source-policy hook, trading calendar, bulk optimization, derived calculation, cache, other dataset, or unrelated refactor was added. |
 
 ## Verified source coverage
@@ -46,10 +46,13 @@ and manifest records the actual result.
 
 ```text
 focused adapter and integration tests
-    13 passed, 1 live-source test deselected
+    16 passed, 1 live-source test skipped
 
 full suite on a new PostgreSQL database
-    221 passed, 3 skipped (live network tests are opt-in)
+    224 passed, 3 skipped (live network tests are opt-in)
+
+isolated Alembic upgrade/check/downgrade/upgrade/check
+    PASS
 
 ruff check on changed ingestion and test files
     PASS

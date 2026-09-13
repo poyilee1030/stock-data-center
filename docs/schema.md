@@ -13,8 +13,8 @@ migrations are the deployment record in `migrations/versions/`.
 | Area | Tables |
 | --- | --- |
 | Dataset policy | `dataset_catalog`, `dataset_sources` |
-| Security identity/history | `security`, `security_metadata_versions` |
-| Provenance | `ingest_runs`, `raw_artifacts`, `raw_artifact_observations`, dataset-specific `*_version_observations`, `publication_evidence_observations` |
+| Security identity/history | `security`, `security_metadata_versions`, `security_transfer_events` |
+| Provenance | `ingest_runs`, `raw_artifacts`, `raw_artifact_observations`, dataset-specific `*_version_observations`, `security_transfer_event_observations`, `publication_evidence_observations` |
 | Market/revenue versions | `daily_price_versions`, `monthly_revenue_versions` |
 | Real-import audit | `import_manifests`, `import_checkpoints`, `import_quarantine` |
 | Financial aggregate | `financial_filing_versions`, `financial_facts`, `quarterly_financial_summary`, `financial_filing_seals` |
@@ -180,6 +180,14 @@ Every business record still resolves through the Phase 2 source, evidence,
 revision, and provenance rules. See
 [the Phase 3 contract](security_daily_market.md) and
 [ADR-0011](decisions/0011-effective-dated-security-market.md).
+
+Phase 9 lifecycle ingestion stores normalized explicit cross-source transfer
+relations in append-only `security_transfer_events`; repeated source fetches
+link through `security_transfer_event_observations`. These rows annotate an
+entry metadata version without merging TWSE and TPEx business histories. Final
+matched/unmatched reconciliation is computed on demand from these relations and
+the canonical venue-exit histories, making the result independent of import
+order.
 
 ## Phase 4 domain access
 

@@ -29,7 +29,10 @@ from stock_data_center.ingestion.models import (
     SecurityMetadataRequest,
 )
 from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
-from stock_data_center.ingestion.security_lifecycle import SecurityLifecycleImporter
+from stock_data_center.ingestion.security_lifecycle import (
+    SecurityLifecycleImporter,
+    reconcile_security_transfers,
+)
 from stock_data_center.ingestion.security_metadata import SecurityMetadataImporter
 
 
@@ -64,13 +67,30 @@ def main(argv: list[str] | None = None) -> int:
     )
     security_history.add_argument("--import-id", type=UUID)
     security_history.add_argument("--raw-root", type=Path, default=Path("data/raw"))
+    subparsers.add_parser(
+        "security-transfer-reconciliation",
+        help="recompute final transfer matching from canonical TWSE/TPEx histories",
+    )
     args = parser.parse_args(argv)
     if not args.database_url:
         parser.error("--database-url or DATABASE_URL is required")
 
-    import_id = args.import_id or uuid4()
     engine = sa.create_engine(args.database_url, pool_pre_ping=True)
     try:
+        if args.command == "security-transfer-reconciliation":
+            with engine.connect() as connection:
+                reconciliation = reconcile_security_transfers(connection)
+            print(
+                json.dumps(
+                    {"reconciliation": asdict(reconciliation)},
+                    ensure_ascii=False,
+                    indent=2,
+                    default=str,
+                )
+            )
+            return 0
+
+        import_id = args.import_id or uuid4()
         if args.command == "daily-market":
             adapter = (
                 TWSEDailyMarketAdapter()

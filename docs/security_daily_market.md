@@ -51,10 +51,12 @@ the official listing date. Delisting events establish an unlisted terminal
 state on the official exit date. They do not use a current snapshot to fill
 historical fields, and the event date is not treated as publication time.
 
-TWSE `櫃轉市` notes may be reconciled with a same-code, same-date TPEx exit, but
-that audit match never creates a synthetic merged source history. Consumers
-resolve `tpex` before the transfer and `twse` after it on the same stable
-security identity. See
+TWSE `櫃轉市` notes are retained as append-only transfer evidence. Final
+reconciliation is re-runnable from canonical TWSE entry and same-code,
+same-date TPEx exit histories, so its result does not depend on source import
+order. That audit match never creates a synthetic merged source history.
+Consumers resolve `tpex` before the transfer and `twse` after it on the same
+stable security identity. See
 [ADR-0017](decisions/0017-official-security-lifecycle-history.md).
 
 Within one report date, each changed state links to its preceding version.

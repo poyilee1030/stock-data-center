@@ -23,6 +23,7 @@ V1_TABLES = {
     "dataset_catalog", "dataset_sources", "security", "ingest_runs",
     "raw_artifacts", "raw_artifact_observations",
     "security_metadata_versions", "daily_price_versions",
+    "security_transfer_events", "security_transfer_event_observations",
     "monthly_revenue_versions", "financial_filing_versions",
     "financial_facts", "quarterly_financial_summary",
     "financial_filing_seals", "tdcc_snapshot_versions",
