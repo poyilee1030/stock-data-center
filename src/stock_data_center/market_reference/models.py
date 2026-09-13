@@ -130,15 +130,22 @@ ActionType = Literal[
 
 ACTION_TYPES = frozenset(ActionType.__args__)
 
+CapitalReductionKind = Literal[
+    "cash_refund", "loss_offset", "loss_offset_with_cash_increase", "other",
+]
+CAPITAL_REDUCTION_KINDS = frozenset(CapitalReductionKind.__args__)
+
 
 @dataclass(frozen=True, slots=True)
 class CorporateActionObservation:
     action_type: ActionType
+    capital_reduction_kind: CapitalReductionKind | None = None
     ex_date: date | None = None
     announcement_date: date | None = None
     record_date: date | None = None
     payment_date: date | None = None
     cash_dividend_per_share: TwdAmount | None = None
+    capital_reduction_cash_return_per_share: TwdAmount | None = None
     earnings_stock_ratio: Decimal | None = None
     capital_surplus_stock_ratio: Decimal | None = None
     free_share_ratio: Decimal | None = None
@@ -165,7 +172,8 @@ class CorporateActionObservation:
                 and self.record_date > self.payment_date):
             raise ValueError("record_date must not follow payment_date")
         money = (
-            "cash_dividend_per_share", "subscription_price", "close_before",
+            "cash_dividend_per_share", "capital_reduction_cash_return_per_share",
+            "subscription_price", "close_before",
             "official_reference_price", "official_rights_dividend_value",
         )
         for name in money:
@@ -200,6 +208,26 @@ class CorporateActionObservation:
                 and self.cash_dividend_per_share is not None
                 and self.cash_dividend_per_share.value == 0):
             raise ValueError("cash_dividend_per_share must be positive")
+        if (self.capital_reduction_kind is not None
+                and self.capital_reduction_kind not in CAPITAL_REDUCTION_KINDS):
+            raise ValueError(
+                f"unsupported capital reduction kind {self.capital_reduction_kind!r}"
+            )
+        if self.action_type == "capital_reduction":
+            if self.capital_reduction_kind is None:
+                raise ValueError("capital_reduction requires capital_reduction_kind")
+        elif (self.capital_reduction_kind is not None
+                or self.capital_reduction_cash_return_per_share is not None):
+            raise ValueError("capital-reduction terms require action_type capital_reduction")
+        cash_return = self.capital_reduction_cash_return_per_share
+        if cash_return is not None and cash_return.value <= 0:
+            raise ValueError("capital_reduction_cash_return_per_share must be positive")
+        if self.capital_reduction_kind == "cash_refund" and cash_return is None:
+            raise ValueError("cash_refund requires cash return per share")
+        if (self.capital_reduction_kind in {
+                "loss_offset", "loss_offset_with_cash_increase"
+        } and cash_return is not None):
+            raise ValueError("loss-offset capital reduction must not return cash")
         if self.action_type in {"stock_split", "reverse_split", "capital_reduction"}:
             if self.old_shares is None or self.new_shares is None:
                 raise ValueError(f"{self.action_type} requires old_shares and new_shares")

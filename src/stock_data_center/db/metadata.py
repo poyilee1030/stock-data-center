@@ -1174,11 +1174,13 @@ corporate_action_versions = sa.Table(
     sa.Column("event_id", sa.BigInteger(), nullable=False),
     sa.Column("source", sa.String(64), nullable=False),
     sa.Column("action_type", sa.String(32), nullable=False),
+    sa.Column("capital_reduction_kind", sa.String(48)),
     sa.Column("announcement_date", sa.Date()),
     sa.Column("ex_date", sa.Date()),
     sa.Column("record_date", sa.Date()),
     sa.Column("payment_date", sa.Date()),
     sa.Column("cash_dividend_per_share", sa.Numeric(24, 8)),
+    sa.Column("capital_reduction_cash_return_per_share", sa.Numeric(24, 8)),
     sa.Column("earnings_stock_ratio", sa.Numeric(24, 8)),
     sa.Column("capital_surplus_stock_ratio", sa.Numeric(24, 8)),
     sa.Column("free_share_ratio", sa.Numeric(24, 8)),
@@ -1214,7 +1216,8 @@ corporate_action_versions = sa.Table(
     ),
     sa.CheckConstraint(
         "num_nonnulls(announcement_date, record_date, payment_date, "
-        "cash_dividend_per_share, earnings_stock_ratio, "
+        "cash_dividend_per_share, capital_reduction_cash_return_per_share, "
+        "capital_reduction_kind, earnings_stock_ratio, "
         "capital_surplus_stock_ratio, free_share_ratio, old_shares, new_shares, "
         "rights_ratio, subscription_price, close_before, official_reference_price, "
         "official_rights_dividend_value, source_event_type) > 0 "
@@ -1223,6 +1226,8 @@ corporate_action_versions = sa.Table(
     ),
     sa.CheckConstraint(
         "(cash_dividend_per_share IS NULL OR cash_dividend_per_share >= 0) AND "
+        "(capital_reduction_cash_return_per_share IS NULL OR "
+        "capital_reduction_cash_return_per_share > 0) AND "
         "(earnings_stock_ratio IS NULL OR earnings_stock_ratio > 0) AND "
         "(capital_surplus_stock_ratio IS NULL OR capital_surplus_stock_ratio > 0) AND "
         "(free_share_ratio IS NULL OR free_share_ratio > 0) AND "
@@ -1277,6 +1282,25 @@ corporate_action_versions = sa.Table(
     sa.CheckConstraint(
         "action_type NOT IN ('stock_dividend', 'rights')",
         name="corporate_action_unambiguous_new_type",
+    ),
+    sa.CheckConstraint(
+        "capital_reduction_kind IS NULL OR capital_reduction_kind IN "
+        "('cash_refund','loss_offset','loss_offset_with_cash_increase','other')",
+        name="corporate_action_reduction_kind_value",
+    ),
+    sa.CheckConstraint(
+        "(action_type = 'capital_reduction') = (capital_reduction_kind IS NOT NULL) AND "
+        "(capital_reduction_cash_return_per_share IS NULL OR "
+        "action_type = 'capital_reduction')",
+        name="corporate_action_reduction_terms_scope",
+    ),
+    sa.CheckConstraint(
+        "(capital_reduction_kind <> 'cash_refund' OR "
+        "capital_reduction_cash_return_per_share IS NOT NULL) AND "
+        "(capital_reduction_kind NOT IN "
+        "('loss_offset','loss_offset_with_cash_increase') OR "
+        "capital_reduction_cash_return_per_share IS NULL)",
+        name="corporate_action_reduction_cash_semantics",
     ),
 )
 

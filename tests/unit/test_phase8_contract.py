@@ -81,6 +81,7 @@ def test_split_reverse_split_and_capital_reduction_are_distinct() -> None:
     )
     reduction = CorporateActionObservation(
         action_type="capital_reduction",
+        capital_reduction_kind="loss_offset",
         old_shares=Decimal("1000"),
         new_shares=Decimal("800"),
     )
@@ -105,8 +106,64 @@ def test_share_change_direction_is_enforced(
     with pytest.raises(ValueError, match="shares|increase"):
         CorporateActionObservation(
             action_type=action_type,  # type: ignore[arg-type]
+            capital_reduction_kind=(
+                "loss_offset" if action_type == "capital_reduction" else None
+            ),
             old_shares=Decimal(old_shares),
             new_shares=Decimal(new_shares),
+        )
+
+
+def test_cash_refund_and_loss_offset_reductions_are_explicit() -> None:
+    cash_refund = CorporateActionObservation(
+        action_type="capital_reduction",
+        capital_reduction_kind="cash_refund",
+        old_shares=Decimal("1"),
+        new_shares=Decimal("0.8"),
+        capital_reduction_cash_return_per_share=twd("2"),
+    )
+    loss_offset = CorporateActionObservation(
+        action_type="capital_reduction",
+        capital_reduction_kind="loss_offset",
+        old_shares=Decimal("1"),
+        new_shares=Decimal("0.8"),
+    )
+    combined = CorporateActionObservation(
+        action_type="capital_reduction",
+        capital_reduction_kind="loss_offset_with_cash_increase",
+        old_shares=Decimal("1"),
+        new_shares=Decimal("0.8"),
+        rights_ratio=Decimal("0.25"),
+        subscription_price=twd("10"),
+    )
+    assert cash_refund.capital_reduction_cash_return_per_share == twd("2")
+    assert loss_offset.capital_reduction_cash_return_per_share is None
+    assert combined.rights_ratio == Decimal("0.25")
+
+
+def test_cash_refund_reduction_requires_positive_return_per_share() -> None:
+    with pytest.raises(ValueError, match="cash_refund requires"):
+        CorporateActionObservation(
+            action_type="capital_reduction",
+            capital_reduction_kind="cash_refund",
+            old_shares=Decimal("1"),
+            new_shares=Decimal("0.8"),
+        )
+    with pytest.raises(ValueError, match="must be positive"):
+        CorporateActionObservation(
+            action_type="capital_reduction",
+            capital_reduction_kind="cash_refund",
+            old_shares=Decimal("1"),
+            new_shares=Decimal("0.8"),
+            capital_reduction_cash_return_per_share=twd("0"),
+        )
+    with pytest.raises(ValueError, match="must not be negative"):
+        CorporateActionObservation(
+            action_type="capital_reduction",
+            capital_reduction_kind="cash_refund",
+            old_shares=Decimal("1"),
+            new_shares=Decimal("0.8"),
+            capital_reduction_cash_return_per_share=twd("-1"),
         )
 
 

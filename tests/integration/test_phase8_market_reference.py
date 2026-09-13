@@ -378,6 +378,92 @@ def test_database_rejects_impossible_split_direction(db: Connection) -> None:
     assert ambiguous.value.orig.sqlstate == "23514"
 
 
+def test_capital_reduction_kind_and_cash_return_change_business_hash(
+    db: Connection,
+) -> None:
+    configure(db, "corporate_action", "mops")
+    security_id = add_security(db)
+    event_id = WRITER.register_corporate_action_event(
+        db, security_id=security_id, source="mops", source_event_key="MOPS-REDUCTION-1"
+    )
+    observations = (
+        CorporateActionObservation(
+            action_type="capital_reduction", capital_reduction_kind="cash_refund",
+            ex_date=TRADE_DATE, old_shares=Decimal("1"), new_shares=Decimal("0.8"),
+            capital_reduction_cash_return_per_share=TwdAmount(Decimal("2")),
+        ),
+        CorporateActionObservation(
+            action_type="capital_reduction", capital_reduction_kind="cash_refund",
+            ex_date=TRADE_DATE, old_shares=Decimal("1"), new_shares=Decimal("0.8"),
+            capital_reduction_cash_return_per_share=TwdAmount(Decimal("3")),
+        ),
+        CorporateActionObservation(
+            action_type="capital_reduction", capital_reduction_kind="loss_offset",
+            ex_date=TRADE_DATE, old_shares=Decimal("1"), new_shares=Decimal("0.8"),
+        ),
+    )
+    writes = [
+        WRITER.append_corporate_action(
+            db, event_id=event_id, source="mops", observation=observation,
+            lineage=lineage(db, "corporate_action", "mops"),
+        )
+        for observation in observations
+    ]
+    assert len({write.business_content_hash for write in writes}) == 3
+    stored = db.execute(sa.text("""
+        SELECT capital_reduction_kind, capital_reduction_cash_return_per_share
+          FROM corporate_action_versions WHERE event_id=:event ORDER BY id
+    """), {"event": event_id}).mappings().all()
+    assert stored == [
+        {"capital_reduction_kind": "cash_refund",
+         "capital_reduction_cash_return_per_share": Decimal("2.00000000")},
+        {"capital_reduction_kind": "cash_refund",
+         "capital_reduction_cash_return_per_share": Decimal("3.00000000")},
+        {"capital_reduction_kind": "loss_offset",
+         "capital_reduction_cash_return_per_share": None},
+    ]
+
+
+def test_database_rejects_cash_refund_reduction_without_return(db: Connection) -> None:
+    configure(db, "corporate_action", "mops")
+    security_id = add_security(db)
+    event_id = WRITER.register_corporate_action_event(
+        db, security_id=security_id, source="mops", source_event_key="MOPS-REDUCTION-BAD"
+    )
+    link = lineage(db, "corporate_action", "mops")
+    with pytest.raises(DBAPIError) as invalid:
+        with db.begin_nested():
+            db.execute(sa.text("""
+                INSERT INTO corporate_action_versions (
+                    event_id, source, action_type, capital_reduction_kind,
+                    ex_date, old_shares, new_shares, business_content_hash,
+                    ingested_at, raw_artifact_id, ingest_run_id
+                ) VALUES (
+                    :event, 'mops', 'capital_reduction', 'cash_refund',
+                    :ex_date, 1, 0.8, repeat('0', 64), statement_timestamp(),
+                    :artifact, :run
+                )
+            """), {"event": event_id, "ex_date": TRADE_DATE,
+                    "artifact": link.raw_artifact_id, "run": link.ingest_run_id})
+    assert invalid.value.orig.sqlstate == "23514"
+    with pytest.raises(DBAPIError) as nonpositive:
+        with db.begin_nested():
+            db.execute(sa.text("""
+                INSERT INTO corporate_action_versions (
+                    event_id, source, action_type, capital_reduction_kind,
+                    ex_date, old_shares, new_shares,
+                    capital_reduction_cash_return_per_share,
+                    business_content_hash, ingested_at, raw_artifact_id, ingest_run_id
+                ) VALUES (
+                    :event, 'mops', 'capital_reduction', 'cash_refund',
+                    :ex_date, 1, 0.8, 0, repeat('0', 64), statement_timestamp(),
+                    :artifact, :run
+                )
+            """), {"event": event_id, "ex_date": TRADE_DATE,
+                    "artifact": link.raw_artifact_id, "run": link.ingest_run_id})
+    assert nonpositive.value.orig.sqlstate == "23514"
+
+
 def test_index_name_is_effective_dated_metadata_not_identity(db: Connection) -> None:
     configure(db, "market_index_metadata", "twse")
     index_id = WRITER.register_index(db, index_code="IX0038-P8")
@@ -607,18 +693,22 @@ def test_pr12_downgrade_preserves_corporate_action_history_and_raw_ohlc(
             security_id = add_security(connection, "2330-pr12-migration")
             event_id = WRITER.register_corporate_action_event(
                 connection, security_id=security_id, source="mops",
-                source_event_key="MOPS-PR12-SPLIT",
+                source_event_key="MOPS-PR12-CASH-REDUCTION",
             )
             action_lineage = lineage(connection, "corporate_action", "mops")
             written = WRITER.append_corporate_action(
                 connection, event_id=event_id, source="mops",
                 observation=CorporateActionObservation(
-                    action_type="stock_split", announcement_date=date(2026, 8, 1),
+                    action_type="capital_reduction",
+                    capital_reduction_kind="cash_refund",
+                    announcement_date=date(2026, 8, 1),
                     ex_date=TRADE_DATE, old_shares=Decimal("1"),
-                    new_shares=Decimal("2"), close_before=TwdAmount(Decimal("100")),
-                    official_reference_price=TwdAmount(Decimal("50")),
-                    source_event_type="股票面額變更",
-                    source_terms={"source_ratio": "1:2"},
+                    new_shares=Decimal("0.8"),
+                    capital_reduction_cash_return_per_share=TwdAmount(Decimal("2")),
+                    close_before=TwdAmount(Decimal("100")),
+                    official_reference_price=TwdAmount(Decimal("122.5")),
+                    source_event_type="現金減資退還股款",
+                    source_terms={"source_exchange_ratio": "0.8"},
                 ), lineage=action_lineage,
             )
             configure(connection, "daily_price", "twse")
@@ -655,16 +745,24 @@ def test_pr12_downgrade_preserves_corporate_action_history_and_raw_ohlc(
                 "corporate_action_versions"
             )}
             assert {"old_shares", "new_shares", "official_reference_price",
+                    "capital_reduction_kind",
+                    "capital_reduction_cash_return_per_share",
                     "source_event_type", "source_terms"} <= columns
             action = connection.execute(sa.text("""
-                SELECT action_type, old_shares, new_shares,
+                SELECT action_type, capital_reduction_kind,
+                       capital_reduction_cash_return_per_share,
+                       old_shares, new_shares,
                        official_reference_price, source_event_type,
                        source_terms, business_content_hash
                   FROM corporate_action_versions WHERE id=:id
             """), {"id": written.version_id}).mappings().one()
-            assert action["action_type"] == "stock_split"
+            assert action["action_type"] == "capital_reduction"
+            assert action["capital_reduction_kind"] == "cash_refund"
+            assert action["capital_reduction_cash_return_per_share"] == Decimal(
+                "2.00000000"
+            )
             assert action["old_shares"] == Decimal("1.00000000")
-            assert action["new_shares"] == Decimal("2.00000000")
+            assert action["new_shares"] == Decimal("0.80000000")
             assert action["business_content_hash"] == written.business_content_hash
             assert connection.scalar(sa.text("""
                 SELECT count(*) FROM corporate_action_version_observations

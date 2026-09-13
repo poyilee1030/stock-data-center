@@ -1608,6 +1608,9 @@ free_share_ratio
 old_shares
 new_shares
 
+capital_reduction_kind
+capital_reduction_cash_return_per_share
+
 rights_ratio
 subscription_price
 

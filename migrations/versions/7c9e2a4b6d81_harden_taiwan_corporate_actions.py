@@ -41,6 +41,9 @@ NEW_CHECKS = (
     "ck_corporate_action_versions_corporate_action_share_change_required",
     "ck_corporate_action_versions_corporate_action_share_change_direction",
     "ck_corporate_action_versions_corporate_action_unambiguous_new_type",
+    "ck_corporate_action_versions_corporate_action_reduction_kind_value",
+    "ck_corporate_action_versions_corporate_action_reduction_terms_scope",
+    "ck_corporate_action_versions_corporate_action_reduction_cash_semantics",
 )
 
 ASSERT_DOWNGRADE_REPRESENTABLE = r"""
@@ -59,7 +62,9 @@ BEGIN
         OR capital_surplus_stock_ratio IS NOT NULL
         OR old_shares IS NOT NULL
         OR new_shares IS NOT NULL
-        OR source_event_type IS NOT NULL;
+        OR source_event_type IS NOT NULL
+        OR capital_reduction_kind IS NOT NULL
+        OR capital_reduction_cash_return_per_share IS NOT NULL;
 
     IF unrepresentable_count > 0 THEN
         RAISE EXCEPTION USING
@@ -124,7 +129,8 @@ def _create_new_checks() -> None:
         op.f(NEW_CHECKS[2]),
         table,
         "num_nonnulls(announcement_date, record_date, payment_date, "
-        "cash_dividend_per_share, earnings_stock_ratio, "
+        "cash_dividend_per_share, capital_reduction_cash_return_per_share, "
+        "capital_reduction_kind, earnings_stock_ratio, "
         "capital_surplus_stock_ratio, free_share_ratio, old_shares, new_shares, "
         "rights_ratio, subscription_price, close_before, official_reference_price, "
         "official_rights_dividend_value, source_event_type) > 0 "
@@ -134,6 +140,8 @@ def _create_new_checks() -> None:
         op.f(NEW_CHECKS[3]),
         table,
         "(cash_dividend_per_share IS NULL OR cash_dividend_per_share >= 0) AND "
+        "(capital_reduction_cash_return_per_share IS NULL OR "
+        "capital_reduction_cash_return_per_share > 0) AND "
         "(earnings_stock_ratio IS NULL OR earnings_stock_ratio > 0) AND "
         "(capital_surplus_stock_ratio IS NULL OR capital_surplus_stock_ratio > 0) AND "
         "(free_share_ratio IS NULL OR free_share_ratio > 0) AND "
@@ -202,6 +210,31 @@ def _create_new_checks() -> None:
         "action_type NOT IN ('stock_dividend', 'rights')",
         postgresql_not_valid=True,
     )
+    op.create_check_constraint(
+        op.f(NEW_CHECKS[13]),
+        table,
+        "capital_reduction_kind IS NULL OR capital_reduction_kind IN "
+        "('cash_refund','loss_offset','loss_offset_with_cash_increase','other')",
+    )
+    op.create_check_constraint(
+        op.f(NEW_CHECKS[14]),
+        table,
+        "(action_type = 'capital_reduction') = "
+        "(capital_reduction_kind IS NOT NULL) AND "
+        "(capital_reduction_cash_return_per_share IS NULL OR "
+        "action_type = 'capital_reduction')",
+        postgresql_not_valid=True,
+    )
+    op.create_check_constraint(
+        op.f(NEW_CHECKS[15]),
+        table,
+        "(capital_reduction_kind <> 'cash_refund' OR "
+        "capital_reduction_cash_return_per_share IS NOT NULL) AND "
+        "(capital_reduction_kind NOT IN "
+        "('loss_offset','loss_offset_with_cash_increase') OR "
+        "capital_reduction_cash_return_per_share IS NULL)",
+        postgresql_not_valid=True,
+    )
 
 
 def _create_old_checks() -> None:
@@ -259,6 +292,11 @@ def upgrade() -> None:
     op.add_column(table, sa.Column("old_shares", sa.Numeric(24, 8)))
     op.add_column(table, sa.Column("new_shares", sa.Numeric(24, 8)))
     op.add_column(table, sa.Column("source_event_type", sa.Text()))
+    op.add_column(table, sa.Column("capital_reduction_kind", sa.String(48)))
+    op.add_column(
+        table,
+        sa.Column("capital_reduction_cash_return_per_share", sa.Numeric(24, 8)),
+    )
     _rehash_versions()
     _create_new_checks()
 
@@ -269,6 +307,8 @@ def downgrade() -> None:
     for constraint in reversed(NEW_CHECKS):
         op.drop_constraint(op.f(constraint), table, type_="check")
 
+    op.drop_column(table, "capital_reduction_cash_return_per_share")
+    op.drop_column(table, "capital_reduction_kind")
     op.drop_column(table, "source_event_type")
     op.drop_column(table, "new_shares")
     op.drop_column(table, "old_shares")

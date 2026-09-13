@@ -282,8 +282,10 @@ dates. Corporate actions use a stable source event key. Their action type,
 revision content: reliable publication may make an action visible before its
 ex-date is known. Taiwan stock distributions distinguish earnings and capital-
 surplus ratios; split, reverse-split, and capital-reduction events use explicit
-`old_shares`/`new_shares`. Official reference-price fields remain observed
-source values. Raw daily OHLC is never rewritten by corporate-action storage.
+`old_shares`/`new_shares`. Capital reductions distinguish cash refund, loss
+offset, and loss offset with cash increase; cash refunds preserve the typed
+per-share returned cash. Official reference-price fields remain observed source
+values. Raw daily OHLC is never rewritten by corporate-action storage.
 TWD amounts normalize to major units at the canonical boundary. Source-
 published valuation remains observed and separate from Phase 10 computed
 `valuation_metrics:v1`. See [the Phase 8 contract](market_reference.md) and

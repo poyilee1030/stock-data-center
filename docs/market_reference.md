@@ -64,6 +64,14 @@ increases shares, while a reverse split and capital reduction decrease them.
 These categories never collapse merely because some future adjustment formula
 could have similar arithmetic.
 
+Capital reductions additionally require a typed `capital_reduction_kind`:
+`cash_refund`, `loss_offset`, `loss_offset_with_cash_increase`, or `other`.
+A cash-refund reduction requires a positive canonical-TWD
+`capital_reduction_cash_return_per_share`; loss-offset kinds do not return cash.
+The combined loss-offset/cash-increase kind may retain the source's applicable
+subscription price and allocation ratio without being reclassified as an
+ordinary rights issue.
+
 Where the source supplies them, revisions retain `close_before`,
 `official_reference_price`, `official_rights_dividend_value`, the original
 `source_event_type`, and structured `source_terms`. These fields and all other
