@@ -45,6 +45,18 @@ absence does not prove delisting, and current snapshots are not used to invent
 historical market-transfer intervals. See
 [ADR-0016](decisions/0016-current-security-metadata-snapshots.md).
 
+Phase 9 historical lifecycle adapters separately import official TWSE and TPEx
+listing/delisting events. Listing events establish a venue state beginning on
+the official listing date. Delisting events establish an unlisted terminal
+state on the official exit date. They do not use a current snapshot to fill
+historical fields, and the event date is not treated as publication time.
+
+TWSE `櫃轉市` notes may be reconciled with a same-code, same-date TPEx exit, but
+that audit match never creates a synthetic merged source history. Consumers
+resolve `tpex` before the transfer and `twse` after it on the same stable
+security identity. See
+[ADR-0017](decisions/0017-official-security-lifecycle-history.md).
+
 Within one report date, each changed state links to its preceding version.
 This permits an `A -> B -> A` source correction to reassert `A` at a later
 trusted ingestion time without changing its business-content hash. Consecutive
