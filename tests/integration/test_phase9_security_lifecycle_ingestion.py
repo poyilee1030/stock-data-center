@@ -8,6 +8,9 @@ from uuid import uuid4
 
 import pytest
 import sqlalchemy as sa
+from alembic import command
+from conftest import alembic_config
+from sqlalchemy.exc import DBAPIError
 
 from stock_data_center.ingestion import (
     FetchedArtifact,
@@ -328,6 +331,55 @@ def test_repeated_transfer_import_preserves_observation_without_duplicate_event(
             )
 
         with engine.connect() as connection:
+            assert connection.scalar(
+                sa.text("SELECT count(*) FROM security_transfer_events")
+            ) == (1)
+            assert connection.scalar(
+                sa.text("SELECT count(*) FROM security_transfer_event_observations")
+            ) == (2)
+    finally:
+        engine.dispose()
+
+
+def test_transfer_history_blocks_destructive_downgrade_before_mutation(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    config = alembic_config(isolated_database_url)
+    command.downgrade(config, "9a7d3e5c1b20")
+    command.upgrade(config, "head")
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        for _ in range(2):
+            SecurityLifecycleImporter(
+                engine,
+                raw_store=LocalRawArtifactStore(tmp_path / "raw"),
+                fetcher=StaticFetcher(_twse_transfer()),
+            ).run(
+                adapter=TWSEListingHistoryAdapter(),
+                request=SecurityLifecycleRequest(),
+                import_id=uuid4(),
+                git_commit="test-commit",
+            )
+        engine.dispose()
+
+        with pytest.raises(
+            DBAPIError,
+            match="cannot downgrade security transfer evidence history",
+        ) as blocked:
+            command.downgrade(config, "9a7d3e5c1b20")
+        assert blocked.value.orig.sqlstate == "P0001"
+        assert "do not delete or collapse append-only transfer history" in str(
+            blocked.value
+        )
+
+        engine = sa.create_engine(isolated_database_url)
+        with engine.connect() as connection:
+            assert connection.scalar(
+                sa.text("SELECT version_num FROM alembic_version")
+            ) == ("4d2a6f8c1e30")
+            tables = set(sa.inspect(connection).get_table_names())
+            assert "security_transfer_events" in tables
+            assert "security_transfer_event_observations" in tables
             assert connection.scalar(
                 sa.text("SELECT count(*) FROM security_transfer_events")
             ) == (1)

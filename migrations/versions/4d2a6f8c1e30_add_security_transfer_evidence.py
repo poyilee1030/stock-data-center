@@ -21,6 +21,27 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
+ASSERT_DOWNGRADE_REPRESENTABLE = r"""
+DO $$
+DECLARE
+    transfer_event_count bigint;
+BEGIN
+    SELECT count(*) INTO transfer_event_count FROM security_transfer_events;
+    IF transfer_event_count > 0 THEN
+        RAISE EXCEPTION USING
+            ERRCODE = 'P0001',
+            MESSAGE = 'cannot downgrade security transfer evidence history',
+            DETAIL = format(
+                '%s append-only transfer event(s) cannot be represented by revision 9a7d3e5c1b20',
+                transfer_event_count
+            ),
+            HINT = 'Keep revision 4d2a6f8c1e30 or newer; do not delete or collapse append-only transfer history to force this downgrade.';
+    END IF;
+END;
+$$;
+"""
+
+
 def upgrade() -> None:
     op.create_table(
         "security_transfer_events",
@@ -195,6 +216,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.execute(ASSERT_DOWNGRADE_REPRESENTABLE)
     op.execute(
         "DROP TRIGGER no_truncate_security_transfer_event_observations "
         "ON security_transfer_event_observations; "

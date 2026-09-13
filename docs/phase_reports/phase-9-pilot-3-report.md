@@ -20,6 +20,7 @@ remain outside this milestone.
 | Transfer reconciliation | PASS | A TWSE note containing `櫃轉市` is retained as append-only explicit transfer evidence. Final reconciliation is re-runnable from canonical histories, matches only a same-code/same-date TPEx terminal state, and never merges source histories. Permanent regressions cover both source-import orders plus a genuinely unmatched transfer and prove convergence. |
 | PIT honesty | PASS | Event dates are not announcement times. Every imported event has `published_at=NULL`; real-event regressions prove post-import System PIT visibility and Market PIT invisibility. |
 | Idempotency/provenance | PASS | Repeated identical imports deduplicate business/evidence identity while adding raw-artifact and publication-evidence observation lineage. |
+| Migration safety | PASS | Downgrade succeeds while transfer tables are empty. Once any append-only transfer event exists, a preflight raises `P0001` before mutation; the permanent populated-history regression verifies the Alembic head, event, observation provenance, and both tables remain intact. |
 | Restart behavior | PASS | A simulated crash after durable capture resumes from hash-verified retained bytes with a fetcher that fails if called. |
 | Quarantine boundary | PASS | Invalid table width/shape is quarantined after raw capture. Shared operational-failure regressions prove infrastructure/programming failures remain captured and resumable rather than being mislabeled as source data. |
 | Reconciliation/coverage | PASS | Import manifests record requested year, event kind, actual event range, source/normalized counts, exact fields, unknown-publication count, coverage semantics, and provisional explicit-transfer counts. The separate final report classifies each event as matched, genuinely unmatched, or pending required source history. Zero-event TPEx years are valid imported coverage, not fabricated event rows. |
@@ -46,10 +47,10 @@ and manifest records the actual result.
 
 ```text
 focused adapter and integration tests
-    16 passed, 1 live-source test skipped
+    17 passed, 1 live-source test skipped
 
 full suite on a new PostgreSQL database
-    224 passed, 3 skipped (live network tests are opt-in)
+    225 passed, 3 skipped (live network tests are opt-in)
 
 isolated Alembic upgrade/check/downgrade/upgrade/check
     PASS
