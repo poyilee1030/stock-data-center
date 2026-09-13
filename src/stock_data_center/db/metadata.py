@@ -3,7 +3,6 @@ from __future__ import annotations
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-
 NAMING_CONVENTION = {
     "ix": "ix_%(table_name)s_%(column_0_name)s",
     "uq": "uq_%(table_name)s_%(column_0_name)s",
@@ -325,14 +324,23 @@ security_metadata_versions = sa.Table(
     sa.Column("ingested_at", aware_timestamp, nullable=False),
     sa.Column("raw_artifact_id", uuid_type, nullable=False),
     sa.Column("ingest_run_id", uuid_type, nullable=False),
+    sa.Column("predecessor_version_id", sa.BigInteger()),
     sa.ForeignKeyConstraint(["security_id"], ["security.id"], ondelete="RESTRICT"),
+    sa.ForeignKeyConstraint(
+        ["predecessor_version_id"],
+        ["security_metadata_versions.id"],
+        name="fk_security_metadata_predecessor",
+        ondelete="RESTRICT",
+    ),
     *lineage_constraints(),
     sa.UniqueConstraint(
         "security_id",
         "source",
         "effective_from",
         "business_content_hash",
+        "predecessor_version_id",
         name="uq_security_metadata_business_revision",
+        postgresql_nulls_not_distinct=True,
     ),
     sa.CheckConstraint(
         "effective_to IS NULL OR effective_to >= effective_from",

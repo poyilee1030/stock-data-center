@@ -8,7 +8,10 @@ from datetime import UTC, date, datetime
 from enum import Enum
 from types import MappingProxyType
 
-from stock_data_center.market_data import DailyPriceObservation
+from stock_data_center.market_data import (
+    DailyPriceObservation,
+    SecurityMetadataObservation,
+)
 
 
 class SourceQuantityUnit(str, Enum):
@@ -37,6 +40,27 @@ class DailyMarketRequest:
             raise ValueError("security_code must be nonempty and already trimmed")
         if self.month.day != 1:
             raise ValueError("month must be the first day of the requested month")
+
+
+@dataclass(frozen=True, slots=True)
+class SecurityMetadataRequest:
+    """Request the source's current official security-metadata snapshot."""
+
+    expected_report_date: date | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SecurityMetadataRecord:
+    security_code: str
+    observation: SecurityMetadataObservation
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedSecurityMetadata:
+    report_date: date
+    market: str
+    rows: tuple[SecurityMetadataRecord, ...]
+    source_fields: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)

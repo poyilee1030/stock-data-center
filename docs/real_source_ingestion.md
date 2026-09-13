@@ -25,6 +25,29 @@ The endpoints do not establish the original release time of each historical
 row. Imports record `published_at = NULL`; they do not use the trade date,
 fetch time, or current time as invented publication evidence.
 
+## Current security-metadata adapters
+
+The second milestone supports official whole-market company snapshots:
+
+- [TWSE `opendata/t187ap03_L`](https://openapi.twse.com.tw/v1/opendata/t187ap03_L);
+- [TPEx `mopsfin_t187ap03_O`](https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_O).
+
+Both resources contain an official report date and listing date. The report
+date becomes `effective_from` for the current name, source industry code, and
+market state. `listed_on` retains the separately reported listing date. The
+import does not pretend that every current field existed from listing day.
+
+A later equal snapshot reuses the latest equal business version while adding
+new raw/evidence observation lineage. A changed state begins a new version on
+the later report date. A security missing from a new snapshot is not silently
+marked delisted. The resources do not prove complete historical name, industry,
+delisting, or market-transfer events; those remain a separate adapter and
+reconciliation milestone.
+
+The endpoints also lack an exact original publication instant. Their versions
+therefore receive `unknown` evidence with `published_at = NULL` and remain
+Market-PIT invisible unless separate reliable publication evidence is added.
+
 ## Running one resource
 
 Apply migrations, set `DATABASE_URL`, and use an explicit UUID when a job may
@@ -38,6 +61,14 @@ python -m stock_data_center.ingestion.cli daily-market \
 python -m stock_data_center.ingestion.cli daily-market \
   --source tpex --security-code 6488 --month 2025-09 \
   --import-id 22222222-2222-4222-8222-222222222222
+
+python -m stock_data_center.ingestion.cli security-metadata \
+  --source twse --expected-report-date 2026-09-11 \
+  --import-id 33333333-3333-4333-8333-333333333333
+
+python -m stock_data_center.ingestion.cli security-metadata \
+  --source tpex --expected-report-date 2026-09-12 \
+  --import-id 44444444-4444-4444-8444-444444444444
 ```
 
 The command prints the persisted manifest/reconciliation without connection
@@ -78,7 +109,8 @@ Run the permanent real-endpoint pilot regression explicitly:
 
 ```bash
 RUN_LIVE_SOURCE_TESTS=1 pytest -m live_source \
-  tests/integration/test_phase9_real_ingestion_framework.py
+  tests/integration/test_phase9_real_ingestion_framework.py \
+  tests/integration/test_phase9_security_metadata_ingestion.py
 ```
 
 The default suite skips network access while retaining parser, raw-first,

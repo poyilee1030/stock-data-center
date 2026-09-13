@@ -1,16 +1,16 @@
-"""Daily-market domain hooks for the shared Phase 9 import lifecycle."""
+"""Security-metadata hooks for the shared Phase 9 import lifecycle."""
 
 from __future__ import annotations
 
-import calendar
 from collections.abc import Mapping
-from datetime import date
 
 import sqlalchemy as sa
 from sqlalchemy import Connection, Engine
 
 from stock_data_center.db.metadata import publication_evidence
-from stock_data_center.ingestion.adapters import DailyMarketAdapter
+from stock_data_center.ingestion.adapters.security_metadata import (
+    SecurityMetadataAdapter,
+)
 from stock_data_center.ingestion.http import SourceFetcher
 from stock_data_center.ingestion.lifecycle import (
     BusinessWriteResult,
@@ -18,8 +18,8 @@ from stock_data_center.ingestion.lifecycle import (
     RawFirstImporter,
 )
 from stock_data_center.ingestion.models import (
-    DailyMarketRequest,
-    ParsedDailyMarket,
+    ParsedSecurityMetadata,
+    SecurityMetadataRequest,
     SourceResource,
 )
 from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
@@ -30,8 +30,10 @@ from stock_data_center.market_data import (
 )
 
 
-class DailyMarketImporter(RawFirstImporter[DailyMarketRequest, ParsedDailyMarket]):
-    """Import official per-security daily observations through shared state."""
+class SecurityMetadataImporter(
+    RawFirstImporter[SecurityMetadataRequest, ParsedSecurityMetadata]
+):
+    """Import an official current-company snapshot without backdating state."""
 
     def __init__(
         self,
@@ -46,58 +48,68 @@ class DailyMarketImporter(RawFirstImporter[DailyMarketRequest, ParsedDailyMarket
 
     def _source_scope(
         self,
-        adapter: RawFirstAdapter[DailyMarketRequest, ParsedDailyMarket],
-        request: DailyMarketRequest,
+        adapter: RawFirstAdapter[SecurityMetadataRequest, ParsedSecurityMetadata],
+        request: SecurityMetadataRequest,
         resource: SourceResource,
     ) -> Mapping[str, object]:
         return {
-            "security_code": request.security_code,
-            "month": request.month.isoformat(),
+            "snapshot": "current",
+            "expected_report_date": (
+                request.expected_report_date.isoformat()
+                if request.expected_report_date
+                else None
+            ),
             "resource_key": resource.resource_key,
             "source_uri": resource.source_uri,
         }
 
     def _source_semantics(
         self,
-        adapter: RawFirstAdapter[DailyMarketRequest, ParsedDailyMarket],
+        adapter: RawFirstAdapter[SecurityMetadataRequest, ParsedSecurityMetadata],
     ) -> Mapping[str, object]:
-        if not isinstance(adapter, DailyMarketAdapter):
-            raise TypeError("DailyMarketImporter requires a DailyMarketAdapter")
+        if not isinstance(adapter, SecurityMetadataAdapter):
+            raise TypeError(
+                "SecurityMetadataImporter requires a SecurityMetadataAdapter"
+            )
         return {
-            "traded_quantity_unit": adapter.semantics.traded_quantity_unit.value,
-            "trade_value_unit": adapter.semantics.trade_value_unit.value,
+            "market": adapter.market,
+            "effective_from": "official_snapshot_report_date",
+            "listed_on": "official_listing_date",
+            "unchanged_snapshot": "reuse_latest_equal_business_state",
+            "omission": "does_not_imply_delisting",
+            "publication_time": "unknown",
         }
 
     def _dataset_description(
         self,
-        adapter: RawFirstAdapter[DailyMarketRequest, ParsedDailyMarket],
+        adapter: RawFirstAdapter[SecurityMetadataRequest, ParsedSecurityMetadata],
     ) -> str:
-        return "official per-security daily market observations"
+        return "official effective-dated security identity metadata"
 
     def _write_business(
         self,
         connection: Connection,
         *,
-        adapter: RawFirstAdapter[DailyMarketRequest, ParsedDailyMarket],
-        request: DailyMarketRequest,
-        parsed: ParsedDailyMarket,
+        adapter: RawFirstAdapter[SecurityMetadataRequest, ParsedSecurityMetadata],
+        request: SecurityMetadataRequest,
+        parsed: ParsedSecurityMetadata,
         lineage: LineageRef,
     ) -> BusinessWriteResult:
-        security_id = self._writer.register_security(
-            connection, security_code=parsed.security_code
-        )
         created = 0
         deduplicated = 0
         evidence_created = 0
         evidence_deduplicated = 0
         evidence_observations = 0
-        evidence_source = f"{adapter.source} official historical endpoint"
-        for observation in parsed.rows:
-            written = self._writer.append_daily_price(
+        evidence_source = f"{adapter.source} official current-company endpoint"
+        for record in parsed.rows:
+            security_id = self._writer.register_security(
+                connection, security_code=record.security_code
+            )
+            written = self._writer.append_security_metadata_snapshot(
                 connection,
                 security_id=security_id,
                 source=adapter.source,
-                observation=observation,
+                observation=record.observation,
                 lineage=lineage,
             )
             created += int(written.created)
@@ -107,7 +119,7 @@ class DailyMarketImporter(RawFirstImporter[DailyMarketRequest, ParsedDailyMarket
                     sa.exists().where(
                         publication_evidence.c.dataset_code == adapter.dataset_code,
                         publication_evidence.c.source == adapter.source,
-                        publication_evidence.c.daily_price_version_id
+                        publication_evidence.c.security_metadata_version_id
                         == written.version_id,
                         publication_evidence.c.evidence_kind == "unknown",
                         publication_evidence.c.evidence_source == evidence_source,
@@ -118,7 +130,7 @@ class DailyMarketImporter(RawFirstImporter[DailyMarketRequest, ParsedDailyMarket
             )
             self._writer.append_publication_evidence(
                 connection,
-                dataset_code="daily_price",
+                dataset_code="security_metadata",
                 source=adapter.source,
                 version_id=written.version_id,
                 observation=PublicationObservation(
@@ -134,6 +146,7 @@ class DailyMarketImporter(RawFirstImporter[DailyMarketRequest, ParsedDailyMarket
             evidence_deduplicated += int(evidence_existed)
             evidence_observations += 1
 
+        report_date = parsed.report_date.isoformat()
         return BusinessWriteResult(
             business_versions_created=created,
             business_versions_deduplicated=deduplicated,
@@ -142,35 +155,29 @@ class DailyMarketImporter(RawFirstImporter[DailyMarketRequest, ParsedDailyMarket
             evidence_observations=evidence_observations,
             unknown_publication_observations=len(parsed.rows),
             normalized_rows=len(parsed.rows),
-            coverage_start=parsed.coverage_start,
-            coverage_end=parsed.coverage_end,
+            coverage_start=parsed.report_date,
+            coverage_end=parsed.report_date,
             reconciliation={
-                "requested_date_start": request.month.isoformat(),
-                "requested_date_end": date(
-                    request.month.year,
-                    request.month.month,
-                    calendar.monthrange(request.month.year, request.month.month)[1],
-                ).isoformat(),
-                "requested_security": request.security_code,
-                "actual_security": parsed.security_code,
-                "actual_security_name": parsed.security_name,
+                "requested_snapshot": "current",
+                "expected_report_date": (
+                    request.expected_report_date.isoformat()
+                    if request.expected_report_date
+                    else None
+                ),
+                "actual_report_date": report_date,
+                "actual_market": parsed.market,
                 "actual_row_count": len(parsed.rows),
-                "coverage_start": (
-                    parsed.coverage_start.isoformat() if parsed.coverage_start else None
-                ),
-                "coverage_end": (
-                    parsed.coverage_end.isoformat() if parsed.coverage_end else None
-                ),
-                "coverage_validation": "not_evaluated",
+                "coverage_start": report_date,
+                "coverage_end": report_date,
+                "coverage_validation": "snapshot_only",
                 "coverage_gaps": None,
-                "source_units": {
-                    "traded_quantity": adapter.semantics.traded_quantity_unit.value,
-                    "trade_value": adapter.semantics.trade_value_unit.value,
-                },
-                "canonical_units": {
-                    "volume": "share",
-                    "trade_value": "twd",
-                },
+                "historical_coverage": "not_evaluated",
+                "market_transfer_history": "not_in_scope",
+                "effective_time": "official_snapshot_report_date",
+                "listing_time": "official_listing_date",
+                "omitted_security_semantics": "does_not_imply_delisting",
+                "industry_semantics": "source_industry_code",
                 "publication_time": "unknown",
+                "source_fields": list(parsed.source_fields),
             },
         )

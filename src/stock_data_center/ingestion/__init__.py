@@ -7,8 +7,11 @@ from stock_data_center.ingestion.models import (
     FetchedArtifact,
     ImportManifestResult,
     ParsedDailyMarket,
+    ParsedSecurityMetadata,
     ResourceImportResult,
     ResourceQuarantinedError,
+    SecurityMetadataRecord,
+    SecurityMetadataRequest,
     SourceDataError,
     SourceMoneyUnit,
     SourceQuantityUnit,
@@ -19,6 +22,7 @@ from stock_data_center.ingestion.raw_storage import (
     RawArtifactIntegrityError,
     StoredRawArtifact,
 )
+from stock_data_center.ingestion.security_metadata import SecurityMetadataImporter
 
 __all__ = [
     "DailyMarketImporter",
@@ -28,9 +32,13 @@ __all__ = [
     "ImportManifestResult",
     "LocalRawArtifactStore",
     "ParsedDailyMarket",
+    "ParsedSecurityMetadata",
     "RawArtifactIntegrityError",
     "ResourceImportResult",
     "ResourceQuarantinedError",
+    "SecurityMetadataImporter",
+    "SecurityMetadataRecord",
+    "SecurityMetadataRequest",
     "SourceDataError",
     "SourceMoneyUnit",
     "SourceQuantityUnit",

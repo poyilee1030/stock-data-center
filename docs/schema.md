@@ -164,6 +164,15 @@ Phase 3 uses the existing `security_metadata_versions` and
 `security_code` identity immutable and DB-timestamped, then move market into
 `security_metadata_versions` as effective-dated, business-hashed state. Existing
 metadata rows are backfilled from their former identity market and rehashed.
+Security metadata revisions also retain an internal predecessor link. The
+transition identity allows same-effective-date content to be reasserted after
+an intervening correction while consecutive identical observations remain
+deduplicated; the predecessor is excluded from business-content hashing and
+resolved dataset fields.
+Because the preceding schema cannot represent repeated same-date content,
+the transition migration performs a downgrade preflight. It downgrades normally
+when representable and otherwise aborts before mutation with an actionable
+history-preservation error.
 The `market_data` package supplies normalized append-only
 writers and cache-free domain queries for historical security state, historical
 listed universes, single-date daily prices, and inclusive daily-price windows.
