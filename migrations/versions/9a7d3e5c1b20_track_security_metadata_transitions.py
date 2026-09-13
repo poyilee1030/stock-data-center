@@ -92,6 +92,35 @@ $$;
 """
 
 
+ASSERT_DOWNGRADE_REPRESENTABLE = r"""
+DO $$
+DECLARE
+    incompatible_group_count bigint;
+BEGIN
+    SELECT count(*)
+      INTO incompatible_group_count
+      FROM (
+          SELECT security_id, source, effective_from, business_content_hash
+            FROM security_metadata_versions
+           GROUP BY security_id, source, effective_from, business_content_hash
+          HAVING count(*) > 1
+      ) AS reassertions;
+
+    IF incompatible_group_count > 0 THEN
+        RAISE EXCEPTION USING
+            ERRCODE = 'P0001',
+            MESSAGE = 'cannot downgrade security metadata transition history',
+            DETAIL = format(
+                '%s same-date content reassertion group(s) cannot be represented by revision 8c1f7a4e2d90',
+                incompatible_group_count
+            ),
+            HINT = 'Keep revision 9a7d3e5c1b20 or newer; do not delete or collapse append-only PIT history to force this downgrade.';
+    END IF;
+END;
+$$;
+"""
+
+
 def upgrade() -> None:
     op.add_column(
         "security_metadata_versions",
@@ -126,6 +155,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.execute(ASSERT_DOWNGRADE_REPRESENTABLE)
     op.drop_constraint(
         "uq_security_metadata_business_revision",
         "security_metadata_versions",

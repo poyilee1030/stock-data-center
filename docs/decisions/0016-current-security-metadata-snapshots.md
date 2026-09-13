@@ -58,6 +58,12 @@ The final `A` keeps the same business-content hash as the first `A` while its
 current System-PIT state again. The predecessor is transition metadata, not
 business content, and is not exposed as resolved dataset data.
 
+Revision `9a7d3e5c1b20` can downgrade normally while no repeated same-date content
+exists. Once transition history contains content that the preceding uniqueness
+model cannot represent, downgrade aborts before changing schema or data with an
+explicit instruction to remain on this or a newer revision. Downgrade never
+deletes or collapses valid append-only history.
+
 TWSE and TPEx remain independent source histories. This milestone does not
 reconcile them into a synthetic cross-source transfer history. Historical
 market transfers require retained authoritative event evidence and a separate
@@ -80,6 +86,7 @@ resume from the same raw bytes.
 - Current official security metadata can populate stable identities safely.
 - Daily unchanged snapshots do not create fake business revisions.
 - Same-report-date source corrections and reversions remain System-PIT safe.
+- Incompatible schema downgrade fails explicitly without sacrificing history.
 - Current snapshots cannot answer historical universe or transfer questions
   from before their report dates.
 - A missing row is not silently interpreted as delisting.

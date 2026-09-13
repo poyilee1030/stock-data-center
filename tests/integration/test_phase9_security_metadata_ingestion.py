@@ -8,6 +8,9 @@ from uuid import uuid4
 
 import pytest
 import sqlalchemy as sa
+from alembic import command
+from conftest import alembic_config
+from sqlalchemy.exc import DBAPIError
 
 from stock_data_center.ingestion import (
     FetchedArtifact,
@@ -410,6 +413,64 @@ def test_security_metadata_predecessor_integrity_is_db_enforced(
                         },
                     )
                 assert invalid.value.orig.sqlstate == "23514"
+    finally:
+        engine.dispose()
+
+
+def test_reassertion_history_blocks_unrepresentable_downgrade(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    config = alembic_config(isolated_database_url)
+    command.downgrade(config, "8c1f7a4e2d90")
+    command.upgrade(config, "head")
+    engine = sa.create_engine(isolated_database_url)
+    original_name = "台灣積體電路製造股份有限公司"
+    try:
+        for name in (original_name, "台積電股份有限公司", original_name):
+            SecurityMetadataImporter(
+                engine,
+                raw_store=LocalRawArtifactStore(tmp_path / "raw"),
+                fetcher=StaticFetcher(_twse_payload(name=name)),
+            ).run(
+                adapter=TWSESecurityMetadataAdapter(),
+                request=SecurityMetadataRequest(date(2026, 9, 11)),
+                import_id=uuid4(),
+                git_commit="test-commit",
+            )
+        engine.dispose()
+
+        with pytest.raises(
+            DBAPIError,
+            match="cannot downgrade security metadata transition history",
+        ) as blocked:
+            command.downgrade(config, "8c1f7a4e2d90")
+        assert blocked.value.orig.sqlstate == "P0001"
+        assert "do not delete or collapse append-only PIT history" in str(
+            blocked.value
+        )
+
+        engine = sa.create_engine(isolated_database_url)
+        with engine.connect() as connection:
+            assert connection.scalar(sa.text("SELECT version_num FROM alembic_version")) == (
+                "9a7d3e5c1b20"
+            )
+            assert connection.scalar(
+                sa.text(
+                    """
+                    SELECT count(*)
+                    FROM security_metadata_versions AS metadata
+                    JOIN security AS identity ON identity.id=metadata.security_id
+                    WHERE identity.security_code='2330'
+                      AND metadata.effective_from='2026-09-11'
+                    """
+                )
+            ) == 3
+            assert "predecessor_version_id" in {
+                column["name"]
+                for column in sa.inspect(connection).get_columns(
+                    "security_metadata_versions"
+                )
+            }
     finally:
         engine.dispose()
 

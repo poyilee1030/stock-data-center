@@ -18,6 +18,7 @@ Phase 9 domains remain outside this milestone.
 | Publication-time honesty | PASS | Neither endpoint proves its exact original publication instant. Imports create `unknown` evidence with `published_at=NULL`; controlled PIT tests prove System-PIT visibility and Market-PIT invisibility. |
 | No fake revisions | PASS | A later equal snapshot reuses the latest equal business state while retaining a new raw artifact observation and evidence observation. A changed field starts a new report-date version. |
 | Same-date reassertion | PASS | A same-report-date `A -> B -> A` sequence creates a linked revision for the final reassertion, preserves equal business hashes for equal content, and resolves A/B/A at the corresponding System-PIT cutoffs. A consecutive fourth `A` remains deduplicated; PostgreSQL rejects cross-security and future-effective predecessor links. |
+| Reassertion downgrade safety | PASS | Migration downgrade succeeds when stored history fits the preceding uniqueness model. After an `A -> B -> A` reassertion, downgrade aborts before schema/data mutation with an actionable history-preservation error; the Alembic head, predecessor column, and all three versions remain intact. |
 | No inferred delisting | PASS | Omission from a later current snapshot does not set `delisted_on` or close an interval. Historical delisting requires separate evidence. |
 | Raw-first restart | PASS | A simulated process crash after committed capture resumes from the same hash-verified bytes and original ingest run with a fetcher that fails if called. |
 | Quarantine boundary | PASS | Missing required source fields are quarantined after raw capture; no canonical security metadata is written. Security-specific adapter and writer operational-failure regressions remain `captured`, create no quarantine row, and resume from retained bytes without refetch. |
@@ -32,10 +33,10 @@ pytest tests/unit/test_phase9_daily_market_adapters.py
        tests/integration/test_phase9_real_ingestion_framework.py
        tests/integration/test_phase9_security_metadata_ingestion.py
        -m "not live_source"
-    43 passed, 2 deselected
+    44 passed, 2 deselected
 
 full suite on a new database
-    207 passed, 2 skipped (live source is opt-in)
+    208 passed, 2 skipped (live source is opt-in)
 
 ruff check (changed ingestion/market-data/test files)
     PASS
