@@ -1658,7 +1658,7 @@ adjusted-price calculation
 technical indicators
 ```
 
-## PR #13 — Official Corporate-Action Raw-First Pilot
+## PR #13 — Official Dividend Raw-First Pilot
 
 Status: **PLANNED**
 
@@ -1671,34 +1671,112 @@ PR #9 shared raw-first lifecycle
 
 Goal:
 
-Prove that real official Taiwan corporate-action evidence can be captured and normalized
-without inventing event semantics.
+Prove that real official Taiwan dividend evidence can be captured and normalized without
+inventing event semantics or weakening the PR #12 corporate-action identity contract.
+
+Approved official sources:
+
+```text
+TWSE t187ap45_L
+TPEx mopsfin_t187ap39_O
+```
 
 In scope:
 
 ```text
-official TWSE/TPEx source adapters where available
+shared PR #9 raw-first lifecycle
 durable raw artifacts
 checkpoint/resume
 quarantine
 source-unit normalization
 publication evidence
-official reference-price capture
-representative real events:
+
+source-faithful dividend events where the approved sources express them unambiguously:
     cash dividend
-    stock dividend
-    stock split or equivalent share-count event
-    capital reduction / rights where source coverage allows
+    earnings stock dividend / 盈餘配股
+    capital-surplus stock dividend / 資本公積配股
+```
+
+Source-specific identity rule:
+
+```text
+company/security identity + source dividend year/period
+```
+
+This composite may be used only when the official source contract proves that it uniquely and
+stably identifies the dividend event across corrections. It must not include mutable revision
+content such as:
+
+```text
+ex_date
+amount
+ratio
+reference price
 ```
 
 Acceptance criteria:
 
-- [ ] representative live official artifacts parse successfully
+- [ ] live official dividend artifacts from the approved TWSE and TPEx sources parse successfully
+- [ ] legal dividend components remain distinct and are not merged
 - [ ] exact source terms are retained
 - [ ] unknown historical publication time remains unknown
 - [ ] refetch is idempotent at business identity while preserving observation lineage
-- [ ] official reference price is preserved as observed data when available
+- [ ] missing source fields do not cause invented `ex_date` or `official_reference_price` values
 - [ ] no adjusted price is generated in this PR
+
+Out of scope:
+
+```text
+official reference-price normalization
+stock split / reverse split / other share-count event pilot
+capital-reduction or rights-event pilot
+historical corporate-action backfill
+adjusted-price calculation
+```
+
+## Blocked follow-up — Official Reference-Price / Share-Count Corporate-Action Pilot
+
+Status: **BLOCKED**
+
+Verified candidate sources:
+
+```text
+TWSE TWT48U_ALL
+TPEx tpex_exright_prepost
+TPEx tpex_exright_daily
+```
+
+These official feeds contain useful ratio and/or reference-price evidence, but they do not expose
+a native event/document identifier proven to remain stable across corrections to dates or economic
+terms. They therefore cannot yet be normalized into PR #12 corporate-action history without
+weakening its identity contract.
+
+Unblock condition:
+
+Find either:
+
+```text
+an official event/document identifier that remains stable across corrections
+
+or
+
+a source-specific identity that is proven unique and stable and contains no mutable revision field
+```
+
+The following must not be used, alone or as part of a synthetic event identity:
+
+```text
+security_code + ex_date
+action_type + ex_date
+amount
+ratio
+reference price
+row ordinal
+```
+
+Until the identity gate is satisfied, these feeds may be researched or retained as source evidence,
+but they must not be heuristically joined to `corporate_action_events`. Do not add a side-channel
+schema to bypass the PR #12 identity contract.
 
 ## PR #14 — Authoritative Taiwan Trading Calendar and Coverage Validator
 
@@ -1750,7 +1828,12 @@ Depends on:
 PR #12
 PR #13
 PR #14 where calendar context is required
+Blocked follow-up — Official Reference-Price / Share-Count Corporate-Action Pilot
 ```
+
+The complete historical corporate-action backfill must not start until the blocked follow-up's
+stable-identity gate is satisfied. Merging the dividend-only PR #13 does not satisfy the
+reference-price or share-count corporate-action prerequisites.
 
 Goal:
 
