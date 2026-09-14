@@ -1174,18 +1174,25 @@ corporate_action_versions = sa.Table(
     sa.Column("event_id", sa.BigInteger(), nullable=False),
     sa.Column("source", sa.String(64), nullable=False),
     sa.Column("action_type", sa.String(32), nullable=False),
+    sa.Column("capital_reduction_kind", sa.String(48)),
     sa.Column("announcement_date", sa.Date()),
-    sa.Column("ex_date", sa.Date(), nullable=False),
+    sa.Column("ex_date", sa.Date()),
     sa.Column("record_date", sa.Date()),
     sa.Column("payment_date", sa.Date()),
     sa.Column("cash_dividend_per_share", sa.Numeric(24, 8)),
-    sa.Column("stock_dividend_ratio", sa.Numeric(24, 8)),
+    sa.Column("capital_reduction_cash_return_per_share", sa.Numeric(24, 8)),
+    sa.Column("earnings_stock_ratio", sa.Numeric(24, 8)),
+    sa.Column("capital_surplus_stock_ratio", sa.Numeric(24, 8)),
+    sa.Column("free_share_ratio", sa.Numeric(24, 8)),
+    sa.Column("old_shares", sa.Numeric(24, 8)),
+    sa.Column("new_shares", sa.Numeric(24, 8)),
     sa.Column("rights_ratio", sa.Numeric(24, 8)),
     sa.Column("subscription_price", sa.Numeric(20, 6)),
     sa.Column("close_before", sa.Numeric(20, 6)),
-    sa.Column("reference_price", sa.Numeric(20, 6)),
-    sa.Column("rights_dividend_value", sa.Numeric(20, 6)),
-    sa.Column("terms", jsonb_type, nullable=False, server_default=sa.text("'{}'::jsonb")),
+    sa.Column("official_reference_price", sa.Numeric(20, 6)),
+    sa.Column("official_rights_dividend_value", sa.Numeric(20, 6)),
+    sa.Column("source_event_type", sa.Text()),
+    sa.Column("source_terms", jsonb_type, nullable=False, server_default=sa.text("'{}'::jsonb")),
     sa.Column("business_content_hash", sa.CHAR(64), nullable=False),
     sa.Column("ingested_at", aware_timestamp, nullable=False),
     sa.Column("raw_artifact_id", uuid_type, nullable=False),
@@ -1197,30 +1204,103 @@ corporate_action_versions = sa.Table(
         name="uq_corporate_action_business_revision",
     ),
     sa.CheckConstraint(
-        "action_type IN ('cash_dividend', 'stock_dividend', 'rights', "
-        "'ex_dividend', 'ex_right', 'capital_reduction', 'other')",
+        "action_type IN ('cash_dividend', 'earnings_stock_dividend', "
+        "'capital_surplus_stock_dividend', 'stock_split', 'reverse_split', "
+        "'rights_issue', 'capital_reduction', 'ex_dividend', 'ex_right', "
+        "'ex_right_dividend', 'other', 'stock_dividend', 'rights')",
         name="action_type_value",
     ),
     sa.CheckConstraint(
-        "announcement_date IS NULL OR announcement_date <= ex_date",
+        "announcement_date IS NULL OR ex_date IS NULL OR announcement_date <= ex_date",
         name="corporate_action_announcement_by_ex_date",
     ),
     sa.CheckConstraint(
         "num_nonnulls(announcement_date, record_date, payment_date, "
-        "cash_dividend_per_share, stock_dividend_ratio, rights_ratio, "
-        "subscription_price, close_before, reference_price, "
-        "rights_dividend_value) > 0 OR terms <> '{}'::jsonb",
+        "cash_dividend_per_share, capital_reduction_cash_return_per_share, "
+        "capital_reduction_kind, earnings_stock_ratio, "
+        "capital_surplus_stock_ratio, free_share_ratio, old_shares, new_shares, "
+        "rights_ratio, subscription_price, close_before, official_reference_price, "
+        "official_rights_dividend_value, source_event_type) > 0 "
+        "OR ex_date IS NOT NULL OR source_terms <> '{}'::jsonb",
         name="corporate_action_value_present",
     ),
     sa.CheckConstraint(
         "(cash_dividend_per_share IS NULL OR cash_dividend_per_share >= 0) AND "
-        "(stock_dividend_ratio IS NULL OR stock_dividend_ratio >= 0) AND "
-        "(rights_ratio IS NULL OR rights_ratio >= 0) AND "
+        "(capital_reduction_cash_return_per_share IS NULL OR "
+        "capital_reduction_cash_return_per_share > 0) AND "
+        "(earnings_stock_ratio IS NULL OR earnings_stock_ratio > 0) AND "
+        "(capital_surplus_stock_ratio IS NULL OR capital_surplus_stock_ratio > 0) AND "
+        "(free_share_ratio IS NULL OR free_share_ratio > 0) AND "
+        "(old_shares IS NULL OR old_shares > 0) AND "
+        "(new_shares IS NULL OR new_shares > 0) AND "
+        "(rights_ratio IS NULL OR rights_ratio > 0) AND "
         "(subscription_price IS NULL OR subscription_price >= 0) AND "
         "(close_before IS NULL OR close_before >= 0) AND "
-        "(reference_price IS NULL OR reference_price >= 0) AND "
-        "(rights_dividend_value IS NULL OR rights_dividend_value >= 0)",
+        "(official_reference_price IS NULL OR official_reference_price >= 0) AND "
+        "(official_rights_dividend_value IS NULL OR official_rights_dividend_value >= 0)",
         name="corporate_action_values_nonnegative",
+    ),
+    sa.CheckConstraint(
+        "(old_shares IS NULL) = (new_shares IS NULL)",
+        name="corporate_action_share_pair",
+    ),
+    sa.CheckConstraint(
+        "free_share_ratio IS NULL OR free_share_ratio >= "
+        "coalesce(earnings_stock_ratio, 0) + coalesce(capital_surplus_stock_ratio, 0)",
+        name="corporate_action_free_share_components",
+    ),
+    sa.CheckConstraint(
+        "record_date IS NULL OR ex_date IS NULL OR ex_date <= record_date",
+        name="corporate_action_ex_by_record_date",
+    ),
+    sa.CheckConstraint(
+        "payment_date IS NULL OR record_date IS NULL OR record_date <= payment_date",
+        name="corporate_action_record_by_payment_date",
+    ),
+    sa.CheckConstraint(
+        "source_event_type IS NULL OR source_event_type <> ''",
+        name="corporate_action_source_event_type_nonempty",
+    ),
+    sa.CheckConstraint(
+        "(action_type <> 'cash_dividend' OR cash_dividend_per_share > 0) AND "
+        "(action_type <> 'earnings_stock_dividend' OR earnings_stock_ratio IS NOT NULL) AND "
+        "(action_type <> 'capital_surplus_stock_dividend' OR capital_surplus_stock_ratio IS NOT NULL) AND "
+        "(action_type <> 'rights_issue' OR rights_ratio IS NOT NULL) AND "
+        "(action_type NOT IN ('ex_dividend','ex_right','ex_right_dividend') OR ex_date IS NOT NULL)",
+        name="corporate_action_required_terms",
+    ),
+    sa.CheckConstraint(
+        "action_type NOT IN ('stock_split','reverse_split','capital_reduction') OR "
+        "(old_shares IS NOT NULL AND new_shares IS NOT NULL AND old_shares <> new_shares)",
+        name="corporate_action_share_change_required",
+    ),
+    sa.CheckConstraint(
+        "(action_type <> 'stock_split' OR new_shares > old_shares) AND "
+        "(action_type NOT IN ('reverse_split','capital_reduction') OR new_shares < old_shares)",
+        name="corporate_action_share_change_direction",
+    ),
+    sa.CheckConstraint(
+        "action_type NOT IN ('stock_dividend', 'rights')",
+        name="corporate_action_unambiguous_new_type",
+    ),
+    sa.CheckConstraint(
+        "capital_reduction_kind IS NULL OR capital_reduction_kind IN "
+        "('cash_refund','loss_offset','loss_offset_with_cash_increase','other')",
+        name="corporate_action_reduction_kind_value",
+    ),
+    sa.CheckConstraint(
+        "(action_type = 'capital_reduction') = (capital_reduction_kind IS NOT NULL) AND "
+        "(capital_reduction_cash_return_per_share IS NULL OR "
+        "action_type = 'capital_reduction')",
+        name="corporate_action_reduction_terms_scope",
+    ),
+    sa.CheckConstraint(
+        "(capital_reduction_kind <> 'cash_refund' OR "
+        "capital_reduction_cash_return_per_share IS NOT NULL) AND "
+        "(capital_reduction_kind NOT IN "
+        "('loss_offset','loss_offset_with_cash_increase') OR "
+        "capital_reduction_cash_return_per_share IS NULL)",
+        name="corporate_action_reduction_cash_semantics",
     ),
 )
 

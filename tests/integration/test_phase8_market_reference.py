@@ -288,7 +288,7 @@ def test_identical_corporate_action_refetch_keeps_one_revision_and_two_lineages(
         db, security_id=security_id, source="mops", source_event_key="DOC-REPEAT"
     )
     observation = CorporateActionObservation(
-        action_type="rights", ex_date=TRADE_DATE,
+        action_type="rights_issue", ex_date=TRADE_DATE,
         announcement_date=date(2026, 8, 1), rights_ratio=Decimal("0.1"),
     )
     writes = [
@@ -303,6 +303,165 @@ def test_identical_corporate_action_refetch_keeps_one_revision_and_two_lineages(
     assert len(SERVICE.observations(
         db, dataset_code="corporate_action", version_id=writes[0].version_id
     )) == 2
+
+
+def test_corporate_action_hash_covers_explicit_taiwan_semantics(db: Connection) -> None:
+    configure(db, "corporate_action", "mops")
+    security_id = add_security(db)
+    event_id = WRITER.register_corporate_action_event(
+        db, security_id=security_id, source="mops", source_event_key="MOPS-STOCK-1"
+    )
+    observations = (
+        CorporateActionObservation(
+            action_type="earnings_stock_dividend", ex_date=TRADE_DATE,
+            earnings_stock_ratio=Decimal("0.10"), free_share_ratio=Decimal("0.10"),
+            source_event_type="盈餘配股",
+        ),
+        CorporateActionObservation(
+            action_type="capital_surplus_stock_dividend", ex_date=TRADE_DATE,
+            capital_surplus_stock_ratio=Decimal("0.10"),
+            free_share_ratio=Decimal("0.10"), source_event_type="資本公積配股",
+        ),
+    )
+    writes = [
+        WRITER.append_corporate_action(
+            db, event_id=event_id, source="mops", observation=observation,
+            lineage=lineage(db, "corporate_action", "mops"),
+        )
+        for observation in observations
+    ]
+    assert writes[0].business_content_hash != writes[1].business_content_hash
+    stored = db.execute(sa.text("""
+        SELECT action_type, earnings_stock_ratio, capital_surplus_stock_ratio,
+               free_share_ratio, source_event_type
+          FROM corporate_action_versions
+         WHERE event_id=:event ORDER BY id
+    """), {"event": event_id}).mappings().all()
+    assert stored[0]["action_type"] == "earnings_stock_dividend"
+    assert stored[0]["earnings_stock_ratio"] == Decimal("0.10000000")
+    assert stored[1]["action_type"] == "capital_surplus_stock_dividend"
+    assert stored[1]["capital_surplus_stock_ratio"] == Decimal("0.10000000")
+
+
+def test_database_rejects_impossible_split_direction(db: Connection) -> None:
+    configure(db, "corporate_action", "mops")
+    security_id = add_security(db)
+    event_id = WRITER.register_corporate_action_event(
+        db, security_id=security_id, source="mops", source_event_key="MOPS-SPLIT-BAD"
+    )
+    link = lineage(db, "corporate_action", "mops")
+    with pytest.raises(DBAPIError) as invalid:
+        with db.begin_nested():
+            db.execute(sa.text("""
+                INSERT INTO corporate_action_versions (
+                    event_id, source, action_type, ex_date, old_shares, new_shares,
+                    business_content_hash, ingested_at, raw_artifact_id, ingest_run_id
+                ) VALUES (
+                    :event, 'mops', 'stock_split', :ex_date, 2, 1,
+                    repeat('0', 64), statement_timestamp(), :artifact, :run
+                )
+            """), {"event": event_id, "ex_date": TRADE_DATE,
+                    "artifact": link.raw_artifact_id, "run": link.ingest_run_id})
+    assert invalid.value.orig.sqlstate == "23514"
+    with pytest.raises(DBAPIError) as ambiguous:
+        with db.begin_nested():
+            db.execute(sa.text("""
+                INSERT INTO corporate_action_versions (
+                    event_id, source, action_type, ex_date, rights_ratio,
+                    business_content_hash, ingested_at, raw_artifact_id, ingest_run_id
+                ) VALUES (
+                    :event, 'mops', 'rights', :ex_date, 0.1,
+                    repeat('0', 64), statement_timestamp(), :artifact, :run
+                )
+            """), {"event": event_id, "ex_date": TRADE_DATE,
+                    "artifact": link.raw_artifact_id, "run": link.ingest_run_id})
+    assert ambiguous.value.orig.sqlstate == "23514"
+
+
+def test_capital_reduction_kind_and_cash_return_change_business_hash(
+    db: Connection,
+) -> None:
+    configure(db, "corporate_action", "mops")
+    security_id = add_security(db)
+    event_id = WRITER.register_corporate_action_event(
+        db, security_id=security_id, source="mops", source_event_key="MOPS-REDUCTION-1"
+    )
+    observations = (
+        CorporateActionObservation(
+            action_type="capital_reduction", capital_reduction_kind="cash_refund",
+            ex_date=TRADE_DATE, old_shares=Decimal("1"), new_shares=Decimal("0.8"),
+            capital_reduction_cash_return_per_share=TwdAmount(Decimal("2")),
+        ),
+        CorporateActionObservation(
+            action_type="capital_reduction", capital_reduction_kind="cash_refund",
+            ex_date=TRADE_DATE, old_shares=Decimal("1"), new_shares=Decimal("0.8"),
+            capital_reduction_cash_return_per_share=TwdAmount(Decimal("3")),
+        ),
+        CorporateActionObservation(
+            action_type="capital_reduction", capital_reduction_kind="loss_offset",
+            ex_date=TRADE_DATE, old_shares=Decimal("1"), new_shares=Decimal("0.8"),
+        ),
+    )
+    writes = [
+        WRITER.append_corporate_action(
+            db, event_id=event_id, source="mops", observation=observation,
+            lineage=lineage(db, "corporate_action", "mops"),
+        )
+        for observation in observations
+    ]
+    assert len({write.business_content_hash for write in writes}) == 3
+    stored = db.execute(sa.text("""
+        SELECT capital_reduction_kind, capital_reduction_cash_return_per_share
+          FROM corporate_action_versions WHERE event_id=:event ORDER BY id
+    """), {"event": event_id}).mappings().all()
+    assert stored == [
+        {"capital_reduction_kind": "cash_refund",
+         "capital_reduction_cash_return_per_share": Decimal("2.00000000")},
+        {"capital_reduction_kind": "cash_refund",
+         "capital_reduction_cash_return_per_share": Decimal("3.00000000")},
+        {"capital_reduction_kind": "loss_offset",
+         "capital_reduction_cash_return_per_share": None},
+    ]
+
+
+def test_database_rejects_cash_refund_reduction_without_return(db: Connection) -> None:
+    configure(db, "corporate_action", "mops")
+    security_id = add_security(db)
+    event_id = WRITER.register_corporate_action_event(
+        db, security_id=security_id, source="mops", source_event_key="MOPS-REDUCTION-BAD"
+    )
+    link = lineage(db, "corporate_action", "mops")
+    with pytest.raises(DBAPIError) as invalid:
+        with db.begin_nested():
+            db.execute(sa.text("""
+                INSERT INTO corporate_action_versions (
+                    event_id, source, action_type, capital_reduction_kind,
+                    ex_date, old_shares, new_shares, business_content_hash,
+                    ingested_at, raw_artifact_id, ingest_run_id
+                ) VALUES (
+                    :event, 'mops', 'capital_reduction', 'cash_refund',
+                    :ex_date, 1, 0.8, repeat('0', 64), statement_timestamp(),
+                    :artifact, :run
+                )
+            """), {"event": event_id, "ex_date": TRADE_DATE,
+                    "artifact": link.raw_artifact_id, "run": link.ingest_run_id})
+    assert invalid.value.orig.sqlstate == "23514"
+    with pytest.raises(DBAPIError) as nonpositive:
+        with db.begin_nested():
+            db.execute(sa.text("""
+                INSERT INTO corporate_action_versions (
+                    event_id, source, action_type, capital_reduction_kind,
+                    ex_date, old_shares, new_shares,
+                    capital_reduction_cash_return_per_share,
+                    business_content_hash, ingested_at, raw_artifact_id, ingest_run_id
+                ) VALUES (
+                    :event, 'mops', 'capital_reduction', 'cash_refund',
+                    :ex_date, 1, 0.8, 0, repeat('0', 64), statement_timestamp(),
+                    :artifact, :run
+                )
+            """), {"event": event_id, "ex_date": TRADE_DATE,
+                    "artifact": link.raw_artifact_id, "run": link.ingest_run_id})
+    assert nonpositive.value.orig.sqlstate == "23514"
 
 
 def test_index_name_is_effective_dated_metadata_not_identity(db: Connection) -> None:
@@ -483,9 +642,9 @@ def test_populated_phase8_migration_backfills_lineage_and_round_trips_hash(
                          WHERE corporate_action_version_id=:id) AS observations
                   FROM corporate_action_versions WHERE id=:id
             """), {"id": before["id"]}).mappings().one()
-            # The predecessor already hashed action_type/ex_date as content;
-            # the stable event migration must preserve that correct identity.
-            assert after["business_content_hash"] == before["business_content_hash"]
+            # PR #12 changes the canonical field-name contract and hash namespace
+            # without changing ingestion provenance.
+            assert after["business_content_hash"] != before["business_content_hash"]
             assert after["ingested_at"] == before["ingested_at"]
             assert after["observations"] == 1
             legacy_event = connection.execute(sa.text("""
@@ -517,5 +676,103 @@ def test_populated_phase8_migration_backfills_lineage_and_round_trips_hash(
             ), {"id": legacy_index_id}).mappings().one()
             assert restored == {"market": "TWSE", "name": "觀光事業類指數"}
         command.upgrade(config, "head")
+    finally:
+        isolated_engine.dispose()
+
+
+def test_pr12_downgrade_preserves_corporate_action_history_and_raw_ohlc(
+    isolated_database_url: str,
+) -> None:
+    config = alembic_config(isolated_database_url)
+    command.downgrade(config, "4d2a6f8c1e30")
+    command.upgrade(config, "head")
+    isolated_engine = sa.create_engine(isolated_database_url)
+    try:
+        with isolated_engine.begin() as connection:
+            configure(connection, "corporate_action", "mops")
+            security_id = add_security(connection, "2330-pr12-migration")
+            event_id = WRITER.register_corporate_action_event(
+                connection, security_id=security_id, source="mops",
+                source_event_key="MOPS-PR12-CASH-REDUCTION",
+            )
+            action_lineage = lineage(connection, "corporate_action", "mops")
+            written = WRITER.append_corporate_action(
+                connection, event_id=event_id, source="mops",
+                observation=CorporateActionObservation(
+                    action_type="capital_reduction",
+                    capital_reduction_kind="cash_refund",
+                    announcement_date=date(2026, 8, 1),
+                    ex_date=TRADE_DATE, old_shares=Decimal("1"),
+                    new_shares=Decimal("0.8"),
+                    capital_reduction_cash_return_per_share=TwdAmount(Decimal("2")),
+                    close_before=TwdAmount(Decimal("100")),
+                    official_reference_price=TwdAmount(Decimal("122.5")),
+                    source_event_type="現金減資退還股款",
+                    source_terms={"source_exchange_ratio": "0.8"},
+                ), lineage=action_lineage,
+            )
+            configure(connection, "daily_price", "twse")
+            price_lineage = lineage(connection, "daily_price", "twse")
+            price = connection.execute(sa.text("""
+                INSERT INTO daily_price_versions (
+                    security_id, source, trade_date, open_price, high_price,
+                    low_price, close_price, volume, business_content_hash,
+                    ingested_at, raw_artifact_id, ingest_run_id
+                ) VALUES (
+                    :security, 'twse', DATE '2026-09-09', 98, 102, 97, 100,
+                    1000, repeat('0', 64), statement_timestamp(), :artifact, :run
+                )
+                RETURNING id, open_price, high_price, low_price, close_price,
+                          business_content_hash
+            """), {"security": security_id,
+                    "artifact": price_lineage.raw_artifact_id,
+                    "run": price_lineage.ingest_run_id}).mappings().one()
+        isolated_engine.dispose()
+
+        with pytest.raises(
+            DBAPIError, match="cannot downgrade Taiwan corporate-action history"
+        ) as blocked:
+            command.downgrade(config, "4d2a6f8c1e30")
+        assert blocked.value.orig.sqlstate == "P0001"
+        assert "do not delete, merge, or collapse" in str(blocked.value)
+
+        isolated_engine = sa.create_engine(isolated_database_url)
+        with isolated_engine.connect() as connection:
+            assert connection.scalar(sa.text(
+                "SELECT version_num FROM alembic_version"
+            )) == "7c9e2a4b6d81"
+            columns = {column["name"] for column in sa.inspect(connection).get_columns(
+                "corporate_action_versions"
+            )}
+            assert {"old_shares", "new_shares", "official_reference_price",
+                    "capital_reduction_kind",
+                    "capital_reduction_cash_return_per_share",
+                    "source_event_type", "source_terms"} <= columns
+            action = connection.execute(sa.text("""
+                SELECT action_type, capital_reduction_kind,
+                       capital_reduction_cash_return_per_share,
+                       old_shares, new_shares,
+                       official_reference_price, source_event_type,
+                       source_terms, business_content_hash
+                  FROM corporate_action_versions WHERE id=:id
+            """), {"id": written.version_id}).mappings().one()
+            assert action["action_type"] == "capital_reduction"
+            assert action["capital_reduction_kind"] == "cash_refund"
+            assert action["capital_reduction_cash_return_per_share"] == Decimal(
+                "2.00000000"
+            )
+            assert action["old_shares"] == Decimal("1.00000000")
+            assert action["new_shares"] == Decimal("0.80000000")
+            assert action["business_content_hash"] == written.business_content_hash
+            assert connection.scalar(sa.text("""
+                SELECT count(*) FROM corporate_action_version_observations
+                 WHERE corporate_action_version_id=:id
+            """), {"id": written.version_id}) == 1
+            after_price = connection.execute(sa.text("""
+                SELECT id, open_price, high_price, low_price, close_price,
+                       business_content_hash
+                  FROM daily_price_versions WHERE id=:id
+            """), {"id": price["id"]}).mappings().one()
+            assert after_price == price
     finally:
         isolated_engine.dispose()

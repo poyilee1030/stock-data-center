@@ -453,7 +453,7 @@ def test_reassertion_history_blocks_unrepresentable_downgrade(
         with engine.connect() as connection:
             assert connection.scalar(
                 sa.text("SELECT version_num FROM alembic_version")
-            ) == ("4d2a6f8c1e30")
+            ) == ("7c9e2a4b6d81")
             assert connection.scalar(
                 sa.text(
                     """

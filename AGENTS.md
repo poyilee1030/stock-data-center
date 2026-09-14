@@ -114,7 +114,7 @@ At the time this file was aligned to the PR-based roadmap:
 
 ```text
 PR #11  authoritative security lifecycle history        MERGED
-PR #12  Taiwan corporate-action contract               PLANNED
+PR #12  Taiwan corporate-action contract               IN REVIEW
 PR #13  official corporate-action raw-first pilot      PLANNED
 PR #14  authoritative Taiwan trading calendar          PLANNED
 PR #15  historical corporate-action backfill           PLANNED

@@ -2822,14 +2822,14 @@
       "legacy_table": "dividend",
       "legacy_field": "ref_price",
       "disposition": "observed",
-      "target": "corporate_action_versions.reference_price",
+      "target": "corporate_action_versions.official_reference_price",
       "reason": "Source-observable value is retained in the versioned v1 domain contract."
     },
     {
       "legacy_table": "dividend",
       "legacy_field": "rights_dividend_value",
       "disposition": "observed",
-      "target": "corporate_action_versions.rights_dividend_value",
+      "target": "corporate_action_versions.official_rights_dividend_value",
       "reason": "Source-observable value is retained in the versioned v1 domain contract."
     },
     {

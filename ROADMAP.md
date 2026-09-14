@@ -1559,7 +1559,7 @@ The key rule is:
 
 ## PR #12 — Harden Taiwan Corporate-Action Contract
 
-Status: **PLANNED**
+Status: **IN REVIEW**
 
 Depends on:
 
@@ -1608,6 +1608,9 @@ free_share_ratio
 old_shares
 new_shares
 
+capital_reduction_kind
+capital_reduction_cash_return_per_share
+
 rights_ratio
 subscription_price
 
@@ -1638,14 +1641,14 @@ over a provider-dependent ambiguous `split_ratio`.
 
 Acceptance criteria:
 
-- [ ] schema can represent stock split and reverse split explicitly
-- [ ] 盈餘配股 and 資本公積配股 are distinguishable observed events
-- [ ] rights/capital-reduction semantics are explicit
-- [ ] migration round-trip is safe or explicitly guarded when old schema cannot represent new history
-- [ ] DB constraints reject impossible event values
-- [ ] source/business hashes include all semantic quantities
-- [ ] raw price tables remain unchanged
-- [ ] permanent regressions cover representative event types
+- [x] schema can represent stock split and reverse split explicitly
+- [x] 盈餘配股 and 資本公積配股 are distinguishable observed events
+- [x] rights/capital-reduction semantics are explicit
+- [x] migration round-trip is safe or explicitly guarded when old schema cannot represent new history
+- [x] DB constraints reject impossible event values
+- [x] source/business hashes include all semantic quantities
+- [x] raw price tables remain unchanged
+- [x] permanent regressions cover representative event types
 
 Out of scope:
 

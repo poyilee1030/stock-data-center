@@ -54,6 +54,147 @@ def test_corporate_action_has_distinct_announcement_and_effective_dates() -> Non
         )
 
 
+def test_taiwan_stock_distributions_preserve_legal_source_categories() -> None:
+    earnings = CorporateActionObservation(
+        action_type="earnings_stock_dividend",
+        earnings_stock_ratio=Decimal("0.10"),
+        free_share_ratio=Decimal("0.10"),
+        source_event_type="盈餘配股",
+    )
+    capital = CorporateActionObservation(
+        action_type="capital_surplus_stock_dividend",
+        capital_surplus_stock_ratio=Decimal("0.05"),
+        free_share_ratio=Decimal("0.05"),
+        source_event_type="資本公積配股",
+    )
+    assert earnings.action_type != capital.action_type
+    assert earnings.earnings_stock_ratio == Decimal("0.10")
+    assert capital.capital_surplus_stock_ratio == Decimal("0.05")
+
+
+def test_split_reverse_split_and_capital_reduction_are_distinct() -> None:
+    split = CorporateActionObservation(
+        action_type="stock_split", old_shares=Decimal("1"), new_shares=Decimal("2")
+    )
+    reverse = CorporateActionObservation(
+        action_type="reverse_split", old_shares=Decimal("2"), new_shares=Decimal("1")
+    )
+    reduction = CorporateActionObservation(
+        action_type="capital_reduction",
+        capital_reduction_kind="loss_offset",
+        old_shares=Decimal("1000"),
+        new_shares=Decimal("800"),
+    )
+    assert {split.action_type, reverse.action_type, reduction.action_type} == {
+        "stock_split",
+        "reverse_split",
+        "capital_reduction",
+    }
+
+
+@pytest.mark.parametrize(
+    ("action_type", "old_shares", "new_shares"),
+    (
+        ("stock_split", "2", "1"),
+        ("reverse_split", "1", "2"),
+        ("capital_reduction", "1", "2"),
+    ),
+)
+def test_share_change_direction_is_enforced(
+    action_type: str, old_shares: str, new_shares: str
+) -> None:
+    with pytest.raises(ValueError, match="shares|increase"):
+        CorporateActionObservation(
+            action_type=action_type,  # type: ignore[arg-type]
+            capital_reduction_kind=(
+                "loss_offset" if action_type == "capital_reduction" else None
+            ),
+            old_shares=Decimal(old_shares),
+            new_shares=Decimal(new_shares),
+        )
+
+
+def test_cash_refund_and_loss_offset_reductions_are_explicit() -> None:
+    cash_refund = CorporateActionObservation(
+        action_type="capital_reduction",
+        capital_reduction_kind="cash_refund",
+        old_shares=Decimal("1"),
+        new_shares=Decimal("0.8"),
+        capital_reduction_cash_return_per_share=twd("2"),
+    )
+    loss_offset = CorporateActionObservation(
+        action_type="capital_reduction",
+        capital_reduction_kind="loss_offset",
+        old_shares=Decimal("1"),
+        new_shares=Decimal("0.8"),
+    )
+    combined = CorporateActionObservation(
+        action_type="capital_reduction",
+        capital_reduction_kind="loss_offset_with_cash_increase",
+        old_shares=Decimal("1"),
+        new_shares=Decimal("0.8"),
+        rights_ratio=Decimal("0.25"),
+        subscription_price=twd("10"),
+    )
+    assert cash_refund.capital_reduction_cash_return_per_share == twd("2")
+    assert loss_offset.capital_reduction_cash_return_per_share is None
+    assert combined.rights_ratio == Decimal("0.25")
+
+
+def test_cash_refund_reduction_requires_positive_return_per_share() -> None:
+    with pytest.raises(ValueError, match="cash_refund requires"):
+        CorporateActionObservation(
+            action_type="capital_reduction",
+            capital_reduction_kind="cash_refund",
+            old_shares=Decimal("1"),
+            new_shares=Decimal("0.8"),
+        )
+    with pytest.raises(ValueError, match="must be positive"):
+        CorporateActionObservation(
+            action_type="capital_reduction",
+            capital_reduction_kind="cash_refund",
+            old_shares=Decimal("1"),
+            new_shares=Decimal("0.8"),
+            capital_reduction_cash_return_per_share=twd("0"),
+        )
+    with pytest.raises(ValueError, match="must not be negative"):
+        CorporateActionObservation(
+            action_type="capital_reduction",
+            capital_reduction_kind="cash_refund",
+            old_shares=Decimal("1"),
+            new_shares=Decimal("0.8"),
+            capital_reduction_cash_return_per_share=twd("-1"),
+        )
+
+
+def test_rights_and_combined_ex_event_require_explicit_terms() -> None:
+    rights = CorporateActionObservation(
+        action_type="rights_issue",
+        rights_ratio=Decimal("0.20"),
+        subscription_price=twd("25"),
+        official_reference_price=twd("42"),
+        official_rights_dividend_value=twd("3"),
+        source_terms={"source_label": "現金增資"},
+    )
+    combined = CorporateActionObservation(
+        action_type="ex_right_dividend", ex_date=date(2026, 9, 10)
+    )
+    assert rights.rights_ratio == Decimal("0.20")
+    assert combined.ex_date == date(2026, 9, 10)
+    with pytest.raises(ValueError, match="explicit economic term"):
+        CorporateActionObservation(action_type="rights_issue")
+
+
+def test_ambiguous_legacy_action_types_are_rejected_for_new_observations() -> None:
+    for action_type in ("stock_dividend", "rights"):
+        with pytest.raises(ValueError, match="unsupported corporate action type"):
+            CorporateActionObservation(
+                action_type=action_type,  # type: ignore[arg-type]
+                ex_date=date(2026, 9, 10),
+                source_terms={"legacy": True},
+            )
+
+
 def test_index_name_is_versioned_metadata() -> None:
     old = MarketIndexMetadataObservation(
         effective_from=date(2020, 1, 1), market="TWSE", name="觀光事業類指數"

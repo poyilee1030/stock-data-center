@@ -376,7 +376,7 @@ def test_transfer_history_blocks_destructive_downgrade_before_mutation(
         with engine.connect() as connection:
             assert connection.scalar(
                 sa.text("SELECT version_num FROM alembic_version")
-            ) == ("4d2a6f8c1e30")
+            ) == ("7c9e2a4b6d81")
             tables = set(sa.inspect(connection).get_table_names())
             assert "security_transfer_events" in tables
             assert "security_transfer_event_observations" in tables

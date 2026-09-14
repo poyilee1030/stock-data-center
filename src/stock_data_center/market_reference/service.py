@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+
 import sqlalchemy as sa
 from sqlalchemy import Connection
 
@@ -115,7 +116,9 @@ class MarketReferenceService:
                     )
                     if record is not None and (
                         action_type is None or record.data["action_type"] == action_type
-                    ) and start_date <= record.data["ex_date"] <= end_date:
+                    ) and record.data["ex_date"] is not None and (
+                        start_date <= record.data["ex_date"] <= end_date
+                    ):
                         records.append(record)
                 return tuple(sorted(
                     records, key=lambda row: (row.data["ex_date"], row.data["event_id"])
