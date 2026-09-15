@@ -26,6 +26,13 @@ migrations are the deployment record in `migrations/versions/`.
 | Canonical derived data | `derived_dataset_definitions`, `derived_computation_runs`, `derived_metric_versions` |
 | Publication knowledge | `publication_evidence` |
 
+`security_tag_versions` and `xbrl_concept_catalog_versions` exist in the schema
+but are not in v1 (ROADMAP §16): no official source publishes security tags, and
+no consumer reads the XBRL codebook. They stay empty. Every table's per-column
+source coverage is `storage_contract` in
+[`data_domain_inventory.json`](data_domain_inventory.json), checked against this
+schema and audit §5 by `tests/unit/test_pr14_storage_contract_source_coverage.py`.
+
 All externally meaningful timestamps use `TIMESTAMPTZ`.
 
 ## Provenance model

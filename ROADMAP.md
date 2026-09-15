@@ -2,7 +2,7 @@
 
 > Delivery is tracked by pull request. Historical phase names are retained only as legacy references.
 >
-> Status date: 2026-09-14.
+> Status date: 2026-09-15.
 >
 > Source-reality baseline: [`docs/source_field_audit.md`](docs/source_field_audit.md). Every planned PR in this roadmap is scoped to fields that the audit shows actually exist.
 
@@ -79,26 +79,32 @@ Legacy technical indicators and backtests use raw, unadjusted prices. Nothing in
 
 ## 2.3 Unsourced columns
 
-These existing columns have no source field. They stay NULL, and no v1 PR may promise them:
+These existing columns have no source field at all, and no v1 PR may promise them. Most stay NULL, but **unsourced does not mean NULL**: a `NOT NULL` column holds a documented page-level constant or a value of our own, and audit §5 records which, per column.
 
 ```text
 daily_price_versions.bid_snapshot / ask_snapshot                (depth blobs; the one published
                                                                 level is stored in last_bid_price /
                                                                 last_ask_price / last_bid_volume /
                                                                 last_ask_volume)
-market_index_versions.open_value / high_value / low_value      (TAIEX only, via MI_5MINS_HIST; see PR #18)
 market_index_versions.trade_value
-market_index_metadata_versions.effective_from / effective_to   (as official dates)
-security_tag_versions                                          (whole table; third-party only)
+market_index_metadata_versions.effective_from / effective_to   (stores our first/last observation
+                                                                dates, not official effective dates)
+security_tag_versions.tag / effective_from / effective_to      (third-party snapshot only; domain
+                                                                not in v1 §16, so the table stays empty)
+xbrl_concept_catalog_versions.*                                (no catalogue endpoint inspected; domain
+                                                                not in v1 §16, so the table stays empty)
 corporate_action_versions.announcement_date / record_date / payment_date
 corporate_action_versions.earnings_stock_ratio / capital_surplus_stock_ratio
                                                                (split exists only in the announcement
                                                                 feeds; PR #33 stores it separately)
-monthly_revenue_versions.currency                              (page-level constant TWD)
+monthly_revenue_versions.currency                              (NOT NULL: stores the documented
+                                                                page-level constant TWD, never NULL)
 publication_evidence.published_at from an official release     (no source publishes it)
 ```
 
-Partially sourced columns (for example, `official_valuation_versions.dividend_per_share` is TPEx only) are listed in the audit §5.
+Partially sourced columns exist for only some dates, markets, or securities. `market_index_versions.open_value / high_value / low_value` are sourced for the TAIEX alone, through `MI_5MINS_HIST` (PR #18); `official_valuation_versions.dividend_per_share` is TPEx only; `daily_price_versions.price_direction` is TWSE only. Audit §5 is the complete list, one row per column.
+
+The normative, machine-readable form of both lists is `storage_contract` in `docs/data_domain_inventory.json`: every column of every table in the schema is classified there, or the table is excluded with a reason, and a unit test fails if the registry, audit §5, and the live schema stop agreeing. It also checks that a column recorded as staying NULL really is nullable.
 
 ## 2.4 No-unsourced-field rule
 
@@ -487,8 +493,9 @@ The MOPS iXBRL documents provide contexts with explicit dimensions, units, and d
 | Adjusted prices | PR #25 | derived from exchange reference prices | |
 | Canonical derived metrics | PR #26 | derived | ports of legacy calculators |
 | Stock tags, XBRL codebook, margin market summary | not in v1 | — | no official source or no consumer |
+| Monthly-revenue growth ratios | not in v1 | MOPS `t21sc03` publishes them (§4.7) | `monthly_revenue_growth:v1` is superseded by the observed published comparatives (PR #22) |
 
-The field-level inventory is `docs/data_domain_inventory.md`/`.json`. PR #14 aligns it with the audit. No known v1 domain may silently become unmapped.
+The field-level inventory is `docs/data_domain_inventory.md`/`.json`. PR #14 aligned it with the audit and added the per-column `storage_contract` registry, which a unit test holds against the live schema and audit §5. No known v1 domain may silently become unmapped.
 
 ---
 
@@ -564,7 +571,7 @@ If a required correctness criterion fails, stop and keep the PR unmerged.
 
 # 20. PR Ledger
 
-Status date: 2026-09-14.
+Status date: 2026-09-15.
 
 | PR | Status | Delivery |
 |---|---|---|
@@ -580,8 +587,8 @@ Status date: 2026-09-14.
 | #10 | MERGED | Current TWSE/TPEx security metadata ingestion |
 | #11 | MERGED | Authoritative security listing/delisting/venue lifecycle history |
 | #12 | MERGED | Hardened Taiwan corporate-action contract |
-| #13 | THIS PR | Source-reality rebuild of this roadmap, `AGENTS.md`, and `docs/source_field_audit.md` |
-| #14 | PLANNED | Source-reality alignment of inventory and storage contract |
+| #13 | MERGED | Source-reality rebuild of this roadmap, `AGENTS.md`, and `docs/source_field_audit.md` |
+| #14 | THIS PR | Source-reality alignment of inventory and storage contract |
 | #15 | PLANNED | Availability-time evidence policy (owner decision) |
 | #16 | PLANNED | Trading calendar and coverage validator |
 | #17 | PLANNED | Whole-market daily prices |
@@ -645,7 +652,7 @@ No announcement feed exposes a correction-stable event ID. The 1591/108/1 collis
 
 ## PR #14 — Source-Reality Alignment
 
-Status: **PLANNED**. Depends on: none.
+Status: **THIS PR**. Depends on: none.
 
 Goal: make the storage contract and inventory agree with `docs/source_field_audit.md` before more adapters are written.
 
@@ -663,10 +670,25 @@ Scope:
 
 Schema impact: none. Migration: none. PIT impact: none.
 
+Delivered:
+
+- [x] `docs/data_domain_inventory.md`/`.json` corrected on every claim above
+- [x] stock tags, the XBRL codebook, the margin market summary, and `monthly_revenue_growth:v1` marked not in v1; `dividend_declaration` added as a planned domain
+- [x] audit §5 rewritten as one row per column, covering unsourced *and* partially sourced columns
+- [x] `storage_contract` added to `docs/data_domain_inventory.json`: 194 columns across 24 tables, each `sourced` / `partially_sourced` / `unsourced` / `internal`, with the other 29 tables excluded by name and reason
+- [x] coverage is not confined to `*_versions`: `financial_facts`, `tdcc_distribution`, its codebook tables, `corporate_action_events`, and `security_transfer_events` hold source values too and are classified
+- [x] each unsourced column records its effect — *stays NULL*, *stores a documented constant*, *stores a derived value*, or *table stays empty* — because six of them are `NOT NULL`
+- [x] `tests/unit/test_pr14_storage_contract_source_coverage.py` holds the registry, audit §5, and the live SQLAlchemy metadata to each other
+
+Two corrections the audit implied but had not stated, added to §5 by this PR:
+
+- `corporate_action_versions.old_shares` / `new_shares` are partially sourced: capital reduction only, since the TWSE `TWTB8U` par-value detail fields are unverified and no TPEx par-value endpoint was found (§4.10).
+- `security_metadata_versions.name` / `industry` are partially sourced: the snapshots publish current values only, so earlier effective dates carry the current value (§4.11).
+
 Acceptance:
 
-- inventory, audit, and schema agree
-- the new test fails if a column is added without a source mapping
+- [x] inventory, audit, and schema agree
+- [x] the new test fails if a column is added to any classified table without a source mapping, if a new table appears in neither list, if a column recorded as staying NULL is `NOT NULL`, or if an `observed` target names a column that exists in no migration and no planned PR
 
 Out of scope: dropping unsourced columns.
 
