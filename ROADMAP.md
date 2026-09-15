@@ -408,11 +408,16 @@ legacy_archive   only where an archive holds something no official re-fetch
                  Where the archive's own filename disagrees with the payload,
                  the payload wins and the file is rejected (PR #24).
 
-v1 depends on four archives that no official endpoint can reproduce: the two
-TDCC archives, the legacy XBRL documents, the legacy monthly-revenue
-`market.csv` first-seen rows, and `revswarm.db`. Three of them live outside
-this repository. PR #32 must not declare cutover complete while a v1 rebuild
-still depends on a path under `~/GitHubLL`.
+v1 depends on archives that no official endpoint can reproduce: the two TDCC
+archives, the legacy XBRL documents, and the legacy monthly-revenue
+`market.csv`, which now carries both the 2026M02-onward first-seen rows and the
+`revswarm` announcement dates written back into it. `revswarm.db` itself is not
+a dependency; its result is in the CSV.
+
+By owner decision these stay under `~/GitHubLL/my_stock_project/data/raw` for
+now, and only the TDCC archive has been copied into this repository. PR #32
+must not declare cutover complete while a v1 rebuild still depends on a path
+outside this repository.
 ```
 
 ---
@@ -869,7 +874,18 @@ cumulative_revenue, cumulative_revenue_last_year, cumulative_yoy_pct, note
 
 The canonical derived `monthly_revenue_growth:v1` leaves v1.
 
-Recovered publication dates (audit §7.4): for 2020M01-2026M01, import the `revswarm` announcement dates as `press_report_bound` evidence — 114,910 of 128,063 rows (89.7%). Import from `revswarm.db`, not from the legacy `market.csv`, because the CSV keeps only the date: the per-row `engine`, `verified`, `raw_title` and `url` are the evidence and must be stored with it. The 10.3% with no verified date fall through to the release rule (the 10th of the next month, moved to the next business day). A recovered date that equals the 10th is not the fallback and must not be collapsed into it — 27,035 rows genuinely fall on that day.
+Recovered publication dates (audit §7.4): for 2020M01-2026M01, read them from the legacy `market.csv`, which `revswarm` has already written back — 114,910 of 128,063 rows (89.7%) carry a real announcement date. The CSV is the interface; `revswarm.db` is not a live dependency of this PR.
+
+The CSV keeps only the date, so a row dated on the 10th cannot be told apart from a row that kept the statutory fallback. The rule that follows from that:
+
+```text
+publish_time != the 10th of the next month  ->  press_report_bound at end of that day
+publish_time == the 10th of the next month  ->  release_rule
+```
+
+This costs almost nothing and can never create look-ahead. 40,188 rows sit on the 10th; for the 36,492 where the 10th is a business day the release rule resolves to that same day, so the timestamp is identical. Only the 3,696 rows (2.9%) whose 10th falls on a weekend resolve 1-2 days later than the recovered date says, which is late, not early.
+
+If the per-row provenance is wanted later — `engine`, `verified`, `raw_title`, `url` — the upgrade is to export a provenance column from `revswarm.db` alongside the date, not to read the database at ingest time.
 
 Legacy first-seen import (audit §7.1): for 2026M02 onward, import the legacy `market.csv` rows as `legacy_archive` observations of the first-captured values, with `legacy_capture_bound` evidence from their `publish_time` dates. When the official re-fetch differs, it becomes a later revision whose evidence is the Data Center's own capture time. The synthetic `publish_time` values before 2026M02 are not imported as evidence.
 
@@ -880,7 +896,8 @@ Acceptance:
 - a correction between two fetches creates a revision
 - published comparatives are stored exactly as published and never reconciled against our own series; the 2026M06/M07 pair, where 11 of 1,846 companies disagree, is a regression fixture (audit §7.3)
 - for 2026M02 onward, each first-seen row resolves under Market PIT no earlier than the end of its legacy 22:45 run; rows the re-fetch shows as corrected resolve to the first-captured value before the correction's capture
-- for 2020M01-2026M01, a row with a verified `revswarm` date resolves at the end of that date, and a row without one resolves at the release rule; the two are distinguished by the presence of evidence, never by whether the date equals the 10th
+- for 2020M01-2026M01, a row whose `publish_time` differs from the 10th of the next month resolves at the end of that day; a row on the 10th resolves at the release rule
+- no row in that window ever resolves earlier than the release rule would place it
 - the `revswarm` announced-revenue cross-check runs at import and its agreement rate is recorded; a drop below the 99.10% measured on 2026-09-15 fails the import
 
 Out of scope: recovering first-published values before 2026M02.

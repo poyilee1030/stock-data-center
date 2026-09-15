@@ -727,7 +727,9 @@ name collisions and articles that are not revenue announcements.
 
 `export_publish_time.py` writes only trusted rows into the legacy
 `market.csv`, through 2026M01 only, changing one cell per row, refusing any
-file that would not round-trip byte-identically.
+file that would not round-trip byte-identically. It was last run 2026-09-13
+11:02, two minutes after the `revswarm.db` mtime, so the CSV is current. The
+CSV is the interface the Data Center reads; the database is not.
 
 Resulting coverage of the legacy archive:
 
@@ -737,9 +739,16 @@ Resulting coverage of the legacy archive:
 | 2026M02 onward | 12,894 | — | — (real capture dates from the legacy 22:45 job, §7.1) |
 
 A recovered date equal to the 10th is not distinguishable from the fallback by
-value alone: 27,035 recovered rows genuinely fall on the 10th. Provenance is
-per row in `revswarm.db` (`engine`, `verified`, `raw_title`, `url`), which is
-the only way to tell them apart.
+value alone: 27,035 recovered rows genuinely fall on the 10th. Per-row
+provenance (`engine`, `verified`, `raw_title`, `url`) exists only in
+`revswarm.db`, which is not exported.
+
+This costs less than it looks. Of the 128,063 rows in the window, 40,188 sit on
+the 10th; for 36,492 of those the 10th is a business day, so the release rule
+resolves to that same instant and treating them as rule-bound changes nothing.
+Only 3,696 rows (2.9%) have a weekend 10th, where the rule moves to the next
+business day and the row resolves 1-2 days late. Late is safe; early is not.
+PR #22 therefore reads the CSV and treats any row on the 10th as rule-bound.
 
 **Independent quality check.** `revswarm` also captured the announced revenue
 from the article headline, rounded to 0.01億, for 110,653 trusted rows.
