@@ -95,7 +95,7 @@ PR #11  authoritative security lifecycle history        MERGED
 PR #12  Taiwan corporate-action contract               MERGED
 PR #13  source-reality rebuild of ROADMAP/AGENTS/audit   MERGED
 PR #14  source-reality alignment                       THIS PR
-PR #15  availability-time evidence policy              PLANNED (owner decision / ADR-0020)
+PR #15  availability-time evidence policy              PLANNED (ADR-0020 approved; needs #16)
 PR #16  trading calendar + coverage validator          PLANNED
 PR #17  whole-market daily prices                      PLANNED
 PR #18  market indices + official valuation            PLANNED

@@ -633,7 +633,7 @@ What it established, with the evidence in `docs/source_field_audit.md`:
 
 - what each official endpoint publishes, with header variants and date ranges, and which existing columns no source populates (§2.3)
 - Invariant G split into announcement feeds and exchange result feeds, whose executed-date locator gives the event identity that unblocks corporate actions, adjusted prices, and the dividend track
-- the availability-time evidence policy PR #15 turns into ADR-0020, including the recovered monthly-revenue publication dates
+- the availability-time evidence policy PR #15 turned into ADR-0020, approved 2026-09-15, including the recovered monthly-revenue publication dates
 - the TDCC archive consolidated from three directories into one of 375 weeks
 - §26 split into what cannot be built, what waits on a trigger, and what is merely out of v1
 
@@ -694,7 +694,7 @@ Out of scope: dropping unsourced columns.
 
 ## PR #15 — Availability-Time Evidence Policy
 
-Status: **PLANNED**. It requires ADR-0020, approved by the owner, before implementation. Depends on: PR #14.
+Status: **PLANNED**. ADR-0020 is approved (owner, 2026-09-15) and fixes the policy below. Depends on: PR #14, PR #16 — every release rule moves a deadline off a non-business day against #16's trading calendar, so #16 lands first.
 
 Problem: No source provides a per-row publication instant (§2.2, fact 1). Under official-only evidence, imported history is Market-PIT invisible, and System PIT starts at import time (§7.3). Neither can answer the consumers' question ("what was knowable on date D?").
 
@@ -703,7 +703,7 @@ The legacy system answers it in two ways:
 - real first-seen capture dates for monthly revenue from 2026M02 and XBRL from 2025Q4
 - statutory deadlines assigned after the fact for older periods (audit §7.1)
 
-Recommended decision: add three evidence types that each `(dataset, source)` opts into.
+Approved decision (ADR-0020): add three evidence types that each `(dataset, source)` opts into.
 
 ```text
 release_rule    versioned, documented no-later-than instant derived from the
@@ -717,15 +717,16 @@ release_rule    versioned, documented no-later-than instant derived from the
                   financial statements,    -> out of v1 scope (PR #23)
                     financial industry
                   exchange daily datasets  -> 03:00 the next calendar day
-                                              (owner decision; the exchange
-                                               publishes same-day rows before
-                                               they settle, audit §7, and the
-                                               legacy 23:30 run needed its 03:00
-                                               retry on 5 of 27 observed trade
-                                               days, audit §7.2)
+                                              (approved; the exchange publishes
+                                               same-day rows before they settle,
+                                               audit §7, and the legacy 23:30 run
+                                               needed its 03:00 retry on 5 of 27
+                                               observed trade days, audit §7.2)
                   TDCC weekly              -> 12:00 on the first Sunday after the
-                                              data date (owner decision; the
-                                               legacy weekly job ran Sunday 10:20)
+                                              data date (approved; rests on the
+                                               legacy Sunday 10:20 job, not on a
+                                               published TDCC schedule — the
+                                               rule records that limit)
                 Every rule is at least the statutory deadline moved to the next
                 business day (PR #16 calendar). For example, 2021Q2 resolves to
                 2021-08-16, not 08-15, and 2026M04 revenue to 2026-05-11 (audit §7.1).
@@ -753,12 +754,17 @@ press_report_bound
                 estimate. It ranks below the two capture types because it is
                 day-precision and reconstructed, with a measurable residual
                 error rate.
-                v1 source: the `revswarm` monthly-revenue dataset, 114,910 of
-                the 128,063 rows in 2020M01-2026M01 (89.7%), verified by its
-                three contamination guards and cross-checked at 99.10%
-                agreement against today's MOPS values (audit §7.4).
-                evidence_source names the dataset, the engine, and the
-                verifier recorded per row.
+                v1 source: the per-row `publish_time` already written into
+                the legacy monthly-revenue archive
+                (`data/raw/monthly_revenue/<year>/<year>M<month>/market.csv`),
+                114,910 of the 128,063 rows in 2020M01-2026M01 (89.7%),
+                verified by `revswarm`'s three contamination guards and
+                cross-checked at 99.10% agreement against today's MOPS values
+                (audit §7.4).
+                evidence_source names that archive file, its mtime, and its
+                raw artifact hash. Per-row engine/verifier provenance exists
+                only in `revswarm.db`, which §14 forbids as an ingest-time
+                dependency, so it is not recorded.
 ```
 
 Rules:
@@ -777,11 +783,13 @@ Rules:
 
 Alternative: keep official-only evidence. v1 then exposes history through System PIT only, and historical Market-PIT queries return nothing.
 
-Schema impact: none expected (`evidence_type` and the allowlists exist). Migration: allowlist data only.
+Schema impact: one typed `purpose` column on `ingest_runs` with a `CHECK` constraint, plus the §14 artifact origin, which is likewise unmodelled today. `evidence_type` and the allowlists already exist. Migration: that column, the origin, and allowlist data.
+
+v1 does not capture the unsettled same-day row (ADR-0020 §10). Trade date D resolves at D+1 03:00, so a same-day post-close strategy cannot be backtested. This is a known gap, not look-ahead: the settled value is invisible at D 15:00, not wrongly visible. Any later proposal to move the exchange rule earlier than 03:00 must introduce same-day capture in the same PR.
 
 Acceptance:
 
-- ADR-0020 approved. AGENTS.md §31–32 (unknown publication and backfill rules) updated to match.
+- AGENTS.md §31–32 (unknown publication and backfill rules) updated to match ADR-0020.
 - Each rule has an id, a version, and a cited official schedule or statute. Permanent tests cover weekends, holidays, year boundaries, and deadlines that fall on non-business days.
 - Revision-after-rule regression.
 - Exchange daily rules are validated against forward captures: the data for trade date D is fetchable at the rule instant.

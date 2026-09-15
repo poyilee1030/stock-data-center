@@ -653,7 +653,15 @@ month. A new `(market, symbol)` row is stamped with the run date. Checked in
 both `stock_db` and the pre-overwrite backup
 `data/backup_monthly_revenue_pre_publish_time_20260913.tar.gz`:
 
-| Months | `publish_time` | Meaning |
+This table describes the legacy **database**. The legacy **archive** CSVs under
+`data/raw/monthly_revenue/` no longer match it for the first window: `revswarm`
+wrote its recovered announcement dates back into them (§7.4), so those files
+carry per-row dates. Sampled 2026-09-15: `2021M05/market.csv` has 1,692 rows
+with 11 distinct `publish_time` values from 2021-06-01 to 06-11, 809 of them on
+06-10. The Data Center reads the CSV, so ADR-0020 treats the first window as
+`press_report_bound`, not as a synthetic deadline.
+
+| Months | `publish_time` in `stock_db` | Meaning |
 | --- | --- | --- |
 | 2020M01 → 2026M01 (73 months) | one value per month: the 10th of the next month | synthetic statutory deadline, assigned after the fact |
 | 2026M02 → 2026M08 (7 months) | 11–15 distinct dates per month, from the 1st to the 13th–15th | real first-seen date of the 22:45 run; values are first-captured, not later corrections |
