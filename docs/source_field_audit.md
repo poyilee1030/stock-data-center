@@ -61,14 +61,15 @@ Nothing in the legacy stack consumes dividend or corporate-action data.
 | TPEx foreign holding | MOPS `t13sa150_otc` POST, rewritten through pandas | No |
 | Monthly revenue | Parsed CSV, not the MOPS HTML. Only `_0` (domestic-issuer) pages were fetched. Each month's `market.csv` appends only new `(market, symbol)` keys, so later corrections were never recorded. `publish_time` has two regimes (§7.1). | Not source bytes, but the 2026M02 onward rows are first-seen capture evidence |
 | XBRL | iXBRL HTML decoded and rewritten as UTF-8 text. The filename date suffix has two regimes (§7.1). Files for 2020Q1–2025Q3 have February 2026 mtimes. | Not source bytes. 2020Q1–2025Q3 are no older than a fresh re-fetch; 2025Q4 onward are first-seen versions |
-| TDCC weekly bulk `TDCC_OD_1-5_YYYYMMDD.csv` | OpenData bytes written unchanged | **Yes.** 2026-07-09 is a partial reconstruction of 1,849 securities built from per-security queries. |
+| TDCC weekly, both archives (§4.9) | OpenData bytes written unchanged, `.csv`/`.zip`/`.7z` | **Yes.** One caveat: `shareholding`'s 2026-07-09 is a 1,849-security reconstruction from per-security queries; the `TDCC` archive has the real 4,003-security file for that week. |
 | Corporate-action year-to-date files (`TWT49U`, `TWTAUU`, `TWTB8U`) | One `all.csv` per year, overwritten daily. Only 2026 keeps the cp950 original. TWSE only. | Partially (2026 only) |
 | `stock_info`, `stock_tags` | Parsed current snapshots | No |
 
 Because the official endpoints still serve 2020 onward for every domain except
 TDCC, re-fetching gives byte-faithful artifacts through the existing PR #9
-raw-first lifecycle. The legacy archive is needed only for TDCC history and as
-a reconciliation baseline.
+raw-first lifecycle. The archives are needed for TDCC history, for the recovered
+monthly-revenue publication dates (§7.4), for the pre-2026 first-seen records
+(§7.1), and as a reconciliation baseline.
 
 ## 4. Per-domain source fields
 
@@ -244,11 +245,11 @@ Of the union, 348 weeks fall inside the v1 window from 2020-01-02.
 Every file in both archives carries the same six-column OpenData header and
 one 資料日期 per file, so a single parser handles all of them.
 
-The new archive also repairs the worst hole in the legacy one: 2026-07-09 is a
-complete 4,003-security file here, where the legacy archive has only the
+The `TDCC` archive also repairs the worst hole in `shareholding`: 2026-07-09 is
+a complete 4,003-security file there, where `shareholding` has only the
 1,849-security per-security reconstruction.
 
-Four weeks exist **only** in the legacy archive and must be taken from it:
+Four weeks exist **only** in `shareholding` and must be taken from it:
 
 ```text
 2020-06-20   2020-09-25   2021-02-19   2022-11-04
@@ -265,7 +266,7 @@ Four weeks exist **only** in the legacy archive and must be taken from it:
   moved to `TDCC/_quarantine/` on 2026-09-15 with a note, and the
   archive now has 422 files, 371 content dates and zero name/content
   mismatches. There is no 2020-06-19 TDCC week at all — that week's data date is
-  2020-06-20, held only by the legacy archive.
+  2020-06-20, held only by `shareholding`.
   The rule stands regardless: key on the 資料日期 column and reject any file
   whose name disagrees, because this defect is silent. Keying on the name here
   would have invented a 2020-06-19 week and hidden that 2020-06-20 was missing.
@@ -293,8 +294,8 @@ Row counts grow from 45,713 rows / 2,689 securities (2019-06-28) to
 2026-02-13 -> 2026-02-26   (13)
 ```
 
-There is no unexplained gap in the union. The legacy archive alone had eight
-such intervals, including 2021-11-26 → 2021-12-24; the new archive fills them.
+There is no unexplained gap in the union. `shareholding` alone had eight such
+intervals, including 2021-11-26 → 2021-12-24; the `TDCC` archive fills them.
 
 ### 4.10 Corporate actions: exchange result feeds
 

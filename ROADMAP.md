@@ -68,7 +68,7 @@ Legacy technical indicators and backtests use raw, unadjusted prices. Nothing in
    - TDCC history
    - the legacy first-seen records (monthly revenue from 2026M02, XBRL from 2025Q4)
    - a reconciliation baseline
-4. **Official TDCC history is not available.** OpenData serves only the latest week, and the portal about one year (51 weeks on 2026-09-14). Weeks before 2025-09-19 exist only in the legacy archive.
+4. **Official TDCC history is not available.** OpenData serves only the latest week, and the portal about one year (51 weeks on 2026-09-14). Weeks before 2025-09-19 exist only in the two archives, whose union is 375 weeks back to 2019-06-28 (audit §4.9).
 5. **MOPS monthly revenue and iXBRL return the latest corrected or amended values.** First-published *values* survive only where some capture recorded them: the legacy first-seen records (monthly revenue from 2026M02, XBRL from 2025Q4), then Data Center forward capture. Publication *dates* are a separate matter: for monthly revenue, `revswarm` reconstructs them from dated news reports for 89.7% of 2020M01-2026M01 (audit §7.4), so most of that history is Market-PIT visible at its real announcement date rather than at a statutory deadline.
 6. **The issuer dividend declarations are announcement feeds with no link to an executed event.** They carry no ex-date, record date, payment date, or locator; the MOPS page footnote says so itself. Within a feed `(公司代號, 股利年度, 股利所屬期間, 期別)` is a workable key, so PR #33 stores them as their own domain; they never enter `corporate_action_versions`. MOPS `t05st09sub` serves the full history one market-year per request, but the legal-reserve / capital-surplus split only exists from 民國110; before that the two reserves are published as one figure (audit §4.13).
 7. **Exchange result feeds** (`TWT49U`, `TWTAUU`, `TWTB8U`, TPEx `exDailyQ`, TPEx `revivt`) carry one row per security per executed event date, and TWSE's own detail locator is `(code, date)`.
@@ -1149,7 +1149,7 @@ legacy scope. This is the only group a later version would draw from.
 | Item | What it would take |
 |---|---|
 | Financial-industry financial statements | A financial-industry account taxonomy and its separate statutory deadlines (audit §7.1). MOPS serves the filings today. |
-| Pre-2020 history | The exchange feeds accept earlier date ranges and could be re-fetched. TDCC cannot: its history before the legacy archive is gone. |
+| Pre-2020 history | The exchange feeds accept earlier date ranges and could be re-fetched. TDCC cannot, except for the 27 weeks the `TDCC` archive holds back to 2019-06-28; anything earlier is gone. |
 | `rotc` and `pub` markets | MOPS serves all four `TYPEK` values. Excluded by §1.1, not by availability. |
 | `qryType=2` (股利所屬年度) as a second dividend-declaration axis | One more request per market-year against `t05st09sub` (audit §4.13). |
 | TPEx-only declaration columns: 董監酬勞, 員工紅利 | Present in the frozen TPEx OpenAPI feed; no TWSE counterpart, so the series would be one-sided. |
@@ -1277,7 +1277,7 @@ stock-data-center/
 Version 1 is complete when:
 
 - PostgreSQL 18 is the sole authoritative data store.
-- Every domain in §16 marked for v1 covers 2020-01-02 through cutover. Data comes from official endpoints, except TDCC weeks that predate forward capture, which come from the documented legacy archive.
+- Every domain in §16 marked for v1 covers 2020-01-02 through cutover. Data comes from official endpoints, except TDCC weeks that predate forward capture, which come from the two documented archives (§14).
 - Each domain has a legacy reconciliation report with every difference classified.
 - Forward capture runs unattended on the trading calendar.
 - Market PIT is usable for history under the approved PR #15 policy. If the owner rejects rule-derived evidence, the API documents that history is System-PIT only.
