@@ -69,7 +69,7 @@ Legacy technical indicators and backtests use raw, unadjusted prices. Nothing in
    - the legacy first-seen records (monthly revenue from 2026M02, XBRL from 2025Q4)
    - a reconciliation baseline
 4. **Official TDCC history is not available.** OpenData serves only the latest week, and the portal about one year (51 weeks on 2026-09-14). Weeks before 2025-09-19 exist only in the legacy archive.
-5. **MOPS monthly revenue and iXBRL return the latest corrected or amended values.** First-published values survive only where some capture recorded them: the legacy first-seen records (monthly revenue from 2026M02, XBRL from 2025Q4), then Data Center forward capture. Earlier first-published values cannot be recovered.
+5. **MOPS monthly revenue and iXBRL return the latest corrected or amended values.** First-published *values* survive only where some capture recorded them: the legacy first-seen records (monthly revenue from 2026M02, XBRL from 2025Q4), then Data Center forward capture. Publication *dates* are a separate matter: for monthly revenue, `revswarm` reconstructs them from dated news reports for 89.7% of 2020M01-2026M01 (audit §7.4), so most of that history is Market-PIT visible at its real announcement date rather than at a statutory deadline.
 6. **The issuer dividend declarations are announcement feeds with no link to an executed event.** They carry no ex-date, record date, payment date, or locator; the MOPS page footnote says so itself. Within a feed `(公司代號, 股利年度, 股利所屬期間, 期別)` is a workable key, so PR #33 stores them as their own domain; they never enter `corporate_action_versions`. MOPS `t05st09sub` serves the full history one market-year per request, but the legal-reserve / capital-surplus split only exists from 民國110; before that the two reserves are published as one figure (audit §4.13).
 7. **Exchange result feeds** (`TWT49U`, `TWTAUU`, `TWTB8U`, TPEx `exDailyQ`, TPEx `revivt`) carry one row per security per executed event date, and TWSE's own detail locator is `(code, date)`.
    - They provide: close-before and reference prices, cash dividend, combined free shares, rights terms, capital-reduction share exchange, and cash return.
@@ -663,11 +663,26 @@ legacy_capture_bound
                 never to backfill-run dates after the capture window closed
                 (for example the XBRL 2026-08-01 and 2026-08-17 files).
                 evidence_source names the legacy file.
+
+press_report_bound
+                a publication date reconstructed from a dated secondary record
+                that reports the filing, resolved at the end of that day,
+                Asia/Taipei. A news article dated D proves the value was public
+                on D, so this is a real publication bound, not a schedule
+                estimate. It ranks below the two capture types because it is
+                day-precision and reconstructed, with a measurable residual
+                error rate.
+                v1 source: the `revswarm` monthly-revenue dataset, 114,910 of
+                the 128,063 rows in 2020M01-2026M01 (89.7%), verified by its
+                three contamination guards and cross-checked at 99.10%
+                agreement against today's MOPS values (audit §7.4).
+                evidence_source names the dataset, the engine, and the
+                verifier recorded per row.
 ```
 
 Rules:
 
-- Precedence for a version: `capture_bound`, then `legacy_capture_bound`, then `release_rule`. A `release_rule` never makes a version visible earlier than a capture proves.
+- Precedence for a version: `capture_bound`, then `legacy_capture_bound`, then `press_report_bound`, then `release_rule`. A `release_rule` never makes a version visible earlier than a capture or a press report proves.
   - Forward-captured data uses the Data Center's capture time.
   - 2026M02 onward monthly revenue and 2025Q4 onward XBRL use the legacy first-seen date.
   - Older history uses the rule.
@@ -844,6 +859,8 @@ cumulative_revenue, cumulative_revenue_last_year, cumulative_yoy_pct, note
 
 The canonical derived `monthly_revenue_growth:v1` leaves v1.
 
+Recovered publication dates (audit §7.4): for 2020M01-2026M01, import the `revswarm` announcement dates as `press_report_bound` evidence — 114,910 of 128,063 rows (89.7%). Import from `revswarm.db`, not from the legacy `market.csv`, because the CSV keeps only the date: the per-row `engine`, `verified`, `raw_title` and `url` are the evidence and must be stored with it. The 10.3% with no verified date fall through to the release rule (the 10th of the next month, moved to the next business day). A recovered date that equals the 10th is not the fallback and must not be collapsed into it — 27,035 rows genuinely fall on that day.
+
 Legacy first-seen import (audit §7.1): for 2026M02 onward, import the legacy `market.csv` rows as `legacy_archive` observations of the first-captured values, with `legacy_capture_bound` evidence from their `publish_time` dates. When the official re-fetch differs, it becomes a later revision whose evidence is the Data Center's own capture time. The synthetic `publish_time` values before 2026M02 are not imported as evidence.
 
 Acceptance:
@@ -853,6 +870,8 @@ Acceptance:
 - a correction between two fetches creates a revision
 - published comparatives are stored exactly as published and never reconciled against our own series; the 2026M06/M07 pair, where 11 of 1,846 companies disagree, is a regression fixture (audit §7.3)
 - for 2026M02 onward, each first-seen row resolves under Market PIT no earlier than the end of its legacy 22:45 run; rows the re-fetch shows as corrected resolve to the first-captured value before the correction's capture
+- for 2020M01-2026M01, a row with a verified `revswarm` date resolves at the end of that date, and a row without one resolves at the release rule; the two are distinguished by the presence of evidence, never by whether the date equals the 10th
+- the `revswarm` announced-revenue cross-check runs at import and its agreement rate is recorded; a drop below the 99.10% measured on 2026-09-15 fails the import
 
 Out of scope: recovering first-published values before 2026M02.
 
@@ -1066,7 +1085,8 @@ rejected.
 | Index trade value; OHLC for any index other than the TAIEX | Not in `MI_INDEX` or `indexSummary`; no TPEx equivalent of `MI_5MINS_HIST` found (audit §4.2) |
 | Historical security name and industry changes | No official history source identified; `t187ap03_*` is a current snapshot |
 | Order-book depth (`bid_snapshot`, `ask_snapshot`) | The daily files publish one level only, already stored in `last_bid_*`/`last_ask_*` (audit §4.1) |
-| First-published values: monthly revenue before 2026M02, iXBRL before 2025Q4, exchange daily data before forward capture | MOPS serves the latest corrected values, and no capture recorded the earlier ones (audit §7.1) |
+| First-published *values*: monthly revenue before 2026M02, iXBRL before 2025Q4, exchange daily data before forward capture | MOPS serves the latest corrected values, and no capture recorded the earlier ones (audit §7.1). For monthly revenue the `revswarm` headline figures are rounded to 0.01億 — enough to detect that a correction happened, not to restore the original 千元 number (audit §7.4). |
+| Publication *dates* for the 10.3% of 2020M01-2026M01 monthly revenue with no verified report | `revswarm` found no dated report that passed its guards. These fall through to the release rule. Re-running its later engines could reduce the gap, so this is a coverage limit rather than a hard one. |
 | TDCC history before the portal window | The portal serves about 51 weeks; only the legacy archive has the rest, and it cannot be re-derived (audit §4.9) |
 
 ## 26.2 Waiting on a stated trigger

@@ -638,3 +638,65 @@ comparatives verbatim makes a correction visible inside a single capture
 instead of requiring a diff against a retained earlier page. They are stored as
 observed and never reconciled against our own series; a disagreement is the
 data.
+
+### 7.4 Recovered monthly-revenue publication dates (`revswarm`)
+
+`~/GitHubLL/revswarm` is a distributed crawler that reconstructs the
+announcement date of each monthly revenue filing. Inspected 2026-09-15.
+
+Why it exists: MOPS publishes no per-company filing date. Its README records
+that the structured revenue pages (MOPS, Yahoo, MoneyDJ) carry only year-month
+and amount, so the date survives only inside news articles.
+
+```text
+scope     1,848 securities x 73 months (民國109/1 - 115/1) = 134,904 tasks
+engines   Yahoo TW search 101,107 | Google 30,475 | Gemini 3,322
+verifier  claude 63,478 | codex 49,639 | mops 2,376 | unverified 19,411
+trusted   state='success' AND verified IN (mops, gemini, claude, codex)
+          = 115,493 tasks, 85.6% of all tasks
+precision day, no time of day
+```
+
+Three contamination guards, all recorded in the README as measured decisions:
+a worker-side window filter accepting only dates in the 1st-15th of the month
+after the revenue month; an exact company-name anchor (so 統一 does not match
+統一超); and a server-side re-validation of the window that also rejects
+name collisions and articles that are not revenue announcements.
+
+`export_publish_time.py` writes only trusted rows into the legacy
+`market.csv`, through 2026M01 only, changing one cell per row, refusing any
+file that would not round-trip byte-identically.
+
+Resulting coverage of the legacy archive:
+
+| Window | Rows | Recovered date | Left at the statutory 10th |
+| --- | --- | --- | --- |
+| 2020M01 - 2026M01 | 128,063 | 114,910 (89.7%) | 13,153 (10.3%) |
+| 2026M02 onward | 12,894 | — | — (real capture dates from the legacy 22:45 job, §7.1) |
+
+A recovered date equal to the 10th is not distinguishable from the fallback by
+value alone: 27,035 recovered rows genuinely fall on the 10th. Provenance is
+per row in `revswarm.db` (`engine`, `verified`, `raw_title`, `url`), which is
+the only way to tell them apart.
+
+**Independent quality check.** `revswarm` also captured the announced revenue
+from the article headline, rounded to 0.01億, for 110,653 trusted rows.
+Comparing the 110,103 that match a legacy row against the value MOPS serves
+today:
+
+```text
+agree within the 0.01億 rounding   109,116   99.10%
+disagree                               987    0.90%
+  of which by more than 5%             734
+```
+
+The 99.10% agreement is a strong independent validation of the dataset. The
+0.90% is an upper bound on historical corrections, not a measurement of them:
+the extremes (4162 2020M12, +3,149%; 6169 2025M03, +1,277%) are headline
+extraction artifacts such as a cumulative figure reported in place of a monthly
+one, not revisions.
+
+**What this does and does not recover.** It recovers the publication *date*,
+which is what Market PIT needs. It does not recover the first-published
+*value*: the headline figure is rounded to 0.01億, enough to detect that a
+correction happened but not to restore the original 千元 number.
