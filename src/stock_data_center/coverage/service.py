@@ -1,0 +1,168 @@
+"""Query declared expected coverage, and report what a dataset is missing."""
+
+from __future__ import annotations
+
+from datetime import date, timedelta
+
+import sqlalchemy as sa
+from sqlalchemy import Connection
+
+from stock_data_center.coverage.models import CoverageReport, ExpectedCoverage
+from stock_data_center.db import metadata
+from stock_data_center.db.metadata import dataset_expected_coverage
+from stock_data_center.market_calendar import TradingCalendarService
+from stock_data_center.pit.contracts import get_contract
+
+
+class ExpectedCoverageService:
+    """Read the declarations, and expand one into the periods it implies."""
+
+    def __init__(self, calendar: TradingCalendarService | None = None) -> None:
+        self._calendar = calendar or TradingCalendarService()
+
+    def declarations(self, connection: Connection) -> tuple[ExpectedCoverage, ...]:
+        rows = connection.execute(
+            sa.select(dataset_expected_coverage).order_by(
+                dataset_expected_coverage.c.dataset_code,
+                dataset_expected_coverage.c.market,
+            )
+        ).mappings()
+        return tuple(ExpectedCoverage(**dict(row)) for row in rows)
+
+    def declaration(
+        self, connection: Connection, *, dataset_code: str, market: str
+    ) -> ExpectedCoverage:
+        row = connection.execute(
+            sa.select(dataset_expected_coverage).where(
+                dataset_expected_coverage.c.dataset_code == dataset_code,
+                dataset_expected_coverage.c.market == market,
+            )
+        ).mappings().one_or_none()
+        if row is None:
+            raise LookupError(
+                f"no expected coverage is declared for {dataset_code}/{market}; "
+                "declare it with the adapter that fills it"
+            )
+        return ExpectedCoverage(**dict(row))
+
+    def expected_periods(
+        self,
+        connection: Connection,
+        *,
+        dataset_code: str,
+        market: str,
+        start: date,
+        end: date,
+    ) -> tuple[date, ...]:
+        declaration = self.declaration(
+            connection, dataset_code=dataset_code, market=market
+        )
+        window_start = max(start, declaration.window_start)
+        window_end = end if declaration.window_end is None else min(
+            end, declaration.window_end
+        )
+        if window_start > window_end:
+            return ()
+        if declaration.cadence == "trading_day":
+            return self._calendar.trading_days(
+                connection, market=market, start=window_start, end=window_end
+            )
+        if declaration.cadence == "calendar_month":
+            return tuple(_months_between(window_start, window_end))
+        raise ValueError(f"unsupported cadence {declaration.cadence!r}")
+
+
+class CoverageValidator:
+    """Report the difference between declared expectation and stored periods."""
+
+    def __init__(
+        self,
+        expected: ExpectedCoverageService | None = None,
+        calendar: TradingCalendarService | None = None,
+    ) -> None:
+        self._calendar = calendar or TradingCalendarService()
+        self._expected = expected or ExpectedCoverageService(self._calendar)
+
+    def report(
+        self,
+        connection: Connection,
+        *,
+        dataset_code: str,
+        market: str,
+        start: date,
+        end: date,
+    ) -> CoverageReport:
+        if start > end:
+            raise ValueError("start must not be after end")
+        declaration = self._expected.declaration(
+            connection, dataset_code=dataset_code, market=market
+        )
+        expected = self._expected.expected_periods(
+            connection, dataset_code=dataset_code, market=market, start=start, end=end
+        )
+        observed = self._observed_periods(
+            connection, declaration=declaration, start=start, end=end
+        )
+        non_trading_days: tuple[date, ...] = ()
+        if declaration.cadence == "trading_day":
+            open_days = set(
+                self._calendar.trading_days(
+                    connection, market=market, start=start, end=end
+                )
+            )
+            non_trading_days = tuple(
+                day for day in _days_between(start, end) if day not in open_days
+            )
+        expected_set = set(expected)
+        return CoverageReport(
+            dataset_code=dataset_code,
+            market=market,
+            start=start,
+            end=end,
+            window_start=declaration.window_start,
+            window_end=declaration.window_end,
+            expected=expected,
+            observed=tuple(day for day in observed if day in expected_set),
+            missing=tuple(day for day in expected if day not in set(observed)),
+            non_trading_days=non_trading_days,
+        )
+
+    @staticmethod
+    def _observed_periods(
+        connection: Connection,
+        *,
+        declaration: ExpectedCoverage,
+        start: date,
+        end: date,
+    ) -> tuple[date, ...]:
+        """Distinct periods the dataset holds at least one row for.
+
+        Deliberately period-grained: per-security completeness would need a
+        PIT-resolved universe, and asking today's universe would make an old
+        report change whenever a security is added.
+        """
+        table = metadata.tables[
+            get_contract(declaration.dataset_code).version_table.name
+        ]
+        column = table.c[declaration.period_column]
+        rows = connection.execute(
+            sa.select(sa.distinct(column))
+            .where(column >= start, column <= end)
+            .order_by(column)
+        ).scalars()
+        return tuple(rows)
+
+
+def _days_between(start: date, end: date):
+    day = start
+    while day <= end:
+        yield day
+        day += timedelta(days=1)
+
+
+def _months_between(start: date, end: date):
+    month = start.replace(day=1)
+    last = end.replace(day=1)
+    while month <= last:
+        yield month
+        month = (month.replace(day=28) + timedelta(days=7)).replace(day=1)

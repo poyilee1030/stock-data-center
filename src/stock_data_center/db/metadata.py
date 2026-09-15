@@ -683,6 +683,31 @@ tdcc_distribution_schema_buckets = sa.Table(
     ),
 )
 
+dataset_expected_coverage = sa.Table(
+    "dataset_expected_coverage",
+    metadata,
+    sa.Column("dataset_code", sa.String(64), nullable=False),
+    sa.Column("market", sa.String(32), nullable=False),
+    # How often the source publishes a period the dataset must hold.
+    sa.Column("cadence", sa.String(32), nullable=False),
+    # The version-table column holding that period's logical date.
+    sa.Column("period_column", sa.String(64), nullable=False),
+    sa.Column("window_start", sa.Date(), nullable=False),
+    # NULL means the window is still open.
+    sa.Column("window_end", sa.Date()),
+    sa.Column("note", sa.Text(), nullable=False, server_default=sa.text("''")),
+    sa.PrimaryKeyConstraint("dataset_code", "market"),
+    sa.ForeignKeyConstraint(
+        ["dataset_code"], ["dataset_catalog.dataset_code"], ondelete="RESTRICT"
+    ),
+    sa.CheckConstraint(
+        "cadence IN ('trading_day', 'calendar_month')", name="cadence_value"
+    ),
+    sa.CheckConstraint(
+        "window_end IS NULL OR window_end >= window_start", name="window_order"
+    ),
+)
+
 trading_calendar_versions = sa.Table(
     "trading_calendar_versions",
     metadata,

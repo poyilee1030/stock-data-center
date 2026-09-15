@@ -38,6 +38,7 @@
     "excluded_tables": {
       "corporate_action_version_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field.",
       "dataset_catalog": "Dataset policy registry, declared by us.",
+      "dataset_expected_coverage": "Declared expectation of what each dataset should hold, per market and cadence (ROADMAP 22, PR #16). It is our own declaration, not source content.",
       "dataset_sources": "Per-source capability policy (ADR-0004), declared by us.",
       "derived_computation_runs": "Derived computation provenance, declared by us.",
       "derived_dataset_definitions": "Canonical derived dataset contract (ROADMAP 17), declared by us.",

@@ -333,6 +333,34 @@ def upgrade() -> None:
     op.execute(PREPARE_CALENDAR)
     op.execute(_prepare_publication_evidence(include_calendar=True))
 
+    op.create_table(
+        "dataset_expected_coverage",
+        sa.Column("dataset_code", sa.String(length=64), nullable=False),
+        sa.Column("market", sa.String(length=32), nullable=False),
+        sa.Column("cadence", sa.String(length=32), nullable=False),
+        sa.Column("period_column", sa.String(length=64), nullable=False),
+        sa.Column("window_start", sa.Date(), nullable=False),
+        sa.Column("window_end", sa.Date(), nullable=True),
+        sa.Column("note", sa.Text(), server_default=sa.text("''"), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["dataset_code"],
+            ["dataset_catalog.dataset_code"],
+            name=op.f("fk_dataset_expected_coverage_dataset_code_dataset_catalog"),
+            ondelete="RESTRICT",
+        ),
+        sa.PrimaryKeyConstraint(
+            "dataset_code", "market", name=op.f("pk_dataset_expected_coverage")
+        ),
+        sa.CheckConstraint(
+            "cadence IN ('trading_day', 'calendar_month')",
+            name=op.f("ck_dataset_expected_coverage_cadence_value"),
+        ),
+        sa.CheckConstraint(
+            "window_end IS NULL OR window_end >= window_start",
+            name=op.f("ck_dataset_expected_coverage_window_order"),
+        ),
+    )
+
     op.execute(
         sa.text(
             """
@@ -357,9 +385,25 @@ def upgrade() -> None:
             """
         )
     )
+    # Each adapter PR declares its own expected coverage next to the adapter
+    # that fills it; PR #16 declares only the calendar it owns.
+    op.execute(
+        sa.text(
+            """
+            INSERT INTO dataset_expected_coverage
+                (dataset_code, market, cadence, period_column, window_start, note)
+            VALUES ('trading_calendar', 'TWSE', 'calendar_month', 'calendar_month',
+                    DATE '2020-01-01',
+                    'TWSE FMTQIK publishes one report per calendar month (audit 4.12).')
+            ON CONFLICT (dataset_code, market) DO NOTHING
+            """
+        )
+    )
 
 
 def downgrade() -> None:
+    # The declarations reference dataset_catalog, so they go before its rows.
+    op.drop_table("dataset_expected_coverage")
     op.execute(
         "DELETE FROM dataset_sources WHERE dataset_code = 'trading_calendar'"
     )
