@@ -62,9 +62,13 @@ row whose rank disagrees with the registry is rejected, and a non-affirmative
 row of such a type must carry rank 0 so an `unknown` head can never outrank a
 real assertion. Ranking is not left to caller discipline.
 
-`official` is registered but not pinned. It predates ADR-0020, existing rows
-carry assorted ranks for it, and no v1 source emits it affirmatively. Pinning it
-would rewrite history to no purpose.
+`official` is registered but **not pinned**, and its registered 90 is nominal:
+it predates ADR-0020 and stored rows carry other values — the current adapters
+write rank 0 with `unknown` kind, and the domain fixtures write 100 for
+assertions. Pinning it would rewrite history to no purpose, but it does mean an
+`official` assertion at 100 can still outrank a pinned `capture_bound` at 80.
+That is tolerable only because no v1 source emits `official` affirmatively
+(audit §7); Step 15-b must not assume 90 describes any stored row.
 
 Registration is about ranking, never permission: which types a source accepts
 remains `dataset_sources.accepted_evidence_types` (ADR-0010).

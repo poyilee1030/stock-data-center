@@ -189,7 +189,35 @@ def upgrade() -> None:
     op.execute(ENFORCE_RANK)
 
 
+GUARD_DOWNGRADE = r"""
+DO $$
+DECLARE declared_runs bigint; archived_observations bigint;
+BEGIN
+    SELECT count(*) INTO declared_runs
+      FROM ingest_runs WHERE purpose <> 'unspecified';
+    SELECT count(*) INTO archived_observations
+      FROM raw_artifact_observations WHERE artifact_origin <> 'official_fetch';
+
+    IF declared_runs > 0 OR archived_observations > 0 THEN
+        RAISE EXCEPTION USING
+            ERRCODE = 'P0001',
+            MESSAGE = 'cannot downgrade away declared ingest provenance',
+            DETAIL = format(
+                '%s run(s) declare a purpose and %s observation(s) a non-default origin; dropping the columns would silently reread them as first_capture and official_fetch',
+                declared_runs, archived_observations
+            ),
+            HINT = 'Keep revision 2b7d4e9a1c35 or newer; this provenance cannot be reconstructed once dropped.';
+    END IF;
+END;
+$$;
+"""
+
+
 def downgrade() -> None:
+    # The purpose and origin are declarations that nothing can recompute. A
+    # downgrade/re-upgrade cycle would silently turn gap_fill into first_capture
+    # and legacy_archive into official_fetch, and Step 15-b reads both.
+    op.execute(GUARD_DOWNGRADE)
     op.execute(
         "DROP TRIGGER trg_publication_evidence_rank ON publication_evidence;"
         "DROP FUNCTION stockdc_assert_evidence_rank();"

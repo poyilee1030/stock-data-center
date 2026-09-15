@@ -384,10 +384,15 @@ def test_an_import_records_its_declared_purpose_and_artifact_origin(
         engine.dispose()
 
 
-def test_an_import_that_declares_nothing_is_a_first_capture(
+def test_an_import_that_declares_nothing_is_not_called_a_first_capture(
     isolated_database_url: str, tmp_path,
 ) -> None:
-    """The library default is the honest one for an adapter's normal run."""
+    """A default is an inference, and ADR-0020 forbids inferring the purpose.
+
+    Silently calling an undeclared run a first capture would let a 2026 re-fetch
+    of 2024 history claim a capture bound at the 2026 instant — the exact
+    failure the ADR names.
+    """
     from datetime import date
     from uuid import uuid4
 
@@ -433,6 +438,37 @@ def test_an_import_that_declares_nothing_is_a_first_capture(
                     "WHERE dataset_code = 'trading_calendar'"
                 )
             )
-        assert purpose == "first_capture"
+        assert purpose == "unspecified"
+    finally:
+        engine.dispose()
+
+
+def test_downgrade_refuses_to_erase_declared_ingest_provenance(
+    isolated_database_url: str,
+) -> None:
+    """Purpose and origin are declarations; nothing can recompute them."""
+    from alembic import command
+    from sqlalchemy.exc import DBAPIError
+
+    from conftest import alembic_config, alembic_head
+
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        with engine.connect() as connection:
+            with connection.begin():
+                lineage(connection, purpose="gap_fill", origin="legacy_archive")
+
+        with pytest.raises(DBAPIError) as blocked:
+            command.downgrade(alembic_config(isolated_database_url), "1a6f3b7c8d24")
+        assert blocked.value.orig.sqlstate == "P0001"
+        assert "cannot be reconstructed once dropped" in str(blocked.value)
+
+        with engine.connect() as connection:
+            assert connection.scalar(
+                sa.text("SELECT version_num FROM alembic_version")
+            ) == alembic_head()
+            assert connection.scalar(
+                sa.text("SELECT purpose FROM ingest_runs LIMIT 1")
+            ) == "gap_fill"
     finally:
         engine.dispose()

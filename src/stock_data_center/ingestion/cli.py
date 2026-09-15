@@ -54,9 +54,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--purpose",
         choices=[purpose.value for purpose in IngestPurpose],
-        default=IngestPurpose.FIRST_CAPTURE.value,
+        default=IngestPurpose.UNSPECIFIED.value,
         help="why this fetch was requested (ADR-0020); only a first capture "
-        "may later claim capture-bound evidence",
+        "may later claim capture-bound evidence, so this is never inferred. "
+        "Re-fetching history published long ago is a gap_fill, not a first "
+        "capture",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
     daily = subparsers.add_parser("daily-market")

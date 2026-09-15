@@ -591,7 +591,7 @@ Status date: 2026-09-15.
 | 14 | MERGED | Source-reality alignment of inventory and storage contract |
 | 15-a | THIS STEP | Availability-time evidence vocabulary and ingest purpose |
 | 15-b | PLANNED | Release-rule evaluation and purpose-derived evidence |
-| 16 | THIS STEP | Trading calendar and coverage validator |
+| 16 | MERGED | Trading calendar and coverage validator |
 | 17 | PLANNED | Whole-market daily prices |
 | 18 | PLANNED | Market indices and official valuation |
 | 19 | PLANNED | Exchange corporate-action result feeds |
@@ -656,7 +656,7 @@ No announcement feed exposes a correction-stable event ID. The 1591/108/1 collis
 
 ## Step 14 — Source-Reality Alignment
 
-Status: **THIS PR**. Depends on: none.
+Status: **MERGED**. Depends on: none.
 
 Goal: make the storage contract and inventory agree with `docs/source_field_audit.md` before more adapters are written.
 
@@ -821,7 +821,7 @@ Common rules for Steps 16–24:
 
 ## Step 16 — Trading Calendar and Coverage Validator
 
-Status: **THIS PR**. Depends on: Step 14. Required by Step 15 (ADR-0020 release rules move deadlines off non-business days through this calendar).
+Status: **MERGED**. Depends on: Step 14. Required by Step 15 (ADR-0020 release rules move deadlines off non-business days through this calendar).
 
 Source contract: TWSE `FMTQIK` (one request per month, listing every actual trading day), cross-checked with TWSE `holidaySchedule` where available and with the dates of whole-market daily files. TPEx trading days must equal TWSE's for 2020 onward, or a difference must come from an official TPEx source.
 

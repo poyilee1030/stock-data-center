@@ -61,15 +61,36 @@ Nothing is weakened by this. The hazard ADR-0020 guards against is a forged
 Database migrated from zero to `2b7d4e9a1c35`:
 
 ```text
-325 passed, 3 skipped, 1 warning
+327 passed, 3 skipped, 1 warning
 ```
 
-Baseline before this step: 312 passed. The 13 new tests are the difference; no
+Baseline before this step: 312 passed. The 15 new tests are the difference; no
 existing test changed.
 
 The Step 14 storage-contract guard again did its job: `evidence_types` failed
 classification on first run and is now recorded as an excluded table with its
 reason.
+
+## Code-review findings
+
+All five were verified before anything changed; none was a false positive.
+
+| # | Finding | Verified by | Fix |
+| --- | --- | --- | --- |
+| 1 | A `CHECK` on `purpose` landed on `import_manifests`, which has no such column | `metadata.create_all` on an empty database: `column "purpose" does not exist` | Removed. A scripted edit matched the `completed_after_started` constraint text in two tables. |
+| 2 | `purpose` defaulted to `first_capture`, so an undeclared run was *inferred* to be a first capture | Read against ADR-0020 §5 | Default is `unspecified` everywhere. Re-fetching history published long ago is a `gap_fill`, and the CLI help now says so. |
+| 3 | `downgrade()` dropped `purpose` and `artifact_origin`, silently rereading `gap_fill` as `first_capture` | Read | `P0001` preflight refuses while any declaration exists, with a regression. |
+| 4 | `official` is registered at 90 but stored rows carry 0 and 100, and the docs presented 90 as fact | Read | `pit_semantics.md` now says 90 is nominal, that an `official` assertion at 100 can still outrank a pinned `capture_bound`, and that Step 15-b must not assume 90 describes any stored row. |
+| 5 | Steps 14 and 16 were still marked `THIS PR`/`THIS STEP` after merging | Read | Both `MERGED`; only 15-a is current, in ROADMAP and CLAUDE.md. |
+
+Finding 1 is the one worth keeping: **325 green tests could not see it**, because
+nothing in the suite ever asked the metadata to emit DDL — migrations build the
+real schema, and Alembic autogenerate does not compare `CHECK` constraints.
+`tests/integration/test_step15a_metadata_ddl.py` closes that hole, and it
+immediately found a *second* latent defect that Step 16 had already merged:
+`trading_calendar_versions.trading_days_sorted_distinct` still carried the
+subquery form in metadata, which PostgreSQL rejects in a `CHECK`, while the
+migration had long since moved it into an immutable function.
 
 ## Scope exclusions confirmed
 

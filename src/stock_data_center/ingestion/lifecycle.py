@@ -107,7 +107,7 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
         request: RequestT,
         import_id: UUID | None = None,
         git_commit: str | None = None,
-        purpose: IngestPurpose = IngestPurpose.FIRST_CAPTURE,
+        purpose: IngestPurpose = IngestPurpose.UNSPECIFIED,
         artifact_origin: ArtifactOrigin = ArtifactOrigin.OFFICIAL_FETCH,
     ) -> ResourceImportResult:
         import_id = import_id or uuid4()
@@ -146,7 +146,7 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
         resource: SourceResource,
         import_id: UUID,
         git_commit: str | None,
-        purpose: IngestPurpose = IngestPurpose.FIRST_CAPTURE,
+        purpose: IngestPurpose = IngestPurpose.UNSPECIFIED,
         artifact_origin: ArtifactOrigin = ArtifactOrigin.OFFICIAL_FETCH,
     ) -> ResourceImportResult:
         scope = self._source_scope(adapter, request, resource)

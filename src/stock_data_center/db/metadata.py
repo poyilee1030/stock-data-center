@@ -261,11 +261,6 @@ import_manifests = sa.Table(
         "completed_at IS NULL OR completed_at >= started_at",
         name="completed_after_started",
     ),
-    sa.CheckConstraint(
-        "purpose IN ('first_capture', 'gap_fill', 'correction_check', "
-        "'unspecified')",
-        name="purpose_value",
-    ),
 )
 
 
@@ -794,11 +789,10 @@ trading_calendar_versions = sa.Table(
         name="calendar_month_is_first_day",
     ),
     sa.CheckConstraint("cardinality(trading_days) > 0", name="month_has_open_day"),
+    # A CHECK cannot hold a subquery, so the predicate lives in an immutable
+    # function the migration creates.
     sa.CheckConstraint(
-        "trading_days = ("
-        "  SELECT array_agg(DISTINCT day ORDER BY day)"
-        "    FROM unnest(trading_days) AS day"
-        ")",
+        "stockdc_dates_sorted_distinct(trading_days)",
         name="trading_days_sorted_distinct",
     ),
     sa.CheckConstraint(

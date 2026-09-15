@@ -101,15 +101,16 @@ Each required criterion must be PASS/FAIL with concrete evidence.
 
 ## Current Step Sequence
 
-ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–14 as MERGED and labels Step 16 as `THIS STEP` (a contextual marker, not an additional status value):
+ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–14 and 16 as MERGED and labels Step 15-a as `THIS STEP` (a contextual marker, not an additional status value):
 
 ```text
 Step 11  authoritative security lifecycle history        MERGED
 Step 12  Taiwan corporate-action contract               MERGED
 Step 13  source-reality rebuild of ROADMAP/CLAUDE/audit   MERGED
 Step 14  source-reality alignment                       MERGED
-Step 15  availability-time evidence policy              PLANNED (ADR-0020 approved; needs #16)
-Step 16  trading calendar + coverage validator          THIS STEP
+Step 15-a availability-time evidence vocabulary          THIS STEP
+Step 15-b release-rule evaluation                       PLANNED
+Step 16  trading calendar + coverage validator          MERGED
 Step 17  whole-market daily prices                      PLANNED
 Step 18  market indices + official valuation            PLANNED
 Step 19  exchange corporate-action result feeds         PLANNED
