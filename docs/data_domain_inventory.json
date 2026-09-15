@@ -63,6 +63,7 @@
       "quarterly_financial_summary": "Canonical derived summary over sealed financial_facts; its lineage is a derivation definition, not a source field mapping.",
       "raw_artifact_observations": "Fetch-observation provenance linking an artifact to an ingest run.",
       "raw_artifacts": "Content-addressed source bytes (ROADMAP 14). The artifact is the source, so it has no field mapping.",
+      "release_rules": "Versioned release rules with the schedule or statute each derives from (ADR-0020 §3, Step 15-b). Our own policy declaration, not source content.",
       "securities_lending_version_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field.",
       "security_transfer_event_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field.",
       "tdcc_snapshot_seals": "Aggregate seal state, decided by us, never published by a source.",

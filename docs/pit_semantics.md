@@ -84,8 +84,54 @@ that later instant. `unspecified` covers runs that predate the policy.
 Each fetch observation also records its `artifact_origin`, `official_fetch` or
 `legacy_archive` (ROADMAP §14), which until now existed only in prose.
 
-Step 15-b derives the evidence type from the purpose and evaluates the release
-rules; until it lands, adapters still write `unknown` evidence.
+## Release rules
+
+`release_rules` registers each versioned rule with the schedule or statute it
+derives from. A rule with no cited authority would be an invented instant, which
+ROADMAP §2.4 forbids, so `authority` cannot be empty. Rules are never edited in
+place: correcting one means publishing a new version, and the table rejects
+`UPDATE` and `DELETE`.
+
+Two shapes, and the difference is the part that is easy to get wrong:
+
+| Kind | Resolves at | Moves off a closure? |
+| --- | --- | --- |
+| statutory deadline (`monthly_revenue_statutory`, `financial_statements_general`) | end of its day | **yes**, to the next trading day |
+| scheduled instant (`exchange_daily_settled`, `tdcc_weekly`) | its stated time | **no** |
+
+A filing due on a closed day is filed on the next open one, so 2021Q2 resolves
+to 2021-08-16 rather than 08-15, and 2026M04 revenue to 2026-05-11 rather than
+05-10. A scheduled instant is different: the exchange file exists at 03:00
+whether or not that day is a trading day, and the TDCC rule already names a
+Sunday, which is never a business day — shifting it would push the rule a whole
+week.
+
+The shift consults the Step 16 calendar, which refuses outside its imported
+coverage rather than guessing. A rule that guessed its own deadline would be the
+invented instant the policy exists to prevent.
+
+## What an import may claim
+
+`evidence_plan` turns the declared purpose into the evidence a run is entitled
+to write:
+
+| Purpose | May claim a capture bound? |
+| --- | --- |
+| `first_capture` | yes |
+| `correction_check` | only for a revision it newly found |
+| `gap_fill` | no — it noticed the row was missing long after publication |
+| `unspecified` | no |
+
+The write-side rule from ADR-0020 §2: if a first sighting happened *after* the
+rule instant, that row is a late filer, the rule is falsified for it, and no
+rule evidence is written at all. A backfill capture cannot falsify anything,
+because it is not a first sighting.
+
+When nothing is provable, nothing is claimed: the plan falls back to `unknown`
+evidence with `published_at = NULL`, exactly as before ADR-0020.
+
+Step 15-c applies this to the adapters and opts each source into the new types;
+until it lands they still write `unknown` evidence.
 
 Two supported reconstructions are:
 
