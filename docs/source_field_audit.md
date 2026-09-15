@@ -61,7 +61,7 @@ Nothing in the legacy stack consumes dividend or corporate-action data.
 | TPEx foreign holding | MOPS `t13sa150_otc` POST, rewritten through pandas | No |
 | Monthly revenue | Parsed CSV, not the MOPS HTML. Only `_0` (domestic-issuer) pages were fetched. Each month's `market.csv` appends only new `(market, symbol)` keys, so later corrections were never recorded. `publish_time` has two regimes (§7.1). | Not source bytes, but the 2026M02 onward rows are first-seen capture evidence |
 | XBRL | iXBRL HTML decoded and rewritten as UTF-8 text. The filename date suffix has two regimes (§7.1). Files for 2020Q1–2025Q3 have February 2026 mtimes. | Not source bytes. 2020Q1–2025Q3 are no older than a fresh re-fetch; 2025Q4 onward are first-seen versions |
-| TDCC weekly, both archives (§4.9) | OpenData bytes written unchanged, `.csv`/`.zip`/`.7z` | **Yes.** One caveat: `shareholding`'s 2026-07-09 is a 1,849-security reconstruction from per-security queries; the `TDCC` archive has the real 4,003-security file for that week. |
+| TDCC weekly, the consolidated `shareholding` archive (§4.9) | OpenData bytes written unchanged, `.csv`/`.zip`/`.7z` | **Yes**, for all 375 weeks. |
 | Corporate-action year-to-date files (`TWT49U`, `TWTAUU`, `TWTB8U`) | One `all.csv` per year, overwritten daily. Only 2026 keeps the cp950 original. TWSE only. | Partially (2026 only) |
 | `stock_info`, `stock_tags` | Parsed current snapshots | No |
 
@@ -221,49 +221,60 @@ archive has 45,324 files).
 ### 4.9 TDCC shareholding distribution
 
 - OpenData `getOD.ashx?id=1-5`: 資料日期, 證券代號, 持股分級, 人數, 股數,
-  占集保庫存數比例%. Levels 1-17, where 16 is the adjustment row and 17 the
-  total. It serves the **latest week only**.
+  占集保庫存數比例%. It serves the **latest week only**.
+- 持股分級 is a numeric level. The bulk file never states the share band each
+  level means; the portal does. Extracted from all 1,849 files of the
+  `shareholding_div` reconstruction before it was deleted, and identical in
+  every one of them:
+
+```text
+ 1  1-999                 6  20,001-30,000     11  200,001-400,000
+ 2  1,000-5,000           7  30,001-40,000     12  400,001-600,000
+ 3  5,001-10,000          8  40,001-50,000     13  600,001-800,000
+ 4  10,001-15,000         9  50,001-100,000    14  800,001-1,000,000
+ 5  15,001-20,000        10  100,001-200,000   15  1,000,001以上
+16  差異數調整（說明4）, or 合計 where the security has no adjustment row
+17  合計
+```
+
+  Level 16 carries two different labels across securities, so a parser must not
+  assume 16 is always the adjustment row and 17 always the total.
 - Portal `smWeb/qryStock`: per security, in a different format. On 2026-09-14
   its selector offered 51 dates, 2025-09-19 → 2026-09-11.
-- Everything earlier exists only in archives, all under
-  `~/GitHubLL/my_stock_project/data/raw` (ROADMAP §14);
+- Everything earlier exists only in the archive under
+  `~/GitHubLL/my_stock_project/data/raw/shareholding` (ROADMAP §14);
   `stock-data-center/data/raw` holds no source archive, only the
   content-addressed artifact store.
 
-#### The three directories, and why only one of them is a source
+#### The archive
 
-The legacy system created `shareholding` and `shareholding_div`; `TDCC` was
-added later. Surveyed 2026-09-15 by decompressing and parsing every file and
-comparing the payloads date by date.
+`~/GitHubLL/my_stock_project/data/raw/shareholding` — 426 weekly files
+(`.csv`, `.zip`, `.7z`), **375 weeks from 2019-06-28 to 2026-09-11**, of which
+348 fall inside the v1 window from 2020-01-02. Every file carries the same
+six-column OpenData header and one 資料日期, so a single parser handles all of
+them. Zero filename/content mismatches.
 
-| Directory | Files | Weeks | Range |
-| --- | --- | --- | --- |
-| `TDCC` | 422 (`.csv`, `.zip`, `.7z`) | 371 | 2019-06-28 → 2026-09-11 |
-| `shareholding` | 340 `.csv` | 340 | 2020-01-03 → 2026-09-11 |
-| `shareholding_div` | 1,849 per-security `.csv` | 1 (2026-07-09) | — |
-| union of the first two | | **375** | 2019-06-28 → 2026-09-11 |
+It was consolidated on 2026-09-15 from three directories the legacy system and
+later work had accumulated. What the survey found, by comparing payloads date by
+date rather than just date lists:
 
-Of the union, 348 weeks fall inside the v1 window from 2020-01-02.
-
-They are not complementary. **`TDCC` contains `shareholding` on all 336
-overlapping dates**: 211 are identical row for row, and on the other 125 the
-`shareholding` rows are a strict subset, with no key present in `shareholding`
-and absent from `TDCC`.
-
-The cause is a change in the legacy scraper on **2023-09-15**, which began
-filtering the OpenData file down to its own active-stock universe:
+- The former `TDCC` directory (371 weeks) **contained** the former
+  `shareholding` (340 weeks) on all 336 overlapping dates: 211 identical row for
+  row, and on the other 125 the `shareholding` rows were a strict subset, with
+  no key present in `shareholding` and absent from `TDCC`.
+- The cause was a legacy scraper change on **2023-09-15** that began filtering
+  the OpenData file down to its own active-stock universe:
 
 ```text
 20230908   TDCC 56,372 rows / 3,316 securities   shareholding  identical
 20230915   TDCC 56,525 rows / 3,325 securities   shareholding 26,505 / 1,767
 ```
 
-The 1,558 dropped securities are ETFs and other non-common-stock codes: 0050,
-0051, 0052, 0053, 0055, 0056, 0057, 000815 and so on. 155 of `shareholding`'s
-340 files are filtered this way.
-
-So `shareholding` is needed for exactly four weeks that `TDCC` lacks, all of
-them before the filter change and all complete:
+  The 1,558 dropped securities were ETFs and other non-common-stock codes: 0050,
+  0051, 0052, 0053, 0055, 0056, 0057, 000815 and so on. 155 of the 340 files
+  were filtered this way.
+- The former `shareholding` held exactly four weeks the other lacked, all
+  complete and all before the filter change. They were copied in and verified:
 
 ```text
 2020-06-20   47,447 rows / 2,791 securities
@@ -272,12 +283,15 @@ them before the filter change and all complete:
 2022-11-04   54,298 / 3,194
 ```
 
-`shareholding_div` is obsolete. It is the per-security portal reconstruction of
-2026-07-09, 1,849 securities, built because the bulk file for that week was
-missing. `TDCC` holds the real bulk file for that week with 4,003 securities.
+- `shareholding_div` was the per-security portal reconstruction of 2026-07-09,
+  1,849 securities, built because the bulk file for that week was missing. The
+  archive holds the real 4,003-security bulk file for that week, so it was
+  deleted after its one unique contribution, the level codebook above, was
+  extracted.
 
-Every file in `TDCC` and `shareholding` carries the same six-column OpenData
-header and one 資料日期 per file, so a single parser handles all of them.
+The old filtered directory is retained as `shareholding.bak`. It is not a
+source. Its only remaining use is reconciling against the legacy database,
+which was built from it.
 
 #### Variants and defects the parser must handle
 
@@ -287,9 +301,7 @@ header and one 資料日期 per file, so a single parser handles all of them.
   because OpenData serves the latest published week and the next one was not out
   yet. Both payloads are byte-identical to `2020/20200612.csv`
   (md5 `494878fb2d7abc0ad194d4ab45dc3815`), so they held nothing new; they were
-  moved to `TDCC/_quarantine/` on 2026-09-15 with a note, and the
-  archive now has 422 files, 371 content dates and zero name/content
-  mismatches. There is no 2020-06-19 TDCC week at all — that week's data date is
+  moved to `shareholding/_quarantine/` on 2026-09-15 with a note. There is no 2020-06-19 TDCC week at all — that week's data date is
   2020-06-20, held only by `shareholding`.
   The rule stands regardless: key on the 資料日期 column and reject any file
   whose name disagrees, because this defect is silent. Keying on the name here
@@ -303,11 +315,11 @@ header and one 資料日期 per file, so a single parser handles all of them.
   `.csv` and a `.zip` of the same week in 2020. Every duplicate pair agrees
   exactly on row and security counts, so either copy may be kept.
 
-#### Coverage of the union
+#### Coverage
 
 Row counts grow from 45,713 rows / 2,689 securities (2019-06-28) to
-68,935 / 4,055 (2026). After merging both archives, every remaining interval of
-10 or more days is a Lunar New Year closure:
+68,935 / 4,055 (2026). Every interval of 10 or more days is a Lunar New Year
+closure:
 
 ```text
 2021-02-09 -> 2021-02-19   (10 days)
@@ -318,8 +330,8 @@ Row counts grow from 45,713 rows / 2,689 securities (2019-06-28) to
 2026-02-13 -> 2026-02-26   (13)
 ```
 
-There is no unexplained gap in the union. `shareholding` alone had eight such
-intervals, including 2021-11-26 → 2021-12-24; the `TDCC` archive fills them.
+There is no unexplained gap. The former filtered directory alone had eight such
+intervals, including 2021-11-26 → 2021-12-24.
 
 ### 4.10 Corporate actions: exchange result feeds
 
