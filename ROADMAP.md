@@ -160,7 +160,7 @@ TWSE / TPEx / MOPS / TDCC
  stock-eps-model    stock-model-selection
 ```
 
-PostgreSQL is authoritative. A query-result cache (NullCache/Redis) may sit between the API and the resolver later, but it is not part of v1 delivery (§26).
+PostgreSQL is authoritative. A query-result cache (NullCache/Redis) may sit between the API and the resolver later, but it is not part of v1 delivery (§26.2).
 
 ---
 
@@ -249,7 +249,7 @@ PostgreSQL             18+
 pytest
 httpx
 Docker / Docker Compose
-Redis                  optional, deferred (§26)
+Redis                  optional, deferred (§26.2)
 ```
 
 Docker PostgreSQL image: `postgres:18`. Do not use `postgres:latest`.
@@ -553,7 +553,7 @@ Status date: 2026-09-14.
 
 PRs #1–#12 established the storage, PIT, and raw-first foundations. Their writer contracts include some columns that no source populates (§2.3). Those columns stay nullable and unpopulated. They are not dropped, because dropping them brings no correctness gain.
 
-The former planned PRs #14–#33 are renumbered into #14–#32 above; #33 is a new PR, not a survivor of the old numbering. The former "Corporate-Action Identity Research Track", the "Official Reference-Price / Share-Count Pilot", and the "Historical Corporate-Action Backfill" are replaced by PR #19. The former "Source Capability Hook" is absorbed into PR #15. The former "Legacy Migration and Reconciliation" is split into the per-domain reconciliation acceptance of PRs #17–#26 and cutover PR #32. The former cache PRs are deferred (§26).
+The former planned PRs #14–#33 are renumbered into #14–#32 above; #33 is a new PR, not a survivor of the old numbering. The former "Corporate-Action Identity Research Track", the "Official Reference-Price / Share-Count Pilot", and the "Historical Corporate-Action Backfill" are replaced by PR #19. The former "Source Capability Hook" is absorbed into PR #15. The former "Legacy Migration and Reconciliation" is split into the per-domain reconciliation acceptance of PRs #17–#26 and cutover PR #32. The former cache PRs are deferred (§26.2).
 
 ---
 
@@ -862,7 +862,7 @@ Status: **PLANNED**. Depends on: PR #5 contract, PR #11.
 
 Source contract (audit §4.8): MOPS `t164sb01`, one document per (security, year, quarter, report type), from 2020Q1.
 
-**Financial-industry issuers are out of scope**, matching the legacy system. v1 is the legacy scope (§1.1), and excluding them keeps the financial-industry account taxonomy and its separate statutory deadlines out of v1. Their daily prices, monthly revenue, and every other domain are unaffected; only their financial statements are not ingested. §26 records the exclusion.
+**Financial-industry issuers are out of scope**, matching the legacy system. v1 is the legacy scope (§1.1), and excluding them keeps the financial-industry account taxonomy and its separate statutory deadlines out of v1. Their daily prices, monthly revenue, and every other domain are unaffected; only their financial statements are not ingested. §26.3 records the exclusion.
 
 History source (owner decision; audit §7.1):
 
@@ -1045,21 +1045,53 @@ Status: **PLANNED**. Depends on: PRs #25–#31.
 
 ---
 
-# 26. Deferred — Not in v1
+# 26. Not in v1
 
-| Item | Why deferred |
+Three different things were being kept in one list. They are separated here
+because they need different treatment: the first group must never be planned
+again, the second waits on a stated trigger, and only the third could become a
+later version.
+
+## 26.1 Not obtainable — no source exists
+
+No future version can deliver these without a source that does not exist today.
+A PR that proposes one must first produce the endpoint and field label, or be
+rejected.
+
+| Item | Evidence |
 |---|---|
-| Cache abstraction, Redis backend | No measured need. Revisit only if the API/DB latency measured in PR #30 is insufficient. Invariants A–C apply if one is ever added. |
-| Linking a dividend declaration to its executed ex-dividend event | No locator or ex-date in either announcement feed. PR #33 stores declarations as their own domain instead. |
-| Announcement, record, and payment dates | Published by no inspected feed, announcement feeds included (audit §4.13) |
-| Legal-reserve vs capital-surplus split before 民國110 | MOPS published the two reserves as one combined figure until the 民國110 header change. PR #33 imports the combined figure with a `reserves_combined` flag; no source recovers the split. |
-| Index trade value; OHLC for indices other than the TAIEX | No source found. TAIEX OHLC moved into PR #18 via `MI_5MINS_HIST`. |
-| Historical security name/industry changes | No official history source identified |
-| Stock tags | Only a third-party current snapshot |
-| XBRL codebook, margin market summary | No consumer |
-| Financial-industry financial statements | Excluded from v1 by owner decision, matching the legacy system: a separate account taxonomy and separate statutory deadlines. Only the statements are excluded; these issuers keep every other domain. |
-| Pre-2020 history | Outside the legacy scope. Exchange feeds could be re-fetched later; TDCC history cannot. |
-| Price-only adjusted series; adjusted-price indicator variants | Not needed to reproduce legacy consumers |
+| Corporate-action announcement, record, and payment dates | Published by no inspected feed, the announcement feeds included (audit §4.10, §4.13) |
+| Linking a dividend declaration to its executed ex-dividend event | Neither declaration feed carries an ex-date or a locator; the MOPS page says so itself (audit §4.13) |
+| Legal-reserve vs capital-surplus split before 民國110 | MOPS published the two reserves as one combined figure until the 民國110 header change (audit §4.13) |
+| Index trade value; OHLC for any index other than the TAIEX | Not in `MI_INDEX` or `indexSummary`; no TPEx equivalent of `MI_5MINS_HIST` found (audit §4.2) |
+| Historical security name and industry changes | No official history source identified; `t187ap03_*` is a current snapshot |
+| Order-book depth (`bid_snapshot`, `ask_snapshot`) | The daily files publish one level only, already stored in `last_bid_*`/`last_ask_*` (audit §4.1) |
+| First-published values: monthly revenue before 2026M02, iXBRL before 2025Q4, exchange daily data before forward capture | MOPS serves the latest corrected values, and no capture recorded the earlier ones (audit §7.1) |
+| TDCC history before the portal window | The portal serves about 51 weeks; only the legacy archive has the rest, and it cannot be re-derived (audit §4.9) |
+
+## 26.2 Waiting on a stated trigger
+
+Obtainable, but deliberately not built until the trigger fires. No trigger, no PR.
+
+| Item | Trigger |
+|---|---|
+| Cache abstraction, Redis backend | The API/DB latency measured in PR #30 proves insufficient. Invariants A–C apply if one is ever added. |
+| Stock tags | An official source with effective dates appears. A third-party current snapshot is not one. |
+| XBRL codebook, margin market summary | A consumer reads them. Neither has one today. |
+| Price-only adjusted series; adjusted-price indicator variants | A consumer needs them. Not required to reproduce the legacy consumers. |
+
+## 26.3 Obtainable, out of v1 by decision
+
+These have a source and could be built. They are out of v1 to keep it to the
+legacy scope. This is the only group a later version would draw from.
+
+| Item | What it would take |
+|---|---|
+| Financial-industry financial statements | A financial-industry account taxonomy and its separate statutory deadlines (audit §7.1). MOPS serves the filings today. |
+| Pre-2020 history | The exchange feeds accept earlier date ranges and could be re-fetched. TDCC cannot: its history before the legacy archive is gone. |
+| `rotc` and `pub` markets | MOPS serves all four `TYPEK` values. Excluded by §1.1, not by availability. |
+| `qryType=2` (股利所屬年度) as a second dividend-declaration axis | One more request per market-year against `t05st09sub` (audit §4.13). |
+| TPEx-only declaration columns: 董監酬勞, 員工紅利 | Present in the frozen TPEx OpenAPI feed; no TWSE counterpart, so the series would be one-sided. |
 
 ---
 

@@ -572,7 +572,7 @@ individual (non-consolidated) reports. The legacy scraper could not fetch them
 until the `REPORT_ID` fallback fix of 2026-08-16 (see `fetch_xbrl.py`). Their
 capture date says nothing about when they filed.
 
-Financial industry (ROADMAP §26 excludes their financial statements from v1 by
+Financial industry (ROADMAP §26.3 excludes their financial statements from v1 by
 owner decision, matching legacy; the facts below stand as the record of why):
 
 - Legacy excludes financial stocks on purpose: the converter cannot parse the
