@@ -88,7 +88,7 @@ Each required criterion must be PASS/FAIL with concrete evidence.
 
 ## Current PR-Based Sequence
 
-Current roadmap snapshot:
+ROADMAP §20 is the authoritative ledger. Its current snapshot identifies PRs #1–#12 as MERGED and labels PR #13 as `THIS PR` (a contextual marker, not an additional status value):
 
 ```text
 PR #11  authoritative security lifecycle history        MERGED
@@ -98,7 +98,22 @@ PR #14  source-reality alignment                       PLANNED
 PR #15  availability-time evidence policy              PLANNED (owner decision / ADR-0020)
 PR #16  trading calendar + coverage validator          PLANNED
 PR #17  whole-market daily prices                      PLANNED
+PR #18  market indices + official valuation            PLANNED
 PR #19  exchange corporate-action result feeds         PLANNED
+PR #20  institutional flows/summary + foreign holding  PLANNED
+PR #21  margin trading + securities lending            PLANNED
+PR #22  monthly revenue                               PLANNED
+PR #23  financial statements (iXBRL)                   PLANNED
+PR #24  TDCC distribution                             PLANNED
+PR #25  adjusted prices                               PLANNED
+PR #26  canonical derived v1 (legacy calculator ports) PLANNED
+PR #27  scheduled forward capture                     PLANNED
+PR #28  public REST API v1                            PLANNED
+PR #29  Python SDK + downstream integration           PLANNED
+PR #30  operations + observability                    PLANNED
+PR #31  full correctness CI gate                      PLANNED
+PR #32  my_stock_project cutover + v1 release          PLANNED
+PR #33  issuer dividend declarations                  PLANNED (depends on #19)
 ```
 
 `ROADMAP.md` remains authoritative if this snapshot becomes stale.
@@ -114,6 +129,16 @@ Do not bypass the announcement-feed blocker by inventing another mutable composi
 Do not add, populate, or promise a stored field unless you can name its official endpoint, exact source field label, the date range in which it exists, and its unit conversion. Update the audit in the same PR.
 
 Columns the audit lists as unsourced stay NULL and must not be presented as data.
+
+## v1 Scope and Deferred Work
+
+v1 rebuilds the legacy consumer scope with PIT, normally from 2020-01-02 through cutover. Honor domain-specific history windows in ROADMAP, including PR #33's ROC 107–115 declaration requests.
+
+The security universe is 上市 (`sii`) and 上櫃 (`otc`) only. Where an endpoint offers a market selector, request those two values and reject `rotc` and `pub` at the adapter boundary.
+
+Financial-industry financial statements are excluded from PR #23; those issuers' other datasets remain in scope. Stock tags, the XBRL codebook, and margin market summary are not v1 deliveries. Existing nullable storage contracts are retained, not dropped merely because v1 does not populate them.
+
+ROADMAP §26 distinguishes unavailable source fields, work waiting on a stated trigger, and obtainable work excluded by owner decision. Do not turn these into an unconditional future backlog. In particular, cache abstraction and Redis wait until PR #30 measurements prove API/DB latency insufficient.
 
 ---
 
@@ -131,7 +156,7 @@ PostgreSQL 18+
 pytest
 httpx
 Docker / Docker Compose
-Redis optional
+Redis optional, deferred outside v1 (ROADMAP §26.2)
 ```
 
 Use:
@@ -171,7 +196,9 @@ Deleting all Redis keys must not change correctness.
 
 # 5. Redis Is Optional
 
-Both are valid:
+Cache implementation is not a v1 requirement. The cache rules in this document apply if the ROADMAP measurement trigger authorizes a later cache PR; they do not authorize adding a cache to current delivery.
+
+When a cache is implemented, both are valid:
 
 ```env
 CACHE_BACKEND=none
@@ -238,7 +265,7 @@ Avoid Redis-specific code inside API routes, SQL repositories, PIT semantics, or
 
 # 9. Cache Backends
 
-Provide at least:
+When cache work is authorized, provide at least:
 
 ```text
 NullCache
@@ -487,6 +514,10 @@ If a record stores `raw_artifact_id` and `ingest_run_id`, the DB should enforce 
 
 Raw artifacts are immutable and content-addressed. They are evidence/provenance, not cache.
 
+v1 uses the local `data/raw/` store behind a storage abstraction. It contains only content-addressed artifacts (`<ab>/<sha256>`), never source archives or a `processed/` staging layer. Archives inside the store root could bypass the intended `storage_uri` boundary because reads validate containment under that root.
+
+Under ROADMAP §14, required legacy archives remain at `~/GitHubLL/my_stock_project/data/raw` by owner decision. PR #32 cannot declare cutover complete while a v1 rebuild depends on a path outside this repository. Do not relocate archives as an incidental adapter change.
+
 ---
 
 # 29. Source-Level PIT Capability
@@ -518,6 +549,8 @@ New reconciliation policy requires ADR + permanent tests.
 
 Final reconciliation must be deterministic from stored histories and independent of source import order.
 
+If multiple sources exist without a canonical-source policy, require explicit source selection or return separated results. Endpoints with different field coverage must not alternate revisions for one logical key: PR #17 uses distinct source codes or retires the PR #9 per-security pilots from production.
+
 ---
 
 # 31. Unknown Publication Rule
@@ -532,6 +565,8 @@ the row/version is market-PIT invisible by default.
 
 It may still be System-PIT visible if legitimately ingested by the system cutoff.
 
+PR #15 remains PLANNED and requires owner-approved ADR-0020 before implementation. Until it lands, adapter PRs #16–#24 may proceed with `unknown` evidence; they are not blocked by the policy PR. Append approved evidence later without rewriting business versions.
+
 ---
 
 # 32. Backfill Rule
@@ -543,6 +578,10 @@ published_at = NULL
 ```
 
 Never use current wall-clock time as fake historical publication metadata.
+
+ROADMAP PR #15 proposes `capture_bound`, `legacy_capture_bound`, `press_report_bound`, and `release_rule`, with per-(dataset, source) acceptance, explicit provenance, quality ordering, and versioned release rules. These proposals are not permission to enable new evidence types before ADR-0020 approval. Implement the exact approved policy and update §§31–32 in that PR.
+
+Real legacy first-seen records exist for monthly revenue from 2026M02 and XBRL from 2025Q4. Older synthetic deadlines and later backfill-run dates are not first-seen evidence. Reconstructed monthly-revenue announcement dates are separate from first-published values; they do not restore pre-correction values. The approved policy must document latest-corrected backfill look-ahead and keep later corrections invisible before their capture.
 
 ---
 
@@ -571,6 +610,7 @@ Maintain:
 
 ```text
 docs/data_domain_inventory.md
+docs/data_domain_inventory.json
 ```
 
 Every relevant legacy table/domain/field has an explicit disposition:
@@ -591,6 +631,7 @@ Known v1 coverage includes:
 
 ```text
 core identity/provenance
+trading calendar
 daily market data
 monthly revenue
 financial/XBRL
@@ -601,6 +642,7 @@ short selling
 SBL
 market indices
 corporate actions
+issuer dividend declarations (separate domain, PR #33)
 official valuation
 canonical derived definitions/storage strategy
 ```
@@ -687,6 +729,8 @@ Materialized canonical results preserve derivation version, input identity/finge
 # 46. Materialized vs Virtual Derived Data
 
 Storage strategy is a performance choice. Financial definition and PIT semantics must match.
+
+v1 materializes one rolling as-of series per metric: each observation date uses inputs visible at that date's cutoff. Other PIT contexts are computed on demand. Both paths must agree for the same context (ROADMAP §17).
 
 ---
 
@@ -811,7 +855,7 @@ The rest of this section distinguishes two kinds of feed.
 
 **Announcement/plan feeds** publish decisions whose dates and terms can still change. Examples: `t187ap45_L`, `mopsfin_t187ap39_O`, `TWT48U`. The forbidden-field list below applies to them in full. None has a proven link to an executed event, so none may enter `corporate_action_versions` or `security_events`.
 
-They may still be stored as their own domain when the feed has a workable key *within itself*. ROADMAP PR #33 does this for the two dividend-declaration feeds, in `dividend_declaration_versions`, with per-source column sets and no cross-feed join. Storing a declaration feed this way is not a claim about event identity, and it does not unblock any column in `corporate_action_versions`.
+They may still be stored as their own domain when the feed has a workable key *within itself*. ROADMAP PR #33 uses MOPS `t05st09sub` as the primary historical and forward source for both markets, in `dividend_declaration_versions`; the two OpenAPI declaration feeds are cross-checks only. Storing declarations this way is not a claim about event identity, and it does not unblock any column in `corporate_action_versions`.
 
 **Exchange result feeds** record an event the exchange executed and priced on a trading date: `TWT49U`, `TWTAUU`, `TWTB8U`, TPEx `exDailyQ`, TPEx `revivt`.
 
@@ -819,6 +863,8 @@ They may still be stored as their own domain when the feed has a workable key *w
 - For these feeds, `source_event_key = "<feed>:<locator date>"` is permitted.
 - Changed terms under the same locator are revisions of the same event. A row removed from the feed is a retraction.
 - The adapter must still pass the full-history duplicate scan and the correction regressions (ROADMAP §27.7).
+
+TWSE result feeds must use `response=json`. CSV replaces the detail locator with a link label, so legacy CSV cannot prove event identity. Preserve detail responses and source-native units; PR #19 converts free-share and rights ratios by dividing by 1,000.
 
 The ex_date entry in the forbidden list below refers to announced or planned dates. It does not refer to the executed-date locator of a result feed.
 
@@ -938,18 +984,34 @@ A blocked source is an acceptable correctness result.
 Any adapter that claims stable event identity must permanently test:
 
 ```text
-same event with corrected date/amount/ratio -> same source_event_key
+same executed locator with corrected terms -> same event, new revision
 separate real events -> different source_event_key
 live/current duplicate scan
+full-history duplicate scan -> zero duplicate (feed, code, locator date)
+removed result-feed row -> retraction, not deletion
 known collision fixture
 forbidden mutable fields absent from identity
 ```
+
+### Issuer declaration contract (PR #33)
+
+Use MOPS `t05st09sub`, `TYPEK=sii|otc`, `qryType=1`, one Big5 HTML table per market-year. Respect the 3-second request interval. TWSE `t187ap45_L` and the TPEx OpenAPI feed frozen at `出表日期` 1100804 only cross-check overlapping years.
+
+Handle both header variants: ROC ≤ 109 has 19 cells and combined legal/capital reserves; ROC ≥ 110 has 21 cells and separate reserves. Earlier rows keep the legal-reserve component NULL and the combined figure in the capital-surplus column with `reserves_combined`; never present it as reserve-pure. The flag also applies to frozen TPEx OpenAPI rows.
+
+Declaration identity is `(security, dividend_year, dividend_period_text, sequence)`, not corporate-action event identity. Duplicate identities quarantine. TPEx OpenAPI's missing period text requires the board-resolution date for within-feed comparison, and its two remaining collisions still quarantine.
+
+Market membership is evaluated at query time. Newly listed issuers can appear in past-year queries as new records; a smaller result set is not a retraction. A decision-progress change creates a version. Do not treat the board decision date as a proven release instant; follow PR #33's capture-based evidence contract and the approved PR #15 policy.
+
+Never write these declarations into `corporate_action_versions` or `security_events`, or claim a verified link to an executed event.
 
 ---
 
 # 52. Market Index Coverage
 
 Define historical market-index storage used by market-regime features, benchmarks, and backtests.
+
+PR #18 identifies indices by `(source, published index name)`. Whole-list sources supply close and changes only. TAIEX OHLC comes from `MI_5MINS_HIST`; its close must match `MI_INDEX` on each trading date or quarantine. Other index OHLC and index trade value stay NULL unless new official source evidence satisfies the audit rule.
 
 ---
 
@@ -961,7 +1023,9 @@ Source-published PE/PB/dividend yield is observed source data. Data Center-compu
 
 # 54. Monthly Revenue Derived Fields
 
-MoM/YoY/cumulative values may be recomputed from PIT-safe history. Do not duplicate as source facts unless intentionally preserving source-published values.
+PR #22 preserves published comparatives as observed fields: `revenue_last_month`, `revenue_last_year_month`, `mom_pct`, `yoy_pct`, `cumulative_revenue`, `cumulative_revenue_last_year`, `cumulative_yoy_pct`, and `note`. Revenue amounts convert ×1,000 to TWD.
+
+Keep them exactly as published; do not replace or reconcile them against our own series. Preserve the 2026M06/M07 discrepancy fixture (11 of 1,846 companies). `monthly_revenue_growth:v1` is outside v1.
 
 ---
 
@@ -1106,6 +1170,8 @@ Empty-but-correct contracts do not grant permission to reinterpret semantics dur
 
 Do not introduce Redis/cache work into source-correctness PRs unless the current ROADMAP PR explicitly owns cache behavior.
 
+No cache PR is authorized before the measured-latency trigger in ROADMAP §26.2.
+
 ---
 
 # 70. Real-Data Import PR Boundary
@@ -1135,6 +1201,8 @@ adapter/parser version
 ```
 
 Do not discard source representation after extracting canonical rows.
+
+Use `fetch → durable raw artifact → checkpoint → parse → normalize → canonical write`. One adapter per endpoint serves history and forward capture. History runs are throttled, resumable, and checkpointed. Unknown header variants quarantine; operational failures after raw capture remain resumable.
 
 ---
 
@@ -1171,6 +1239,14 @@ Normal backfill records actual Data Center ingestion/seal time. Do not copy hist
 Legacy `stock_db` is migration input, not automatically authoritative truth.
 
 Do not bulk-copy without field mapping, source-semantic validation, unit normalization, PIT validation, provenance capture, and new writer/trusted migration constraints.
+
+Default artifact origin is `official_fetch`, preserving exact response bytes. `legacy_archive` is allowed only for ROADMAP §14 / PRs #22–#24 exceptions:
+
+- Monthly revenue: `market.csv` provides first-captured values from 2026M02 and recovered announcement dates for older rows. `revswarm.db` is not a live import dependency. Apply PR #22's date ambiguity rule and import cross-check under the approved evidence policy.
+- XBRL: legacy documents from 2020Q1, with the PR #23 archive-vs-official sample gate and full re-fetch fallback if its mismatch threshold fails. Synthetic filename dates and late backfill files carry no first-seen evidence.
+- TDCC: the consolidated `shareholding` archive up to forward capture (375 weeks, 348 inside v1), then official OpenData. Follow PR #24's payload/date validation; reject filename/payload disagreement.
+
+Record archive path, file mtime, and compressed entry name where applicable. `fetched_at` is the Data Center read time. Most legacy files were transformed by scrapers and are reconciliation baselines, not official raw bytes.
 
 ---
 
@@ -1225,6 +1301,8 @@ unexplained_anomaly
 
 Do not silently smooth anomalies.
 
+Every adapter and derived PR reconciles against legacy `stock_db` for 2020-01-02 through 2026-09-11, with units normalized first and every difference classified. A documented PIT-correct difference is acceptable. Calendar-based coverage distinguishes closures from gaps and must not depend on today's security universe.
+
 ---
 
 # 79. Import Manifest and Quarantine Rule
@@ -1241,17 +1319,18 @@ Corporate-action identity ambiguity is a quarantine/blocker condition, not a pro
 
 Actual calculators belong in dedicated derived PRs unless a minimal implementation is required solely for contract validation.
 
-For price-derived calculations:
+For adjusted-price calculations (PR #25):
 
 ```text
 raw official OHLC
 + PIT-safe corporate actions
 -> versioned adjustment factors
 -> adjusted OHLC / total-return
--> returns / indicators
 ```
 
-Do not bypass corporate-action readiness.
+v1 uses `factor(D) = official_reference_price(D) / close_before(D)` for ex-right/ex-dividend and capital-reduction/par-value resumption dates. This includes cash dividends and produces a dividend-reinvested, total-return-style series. Do not apply events before their effective date or outside their PIT visibility.
+
+PR #26 ports legacy calculators, including `technical_indicators:v1` on raw close. It depends on PRs #17–#25 as each metric requires and does not bypass readiness gates. Adjusted-price indicator variants and a price-only adjusted series wait for a consumer need. Institutional cumulative-flow "holding" values are proxies; composite pressure scores remain downstream.
 
 ---
 
