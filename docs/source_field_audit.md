@@ -233,7 +233,7 @@ Surveyed 2026-09-15 by decompressing and parsing every file.
 
 | Archive | Files | Weeks | Range |
 | --- | --- | --- | --- |
-| `stock-data-center/data/raw/TDCC` | 424 (`.csv`, `.zip`, `.7z`) | 371 | 2019-06-28 → 2026-09-11 |
+| `stock-data-center/data/raw/TDCC` | 422 (`.csv`, `.zip`, `.7z`) | 371 | 2019-06-28 → 2026-09-11 |
 | legacy `my_stock_project/data/raw/shareholding` | 340 `.csv` | 340 | 2020-01-03 → 2026-09-11 |
 | union | | **375** | 2019-06-28 → 2026-09-11 |
 
@@ -254,10 +254,19 @@ Four weeks exist **only** in the legacy archive and must be taken from it:
 
 #### Variants and defects the parser must handle
 
-- **The filename is not authoritative.** `2020/20200619.CSV` and
-  `2020/20200619.zip` both contain 資料日期 `20200612`. Keying on the filename
-  would invent a week that does not exist and silently drop the real 2020-06-19.
-  Key on the 資料日期 column and reject any file whose name disagrees.
+- **The filename is not authoritative.** Two files, `2020/20200619.CSV` and
+  `2020/20200619.zip`, carried 資料日期 `20200612`. They were named for their
+  download date: the 2020-06-20 re-download still returned the 2020-06-12 table,
+  because OpenData serves the latest published week and the next one was not out
+  yet. Both payloads are byte-identical to `2020/20200612.csv`
+  (md5 `494878fb2d7abc0ad194d4ab45dc3815`), so they held nothing new; they were
+  moved to `data/raw/TDCC/_quarantine/` on 2026-09-15 with a note, and the
+  archive now has 422 files, 371 content dates and zero name/content
+  mismatches. There is no 2020-06-19 TDCC week at all — that week's data date is
+  2020-06-20, held only by the legacy archive.
+  The rule stands regardless: key on the 資料日期 column and reject any file
+  whose name disagrees, because this defect is silent. Keying on the name here
+  would have invented a 2020-06-19 week and hidden that 2020-06-20 was missing.
 - **Date format**: 423 files use `20200103`; one, `2019/20190628.zip`, uses
   `2019/06/28`.
 - **Double BOM**: ten files (both copies of 2020-04-30, 05-08, 05-15, 05-22 and
