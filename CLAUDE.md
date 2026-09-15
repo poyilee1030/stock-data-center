@@ -1,4 +1,4 @@
-# AGENTS.md
+# CLAUDE.md
 
 > Delivery is PR-driven. `ROADMAP.md` is authoritative for PR number, scope, dependencies, acceptance criteria, blockers, and out-of-scope work. Historical Phase terminology may remain in old ADRs/reports but must not drive new implementation planning.
 
@@ -93,7 +93,7 @@ ROADMAP §20 is the authoritative ledger. Its current snapshot identifies PRs #1
 ```text
 PR #11  authoritative security lifecycle history        MERGED
 PR #12  Taiwan corporate-action contract               MERGED
-PR #13  source-reality rebuild of ROADMAP/AGENTS/audit   MERGED
+PR #13  source-reality rebuild of ROADMAP/CLAUDE/audit   MERGED
 PR #14  source-reality alignment                       THIS PR
 PR #15  availability-time evidence policy              PLANNED (ADR-0020 approved; needs #16)
 PR #16  trading calendar + coverage validator          PLANNED

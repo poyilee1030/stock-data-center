@@ -587,7 +587,7 @@ Status date: 2026-09-15.
 | #10 | MERGED | Current TWSE/TPEx security metadata ingestion |
 | #11 | MERGED | Authoritative security listing/delisting/venue lifecycle history |
 | #12 | MERGED | Hardened Taiwan corporate-action contract |
-| #13 | MERGED | Source-reality rebuild of this roadmap, `AGENTS.md`, and `docs/source_field_audit.md` |
+| #13 | MERGED | Source-reality rebuild of this roadmap, `CLAUDE.md` (then named `AGENTS.md`), and `docs/source_field_audit.md` |
 | #14 | THIS PR | Source-reality alignment of inventory and storage contract |
 | #15 | PLANNED | Availability-time evidence policy (owner decision) |
 | #16 | PLANNED | Trading calendar and coverage validator |
@@ -789,7 +789,7 @@ v1 does not capture the unsettled same-day row (ADR-0020 §10). Trade date D res
 
 Acceptance:
 
-- AGENTS.md §31–32 (unknown publication and backfill rules) updated to match ADR-0020.
+- CLAUDE.md §31–32 (unknown publication and backfill rules) updated to match ADR-0020.
 - Each rule has an id, a version, and a cited official schedule or statute. Permanent tests cover weekends, holidays, year boundaries, and deadlines that fall on non-business days.
 - Revision-after-rule regression.
 - Exchange daily rules are validated against forward captures: the data for trade date D is fetchable at the rule instant.
@@ -1325,7 +1325,7 @@ acceptance report (docs/pr_reports/pr-<N>-acceptance-report.md)
 stock-data-center/
 ├── README.md
 ├── ROADMAP.md
-├── AGENTS.md
+├── CLAUDE.md
 ├── pyproject.toml
 ├── docker-compose.yml
 ├── alembic.ini
