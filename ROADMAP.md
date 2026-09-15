@@ -396,13 +396,17 @@ Artifact origin:
 
 ```text
 official_fetch   default; bytes exactly as returned by the official endpoint
-legacy_archive   only where the legacy archive holds something no official
-                 re-fetch can provide:
-                   - TDCC weeks before forward capture
+legacy_archive   only where an archive holds something no official re-fetch
+                 can provide:
+                   - TDCC weeks before forward capture, from both archives
+                     named in PR #24
                    - legacy first-seen monthly-revenue rows (2026M02 onward)
-                   - first-seen XBRL documents (2025Q4 onward)
-                 The ingest run records the legacy path and file mtime.
+                   - XBRL documents for 2020Q1 onward (PR #23)
+                 The ingest run records the archive path and file mtime, and
+                 for a compressed member the archive entry name as well.
                  fetched_at is the Data Center's read time.
+                 Where the archive's own filename disagrees with the payload,
+                 the payload wins and the file is rejected (PR #24).
 ```
 
 ---
@@ -432,7 +436,7 @@ The MOPS iXBRL documents provide contexts with explicit dimensions, units, and d
 | Monthly revenue | PR #22 | MOPS `t21sc03` `_0`/`_1` (§4.7) | adds KY issuers missing from legacy |
 | Financial statements | PR #23 | MOPS `t164sb01` iXBRL (§4.8) | financial industry excluded, as in legacy |
 | Issuer dividend declarations | PR #33 | MOPS `t05st09sub` per market-year; OpenAPI `t187ap45_L` / `mopsfin_t187ap39_O` as cross-checks (§4.13) | new domain; reserve split only from ROC 110 |
-| TDCC | PR #24 | OpenData + legacy archive (§4.9) | |
+| TDCC | PR #24 | OpenData + two complementary archives, 375 weeks (§4.9) | |
 | Adjusted prices | PR #25 | derived from exchange reference prices | |
 | Canonical derived metrics | PR #26 | derived | ports of legacy calculators |
 | Stock tags, XBRL codebook, margin market summary | not in v1 | — | no official source or no consumer |
@@ -911,15 +915,21 @@ Status: **PLANNED**. Depends on: PR #6 contract, PR #16.
 Source contract (audit §4.9):
 
 - OpenData `id=1-5` weekly, from the first forward capture onward
-- `legacy_archive` artifacts for 2020-01-03 up to the first forward capture. The archive files are OpenData bytes, so the same parser applies.
+- `legacy_archive` artifacts up to the first forward capture, from two complementary archives whose union is 375 weeks, 2019-06-28 to 2026-09-11, of which 348 fall inside the v1 window:
+  - `stock-data-center/data/raw/TDCC` — 424 files, 371 weeks
+  - legacy `my_stock_project/data/raw/shareholding` — 340 files, and the only source of 2020-06-20, 2020-09-25, 2021-02-19 and 2022-11-04
+- both archives carry the same six-column OpenData header, so one parser handles all of them
 - the portal per-security query only for repairs inside its roughly one-year window
+
+The importer keys on the 資料日期 column, never on the filename: `20200619.CSV` and `20200619.zip` both contain 20200612 data, and trusting the name would invent a week and drop the real one. It must also handle the slash date format in `20190628.zip`, the ten double-BOM files, mixed extension case, and the 51 content dates that have duplicate copies (every pair agrees exactly, so either may be kept).
 
 Acceptance:
 
-- all 340 archive weeks import
-- each archive interval of 10 or more days is classified as holiday or permanent gap
-- the partial reconstruction of 2026-07-09 (1,849 securities) is labeled partial
-- legacy `shareholding` reconciles
+- all 375 union weeks import, each keyed by its content date
+- a file whose name disagrees with its content date is rejected with that fact named, not silently renamed
+- every remaining interval of 10 or more days resolves to a Lunar New Year closure; any other gap fails the import
+- 2026-07-09 imports as the complete 4,003-security file from `data/raw/TDCC`, not as the legacy 1,849-security reconstruction
+- legacy `shareholding` reconciles on the 340 weeks it holds
 
 ---
 
@@ -1087,7 +1097,7 @@ rejected.
 | Order-book depth (`bid_snapshot`, `ask_snapshot`) | The daily files publish one level only, already stored in `last_bid_*`/`last_ask_*` (audit §4.1) |
 | First-published *values*: monthly revenue before 2026M02, iXBRL before 2025Q4, exchange daily data before forward capture | MOPS serves the latest corrected values, and no capture recorded the earlier ones (audit §7.1). For monthly revenue the `revswarm` headline figures are rounded to 0.01億 — enough to detect that a correction happened, not to restore the original 千元 number (audit §7.4). |
 | Publication *dates* for the 10.3% of 2020M01-2026M01 monthly revenue with no verified report | `revswarm` found no dated report that passed its guards. These fall through to the release rule. Re-running its later engines could reduce the gap, so this is a coverage limit rather than a hard one. |
-| TDCC history before the portal window | The portal serves about 51 weeks; only the legacy archive has the rest, and it cannot be re-derived (audit §4.9) |
+| TDCC history before the portal window, if both archives were lost | The portal serves about 51 weeks and OpenData only the latest. The 375 archived weeks cannot be re-fetched from any official endpoint, so the two archives are the only copy (audit §4.9). This is a preservation constraint, not a missing dataset: v1 has every week it needs. |
 
 ## 26.2 Waiting on a stated trigger
 

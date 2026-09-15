@@ -220,17 +220,70 @@ archive has 45,324 files).
 ### 4.9 TDCC shareholding distribution
 
 - OpenData `getOD.ashx?id=1-5`: 資料日期, 證券代號, 持股分級, 人數, 股數,
-  占集保庫存數比例%. Levels 1–17, where 16 is the adjustment row and 17 the
+  占集保庫存數比例%. Levels 1-17, where 16 is the adjustment row and 17 the
   total. It serves the **latest week only**.
 - Portal `smWeb/qryStock`: per security, in a different format. On 2026-09-14
   its selector offered 51 dates, 2025-09-19 → 2026-09-11.
-- Weeks before 2025-09-19 exist only in the legacy archive: 340 weekly files
-  from 2020-01-03 to 2026-09-11.
+- Everything earlier exists only in archives. There are two, and they are
+  complementary.
 
-Intervals of 10 or more days between archived weeks, which the TDCC PR must
-classify as holiday or permanent gap: 2021-02-05→02-19, 2021-11-26→12-24,
-2021-12-24→2022-01-07, 2022-01-28→02-11, 2023-01-19→02-10, 2024-02-07→02-17,
-2025-01-24→02-08, 2026-02-13→02-26.
+#### The two archives
+
+Surveyed 2026-09-15 by decompressing and parsing every file.
+
+| Archive | Files | Weeks | Range |
+| --- | --- | --- | --- |
+| `stock-data-center/data/raw/TDCC` | 424 (`.csv`, `.zip`, `.7z`) | 371 | 2019-06-28 → 2026-09-11 |
+| legacy `my_stock_project/data/raw/shareholding` | 340 `.csv` | 340 | 2020-01-03 → 2026-09-11 |
+| union | | **375** | 2019-06-28 → 2026-09-11 |
+
+Of the union, 348 weeks fall inside the v1 window from 2020-01-02.
+
+Every file in both archives carries the same six-column OpenData header and
+one 資料日期 per file, so a single parser handles all of them.
+
+The new archive also repairs the worst hole in the legacy one: 2026-07-09 is a
+complete 4,003-security file here, where the legacy archive has only the
+1,849-security per-security reconstruction.
+
+Four weeks exist **only** in the legacy archive and must be taken from it:
+
+```text
+2020-06-20   2020-09-25   2021-02-19   2022-11-04
+```
+
+#### Variants and defects the parser must handle
+
+- **The filename is not authoritative.** `2020/20200619.CSV` and
+  `2020/20200619.zip` both contain 資料日期 `20200612`. Keying on the filename
+  would invent a week that does not exist and silently drop the real 2020-06-19.
+  Key on the 資料日期 column and reject any file whose name disagrees.
+- **Date format**: 423 files use `20200103`; one, `2019/20190628.zip`, uses
+  `2019/06/28`.
+- **Double BOM**: ten files (both copies of 2020-04-30, 05-08, 05-15, 05-22 and
+  05-29) carry a second `\ufeff` after `utf-8-sig` decoding.
+- **Extension case**: `.csv`, `.CSV` and `.zip`, `.7z` all appear.
+- **Duplicate copies**: 51 content dates have more than one file, mostly a
+  `.csv` and a `.zip` of the same week in 2020. Every duplicate pair agrees
+  exactly on row and security counts, so either copy may be kept.
+
+#### Coverage of the union
+
+Row counts grow from 45,713 rows / 2,689 securities (2019-06-28) to
+68,935 / 4,055 (2026). After merging both archives, every remaining interval of
+10 or more days is a Lunar New Year closure:
+
+```text
+2021-02-09 -> 2021-02-19   (10 days)
+2022-01-28 -> 2022-02-11   (14)
+2023-01-19 -> 2023-02-04   (16)
+2024-02-07 -> 2024-02-17   (10)
+2025-01-24 -> 2025-02-08   (15)
+2026-02-13 -> 2026-02-26   (13)
+```
+
+There is no unexplained gap in the union. The legacy archive alone had eight
+such intervals, including 2021-11-26 → 2021-12-24; the new archive fills them.
 
 ### 4.10 Corporate actions: exchange result feeds
 
