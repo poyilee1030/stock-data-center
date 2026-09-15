@@ -43,6 +43,7 @@
       "derived_computation_runs": "Derived computation provenance, declared by us.",
       "derived_dataset_definitions": "Canonical derived dataset contract (ROADMAP 17), declared by us.",
       "derived_metric_versions": "Canonical derived data, not an observed source domain. Its contract is the derived dataset definition registry, not a source field mapping.",
+      "evidence_types": "Registry of evidence types and the ranking ADR-0020 fixed (Step 15-a). Our own policy declaration, not source content.",
       "financial_filing_seals": "Aggregate seal state, decided by us, never published by a source.",
       "financial_filing_version_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field.",
       "foreign_holding_version_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field.",

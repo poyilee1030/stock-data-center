@@ -29,6 +29,8 @@ from stock_data_center.db.metadata import (
 )
 from stock_data_center.ingestion.http import HttpSourceFetcher, SourceFetcher
 from stock_data_center.ingestion.models import (
+    ArtifactOrigin,
+    IngestPurpose,
     ImportManifestResult,
     ResourceImportResult,
     ResourceQuarantinedError,
@@ -105,6 +107,8 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
         request: RequestT,
         import_id: UUID | None = None,
         git_commit: str | None = None,
+        purpose: IngestPurpose = IngestPurpose.UNSPECIFIED,
+        artifact_origin: ArtifactOrigin = ArtifactOrigin.OFFICIAL_FETCH,
     ) -> ResourceImportResult:
         import_id = import_id or uuid4()
         resource = adapter.resource(request)
@@ -122,6 +126,8 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
                     resource=resource,
                     import_id=import_id,
                     git_commit=git_commit,
+                    purpose=purpose,
+                    artifact_origin=artifact_origin,
                 )
             finally:
                 if lock_connection.in_transaction():
@@ -140,6 +146,8 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
         resource: SourceResource,
         import_id: UUID,
         git_commit: str | None,
+        purpose: IngestPurpose = IngestPurpose.UNSPECIFIED,
+        artifact_origin: ArtifactOrigin = ArtifactOrigin.OFFICIAL_FETCH,
     ) -> ResourceImportResult:
         scope = self._source_scope(adapter, request, resource)
         fingerprint = _fingerprint(
@@ -213,6 +221,8 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
                     source_uri=fetched.source_uri,
                     fetched_at=fetched.fetched_at,
                     media_type=fetched.media_type,
+                    purpose=purpose,
+                    artifact_origin=artifact_origin,
                 )
             content = fetched.content
             artifact_hash = stored.digest
@@ -559,6 +569,8 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
         source_uri: str,
         fetched_at: datetime,
         media_type: str,
+        purpose: IngestPurpose,
+        artifact_origin: ArtifactOrigin,
     ) -> tuple[UUID, UUID, bool]:
         run_id = connection.execute(
             insert(ingest_runs)
@@ -567,6 +579,7 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
                 source=adapter.source,
                 status="running",
                 started_at=sa.func.statement_timestamp(),
+                purpose=purpose.value,
                 run_metadata={
                     "import_id": str(import_id),
                     "resource_key": resource_key,
@@ -609,6 +622,7 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
                 ingest_run_id=run_id,
                 source_uri=source_uri,
                 fetched_at=fetched_at,
+                artifact_origin=artifact_origin.value,
             )
         )
         connection.execute(

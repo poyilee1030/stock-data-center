@@ -32,6 +32,22 @@ dataset_catalog = sa.Table(
     ),
 )
 
+evidence_types = sa.Table(
+    "evidence_types",
+    metadata,
+    sa.Column("evidence_type", sa.String(64), primary_key=True),
+    # ADR-0020 §1. The ordering is the decision; the numbers express it.
+    # Storage enforces that affirmative evidence of a registered type carries
+    # exactly this rank, so precedence cannot be forged by a caller.
+    sa.Column("quality_rank", sa.SmallInteger(), nullable=False),
+    # False only for `official`, which predates ADR-0020 and whose rank varies
+    # across existing rows. The four types ADR-0020 introduces are pinned.
+    sa.Column("rank_is_enforced", sa.Boolean(), nullable=False),
+    sa.Column("description", sa.Text(), nullable=False),
+    sa.CheckConstraint("quality_rank BETWEEN 0 AND 100", name="quality_rank_range"),
+    sa.CheckConstraint("btrim(description) <> ''", name="description_nonempty"),
+)
+
 dataset_sources = sa.Table(
     "dataset_sources",
     metadata,
@@ -109,6 +125,14 @@ ingest_runs = sa.Table(
     sa.Column("started_at", aware_timestamp, nullable=False),
     sa.Column("completed_at", aware_timestamp),
     sa.Column("run_metadata", jsonb_type, nullable=False, server_default=sa.text("'{}'::jsonb")),
+    # ADR-0020 §5. Declared when the fetch is requested, never inferred
+    # afterwards: only a first capture may later claim capture_bound evidence.
+    sa.Column(
+        "purpose",
+        sa.String(32),
+        nullable=False,
+        server_default=sa.text("'unspecified'"),
+    ),
     sa.ForeignKeyConstraint(
         ["dataset_code", "source"],
         ["dataset_sources.dataset_code", "dataset_sources.source"],
@@ -120,6 +144,11 @@ ingest_runs = sa.Table(
     sa.CheckConstraint(
         "completed_at IS NULL OR completed_at >= started_at",
         name="completed_after_started",
+    ),
+    sa.CheckConstraint(
+        "purpose IN ('first_capture', 'gap_fill', 'correction_check', "
+        "'unspecified')",
+        name="purpose_value",
     ),
 )
 
@@ -159,11 +188,23 @@ raw_artifact_observations = sa.Table(
     sa.Column("ingest_run_id", uuid_type, nullable=False),
     sa.Column("source_uri", sa.Text(), nullable=False),
     sa.Column("fetched_at", aware_timestamp, nullable=False),
+    # ROADMAP §14 names two origins. `legacy_archive` is allowed only where an
+    # archive holds what no official re-fetch can provide.
+    sa.Column(
+        "artifact_origin",
+        sa.String(32),
+        nullable=False,
+        server_default=sa.text("'official_fetch'"),
+    ),
     sa.PrimaryKeyConstraint("raw_artifact_id", "ingest_run_id"),
     sa.ForeignKeyConstraint(
         ["raw_artifact_id"], ["raw_artifacts.id"], ondelete="RESTRICT"
     ),
     sa.ForeignKeyConstraint(["ingest_run_id"], ["ingest_runs.id"], ondelete="RESTRICT"),
+    sa.CheckConstraint(
+        "artifact_origin IN ('official_fetch', 'legacy_archive')",
+        name="artifact_origin_value",
+    ),
 )
 
 
@@ -748,11 +789,10 @@ trading_calendar_versions = sa.Table(
         name="calendar_month_is_first_day",
     ),
     sa.CheckConstraint("cardinality(trading_days) > 0", name="month_has_open_day"),
+    # A CHECK cannot hold a subquery, so the predicate lives in an immutable
+    # function the migration creates.
     sa.CheckConstraint(
-        "trading_days = ("
-        "  SELECT array_agg(DISTINCT day ORDER BY day)"
-        "    FROM unnest(trading_days) AS day"
-        ")",
+        "stockdc_dates_sorted_distinct(trading_days)",
         name="trading_days_sorted_distinct",
     ),
     sa.CheckConstraint(

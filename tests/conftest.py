@@ -52,6 +52,30 @@ def db(engine: Engine) -> Iterator[Connection]:
 
 
 @pytest.fixture
+def empty_database_url() -> Iterator[str]:
+    """A brand-new database with no schema, for DDL emitted from metadata.
+
+    Migrations are the only thing that builds the real schema, so nothing else
+    ever asks the metadata to produce DDL — which is how a CHECK naming a column
+    its table does not have can sit in metadata with the whole suite green.
+    """
+    base_url = make_url(TEST_DATABASE_URL)
+    admin_url = base_url.set(database="postgres")
+    database_name = f"stockdc_ddl_{uuid.uuid4().hex}"
+    admin_engine = sa.create_engine(admin_url, isolation_level="AUTOCOMMIT")
+    with admin_engine.connect() as connection:
+        connection.exec_driver_sql(f'CREATE DATABASE "{database_name}"')
+    try:
+        yield base_url.set(database=database_name).render_as_string(
+            hide_password=False
+        )
+    finally:
+        with admin_engine.connect() as connection:
+            connection.exec_driver_sql(f'DROP DATABASE "{database_name}"')
+        admin_engine.dispose()
+
+
+@pytest.fixture
 def isolated_database_url() -> Iterator[str]:
     base_url = make_url(TEST_DATABASE_URL)
     admin_url = base_url.set(database="postgres")

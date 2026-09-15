@@ -43,6 +43,50 @@ Neither a raw fetch time nor `ingested_at` substitutes for `published_at`.
 Evidence with `published_at = NULL` is market-invisible. Current wall-clock time
 must never be invented as a historical publication time.
 
+## Evidence types and their ranking
+
+`evidence_types` registers every type ADR-0020 fixed, with the rank that
+expresses its precedence. Precedence therefore needs no special case in the
+resolver: ADR-0002 already ranks heads by `quality_rank`, descending.
+
+| Type | Rank | Meaning |
+| --- | ---: | --- |
+| `official` | 90 | a per-row release instant published by the source; no v1 source provides one |
+| `capture_bound` | 80 | our own first successful fetch of an artifact containing the version — a proven upper bound |
+| `legacy_capture_bound` | 70 | the legacy scraper's recorded first-seen date, as the end of the run that first held the row |
+| `press_report_bound` | 60 | a publication date reconstructed from a dated secondary record, at end of that day, Asia/Taipei |
+| `release_rule` | 40 | a versioned no-later-than instant derived from a published schedule or statute |
+
+For the four types ADR-0020 introduces, **the rank is a storage invariant**: a
+row whose rank disagrees with the registry is rejected, and a non-affirmative
+row of such a type must carry rank 0 so an `unknown` head can never outrank a
+real assertion. Ranking is not left to caller discipline.
+
+`official` is registered but **not pinned**, and its registered 90 is nominal:
+it predates ADR-0020 and stored rows carry other values — the current adapters
+write rank 0 with `unknown` kind, and the domain fixtures write 100 for
+assertions. Pinning it would rewrite history to no purpose, but it does mean an
+`official` assertion at 100 can still outrank a pinned `capture_bound` at 80.
+That is tolerable only because no v1 source emits `official` affirmatively
+(audit §7); Step 15-b must not assume 90 describes any stored row.
+
+Registration is about ranking, never permission: which types a source accepts
+remains `dataset_sources.accepted_evidence_types` (ADR-0010).
+
+## Why a fetch happened
+
+Every ingest run records a `purpose` — `first_capture`, `gap_fill`,
+`correction_check`, or `unspecified` — declared when the fetch is requested and
+never inferred afterwards. A row fetched years later because a query noticed it
+was missing is a `gap_fill`, and must not be able to claim a capture bound at
+that later instant. `unspecified` covers runs that predate the policy.
+
+Each fetch observation also records its `artifact_origin`, `official_fetch` or
+`legacy_archive` (ROADMAP §14), which until now existed only in prose.
+
+Step 15-b derives the evidence type from the purpose and evaluates the release
+rules; until it lands, adapters still write `unknown` evidence.
+
 Two supported reconstructions are:
 
 ```text

@@ -589,8 +589,9 @@ Status date: 2026-09-15.
 | 12 | MERGED | Hardened Taiwan corporate-action contract |
 | 13 | MERGED | Source-reality rebuild of this roadmap, `CLAUDE.md` (then named `AGENTS.md`), and `docs/source_field_audit.md` |
 | 14 | MERGED | Source-reality alignment of inventory and storage contract |
-| 15 | PLANNED | Availability-time evidence policy (owner decision) |
-| 16 | THIS STEP | Trading calendar and coverage validator |
+| 15-a | THIS STEP | Availability-time evidence vocabulary and ingest purpose |
+| 15-b | PLANNED | Release-rule evaluation and purpose-derived evidence |
+| 16 | MERGED | Trading calendar and coverage validator |
 | 17 | PLANNED | Whole-market daily prices |
 | 18 | PLANNED | Market indices and official valuation |
 | 19 | PLANNED | Exchange corporate-action result feeds |
@@ -655,7 +656,7 @@ No announcement feed exposes a correction-stable event ID. The 1591/108/1 collis
 
 ## Step 14 — Source-Reality Alignment
 
-Status: **THIS PR**. Depends on: none.
+Status: **MERGED**. Depends on: none.
 
 Goal: make the storage contract and inventory agree with `docs/source_field_audit.md` before more adapters are written.
 
@@ -697,7 +698,12 @@ Out of scope: dropping unsourced columns.
 
 ## Step 15 — Availability-Time Evidence Policy
 
-Status: **PLANNED**. ADR-0020 is approved (owner, 2026-09-15) and fixes the policy below. Depends on: Step 14, Step 16 — every release rule moves a deadline off a non-business day against #16's trading calendar, so #16 lands first.
+ADR-0020 is approved (owner, 2026-09-15) and fixes the policy below. Depends on: Step 14, Step 16 — every release rule moves a deadline off a non-business day against Step 16's trading calendar, so Step 16 landed first.
+
+Split for review (CLAUDE.md §1):
+
+- **Step 15-a — THIS STEP.** The vocabulary and its provenance: the `evidence_types` registry with ADR-0020's ranking enforced in storage, `ingest_runs.purpose`, and `raw_artifact_observations.artifact_origin`. Correct on its own — the vocabulary exists and is enforced, and adapters still emit `unknown` evidence.
+- **Step 15-b — PLANNED.** The release-rule registry and its evaluation against the Step 16 calendar, the purpose-to-evidence derivation, the write-side falsification rule, and the CLAUDE.md §31–32 rewrite. A versioned rule with no evaluator is a promise rather than a fact, so the registry ships with the code that reads it.
 
 Problem: No source provides a per-row publication instant (§2.2, fact 1). Under official-only evidence, imported history is Market-PIT invisible, and System PIT starts at import time (§7.3). Neither can answer the consumers' question ("what was knowable on date D?").
 
@@ -815,7 +821,7 @@ Common rules for Steps 16–24:
 
 ## Step 16 — Trading Calendar and Coverage Validator
 
-Status: **THIS PR**. Depends on: Step 14. Required by Step 15 (ADR-0020 release rules move deadlines off non-business days through this calendar).
+Status: **MERGED**. Depends on: Step 14. Required by Step 15 (ADR-0020 release rules move deadlines off non-business days through this calendar).
 
 Source contract: TWSE `FMTQIK` (one request per month, listing every actual trading day), cross-checked with TWSE `holidaySchedule` where available and with the dates of whole-market daily files. TPEx trading days must equal TWSE's for 2020 onward, or a difference must come from an official TPEx source.
 
