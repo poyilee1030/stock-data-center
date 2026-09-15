@@ -1,33 +1,125 @@
 # stock-data-center ROADMAP
 
-> Delivery is now tracked by pull request. Historical phase names are retained only as legacy references.
+> Delivery is tracked by pull request. Historical phase names are retained only as legacy references.
+>
+> Status date: 2026-09-14.
+>
+> Source-reality baseline: [`docs/source_field_audit.md`](docs/source_field_audit.md). Every planned PR in this roadmap is scoped to fields that the audit shows actually exist.
 
 ## 1. Project Goal
 
-`stock-data-center` is the single source of truth for historical Taiwan stock data used by downstream research and ML systems.
+`stock-data-center` replaces the database part of `my_stock_project` (`stock_db`) with a PIT-controlled, provenance-preserving store for Taiwan stock data used by downstream research and ML systems.
 
-Its primary responsibility is not merely to store values. It must answer:
+It must answer:
 
-> What data was valid / publicly knowable / actually ingested at a given historical time?
-
-The system must provide PIT-safe (point-in-time-safe), revision-aware, provenance-preserving access to stock data.
+> What data was valid, publicly knowable, and actually ingested at a given historical time?
 
 Primary downstream consumers:
 
 ```text
 stock-eps-model
 stock-model-selection
+(today: my_stock_project train_eps/, strategies/, backtester/)
 ```
 
 Downstream systems must never query the Data Center database directly.
 
+## 1.1 v1 scope is the legacy scope, rebuilt with PIT
+
+v1 covers what `stock_db` covers and what legacy consumers actually read, from 2020-01-02 onward, re-ingested from official sources with PIT metadata and provenance.
+
+v1 is not a superset of every field a data vendor might offer. A field enters v1 only when a verified source field populates it (§2.4).
+
+**The v1 security universe is 上市 (`sii`) and 上櫃 (`otc`) only.** 興櫃 (`rotc`) and 公開發行 companies that trade on no board (`pub`) are excluded. This is an owner decision, not an availability limit: MOPS serves all four, and the exchanges publish no daily quote file for 興櫃 at all. Where a source offers a market selector, an adapter requests `sii` and `otc` and rejects the other values at its boundary rather than filtering them out after ingestion.
+
 ---
 
-# 2. High-Level Architecture
+# 2. Source Reality Baseline
+
+Full evidence is in [`docs/source_field_audit.md`](docs/source_field_audit.md). This section lists the facts that constrain every later PR.
+
+## 2.1 Legacy scope
+
+| Domain | Legacy tables | Coverage | Read by legacy consumers |
+|---|---|---|---|
+| Daily market | `daily_quotes` | 2020-01-02 → 2026-09-11 | yes |
+| Market indices | `market_indices` | same | yes (`index_close` only) |
+| Official valuation | `pe_ratio` | same | yes |
+| Institutional flows | `institutional_investors`, `institutional_summary` | same | per-security yes; summary no |
+| Foreign holding | `foreign_holding` | same | yes (`issued_shares`, `foreign_held_ratio`) |
+| Margin / SBL | `margin_trading`, `margin_sbl`, `margin_summary` | same | per-security yes; summary no |
+| Monthly revenue | `monthly_revenue` | 2020M01 → 2026M08 | yes (published MoM/YoY/cumulative YoY) |
+| Financial statements | `*_xbrl`, `quarterly_reports_xbrl`, `xbrl_codebook` | 2020Q1 → 2026Q2 | facts yes; codebook no |
+| TDCC | `shareholding` | 2020-01-03 → 2026-09-11 | yes |
+| Security metadata | `stock_info`, `stock_tags` | current snapshots | `stock_info` yes; tags (MoneyDJ, third party) no |
+| Corporate actions | `dividend` | TWSE only, 2020-02-13 → 2026-09-10 | no |
+| Derived | `technical_indicators`, `trust_holding`, `dealer_holding`, `shareholding_concentration`, `valuation_daily`, `margin_pressure_analysis`, `short_interest_analysis` | — | yes |
+
+Legacy technical indicators and backtests use raw, unadjusted prices. Nothing in the legacy stack consumes corporate-action data.
+
+## 2.2 Source facts that constrain design
+
+1. **No inspected source publishes a per-row publication instant.** Under the current evidence rules, all imported history has `published_at = NULL` and is Market-PIT invisible. PR #15 is the decision point.
+   - The legacy system did record real first-seen capture dates, at date precision: monthly revenue from 2026M02 (daily 22:45 run, days 1–15) and XBRL from 2025Q4 (daily 23:50 run).
+   - Earlier legacy `publish_time` values are statutory deadlines assigned after the fact: the 10th of the next month for 2020M01–2026M01, and the filing deadline for 2020Q1–2025Q3.
+   - Details are in audit §7.1.
+2. **Official endpoints still serve 2020 onward for every v1 domain except TDCC.** Re-fetching produces byte-faithful raw artifacts through the PR #9 raw-first lifecycle.
+3. **The legacy raw archive is not official source bytes.** The scrapers decoded, re-encoded, stripped title rows (the report date survives only in the directory path), and parsed some domains into CSV. The only exception is the TDCC OpenData files. The archive therefore serves three purposes, and is not a general import source:
+   - TDCC history
+   - the legacy first-seen records (monthly revenue from 2026M02, XBRL from 2025Q4)
+   - a reconciliation baseline
+4. **Official TDCC history is not available.** OpenData serves only the latest week, and the portal about one year (51 weeks on 2026-09-14). Weeks before 2025-09-19 exist only in the archive, 375 weeks back to 2019-06-28 (audit §4.9).
+5. **MOPS monthly revenue and iXBRL return the latest corrected or amended values.** First-published *values* survive only where some capture recorded them: the legacy first-seen records (monthly revenue from 2026M02, XBRL from 2025Q4), then Data Center forward capture. Publication *dates* are a separate matter: for monthly revenue, `revswarm` reconstructs them from dated news reports for 89.7% of 2020M01-2026M01 (audit §7.4), so most of that history is Market-PIT visible at its real announcement date rather than at a statutory deadline.
+6. **The issuer dividend declarations are announcement feeds with no link to an executed event.** They carry no ex-date, record date, payment date, or locator; the MOPS page footnote says so itself. Within a feed `(公司代號, 股利年度, 股利所屬期間, 期別)` is a workable key, so PR #33 stores them as their own domain; they never enter `corporate_action_versions`. MOPS `t05st09sub` serves the full history one market-year per request, but the legal-reserve / capital-surplus split only exists from 民國110; before that the two reserves are published as one figure (audit §4.13).
+7. **Exchange result feeds** (`TWT49U`, `TWTAUU`, `TWTB8U`, TPEx `exDailyQ`, TPEx `revivt`) carry one row per security per executed event date, and TWSE's own detail locator is `(code, date)`.
+   - They provide: close-before and reference prices, cash dividend, combined free shares, rights terms, capital-reduction share exchange, and cash return.
+   - They do not provide: announcement, record, or payment dates, or the earnings/capital-surplus stock-dividend split.
+8. **The whole-list market-index sources carry close, change points, and change percent only.** There is no index code, open, high, low, or trade value. Index OHLC exists for the TAIEX alone, in `MI_5MINS_HIST` (`發行量加權股價指數歷史資料`, one calendar month per request, verified live), which the legacy system never fetched. No TPEx equivalent was found (audit 4.2).
+9. **The PR #9 per-security daily adapters need one request per security-month**, about 2,200 requests per trade date for daily capture. Production needs whole-market daily endpoints: one request per trade date per market.
+
+## 2.3 Unsourced columns
+
+These existing columns have no source field. They stay NULL, and no v1 PR may promise them:
+
+```text
+daily_price_versions.bid_snapshot / ask_snapshot                (depth blobs; the one published
+                                                                level is stored in last_bid_price /
+                                                                last_ask_price / last_bid_volume /
+                                                                last_ask_volume)
+market_index_versions.open_value / high_value / low_value      (TAIEX only, via MI_5MINS_HIST; see PR #18)
+market_index_versions.trade_value
+market_index_metadata_versions.effective_from / effective_to   (as official dates)
+security_tag_versions                                          (whole table; third-party only)
+corporate_action_versions.announcement_date / record_date / payment_date
+corporate_action_versions.earnings_stock_ratio / capital_surplus_stock_ratio
+                                                               (split exists only in the announcement
+                                                                feeds; PR #33 stores it separately)
+monthly_revenue_versions.currency                              (page-level constant TWD)
+publication_evidence.published_at from an official release     (no source publishes it)
+```
+
+Partially sourced columns (for example, `official_valuation_versions.dividend_per_share` is TPEx only) are listed in the audit §5.
+
+## 2.4 No-unsourced-field rule
+
+A PR may add or promise a stored field only if it names:
+
+```text
+official endpoint
+exact source field label(s)
+date range in which the field exists (header variants included)
+unit and conversion
+```
+
+The PR adds that evidence to `docs/source_field_audit.md`. A column in §2.3 stays NULL. The API reports it as unavailable, not as missing data.
+
+---
+
+# 3. High-Level Architecture
 
 ```text
 External Sources
-TWSE / TPEx / MOPS / TDCC / other approved sources
+TWSE / TPEx / MOPS / TDCC
                   |
                   v
         +----------------------+
@@ -50,17 +142,9 @@ TWSE / TPEx / MOPS / TDCC / other approved sources
         +----------+-----------+
                    ^
                    |
-             cache miss only
-                   |
         +----------+-----------+
         |   PIT Resolver       |
         | market / system PIT  |
-        +----------+-----------+
-                   ^
-                   |
-        +----------+-----------+
-        | Optional Cache Layer |
-        | NullCache / Redis    |
         +----------+-----------+
                    ^
                    |
@@ -76,64 +160,37 @@ TWSE / TPEx / MOPS / TDCC / other approved sources
  stock-eps-model    stock-model-selection
 ```
 
-Redis is optional infrastructure.
+PostgreSQL is authoritative. A query-result cache (NullCache/Redis) may sit between the API and the resolver later, but it is not part of v1 delivery (§26.2).
 
-PostgreSQL remains authoritative in every deployment mode.
+## 3.1 The fetch boundary
 
----
-
-# 3. Deployment Modes
-
-Both modes are first-class supported deployments.
-
-## 3.1 Minimal Mode
+Ingestion is written as a one-way data flow, even though v1 runs all of it in one process:
 
 ```text
-CACHE_BACKEND=none
-
-Client
-  |
-  v
-stock-data-center
-  |
-  v
-PostgreSQL
+expected coverage        what each dataset should hold for each period
+        |                (PR #16, from the trading calendar)
+        v
+reconcile                compare against what is stored
+        |
+        v
+fetch jobs               a serializable request + a purpose:
+        |                first_capture | gap_fill | correction_check
+        v
+fetch                    SourceFetcher: job -> FetchedArtifact
+        |
+        v
+raw-first ingest         parse, version, and record the purpose on the ingest run
 ```
 
-No Redis installation is required.
+Two properties make this worth writing down now.
 
-## 3.2 Cached Mode
+**The purpose is decided when the job is issued, never inferred after the fetch.** It selects the evidence type (§9). A `first_capture` produces `capture_bound`; a `gap_fill` or `correction_check` produces none and the version falls back to its release rule. Without this, a row fetched in 2027 because a query noticed it was missing would claim `capture_bound` 2027 and stay invisible to Market PIT for all of 2026 — publication time would become a function of when somebody happened to look.
 
-```text
-CACHE_BACKEND=redis
-REDIS_URL=redis://<redis-host>:6379
+**Fetching is already replaceable.** `SourceFetcher` is a one-method Protocol, adapters only describe a resource and parse bytes, and `FetchedArtifact.fetched_at` is explicit data rather than the caller's `now()`, so a fetch performed elsewhere or earlier carries an honest timestamp. Moving fetching out of process later means supplying a different `SourceFetcher` and replacing the in-process job list with a real queue. No adapter, evidence rule, or writer changes.
 
-Client
-  |
-  v
-stock-data-center
-  |
-  v
-Redis query-result cache
-  |
- miss
-  v
-PostgreSQL
-```
+v1 builds no queue and no separate service. The flow above is the shape, not the topology. What would justify splitting it out is a second consumer, or a source that needs more than one egress IP — neither exists today. The real pressure that does exist is the shared MOPS request budget (§13), which the rate governor in PR #20 addresses inside one process.
 
-Redis may run on a separate high-memory machine.
-
-Recommended initial Redis deployment for a dedicated 64 GB RAM machine:
-
-```text
-RAM-only cache
-maxmemory ≈ 40–48 GB
-eviction policy: allkeys-lfu
-AOF: off
-RDB persistence: off
-```
-
-Exact resource settings are operational configuration, not application semantics.
+The risk this section exists to prevent: adapters that decide what to fetch, call the fetcher, and judge evidence inline. That works in one process and is invisible until the day it has to be split, at which point "what needs fetching" is scattered across a dozen adapters with nowhere to list it.
 
 ---
 
@@ -141,11 +198,9 @@ Exact resource settings are operational configuration, not application semantics
 
 ## Invariant A — PostgreSQL is the source of truth
 
-Redis is never authoritative.
+Any cache is never authoritative. Deleting a cache must not change correctness.
 
-Deleting the entire Redis dataset must not change correctness.
-
-## Invariant B — Redis is optional
+## Invariant B — A cache is optional
 
 The application must work correctly with:
 
@@ -153,17 +208,15 @@ The application must work correctly with:
 CACHE_BACKEND=none
 ```
 
-## Invariant C — Cache affects performance only
+## Invariant C — A cache affects performance only
 
-For the same canonical query:
+If a cache is ever added, then for the same canonical query:
 
 ```text
 result(cache=none) == result(cache=redis)
 ```
 
-Redis availability, failure, eviction, restart, or absence must never change the returned PIT result.
-
-## Invariant D — Downstream systems never access PostgreSQL or Redis directly
+## Invariant D — Downstream systems never access PostgreSQL or a cache directly
 
 Only the Data Center API / SDK is public.
 
@@ -174,6 +227,41 @@ Downstream code must not recreate publication-time, revision, or ingestion-time 
 ## Invariant F — Current DB state is not historical truth
 
 Historical visibility is determined from temporal metadata and evidence, never from "row exists today".
+
+## Invariant G — Corporate-action identity must survive corrections
+
+A normalized corporate-action event has identity `(security_id, source, source_event_key)`, and that identity survives corrections to the event's terms.
+
+There are two kinds of source.
+
+**1. Announcement/plan feeds**
+
+Examples: issuer dividend summaries `t187ap45_L` and `mopsfin_t187ap39_O`, and exchange forecast tables such as `TWT48U`. Their dates and terms are plans that can change.
+
+The following are revision content and must never form identity:
+
+```text
+action_type, board/announcement/ex/record/payment dates, cash amount,
+stock or share ratio, reference price, dividend year/period, row ordinal,
+company name, adapter version
+```
+
+No announcement feed has a proven stable identity, so announcement feeds never enter `corporate_action_versions`. The abandoned dividend-summary pilot falsified `(security, dividend_year, period)` on live TPEx data (§21.3).
+
+**2. Exchange result feeds**
+
+`TWT49U`, `TWTAUU`, `TWTB8U`, TPEx `exDailyQ`, and TPEx `revivt`. Each row records an event the exchange executed and priced on a trading date.
+
+- The executed event date, or the exchange's own detail locator where one exists, is the event's identity, not revision content:
+
+  ```text
+  source_event_key = "<feed>:<locator date>"
+  ```
+
+- Changed terms under the same locator are revisions of the same event.
+- A row that disappears from the feed is recorded as a retraction.
+
+Current-snapshot uniqueness is required evidence, not proof. A result-feed adapter must also pass the full-history duplicate scan and the correction regressions in §27.7.
 
 ---
 
@@ -191,52 +279,21 @@ PostgreSQL             18+
 pytest
 httpx
 Docker / Docker Compose
-Redis                  optional
-redis-py               optional runtime dependency
+Redis                  optional, deferred (§26.2)
 ```
 
-Docker PostgreSQL image:
+Docker PostgreSQL image: `postgres:18`. Do not use `postgres:latest`.
 
-```text
-postgres:18
-```
-
-Do not use `postgres:latest`.
-
-Raw artifact storage v1:
-
-```text
-local filesystem
-data/raw/
-```
-
-Access must be behind an abstraction so S3 / MinIO / NAS can be added later.
+Raw artifact storage v1 is the local filesystem under `data/raw/`, behind an abstraction so S3, MinIO, or NAS can be added later.
 
 ---
 
 # 6. Time Model
 
-All externally meaningful timestamps are timezone-aware.
+All externally meaningful timestamps are timezone-aware. The source-market timezone is `Asia/Taipei`. Internally, prefer UTC instants.
 
-Source-market timezone:
-
-```text
-Asia/Taipei
-```
-
-Internally prefer UTC instants.
-
-PostgreSQL:
-
-```text
-TIMESTAMPTZ
-```
-
-SQLAlchemy:
-
-```python
-DateTime(timezone=True)
-```
+- PostgreSQL: `TIMESTAMPTZ`
+- SQLAlchemy: `DateTime(timezone=True)`
 
 Never silently mix naive and timezone-aware datetimes.
 
@@ -244,76 +301,34 @@ Never silently mix naive and timezone-aware datetimes.
 
 # 7. PIT Semantics
 
-The system supports two distinct PIT questions.
-
 ## 7.1 Market PIT
-
-Question:
 
 > What was publicly knowable at market-information time T, using only publication evidence known to the Data Center by knowledge time K?
 
-Market PIT uses two clocks:
-
-```text
-information_as_of
-knowledge_as_of
-```
-
-Core semantics:
-
 ```text
 published_at <= information_as_of
-
 AND
-
 publication_evidence.recorded_at <= knowledge_as_of
 ```
 
 Then resolve the authoritative evidence available under that knowledge cutoff.
 
-This permits two valid reconstruction modes.
-
-### Historically reproducible reconstruction
-
-```text
-information_as_of = historical market cutoff
-knowledge_as_of   = historical Data Center knowledge cutoff
-```
-
-### Current-best market reconstruction
-
-```text
-information_as_of = historical market cutoff
-knowledge_as_of   = current explicit timestamp
-```
-
-The second may improve as new historical publication evidence is discovered.
-
 ## 7.2 System PIT
-
-Question:
 
 > What had this Data Center actually and completely ingested by time T?
 
-System PIT uses:
-
 ```text
-system_as_of
-```
-
-For a single-row immutable version:
-
-```text
-ingested_at <= system_as_of
-```
-
-For a parent+children aggregate:
-
-```text
-seal.ingested_at <= system_as_of
+ingested_at <= system_as_of           (single-row immutable version)
+seal.ingested_at <= system_as_of      (parent+children aggregate)
 ```
 
 Only sealed aggregates are visible.
+
+## 7.3 What these modes can answer for backfilled history
+
+- System PIT for a backfilled row starts at its actual import time (2026 onward). It cannot answer "what was known on 2023-05-15?". By design, it never will.
+- Market PIT can answer that question only when a version has accepted evidence with a non-null `published_at`. No source publishes one (§2.2, fact 1).
+- Until PR #15 is decided, backfilled history is Market-PIT invisible. That is a correct result, but the ML consumers cannot use it.
 
 ---
 
@@ -321,152 +336,57 @@ Only sealed aggregates are visible.
 
 Business content and publication evidence are separate version chains.
 
-Example:
+Publication evidence is append-only. Improved or corrected evidence creates superseding evidence; old evidence rows are not updated.
+
+Never invent historical publication time. If it is unknown:
 
 ```text
-business version A
-    revenue = 100
-
-publication evidence #1
-    published_at = NULL
-    recorded_at = T1
-    type = unknown
-
-publication evidence #2
-    published_at = 2026-07-10
-    recorded_at = T2
-    type = official
-    supersedes #1
+published_at = NULL
 ```
 
-The discovery of better publication evidence must not create a fake business revision.
+A rule-derived bound is not an invented time only if it is recorded as its own evidence type, with a versioned rule id, a lower quality rank than official evidence, and explicit per-source acceptance. PR #15 decides whether v1 accepts such bounds.
 
-Publication evidence is append-only.
+Because evidence is a separate chain, evidence approved later can be appended to versions that are already stored, without rewriting business history.
 
-Correction:
-
-```text
-new evidence supersedes old evidence
-```
-
-Retraction:
-
-```text
-new retraction evidence supersedes prior evidence
-```
-
-Never UPDATE historical evidence rows.
+A source-system publication locator is not automatically a business-event identity (see Invariant G).
 
 ---
 
 # 9. Immutable Aggregate Semantics
 
-Complex datasets such as XBRL filings and TDCC snapshots are immutable aggregates.
-
-Examples:
+Complex datasets such as XBRL filings and TDCC snapshots are immutable aggregates:
 
 ```text
-financial_filing_versions
-  + financial_facts
-  + quarterly_financial_summary
-
-tdcc_snapshot_versions
-  + tdcc_distribution
+draft → children written / validated → seal → visible + immutable
 ```
 
-Lifecycle:
-
-```text
-draft
-  |
-  v
-children written / validated
-  |
-  v
-seal
-  |
-  v
-visible + immutable
-```
-
-Hard rule:
-
-> Only sealing makes a complex aggregate visible.
-
-A committed draft may exist.
-
-It must remain invisible to PIT resolvers.
-
-After sealing, DB constraints/triggers must reject:
-
-```text
-parent UPDATE
-parent DELETE
-child INSERT
-child UPDATE
-child DELETE
-```
-
-Prefer dataset-specific seal tables with real foreign keys rather than loose polymorphic `(aggregate_type, version_id)` references.
-
-Example:
-
-```text
-financial_filing_seals
-tdcc_snapshot_seals
-```
+Only sealing makes a complex aggregate visible. After sealing, DB constraints and triggers must reject parent/child mutation. Prefer dataset-specific seal tables with real foreign keys.
 
 ---
 
 # 10. Ingestion-Time Semantics
 
-Normal callers must not provide authoritative historical `ingested_at`.
+Normal callers must not provide an authoritative historical `ingested_at`.
 
-For single-row immutable versions, system ingestion time should be generated by trusted storage / DB logic when the complete version is inserted.
+- For single-row immutable versions, trusted storage/DB logic generates system ingestion time.
+- For complex aggregates, the authoritative system visibility time is generated when the aggregate is sealed.
 
-For complex aggregates, authoritative system visibility time is generated when the aggregate is sealed.
-
-Historical migration requiring preserved timestamps must use a separate trusted migration path with:
-
-```text
-explicit provenance
-restricted code path
-tests
-audit documentation
-```
+A historical migration that must preserve timestamps needs a separate trusted migration path with explicit provenance and tests.
 
 ---
 
 # 11. Hash Boundaries
 
-Do not use one ambiguous `content_hash`.
-
-Maintain separate identities.
-
-## 11.1 `business_content_hash`
-
-Contains canonical business values only.
-
-Must not include:
+Keep these separate:
 
 ```text
-published_at
-recorded_at
-raw_artifact_id
-ingest_run_id
-fetch time
-seal time
+business_content_hash
+publication_evidence_hash
+raw_artifact_hash
 ```
 
-## 11.2 `publication_evidence_hash`
-
-Represents canonical publication evidence.
-
-## 11.3 `raw_artifact_hash`
-
-```text
-SHA256(raw bytes)
-```
+- `business_content_hash` covers canonical business values only.
+- `raw_artifact_hash` is SHA-256 over the raw bytes.
 
 Repeated fetches with identical business content must preserve ingest/raw lineage without creating false business revisions.
 
@@ -474,803 +394,161 @@ Repeated fetches with identical business content must preserve ingest/raw lineag
 
 # 12. Source-Level Capability
 
-PIT capability belongs to a dataset+source combination, not merely a dataset.
+PIT capability belongs to a dataset+source combination, recorded in `dataset_sources`. One source's verified semantics must never authorize another source.
 
-Use concepts such as:
-
-```text
-dataset_catalog
-dataset_sources
-```
-
-`dataset_catalog` owns schema/domain metadata.
-
-`dataset_sources` owns:
-
-```text
-dataset_code
-source
-supports_market_pit
-supports_system_pit
-publication_time_quality
-evidence_status
-is_canonical
-```
-
-Do not allow one source's verified publication semantics to leak into another source.
+Accepted evidence types are declared per `(dataset_code, source)` (ADR-0010). Today the raw-first lifecycle hard-codes `official`. PR #15 moves that declaration into each adapter's source policy.
 
 ---
 
 # 13. Cross-Source Policy
 
-Version 1 preserves source histories separately.
+Version 1 preserves source histories separately. Do not silently average, merge, overwrite, or pick the latest-ingested source.
 
-Do not silently:
+If no canonical-source policy exists and multiple sources are possible, require explicit source selection or return separated source results. Any reconciliation policy requires an ADR and permanent regression tests.
 
-```text
-average
-merge
-overwrite
-pick the latest-ingested source
-```
+Two endpoints of the same source must not write alternating revisions of the same logical key. If they cover different fields, give them distinct source codes or retire one of them from production (PR #17).
 
-If a canonical source exists, configure it explicitly.
-
-If no canonical-source policy exists and multiple sources are possible, require the caller to select a source or return clearly separated source results.
-
-Any reconciliation policy requires an ADR and tests.
+Issuer/MOPS summary feeds and exchange result feeds must not be joined into an authoritative event link using security/date/amount/ratio heuristics.
 
 ---
 
 # 14. Raw Artifact and Provenance Rules
 
-Every normalized version/evidence record must be traceable to ingestion provenance where applicable.
-
-Core concepts:
+Every normalized version and evidence record must be traceable to ingestion provenance:
 
 ```text
-ingest_runs
-raw_artifacts
-normalized business versions
-publication evidence
+ingest_runs → raw_artifacts → normalized business versions → publication evidence
 ```
 
-Where both `raw_artifact_id` and `ingest_run_id` are stored, use DB constraints/composite foreign keys to ensure the artifact truly belongs to that run.
+Raw artifacts are content-addressed and immutable. Never overwrite an existing raw artifact with different bytes.
 
-Raw artifacts are content-addressed and immutable.
+Artifact origin:
 
-Do not overwrite an existing raw artifact with different bytes.
+```text
+official_fetch   default; bytes exactly as returned by the official endpoint
+legacy_archive   only where an archive holds something no official re-fetch
+                 can provide:
+                   - TDCC weeks before forward capture, from the archive
+                     named in PR #24
+                   - legacy first-seen monthly-revenue rows (2026M02 onward)
+                   - XBRL documents for 2020Q1 onward (PR #23)
+                 The ingest run records the archive path and file mtime, and
+                 for a compressed member the archive entry name as well.
+                 fetched_at is the Data Center's read time.
+                 Where the archive's own filename disagrees with the payload,
+                 the payload wins and the file is rejected (PR #24).
+
+v1 depends on archives that no official endpoint can reproduce: the TDCC
+`shareholding` archive, the legacy XBRL documents, and the legacy monthly-revenue
+`market.csv`, which now carries both the 2026M02-onward first-seen rows and the
+`revswarm` announcement dates written back into it. `revswarm.db` itself is not
+a dependency; its result is in the CSV.
+
+By owner decision all of them stay under `~/GitHubLL/my_stock_project/data/raw`
+for now, the TDCC archive included. PR #32 must not declare cutover complete
+while a v1 rebuild still depends on a path outside this repository.
+
+`stock-data-center/data/raw` is therefore the content-addressed artifact store
+and nothing else. Keeping source archives out of it matters beyond tidiness:
+`LocalRawArtifactStore.read` validates a `storage_uri` only by checking that it
+resolves under the store root, so an archive nested inside that root would let
+a `storage_uri` pointing straight at an archive file pass the integrity check.
+With the archives outside, that is structurally impossible.
+```
 
 ---
 
 # 15. XBRL Context Identity
 
-XBRL fact identity must not rely only on concept + dates.
+XBRL fact identity must not rely only on concept + dates. Use a non-null canonical `context_hash` covering entity, period, dimensions, and scenario/segment as applicable. Prefer full QName / namespace-aware concept identity.
 
-Use a non-null canonical:
-
-```text
-context_hash
-```
-
-Canonical context should represent, as applicable:
-
-```text
-entity
-period type
-instant / start / end
-explicit dimensions
-typed dimensions
-scenario
-segment
-```
-
-Dimension collections must be canonically ordered.
-
-Prefer full concept QName / namespace-aware identity.
-
-A robust fact identity should include at least:
-
-```text
-filing version
-concept QName
-context_hash
-unit identity
-```
+The MOPS iXBRL documents provide contexts with explicit dimensions, units, and decimals (audit §4.8), so this model is sourced.
 
 ---
 
-# 16. Optional Cache Architecture
+# 16. Data Domain Ownership and v1 Coverage
 
-The cache sits above the PIT resolver.
+`stock-data-center` owns observed source datasets and canonical reusable derived datasets. It does not own model-specific experimental features.
 
-```text
-API
- |
- v
-Application Service
- |
- v
-Cache Backend
- |       |
- HIT    MISS
- |       |
- |       v
- |   PIT Resolver
- |       |
- |       v
- |   PostgreSQL
- |       |
- |    normalized
- |     result
- |       |
- +<-- cache SET
- |
- v
-response
-```
+| Domain | v1 | Official source (audit section) | Notes |
+|---|---|---|---|
+| Security identity / metadata / lifecycle | MERGED (#10, #11) | `t187ap03_L`, `mopsfin_t187ap03_O`, listing/delisting history | current name/industry only; no historical industry changes |
+| Trading calendar | PR #16 | TWSE `FMTQIK` (§4.12) | |
+| Daily prices | PR #17 | TWSE `MI_INDEX`, TPEx `stk_wn1430` (§4.1) | bid/ask snapshots unsourced |
+| Market indices | PR #18 | `MI_INDEX` index sections, TPEx `indexSummary` (§4.2); `MI_5MINS_HIST` for TAIEX OHLC | close / change for all; OHLC for the TAIEX only |
+| Official valuation | PR #18 | `BWIBBU_d`, TPEx `pera` (§4.6) | |
+| Corporate actions (exchange results) | PR #19 | `TWT49U`, `TWTAUU`, `TWTB8U`, TPEx `exDailyQ`, `revivt` (§4.10) | no announcement/record/payment dates |
+| Institutional flows / summary, foreign holding | PR #20 | `T86`, `BFI82U`, `MI_QFIIS`, TPEx `3itrade_hedge`, `3itrdsum`, MOPS `t13sa150_otc` (§4.3–4.4) | |
+| Margin / SBL | PR #21 | `MI_MARGN`, `TWT93U`, TPEx `margin_bal`, `margin_sbl` (§4.5) | |
+| Monthly revenue | PR #22 | MOPS `t21sc03` `_0`/`_1` (§4.7) | adds KY issuers missing from legacy |
+| Financial statements | PR #23 | MOPS `t164sb01` iXBRL (§4.8) | financial industry excluded, as in legacy |
+| Issuer dividend declarations | PR #33 | MOPS `t05st09sub` per market-year; OpenAPI `t187ap45_L` / `mopsfin_t187ap39_O` as cross-checks (§4.13) | new domain; reserve split only from ROC 110 |
+| TDCC | PR #24 | OpenData + the consolidated archive, 375 weeks (§4.9) | |
+| Adjusted prices | PR #25 | derived from exchange reference prices | |
+| Canonical derived metrics | PR #26 | derived | ports of legacy calculators |
+| Stock tags, XBRL codebook, margin market summary | not in v1 | — | no official source or no consumer |
 
-Do not put Redis-specific code inside:
-
-```text
-API routes
-SQL repositories
-PIT resolver logic
-```
-
-Use a cache abstraction.
-
-Suggested package:
-
-```text
-src/stock_data_center/cache/
-    base.py
-    null_cache.py
-    redis_cache.py
-    keys.py
-    codec.py
-    policy.py
-```
-
-Suggested interface:
-
-```python
-class Cache:
-    def get(self, key: str): ...
-    def set(self, key: str, value, ttl_seconds: int): ...
-```
-
-Implementations:
-
-```text
-NullCache
-RedisCache
-```
+The field-level inventory is `docs/data_domain_inventory.md`/`.json`. PR #14 aligns it with the audit. No known v1 domain may silently become unmapped.
 
 ---
 
-# 17. Cache Granularity
+# 17. Canonical Derived Dataset Contract
 
-Prefer caching normalized, PIT-resolved query results rather than individual PostgreSQL rows.
-
-Good cache targets:
-
-```text
-historical universe result
-resolved financial query
-resolved revenue query
-resolved TDCC snapshot query
-price-window query
-large cohort-level Data Center response
-```
-
-The goal is to avoid repeating:
-
-```text
-disk/page reads
-SQL scans
-joins
-revision resolution
-publication evidence resolution
-normalization
-```
-
-Do not make PostgreSQL table-row layout part of the Redis public contract.
-
----
-
-# 18. PIT-Aware Cache Keys
-
-A cache key is part of correctness.
-
-A cache key must be derived from a canonical request.
-
-At minimum include all semantically relevant fields:
-
-```text
-cache contract version
-response schema version
-resolver semantics version
-dataset / endpoint
-all business query parameters
-source
-pit mode
-
-market PIT:
-    information_as_of
-    knowledge_as_of
-
-system PIT:
-    system_as_of
-```
-
-Example canonical payload:
-
-```json
-{
-  "cache_contract_version": "v1",
-  "response_schema_version": "v1",
-  "resolver_version": "v1",
-  "dataset": "monthly_revenue",
-  "security_id": "2330",
-  "period": "2026-06",
-  "source": "mops",
-  "pit_mode": "market",
-  "information_as_of": "2026-07-10T15:59:59Z",
-  "knowledge_as_of": "2026-07-10T15:59:59Z"
-}
-```
-
-Then:
-
-```text
-SHA256(canonical_json)
-```
-
-Example key:
-
-```text
-stockdc:cache-v1:monthly_revenue:<digest>
-```
-
-Omitting PIT cutoffs from the cache identity is a P0 correctness bug.
-
----
-
-# 19. Cache Policy
-
-Version 1 may use simple TTL-based caching.
-
-Suggested starting policy:
-
-```text
-explicit historical system PIT     long TTL
-explicit historical market PIT     long/moderate TTL
-current/latest aliases              short TTL
-security metadata                   moderate TTL
-```
-
-Important:
-
-Before constructing a cache key, aliases such as:
-
-```text
-now
-latest
-```
-
-should be resolved to explicit canonical timestamps/policies when possible.
-
-Exact TTL values are configuration.
-
-Do not encode correctness in TTL alone.
-
----
-
-# 20. Cache Invalidation / Namespace Rules
-
-Prefer immutable-key evolution over broad manual deletion.
-
-Use versions such as:
-
-```text
-CACHE_CONTRACT_VERSION
-RESPONSE_SCHEMA_VERSION
-PIT_RESOLVER_VERSION
-```
-
-When semantics change, bump the relevant namespace/version.
-
-Trusted migrations that intentionally backdate temporal metadata can invalidate previously cached historical results. Such migrations must therefore:
-
-```text
-purge affected cache namespace/range
-or
-bump resolver/cache namespace
-```
-
-This requirement must be documented in the migration plan.
-
----
-
-# 21. Redis Failure Semantics
-
-Redis failure must degrade performance only.
-
-If:
-
-```text
-CACHE_BACKEND=redis
-```
-
-but Redis is unavailable:
-
-```text
-cache GET error
-  |
-  v
-log / metric
-  |
-  v
-bypass cache
-  |
-  v
-PostgreSQL
-```
-
-Cache SET failure must not fail a correct Data Center response.
-
-Use short network timeouts.
-
-A later phase may add a circuit breaker / temporary unhealthy state to prevent repeated connection delays.
-
----
-
-# 22. Redis Persistence
-
-Redis is a disposable cache.
-
-Default recommendation for the dedicated cache host:
-
-```text
-appendonly no
-save ""
-```
-
-Redis restart may empty the cache.
-
-The Data Center must recover automatically through cache misses.
-
-Do not depend on Redis persistence for correctness or audit history.
-
----
-
-# 23. Data Domain Ownership and v1 Storage Coverage
-
-`stock-data-center` owns two kinds of reusable data:
-
-```text
-A. observed/source datasets
-B. canonical reusable derived datasets
-```
-
-It does NOT own model-specific experimental features.
-
-The boundary is:
-
-```text
-stock-data-center
-=
-historically observable source data
-+
-deterministic, cross-repo, canonical derived data
-
-stock-eps-model / stock-model-selection
-=
-model-specific transformations
-+
-feature combinations
-+
-labels
-+
-training logic
-```
-
-A useful ownership test is:
-
-> If all current ML models disappeared tomorrow, would this value still have a stable and independently meaningful financial definition?
-
-If yes, it may belong in Data Center.
-
-Examples that may belong in Data Center:
-
-```text
-MA20
-20-day historical volatility
-TTM EPS
-ROE
-foreign holding ratio
-large-holder concentration
-margin usage ratio
-official PE/PB/dividend yield
-```
-
-Examples that do NOT belong in Data Center:
-
-```text
-selection_score_v4
-quality_momentum_combo
-eps_growth_signal_weighted
-model-specific interaction terms
-```
-
----
-
-# 24. v1 Data Domain Inventory
-
-Phase 1 must define the complete storage contract for every known Data Center v1 domain, even if later phases populate the tables.
-
-The authoritative inventory document is:
-
-```text
-docs/data_domain_inventory.md
-```
-
-It must map every relevant legacy table/domain to one of:
-
-```text
-observed/source dataset
-canonical derived dataset
-model-specific feature
-raw-artifact-only field
-deprecated / intentionally removed
-```
-
-The inventory must also document:
-
-```text
-legacy table / field
-new dataset/domain
-new table(s)
-storage class
-PIT semantics
-source
-materialized or virtual
-migration/backfill status
-downstream consumers
-```
-
-No known v1 legacy domain may remain unmapped when Phase 1 is accepted.
-
-## 24.1 Observed / Source Data Domains
-
-The Phase 1 schema contract must include storage for the following known v1 domains.
-
-### Core identity / provenance
-
-```text
-security
-security metadata history
-dataset catalog
-dataset-source capabilities
-ingest runs
-raw artifacts
-raw artifact observations
-publication evidence
-```
-
-### Market data
-
-```text
-daily stock trading/price data
-market indices
-official daily valuation data where source-provided
-corporate actions
-```
-
-The legacy `daily_quotes` inventory must be reviewed field-by-field.
-
-At minimum decide the v1 disposition of:
-
-```text
-OHLC
-volume
-trade value
-trade count
-price change
-bid/ask fields
-other source-observable fields
-```
-
-Do not silently drop a legacy observable field without recording its disposition in `docs/data_domain_inventory.md`.
-
-### Revenue
-
-```text
-monthly revenue
-```
-
-Derived values such as:
-
-```text
-MoM
-YoY
-cumulative revenue
-cumulative YoY
-```
-
-do not need to be duplicated as observed source values when they can be deterministically derived from PIT-safe revenue history, unless the source-published value itself is intentionally preserved as a distinct source fact.
-
-### Financial / XBRL
-
-```text
-financial filing versions
-financial facts
-curated quarterly summary
-historical actual EPS
-filing publication evidence
-```
-
-### TDCC / ownership distribution
-
-```text
-TDCC snapshots
-TDCC distribution buckets
-```
-
-### Institutional / chip-flow source data
-
-The v1 storage contract must cover the source data required to reproduce legacy institutional/chip-flow features, including as applicable:
-
-```text
-institutional investor buy/sell/net flow
-foreign investor data
-investment trust data
-dealer data
-foreign holding
-trust holding
-dealer holding
-```
-
-The exact table decomposition may be unified by investor category or separated by source/domain, but it must be explicitly decided in Phase 1.
-
-### Margin / securities lending
-
-The v1 storage contract must include:
-
-```text
-margin trading
-short selling / margin-short data
-securities borrowing and lending (SBL)
-```
-
-These are source datasets.
-
-Derived pressure/ratio signals are separate canonical derived datasets.
-
-### Corporate actions
-
-The v1 schema must define a domain for:
-
-```text
-cash dividends
-stock dividends
-rights
-ex-dividend / ex-right events
-other supported corporate actions
-```
-
-This domain is required for future adjusted-price and total-return correctness.
-
-### Market indices
-
-The v1 schema must define index history used by:
-
-```text
-market-regime features
-benchmarks
-backtests
-```
-
-### Official source valuation
-
-If the upstream source publishes values such as:
-
-```text
-PE
-PB
-dividend yield
-```
-
-those source-published values may be stored as observed source data.
-
-Do not confuse source-published valuation with Data Center-computed valuation metrics.
-
----
-
-# 25. Canonical Derived Dataset Contract
-
-Data Center may materialize or virtually calculate deterministic derived datasets that are reused across repositories.
-
-Initial v1 canonical derived domains should include, where formulas are frozen:
-
-```text
-technical indicators
-shareholding concentration
-valuation metrics
-margin metrics
-short-interest / SBL metrics
-```
-
-Potential materialized storage concepts include:
-
-```text
-derived_dataset_definitions
-
-technical_indicator_versions
-shareholding_concentration_versions
-valuation_metric_versions
-margin_metric_versions
-short_interest_metric_versions
-```
-
-Exact table decomposition must be decided in Phase 1 and documented in `docs/schema.md` and `docs/data_domain_inventory.md`.
-
-## 25.1 Derivation Version
-
-Every canonical derived dataset must have an explicit:
+Every canonical derived dataset requires:
 
 ```text
 derivation_version
-```
-
-Example:
-
-```text
-technical_indicators:v1
-```
-
-A formula change must create a new derivation version.
-
-Do not silently overwrite historical values with a new implementation.
-
-## 25.2 Derivation Definition
-
-The system must preserve enough information to identify the formula semantics.
-
-At minimum:
-
-```text
-dataset code
-derivation version
 formula/specification
 implementation version or git commit
-input dataset requirements
-timezone/calendar convention where relevant
+input requirements
+PIT-safe input lineage
+calendar/timezone convention where relevant
 adjustment convention where relevant
-created/registered time
 ```
 
-## 25.3 Derived PIT Semantics
+`computed_at` is computation provenance, not market publication time.
 
-A derived value is not automatically a new market publication event.
+v1 derived datasets are ports of what legacy consumers read (PR #26). Composite legacy "pressure scores" stay downstream.
 
-For market PIT:
-
-> Visibility of a derived metric is inherited from the PIT-safe inputs and formula version used to compute it.
-
-For example:
-
-```text
-MA20 at historical date T
-```
-
-must be computed only from price inputs visible under that query's PIT context.
-
-Similarly:
-
-```text
-TTM EPS
-shareholding concentration
-margin usage ratio
-```
-
-must use only input versions available under the requested PIT context.
-
-`computed_at` means:
-
-```text
-when Data Center calculated/materialized the result
-```
-
-It does NOT mean:
-
-```text
-when the market could know the underlying information
-```
-
-Do not use `computed_at` as `published_at`.
-
-## 25.4 Derived Lineage
-
-A materialized derived result must preserve:
-
-```text
-derivation_version
-input dataset identity
-input/query lineage or deterministic input fingerprint
-PIT context used
-computation provenance
-business-content hash
-```
-
-Repeated recomputation with identical inputs and derivation version must not create a semantically different result.
-
-## 25.5 Materialized vs Virtual
-
-Canonical derived datasets may be:
-
-```text
-materialized in PostgreSQL
-or
-computed on demand and cached
-```
-
-The storage policy is a performance decision.
-
-The financial definition and PIT result must be the same.
+Materialization in v1 stores one rolling as-of series per metric: each observation date is computed from inputs visible at that date's cutoff. Other PIT contexts are computed on demand, not materialized. Materialized and on-demand results must match for the same PIT context.
 
 ---
 
-# 26. Delivery Model — Pull-Request-Based Roadmap
+# 18. Corporate-Action / Price Contract
 
-The project is delivered and tracked by **pull request**, not by implementation phase.
-
-The earlier phase model was useful while defining architecture, but it became misleading once
-real-source ingestion required multiple independently reviewable PRs. From this point forward:
+Official daily OHLC is observed source data. Never rewrite raw historical OHLC to remove a mechanical discontinuity. Never infer a corporate action solely from a large price jump.
 
 ```text
-architecture / invariants / domain contracts
-                ↓
-        stable long-lived rules
-
-PR #N
-    one dominant delivery goal
-    explicit dependencies
-    explicit in-scope / out-of-scope
-    permanent regression tests
-    acceptance report / evidence
-                ↓
-PR #N+1
+raw official OHLC
++ exchange result-feed events (PR #19)
+-> versioned adjustment factors
+-> adjusted OHLC
 ```
 
-A PR is the unit of:
+The v1 adjustment convention is the exchange reference-price ratio:
 
 ```text
-planning
-implementation
-review
-correctness approval
-merge
-rollback reasoning
-historical traceability
+factor(D) = official_reference_price(D) / close_before(D)
 ```
 
-Do not claim that a broad "phase" is complete merely because one PR under that topic merged.
+It applies to each ex-right/ex-dividend date and each capital-reduction or par-value resumption date D. Because the reference price already removes cash dividends, this convention yields a dividend-reinvested (total-return-style) adjusted series. A price-only series that excludes cash dividends is not in v1.
 
-Historical ADRs, reports, branch names, or comments may retain old `Phase N` terminology.
-They are historical artifacts and do not need to be renamed solely to match this roadmap.
+An event affects an adjusted series only under a PIT context in which that event's evidence is visible.
 
-## 26.1 PR Planning Rules
+---
 
-Every planned implementation PR must define:
+# 19. Delivery Model — Pull-Request-Based Roadmap
+
+A PR is the unit of planning, implementation, review, correctness approval, merge, rollback reasoning, and historical traceability.
+
+Each PR defines:
 
 ```text
 goal
 dependencies
-source/data contract
+source/data contract (endpoints and exact fields, per §2.4)
 schema impact
-PIT impact
+PIT / evidence impact
 provenance impact
 migration impact
 test plan
@@ -1278,60 +556,15 @@ acceptance criteria
 explicit out-of-scope work
 ```
 
-A PR should have one dominant reason to exist.
+Status values: `MERGED`, `IN REVIEW`, `PLANNED`, `BLOCKED`, `SUPERSEDED`.
 
-If review reveals a second independent architectural problem, prefer either:
-
-```text
-fix it inside the current PR when it is required for that PR's correctness
-or
-create a dedicated follow-up PR when it is independently reviewable
-```
-
-Do not expand a PR merely because adjacent work is convenient.
-
-## 26.2 PR Status Vocabulary
-
-Use only:
-
-```text
-MERGED
-IN REVIEW
-PLANNED
-BLOCKED
-SUPERSEDED
-```
-
-`MERGED` means the PR's acceptance criteria passed and the result is on `main`.
-
-`IN REVIEW` means implementation exists but merge is not yet approved.
-
-`PLANNED` means scope is defined but implementation has not been accepted.
-
-`BLOCKED` means a named dependency or correctness issue prevents implementation/merge.
-
-`SUPERSEDED` means another PR intentionally replaced the planned work.
-
-## 26.3 Planned PR Numbers
-
-The numbers below are the intended next GitHub PR numbers.
-
-If an emergency/hotfix PR consumes a number, do not force history to match this document.
-Instead:
-
-```text
-preserve the actual GitHub PR number
-update this ledger immediately
-keep dependency ordering explicit
-```
-
-The semantic order matters more than preserving a predicted number.
+If a required correctness criterion fails, stop and keep the PR unmerged.
 
 ---
 
-# 27. PR Ledger — Completed and Current Work
+# 20. PR Ledger
 
-Status date: 2026-09-13.
+Status date: 2026-09-14.
 
 | PR | Status | Delivery |
 |---|---|---|
@@ -1343,1251 +576,704 @@ Status date: 2026-09-13.
 | #6 | MERGED | TDCC snapshot/distribution contract |
 | #7 | MERGED | Institutional, margin, short-selling, and SBL source-data contracts |
 | #8 | MERGED | Market indices, corporate actions, and official valuation contracts |
-| #9 | MERGED | Raw-first TWSE/TPEx daily-market ingestion pilot |
+| #9 | MERGED | Raw-first TWSE/TPEx daily-market ingestion pilot (per-security) |
 | #10 | MERGED | Current TWSE/TPEx security metadata ingestion |
 | #11 | MERGED | Authoritative security listing/delisting/venue lifecycle history |
+| #12 | MERGED | Hardened Taiwan corporate-action contract |
+| #13 | THIS PR | Source-reality rebuild of this roadmap, `AGENTS.md`, and `docs/source_field_audit.md` |
+| #14 | PLANNED | Source-reality alignment of inventory and storage contract |
+| #15 | PLANNED | Availability-time evidence policy (owner decision) |
+| #16 | PLANNED | Trading calendar and coverage validator |
+| #17 | PLANNED | Whole-market daily prices |
+| #18 | PLANNED | Market indices and official valuation |
+| #19 | PLANNED | Exchange corporate-action result feeds |
+| #20 | PLANNED | Institutional flows, institutional summary, foreign holding |
+| #21 | PLANNED | Margin trading and securities lending |
+| #22 | PLANNED | Monthly revenue |
+| #23 | PLANNED | Financial statements (iXBRL) |
+| #24 | PLANNED | TDCC distribution |
+| #25 | PLANNED | Adjusted prices |
+| #26 | PLANNED | Canonical derived v1 (legacy calculator ports) |
+| #27 | PLANNED | Scheduled forward capture |
+| #28 | PLANNED | Public REST API v1 |
+| #29 | PLANNED | Python SDK and downstream integration |
+| #30 | PLANNED | Operations and observability |
+| #31 | PLANNED | Full correctness CI gate |
+| #32 | PLANNED | `my_stock_project` cutover and v1 release |
+| #33 | PLANNED | Issuer dividend declarations (MOPS OpenAPI), stored as their own domain |
 
-The merged PRs establish the storage/PIT foundation and the first production-like raw-first
-ingestion lifecycle. They do **not** mean that all historical source datasets are already
-backfilled or analysis-ready.
+PRs #1–#12 established the storage, PIT, and raw-first foundations. Their writer contracts include some columns that no source populates (§2.3). Those columns stay nullable and unpopulated. They are not dropped, because dropping them brings no correctness gain.
 
-## 27.1 PR #1 — Versioned PIT Database Schema
-
-Delivered:
-
-```text
-append-only observed histories
-publication-evidence history
-raw / ingest provenance
-sealed aggregate infrastructure
-source-level capability storage
-XBRL dimensional identity
-canonical derived-data definition contract
-```
-
-## 27.2 PR #2 — Core PIT Resolver
-
-Delivered cache-free:
-
-```text
-Market PIT
-System PIT
-publication-evidence resolution
-source/capability selection
-sealed aggregate visibility
-provenance-aware results
-```
-
-## 27.3 PR #3 — Security Metadata and Daily Market Contracts
-
-Delivered:
-
-```text
-stable security_code identity
-effective-dated venue/security metadata
-daily market append-only writer
-source/revision-aware daily reads
-PIT-safe historical universe service contract
-```
-
-This PR defined the domain contract; it did not complete real historical source ingestion.
-
-## 27.4 PR #4 — Monthly Revenue Contract
-
-Delivered:
-
-```text
-canonical revenue units
-business revision vs evidence separation
-repeated-fetch lineage
-PIT-safe period/history reads
-```
-
-Real MOPS historical adapter/backfill remains future work.
-
-## 27.5 PR #5 — Financial / XBRL Contract
-
-Delivered:
-
-```text
-sealed filing aggregate
-QName-aware facts
-full context identity
-explicit EPS basis
-curated summary linkage
-PIT-safe filing/EPS reads
-```
-
-Real MOPS/XBRL historical source backfill remains future work.
-
-## 27.6 PR #6 — TDCC Contract
-
-Delivered:
-
-```text
-snapshot parent
-distribution children
-seal-based visibility
-repeat-fetch lineage
-PIT-safe snapshot/history reads
-```
-
-Real TDCC external adapter/backfill remains future work.
-
-## 27.7 PR #7 — Institutional / Margin / Short / SBL Contracts
-
-Delivered normalized source-data contracts for:
-
-```text
-institutional investor flow
-institutional holding/proxy data
-margin trading
-short selling
-securities lending / SBL
-```
-
-Real historical external adapters/backfill remain future work.
-
-## 27.8 PR #8 — Indices / Corporate Actions / Official Valuation Contracts
-
-Delivered first-class storage and PIT-safe service contracts for:
-
-```text
-market indices
-corporate actions
-official valuation
-```
-
-The corporate-action contract is intentionally revisited below because explicit Taiwan
-stock splits, reverse splits, 盈餘配股, 資本公積配股, and adjusted-price semantics require
-a stronger contract before historical prices are analysis-ready.
-
-## 27.9 PR #9 — Raw-First Daily-Market Pilot
-
-Delivered the shared production-like import lifecycle foundation:
-
-```text
-fetch
-→ durable content-addressed raw artifact
-→ captured checkpoint
-→ hash-verified offline resume
-→ normalize
-→ trusted writer
-→ manifest/reconciliation
-→ succeeded checkpoint
-```
-
-Also delivered:
-
-```text
-TWSE STOCK_DAY pilot
-TPEx tradingStock pilot
-quarantine
-operational-failure resume semantics
-same-resource concurrency protection
-raw-store identity/fingerprint
-```
-
-This was a bounded pilot, not full historical daily-market backfill.
-
-## 27.10 PR #10 — Current Security Metadata Ingestion
-
-Delivered:
-
-```text
-TWSE current-company snapshot
-TPEx current-company snapshot
-stable identity registration
-current observed venue/name/industry state
-same-date A→B→A System-PIT reassertion correctness
-shared RawFirstImporter reuse
-```
-
-Important invariant:
-
-```text
-current snapshot absence ≠ delisting
-current observed metadata is not backdated to original listing date
-```
-
-## 27.11 PR #11 — Authoritative Security Lifecycle History
-
-Status: **MERGED**
-
-Goal:
-
-```text
-official TWSE listing history
-official TWSE delisting history
-official TPEx listing history
-official TPEx delisting history
-same security identity across venue transfer
-```
-
-Required before merge:
-
-- independent TWSE and TPEx histories remain authoritative
-- no historical `published_at` is invented
-- same-code/same-date transfer evidence can reconcile across sources
-- final transfer reconciliation is deterministic and does not depend on import order
-- both `TPEx exit → TWSE entry` and reverse ingestion order converge to the same final result
-- raw-first / checkpoint / quarantine / idempotency contracts remain intact
-
-Out of scope:
-
-```text
-corporate-action expansion
-trading calendar
-bulk daily-price backfill
-other domain adapters
-canonical derived calculations
-Redis/cache
-```
+Ledger numbers match the GitHub pull request numbers, and #13 is where that had to be re-established: the abandoned dividend-summary pilot held the slot but was never opened as a pull request, so it is not a GitHub number at all (§21.3). The former planned PRs #14–#33 are renumbered into #14–#32 above; #33 is a new PR, not a survivor of the old numbering. The former "Corporate-Action Identity Research Track", the "Official Reference-Price / Share-Count Pilot", and the "Historical Corporate-Action Backfill" are replaced by PR #19. The former "Source Capability Hook" is absorbed into PR #15. The former "Legacy Migration and Reconciliation" is split into the per-domain reconciliation acceptance of PRs #17–#26 and cutover PR #32. The former cache PRs are deferred (§26.2).
 
 ---
 
-# 28. Next PRs — Historical Price Correctness Gate
+# 21. Merged PR Notes That Constrain Later Work
 
-The next group exists to prevent raw historical prices from being misinterpreted as real
-economic gains/losses when a discontinuity is caused by a corporate action.
+## 21.1 PR #9 — per-security daily pilot
 
-The key rule is:
+The `STOCK_DAY` / `tradingStock` adapters prove the raw-first lifecycle. They do not suit production capture (§2.2, fact 9). PR #17 decides how they coexist with whole-market adapters without revision flapping.
 
-> Raw official OHLC may be stored early, but historical price data is not
-> **analysis-ready** for returns, technical indicators, or ML features until
-> corporate-action reconciliation exists.
+## 21.2 PR #12 — corporate-action contract
 
-## PR #12 — Harden Taiwan Corporate-Action Contract
+`corporate_action_events` holds the stable `(security, source, source_event_key)`. `corporate_action_versions` holds the action type, dates, amounts, ratios, reference terms, and source terms. PR #19 populates it from exchange result feeds under Invariant G(2). The columns in §2.3 stay NULL.
 
-Status: **IN REVIEW**
+## 21.3 PR #13 — source-reality rebuild
 
-Depends on:
+The abandoned dividend-summary pilot occupied this slot. It was never opened as a pull request. PR #13 is the work that replaced it: the source survey that falsified its premise, and the rebuild of this roadmap on what the sources actually publish.
+
+What it established, with the evidence in `docs/source_field_audit.md`:
+
+- what each official endpoint publishes, with header variants and date ranges, and which existing columns no source populates (§2.3)
+- Invariant G split into announcement feeds and exchange result feeds, whose executed-date locator gives the event identity that unblocks corporate actions, adjusted prices, and the dividend track
+- the availability-time evidence policy PR #15 turns into ADR-0020, including the recovered monthly-revenue publication dates
+- the TDCC archive consolidated from three directories into one of 375 weeks
+- §26 split into what cannot be built, what waits on a trigger, and what is merely out of v1
+
+The abandoned pilot's own result stays as a permanent fixture. Its proposed TPEx identity `(security_code, dividend_year, period)` failed live verification on `mopsfin_t187ap39_O`: 2,483 rows, 65 duplicate groups. Representative collision:
 
 ```text
-PR #8 corporate-action base contract
-PR #11 stable historical security lifecycle
+security_code 1591, dividend_year 108, period 1
+board_date 1080806  and  board_date 1090505
 ```
 
-Goal:
+No announcement feed exposes a correction-stable event ID. The 1591/108/1 collision stays as a permanent regression fixture showing that announcement feeds are rejected by the adapter identity policy. The information the pilot wanted — cash dividend, stock distribution, reference prices — comes from the exchange result feeds that PR #19 ingests, and the earnings/capital-surplus split from the declaration feeds that PR #33 stores as their own domain.
 
-Make Taiwan corporate actions explicit enough to explain mechanical price/share changes.
+---
 
-In scope:
+# 22. Planned PRs — Alignment and Policy
+
+## PR #14 — Source-Reality Alignment
+
+Status: **PLANNED**. Depends on: none.
+
+Goal: make the storage contract and inventory agree with `docs/source_field_audit.md` before more adapters are written.
+
+Scope:
+
+- Correct `docs/data_domain_inventory.md` and `.json` where they claim unsourced fields:
+  - stock-tag effective dates
+  - index trade value, and index OHLC for anything other than the TAIEX (§2.3)
+  - daily order-book depth (`bid_snapshot`/`ask_snapshot`); the one published level is sourced and belongs in `last_bid_*`/`last_ask_*`
+  - monthly-revenue currency as an observation
+  - corporate-action announcement/record/payment dates and the earnings/capital-surplus split
+- Correct them where they drop sourced fields that consumers read: the monthly-revenue published comparatives, and the TAIEX OHLC that PR #18 adds.
+- Mark stock tags, the XBRL codebook, and the margin market summary as not in v1, and add the new domain `dividend_declaration_versions` (PR #33).
+- Add a contract test: every column of every observed `*_versions` table maps to an audited source field or is listed as unsourced or partially sourced.
+
+Schema impact: none. Migration: none. PIT impact: none.
+
+Acceptance:
+
+- inventory, audit, and schema agree
+- the new test fails if a column is added without a source mapping
+
+Out of scope: dropping unsourced columns.
+
+## PR #15 — Availability-Time Evidence Policy
+
+Status: **PLANNED**. It requires ADR-0020, approved by the owner, before implementation. Depends on: PR #14.
+
+Problem: No source provides a per-row publication instant (§2.2, fact 1). Under official-only evidence, imported history is Market-PIT invisible, and System PIT starts at import time (§7.3). Neither can answer the consumers' question ("what was knowable on date D?").
+
+The legacy system answers it in two ways:
+
+- real first-seen capture dates for monthly revenue from 2026M02 and XBRL from 2025Q4
+- statutory deadlines assigned after the fact for older periods (audit §7.1)
+
+Recommended decision: add three evidence types that each `(dataset, source)` opts into.
 
 ```text
-cash dividend
+release_rule    versioned, documented no-later-than instant derived from the
+                source's publication schedule or statutory deadline.
+                Rules (end of day, Asia/Taipei; exact wording fixed by the ADR):
+                  monthly revenue          -> the 10th of the next month
+                  financial statements,    -> Q4 03/31, Q1 05/15, Q2 08/15, Q3 11/15
+                    general industry          (legacy window ends and train_eps
+                                               cutoffs; Q2/Q3 are one day after
+                                               the 08/14, 11/14 statutory dates)
+                  financial statements,    -> out of v1 scope (PR #23)
+                    financial industry
+                  exchange daily datasets  -> 03:00 the next calendar day
+                                              (owner decision; the exchange
+                                               publishes same-day rows before
+                                               they settle, audit §7, and the
+                                               legacy 23:30 run needed its 03:00
+                                               retry on 5 of 27 observed trade
+                                               days, audit §7.2)
+                  TDCC weekly              -> 12:00 on the first Sunday after the
+                                              data date (owner decision; the
+                                               legacy weekly job ran Sunday 10:20)
+                Every rule is at least the statutory deadline moved to the next
+                business day (PR #16 calendar). For example, 2021Q2 resolves to
+                2021-08-16, not 08-15, and 2026M04 revenue to 2026-05-11 (audit §7.1).
+                evidence_source records rule id + version.
 
-earnings stock dividend / 盈餘配股
-capital-surplus stock dividend / 資本公積配股
+capture_bound   the Data Center's first successful fetch instant of an
+                artifact containing the version (a proven upper bound).
 
-stock split
-reverse split
+legacy_capture_bound
+                the legacy scraper's recorded first-seen date, converted to a
+                conservative instant: the end of the scheduled run that first
+                contained the row (22:45 monthly-revenue run; 23:50 XBRL run,
+                tightened by file mtime). Applies only to the legacy daily
+                job's captures in periods where the record is real (audit
+                §7.1). It never applies to the synthetic deadline values, and
+                never to backfill-run dates after the capture window closed
+                (for example the XBRL 2026-08-01 and 2026-08-17 files).
+                evidence_source names the legacy file.
 
-rights issue / cash capital increase
-capital reduction
-
-ex-right
-ex-dividend
-combined ex-right/ex-dividend
-```
-
-Required quantities, where officially available:
-
-```text
-announcement_date
-ex_date
-record_date
-payment_date
-
-cash_dividend_per_share
-
-earnings_stock_ratio
-capital_surplus_stock_ratio
-free_share_ratio
-
-old_shares
-new_shares
-
-capital_reduction_kind
-capital_reduction_cash_return_per_share
-
-rights_ratio
-subscription_price
-
-close_before
-official_reference_price
-official_rights_dividend_value
-
-original source event type / terms
+press_report_bound
+                a publication date reconstructed from a dated secondary record
+                that reports the filing, resolved at the end of that day,
+                Asia/Taipei. A news article dated D proves the value was public
+                on D, so this is a real publication bound, not a schedule
+                estimate. It ranks below the two capture types because it is
+                day-precision and reconstructed, with a measurable residual
+                error rate.
+                v1 source: the `revswarm` monthly-revenue dataset, 114,910 of
+                the 128,063 rows in 2020M01-2026M01 (89.7%), verified by its
+                three contamination guards and cross-checked at 99.10%
+                agreement against today's MOPS values (audit §7.4).
+                evidence_source names the dataset, the engine, and the
+                verifier recorded per row.
 ```
 
 Rules:
 
-```text
-stock dividend ≠ stock split
-stock split ≠ capital reduction
-observed event type must remain source-faithful
-raw OHLC must never be rewritten
-```
-
-For split-style events, prefer:
-
-```text
-old_shares
-new_shares
-```
-
-over a provider-dependent ambiguous `split_ratio`.
-
-Acceptance criteria:
-
-- [x] schema can represent stock split and reverse split explicitly
-- [x] 盈餘配股 and 資本公積配股 are distinguishable observed events
-- [x] rights/capital-reduction semantics are explicit
-- [x] migration round-trip is safe or explicitly guarded when old schema cannot represent new history
-- [x] DB constraints reject impossible event values
-- [x] source/business hashes include all semantic quantities
-- [x] raw price tables remain unchanged
-- [x] permanent regressions cover representative event types
-
-Out of scope:
-
-```text
-external source backfill
-adjusted-price calculation
-technical indicators
-```
-
-## PR #13 — Official Dividend Raw-First Pilot
-
-Status: **PLANNED**
-
-Depends on:
-
-```text
-PR #12
-PR #9 shared raw-first lifecycle
-```
-
-Goal:
-
-Prove that real official Taiwan dividend evidence can be captured and normalized without
-inventing event semantics or weakening the PR #12 corporate-action identity contract.
-
-Approved official sources:
-
-```text
-TWSE t187ap45_L
-TPEx mopsfin_t187ap39_O
-```
-
-In scope:
-
-```text
-shared PR #9 raw-first lifecycle
-durable raw artifacts
-checkpoint/resume
-quarantine
-source-unit normalization
-publication evidence
-
-source-faithful dividend events where the approved sources express them unambiguously:
-    cash dividend
-    earnings stock dividend / 盈餘配股
-    capital-surplus stock dividend / 資本公積配股
-```
-
-Source-specific identity rule:
-
-```text
-company/security identity + source dividend year/period
-```
-
-This composite may be used only when the official source contract proves that it uniquely and
-stably identifies the dividend event across corrections. It must not include mutable revision
-content such as:
-
-```text
-ex_date
-amount
-ratio
-reference price
-```
-
-Acceptance criteria:
-
-- [ ] live official dividend artifacts from the approved TWSE and TPEx sources parse successfully
-- [ ] legal dividend components remain distinct and are not merged
-- [ ] exact source terms are retained
-- [ ] unknown historical publication time remains unknown
-- [ ] refetch is idempotent at business identity while preserving observation lineage
-- [ ] missing source fields do not cause invented `ex_date` or `official_reference_price` values
-- [ ] no adjusted price is generated in this PR
-
-Out of scope:
-
-```text
-official reference-price normalization
-stock split / reverse split / other share-count event pilot
-capital-reduction or rights-event pilot
-historical corporate-action backfill
-adjusted-price calculation
-```
-
-## Blocked follow-up — Official Reference-Price / Share-Count Corporate-Action Pilot
-
-Status: **BLOCKED**
-
-Verified candidate sources:
-
-```text
-TWSE TWT48U_ALL
-TPEx tpex_exright_prepost
-TPEx tpex_exright_daily
-```
-
-These official feeds contain useful ratio and/or reference-price evidence, but they do not expose
-a native event/document identifier proven to remain stable across corrections to dates or economic
-terms. They therefore cannot yet be normalized into PR #12 corporate-action history without
-weakening its identity contract.
-
-Unblock condition:
-
-Find either:
-
-```text
-an official event/document identifier that remains stable across corrections
-
-or
-
-a source-specific identity that is proven unique and stable and contains no mutable revision field
-```
-
-The following must not be used, alone or as part of a synthetic event identity:
-
-```text
-security_code + ex_date
-action_type + ex_date
-amount
-ratio
-reference price
-row ordinal
-```
-
-Until the identity gate is satisfied, these feeds may be researched or retained as source evidence,
-but they must not be heuristically joined to `corporate_action_events`. Do not add a side-channel
-schema to bypass the PR #12 identity contract.
-
-## PR #14 — Authoritative Taiwan Trading Calendar and Coverage Validator
-
-Status: **PLANNED**
-
-Depends on:
-
-```text
-PR #9
-PR #11
-```
-
-Goal:
-
-Replace:
-
-```text
-coverage_validation = not_evaluated
-coverage_gaps = null
-```
-
-with authoritative market-calendar-aware coverage evaluation.
-
-In scope:
-
-```text
-TWSE/TPEx trading dates
-holiday/non-trading-day handling
-market/source coverage expectations
-date-range completeness evaluator
-coverage manifest/report
-```
-
-Acceptance criteria:
-
-- [ ] expected trading dates come from an explicit authoritative contract
-- [ ] weekend/holiday absence is not reported as a data gap
-- [ ] actual missing trading dates are reported
-- [ ] current and historical coverage can be compared deterministically
-- [ ] coverage does not rely on today's security universe
-
-## PR #15 — Historical Corporate-Action Backfill
-
-Status: **PLANNED**
-
-Depends on:
-
-```text
-PR #12
-PR #13
-PR #14 where calendar context is required
-Blocked follow-up — Official Reference-Price / Share-Count Corporate-Action Pilot
-```
-
-The complete historical corporate-action backfill must not start until the blocked follow-up's
-stable-identity gate is satisfied. Merging the dividend-only PR #13 does not satisfy the
-reference-price or share-count corporate-action prerequisites.
-
-Goal:
-
-Backfill the supported corporate-action history before raw price history is declared
-analysis-ready.
-
-In scope:
-
-```text
-historical corporate-action import
-resume/idempotency
-coverage report
-event reconciliation
-official reference-price reconciliation
-unsupported/ambiguous-event quarantine
-```
-
-Acceptance criteria:
-
-- [ ] supported action history has documented source/date coverage
-- [ ] unexplained source ambiguity is quarantined, not guessed
-- [ ] known stock dividend/split/capital-reduction examples reconcile
-- [ ] event history remains append-only and source-aware
-- [ ] historical System PIT uses actual trusted ingestion time
-
-## PR #16 — Full Daily-Market Historical Backfill and Discontinuity Reconciliation
-
-Status: **PLANNED**
-
-Depends on:
-
-```text
-PR #11
-PR #14
-PR #15
-```
-
-Goal:
-
-Run production-scale TWSE/TPEx historical daily-market backfill and prove that major
-price discontinuities are either explained or explicitly reported.
-
-In scope:
-
-```text
-full supported historical range
-restartable/backpressure-safe execution
-coverage validation
-TWSE/TPEx source reconciliation
-large raw-return anomaly scan
-corporate-action lookup around discontinuities
-per-security/per-period reconciliation report
-```
-
-Required classification:
-
-```text
-explained_by_corporate_action
-explained_by_other_documented_market_event
-unexplained_anomaly
-```
-
-Acceptance criteria:
-
-- [ ] historical source/date coverage is documented
-- [ ] restart/resume is tested on long-running backfill
-- [ ] missing trading dates are explicit
-- [ ] large discontinuities are not silently smoothed
-- [ ] raw prices remain exactly source-faithful
-- [ ] unexplained anomalies remain visible
-- [ ] price history may now be declared raw-history complete for supported coverage
-
-This PR still does **not** create adjusted OHLC.
+- Precedence for a version: `capture_bound`, then `legacy_capture_bound`, then `press_report_bound`, then `release_rule`. A `release_rule` never makes a version visible earlier than a capture or a press report proves.
+  - Forward-captured data uses the Data Center's capture time.
+  - 2026M02 onward monthly revenue and 2025Q4 onward XBRL use the legacy first-seen date.
+  - Older history uses the rule.
+- If a daily-job capture is later than the rule instant (late filer), the rule is falsified for that row, and only the capture evidence is recorded.
+- A backfill-run capture is not first-seen evidence, so it cannot falsify the rule. Such rows resolve like uncaptured history.
+- For monthly revenue from 2026M02, a `_0` row absent from the legacy record was not public at the last legacy run (the 15th). It gets no rule evidence and resolves at its Data Center capture.
+- A revision first captured after the rule instant receives only `capture_bound`. A correction is never visible before it was actually seen.
+- Documented limitation: history before any capture record stores latest-corrected values, made visible at rule instants. This allows correction look-ahead, which the legacy system also has. It affects monthly revenue before 2026M02, XBRL before 2025Q4, and all exchange daily data before forward capture. PR #27 reports forward-capture revision rates so the size of this effect is measured.
+- Move source policy (capability and accepted evidence types) from generic raw-first orchestration into each adapter's source declaration. This absorbs the former "source capability hook" PR.
+- Record a `purpose` on the ingest run — `first_capture`, `gap_fill`, or `correction_check` — and derive the evidence type from it (§3.1). The purpose is set when the fetch is requested, never inferred afterwards, so a row fetched years later because a query noticed it was missing cannot claim `capture_bound` at that later instant.
+
+Alternative: keep official-only evidence. v1 then exposes history through System PIT only, and historical Market-PIT queries return nothing.
+
+Schema impact: none expected (`evidence_type` and the allowlists exist). Migration: allowlist data only.
+
+Acceptance:
+
+- ADR-0020 approved. AGENTS.md §31–32 (unknown publication and backfill rules) updated to match.
+- Each rule has an id, a version, and a cited official schedule or statute. Permanent tests cover weekends, holidays, year boundaries, and deadlines that fall on non-business days.
+- Revision-after-rule regression.
+- Exchange daily rules are validated against forward captures: the data for trade date D is fetchable at the rule instant.
+- A `gap_fill` ingest of a period that was never captured produces no `capture_bound`; the version resolves by its release rule.
+
+Out of scope: inventing instants for sources without a documented schedule or statute.
+
+Coupling note: adapter PRs #16–#24 are not blocked by this PR. Until #15 lands they emit `unknown` evidence. Approved evidence is appended later without touching business versions (§8).
 
 ---
 
-# 29. Planned PRs — Remaining Observed-Source Production Ingestion
+# 23. Planned PRs — Official Source Adapters and History (2020-01-02 onward)
 
-These PRs turn the already-defined storage/service contracts from PRs #4–#8 into real
-official-source ingestion and historical coverage.
+Common rules for PRs #16–#24:
 
-## PR #17 — Source Capability Hook and Adapter Policy Cleanup
+- One adapter per official endpoint, used both for history re-fetch and for daily operations.
+- Throttled, resumable, checkpointed history runs (the PR #9 lifecycle). Rough request budgets are listed per PR.
+- Header variants from the audit are explicit, tested parser cases. An unknown header quarantines the artifact.
+- Acceptance includes a reconciliation report against the legacy `stock_db` for 2020-01-02 → 2026-09-11, with every difference classified. Unit normalization (lots → shares, thousand TWD → TWD) is applied before comparison.
 
-Status: **PLANNED**
+## PR #16 — Trading Calendar and Coverage Validator
 
-Depends on:
+Status: **PLANNED**. Depends on: PR #14.
 
-```text
-PR #9 shared lifecycle
-```
+Source contract: TWSE `FMTQIK` (one request per month, listing every actual trading day), cross-checked with TWSE `holidaySchedule` where available and with the dates of whole-market daily files. TPEx trading days must equal TWSE's for 2020 onward, or a difference must come from an official TPEx source.
 
-Goal:
+Schema impact: new observed calendar table (market, trading date, source, lineage).
 
-Move source/domain capability policy out of generic raw-first orchestration before many
-heterogeneous adapters reuse it.
+The validator must already know what each dataset should hold before it can report a gap. That knowledge is exposed as a queryable expected-coverage declaration, not left implicit inside report generation, because it is what PR #27 turns into fetch jobs (§3.1).
 
-In scope:
+Acceptance:
 
-```text
-domain-specific dataset/source registration hook
-supports_market_pit
-supports_system_pit
-publication_time_quality
-accepted evidence types
-source capability validation
-```
+- the 2020-01-02 → 2026-09-11 calendar matches the trade dates in the legacy archive, or each difference is explained
+- typhoon closures (for example, 2024-07-24/25) appear as closures
+- the coverage report separates non-trading days from missing data and does not rely on today's security universe
+- expected coverage can be queried directly for a (dataset, period) range, not only rendered as a report
 
-Acceptance criteria:
+## PR #17 — Whole-Market Daily Prices
 
-- [ ] generic lifecycle owns orchestration, not domain truth
-- [ ] source A capability cannot leak to source B
-- [ ] existing daily/security adapters retain identical behavior
-- [ ] regression suite proves no PIT semantic change
+Status: **PLANNED**. Depends on: PR #9 lifecycle, PR #11, PR #16.
 
-## PR #18 — MOPS Monthly Revenue Adapter and Historical Backfill
+Source contract (audit §4.1):
 
-Status: **PLANNED**
+- TWSE `MI_INDEX?type=ALLBUT0999`: stock section only. Index sections are handled in PR #18, reusing the same artifact.
+- TPEx `stk_wn1430`, including its three header variants.
+- One resource per (market, trade date).
 
-Depends on:
+History: about 3,300 requests.
 
-```text
-PR #17
-PR #4
-PR #11
-```
+Schema impact: none expected. `daily_price_versions` covers the sourced fields, and bid/ask snapshots stay NULL.
 
-Goal:
+Acceptance:
 
-Ingest real MOPS monthly revenue with publication evidence and historical revisions.
+- per-date row counts and OHLC, volume, trade value, and trade count equal legacy `daily_quotes`
+- no revision flapping between these adapters and the PR #9 per-security adapters for the same key (distinct source codes or pilot retired from production)
+- idempotent re-runs; a changed file creates a revision
+- a report of priced securities that have no metadata row (ETFs, TDRs, preferred shares)
 
-Acceptance criteria:
+Out of scope: adjusted prices; per-security pilots in production.
 
-- [ ] real official adapter exists
-- [ ] canonical amount units are preserved
-- [ ] revisions/evidence are separated
-- [ ] delayed publication and knowledge-cutoff cases are tested
-- [ ] historical coverage/reconciliation report exists
+## PR #18 — Market Indices and Official Valuation
 
-## PR #19 — MOPS Financial/XBRL Adapter and Historical Backfill
+Status: **PLANNED**. Depends on: PR #16, PR #17.
 
-Status: **PLANNED**
+Source contract (audit §4.2, §4.6):
 
-Depends on:
+- `MI_INDEX` index sections and TPEx `indexSummary`. Index identity is `(source, published index name)`: close, change points, and change percent only.
+- TWSE `MI_5MINS_HIST` (`發行量加權股價指數歷史資料`), one calendar month per request, for TAIEX `open_value`/`high_value`/`low_value`. This is a source the legacy system never fetched, so it is new data, not a legacy port.
+- TWSE `BWIBBU_d` and TPEx `pera`.
 
-```text
-PR #17
-PR #5
-PR #11
-```
+History: about 4,900 requests (TWSE indices reuse the `MI_INDEX` artifacts), plus about 80 `MI_5MINS_HIST` month requests.
 
-Goal:
+The PR first spikes TPEx for an OTC index-OHLC endpoint. If none exists, OTC index OHLC stays NULL and the audit records the negative result.
 
-Ingest real historical financial filings/XBRL while preserving filing aggregate identity,
-dimensions, revisions, and publication evidence.
+Acceptance:
 
-Acceptance criteria:
+- legacy `market_indices` (close, change points) and `pe_ratio` reconcile
+- TAIEX close from `MI_5MINS_HIST` equals the `MI_INDEX` close on every trade date, or the row is quarantined
+- the 5-column TWSE `BWIBBU_d` file of 2025-06-24 is parsed by an explicit variant or quarantined
+- TPEx `財報年/季` before 2025-01-02 becomes NULL, not an error
 
-- [ ] real official filing/XBRL adapter exists
-- [ ] sealed aggregate is built only after complete normalization
-- [ ] annual/YTD/quarter EPS basis remains explicit
-- [ ] dimensional facts retain correct context identity
-- [ ] Q4 visibility follows evidence, not calendar assumptions
-- [ ] historical filing coverage/reconciliation report exists
+Out of scope: index trade value; OHLC for any index other than the TAIEX; index-rename linking beyond explicit official evidence.
 
-## PR #20 — TDCC Official Adapter and Historical Backfill
+## PR #19 — Exchange Corporate-Action Result Feeds
 
-Status: **PLANNED**
+Status: **PLANNED**. Depends on: PR #9, PR #12, PR #17.
 
-Depends on:
+Supersedes: the abandoned dividend-summary pilot (§21.3), the former reference-price pilot, and the former corporate-action backfill.
 
-```text
-PR #17
-PR #6
-PR #11
-```
+Source contract (audit §4.10):
 
-Goal:
+- TWSE `TWT49U` + `TWT49UDetail`
+- TWSE `TWTAUU` + `TWTAVUDetail`
+- TWSE `TWTB8U` (detail fields verified in this PR)
+- TPEx `exDailyQ`
+- TPEx `revivt`
+- The TPEx par-value-change endpoint is verified in this PR. Otherwise that family stays unsupported for TPEx.
 
-Ingest real TDCC distribution snapshots and historical coverage.
+All TWSE result feeds are requested with `response=json`, never `response=csv`. The CSV rendering flattens 詳細資料 to the link label `除權息資料`, which destroys the `"{code},{yyyymmdd}"` locator that Invariant G(2) depends on (audit §4.10). This is also why the legacy CSV archive is a value-reconciliation baseline only and can never establish event identity.
 
-Acceptance criteria:
+History: the TWSE feeds accept a whole-year date range, so about 7 requests per feed for 2020-2026, plus one Detail request per event.
 
-- [ ] official source adapter exists
-- [ ] snapshot/bucket aggregate is sealed atomically
-- [ ] snapshot effective date does not grant false publication visibility
-- [ ] backfill preserves actual System-PIT ingestion time
-- [ ] coverage/reconciliation report exists
+Identity: Invariant G(2). ADR-0019 records the result-feed identity rule.
 
-## PR #21 — Institutional Investor Official Adapters and Backfill
-
-Status: **PLANNED**
-
-Depends on:
+Mapping:
 
 ```text
-PR #17
-PR #7
-PR #11
+息 -> ex_dividend        權 -> ex_right        權息 -> ex_right_dividend
+capital reduction -> capital_reduction; kind from 減資原因;
+                     old/new shares from 每壹仟股換發新股票; cash from 每股退還股款
+par-value change  -> stock_split / reverse_split when share exchange terms are
+                     published; otherwise other, with reference prices kept
+cash_dividend_per_share, free_share_ratio (÷1,000), rights_ratio (÷1,000),
+subscription_price, close_before, official_reference_price,
+official_rights_dividend_value; remaining source columns -> source_terms
 ```
 
-Goal:
+The fields in §2.3 stay NULL.
 
-Ingest official TWSE/TPEx institutional flow datasets.
+History: 2020 onward. There are about 6,200 TWSE detail requests. TPEx rows are self-contained.
 
-Acceptance criteria:
+Acceptance:
 
-- [ ] TWSE/TPEx quantities normalize to canonical units
-- [ ] source histories remain independent
-- [ ] cross-source differences are reported, not averaged
-- [ ] historical coverage/reconciliation report exists
+- zero duplicate `(feed, code, locator date)` over the full history of each feed
+- correction regression: same locator with changed terms produces a new revision of the same event; a removed row produces a retraction
+- legacy `dividend` (6,182 TWSE rows) reconciles on date, close before, reference price, rights+dividend value, and type
+- announcement-feed rejection test using the 1591/108/1 fixture
 
-## PR #22 — Margin / Short-Selling / SBL Official Adapters and Backfill
+Out of scope: MOPS summary normalization; adjustment factors (PR #25).
 
-Status: **PLANNED**
+## PR #20 — Institutional Flows, Institutional Summary, Foreign Holding
 
-Depends on:
+Status: **PLANNED**. Depends on: PR #16, PR #17.
+
+Source contract (audit §4.3–4.4): `T86`, `BFI82U`, `MI_QFIIS`; TPEx `3itrade_hedge`, `3itrdsum`, MOPS `t13sa150_otc`. History: about 9,800 requests.
+
+This PR is where the fetch layer stops being GET-only, so it also completes the two pieces §3.1 depends on:
+
+- **`SourceResource` becomes a complete request.** MOPS `t13sa150_otc` is a POST with a form body returning big5, which the current `HttpSourceFetcher` cannot express: it issues `GET` with a fixed `Accept: application/json`. Add method, body, and headers, so a resource is a full, serializable description of one fetch — which is also what a job needs to be.
+- **A per-host rate governor, injected into the fetcher.** Four v1 PRs (#20, #22, #23, #33) call `mopsov.twse.com.tw`, today each with its own sleep and no view of the others. MOPS blocked the legacy scraper on 2026-07-02 and the legacy 23:50 XBRL window already overruns into the 03:00 retry (audit §7.2). One budget per host, enforced in one place.
+
+Acceptance:
+
+- legacy `institutional_investors`, `institutional_summary`, and `foreign_holding` reconcile
+- the broken TPEx summary artifact of 2026-07-10 is re-fetched or quarantined
+- a POST resource round-trips through serialization unchanged
+- every MOPS request in the process passes through the governor; a test proves two adapters running together cannot exceed the host budget
+
+## PR #21 — Margin Trading and Securities Lending
+
+Status: **PLANNED**. Depends on: PR #16, PR #17.
+
+Source contract (audit §4.5): `MI_MARGN`, `TWT93U`; TPEx `margin_bal`, `margin_sbl`. TWSE utilization ratios stay NULL. History: about 6,500 requests.
+
+Acceptance: legacy `margin_trading` and `margin_sbl` reconcile after lots → shares.
+
+Out of scope: the market summary block (`margin_summary`, which no consumer reads).
+
+## PR #22 — Monthly Revenue
+
+Status: **PLANNED**. Depends on: PR #4 contract, PR #11.
+
+Source contract (audit §4.7): MOPS `t21sc03` pages for `sii`/`otc` × `_0`/`_1` × month, from 2020M01. History: about 330 requests. Revenue is converted ×1,000 to TWD.
+
+Schema impact: add nullable published comparatives to `monthly_revenue_versions`. They are in the same source row and read by consumers:
 
 ```text
-PR #17
-PR #7
-PR #11
+revenue_last_month, revenue_last_year_month, mom_pct, yoy_pct,
+cumulative_revenue, cumulative_revenue_last_year, cumulative_yoy_pct, note
 ```
 
-Goal:
+The canonical derived `monthly_revenue_growth:v1` leaves v1.
 
-Ingest official financing and securities-lending histories.
+Recovered publication dates (audit §7.4): for 2020M01-2026M01, read them from the legacy `market.csv`, which `revswarm` has already written back — 114,910 of 128,063 rows (89.7%) carry a real announcement date. The CSV is the interface; `revswarm.db` is not a live dependency of this PR.
 
-Acceptance criteria:
-
-- [ ] unit conversion is explicit
-- [ ] stock/flow semantics are explicit per source field
-- [ ] impossible negative/balance values fail loudly
-- [ ] historical coverage/reconciliation reports exist
-
-## PR #23 — Market Index and Official Valuation Adapters / Backfill
-
-Status: **PLANNED**
-
-Depends on:
+The CSV keeps only the date, so a row dated on the 10th cannot be told apart from a row that kept the statutory fallback. The rule that follows from that:
 
 ```text
-PR #17
-PR #8
+publish_time != the 10th of the next month  ->  press_report_bound at end of that day
+publish_time == the 10th of the next month  ->  release_rule
 ```
 
-Goal:
+This costs almost nothing and can never create look-ahead. 40,188 rows sit on the 10th; for the 36,492 where the 10th is a business day the release rule resolves to that same day, so the timestamp is identical. Only the 3,696 rows (2.9%) whose 10th falls on a weekend resolve 1-2 days later than the recovered date says, which is late, not early.
 
-Complete real-source ingestion for:
+If the per-row provenance is wanted later — `engine`, `verified`, `raw_title`, `url` — the upgrade is to export a provenance column from `revswarm.db` alongside the date, not to read the database at ingest time.
 
-```text
-market indices
-official PE/PB/dividend-yield style source metrics
-```
+Legacy first-seen import (audit §7.1): for 2026M02 onward, import the legacy `market.csv` rows as `legacy_archive` observations of the first-captured values, with `legacy_capture_bound` evidence from their `publish_time` dates. When the official re-fetch differs, it becomes a later revision whose evidence is the Data Center's own capture time. The synthetic `publish_time` values before 2026M02 are not imported as evidence.
 
-Acceptance criteria:
+Acceptance:
 
-- [ ] index identity/history remains PIT-safe
-- [ ] index metadata revisions do not change stable index identity
-- [ ] official valuation is stored as observed source data
-- [ ] computed valuation remains a later derived domain
-- [ ] coverage/reconciliation report exists
+- legacy `monthly_revenue` reconciles
+- KY issuers from `_1` pages appear as new coverage
+- a correction between two fetches creates a revision
+- published comparatives are stored exactly as published and never reconciled against our own series; the 2026M06/M07 pair, where 11 of 1,846 companies disagree, is a regression fixture (audit §7.3)
+- for 2026M02 onward, each first-seen row resolves under Market PIT no earlier than the end of its legacy 22:45 run; rows the re-fetch shows as corrected resolve to the first-captured value before the correction's capture
+- for 2020M01-2026M01, a row whose `publish_time` differs from the 10th of the next month resolves at the end of that day; a row on the 10th resolves at the release rule
+- no row in that window ever resolves earlier than the release rule would place it
+- the `revswarm` announced-revenue cross-check runs at import and its agreement rate is recorded; a drop below the 99.10% measured on 2026-09-15 fails the import
 
-## PR #24 — Legacy `my_stock_project` / `stock_db` Migration and Reconciliation
+Out of scope: recovering first-published values before 2026M02.
 
-Status: **PLANNED**
+## PR #23 — Financial Statements (iXBRL)
 
-Depends on:
+Status: **PLANNED**. Depends on: PR #5 contract, PR #11.
 
-```text
-PR #16
-PR #18–#23 for the domains being compared
-```
+Source contract (audit §4.8): MOPS `t164sb01`, one document per (security, year, quarter, report type), from 2020Q1.
 
-Goal:
+**Financial-industry issuers are out of scope**, matching the legacy system. v1 is the legacy scope (§1.1), and excluding them keeps the financial-industry account taxonomy and its separate statutory deadlines out of v1. Their daily prices, monthly revenue, and every other domain are unaffected; only their financial statements are not ingested. §26.3 records the exclusion.
 
-Migrate useful legacy history without turning legacy current state into authoritative
-historical truth.
+History source (owner decision; audit §7.1):
 
-In scope:
+- 2020Q1–2025Q3: import the legacy documents as `legacy_archive` versions. They are a February 2026 re-fetch, so their content equals what a fresh fetch returns today, and their filename dates are synthetic deadlines carrying no capture evidence — those resolve by the release rule. A sample is re-fetched officially and compared; a mismatch rate above the threshold set in the PR fails the import and falls back to a full re-fetch.
+- 2025Q4 onward: import the legacy documents as `legacy_archive` versions.
+  - Documents the daily job captured by the window end (03/31, 05/15, 08/15, 11/15) get `legacy_capture_bound` evidence from the run date and file mtime.
+  - Documents dated by later backfill runs (2026-08-01, 2026-08-17) get no capture evidence and resolve by the release rule.
+- An official re-fetch that differs becomes a later revision (an amendment) with the Data Center's own capture evidence.
 
-```text
-read-only legacy export
-manifest/hash
-mapping to new identities
-documented transforms
-reconciliation against official-source backfills
-quarantine for ambiguous legacy rows
-```
+This replaces the full 45,000-request re-fetch, which at the 3-second interval forced by the 2026-07-02 MOPS block would take about 38 hours and risk another block.
 
-Rules:
+Acceptance:
 
-```text
-legacy data may fill documented source gaps
-legacy data must not silently override better official history
-legacy migration must preserve provenance
-```
+- legacy `*_xbrl` and `quarterly_reports_xbrl` values reconcile through account code ↔ concept QName
+- report category (consolidated or individual) is preserved
+- the PR #5 EPS contract holds
+- the archive-vs-official sample comparison runs and its mismatch rate is recorded in the audit
+- for 2025Q4 onward, daily-job captures resolve under Market PIT no earlier than their legacy capture bound
+- no financial-industry issuer has a financial-statement version after the import
 
-Acceptance criteria:
+Out of scope: financial-industry issuers; recovering original pre-amendment filings before 2025Q4.
 
-- [ ] every migrated legacy domain has an explicit disposition
-- [ ] migration is restartable/idempotent
-- [ ] differences are classified/explained
-- [ ] no legacy current row is backdated into fake historical knowledge
+## PR #24 — TDCC Distribution
+
+Status: **PLANNED**. Depends on: PR #6 contract, PR #16.
+
+Source contract (audit §4.9):
+
+- OpenData `id=1-5` weekly, from the first forward capture onward
+- `legacy_archive` artifacts up to the first forward capture, from the single consolidated archive `my_stock_project/data/raw/shareholding`: 426 files, **375 weeks** from 2019-06-28 to 2026-09-11, of which 348 fall inside the v1 window. Consolidated 2026-09-15 from three directories (audit §4.9); `shareholding.bak` is the old filtered copy and is not a source.
+- every file carries the same six-column OpenData header, so one parser handles all of them
+- the portal per-security query only for repairs inside its roughly one-year window
+
+New runtime dependency: a 7z reader (`py7zr`), since 2021 onward is stored as `.7z`. PR #24 adds it to `pyproject.toml`; it is not declared today.
+
+The importer keys on the 資料日期 column, never on the filename: `20200619.CSV` and `20200619.zip` both contain 20200612 data, and trusting the name would invent a week and drop the real one. It must also handle the slash date format in `20190628.zip`, the ten double-BOM files, mixed extension case, and the 51 content dates that have duplicate copies (every pair agrees exactly, so either may be kept).
+
+Acceptance:
+
+- all 375 weeks import, each keyed by its content date
+- a file whose name disagrees with its content date is rejected with that fact named, not silently renamed
+- every remaining interval of 10 or more days resolves to a Lunar New Year closure; any other gap fails the import
+- 2026-07-09 imports as the complete 4,003-security file, not as a 1,849-security reconstruction
+- nothing is read from `shareholding.bak`, whose 155 post-2023-09-15 files are filtered to about 1,767 securities
+- legacy `shareholding` reconciles on the 340 weeks it holds
 
 ---
 
-# 30. Planned PRs — Canonical Derived Data
+# 24. Planned PRs — Derived Data
 
-Observed/source data and canonical derived data remain separate.
+## PR #25 — Adjusted Prices
 
-## PR #25 — Adjustment Factors, Adjusted Price, and Total Return
+Status: **PLANNED**. Depends on: PR #16, PR #17, PR #19.
 
-Status: **PLANNED**
+Method: §18 reference-price ratio. Backward cumulative factors are computed per security. Raw OHLC is untouched.
 
-Depends on:
+Acceptance:
 
-```text
-PR #15
-PR #16
-```
+- every daily close-to-close gap above a documented threshold (2020 onward) is classified as explained by an exchange result-feed event, explained by another documented market event, or unexplained; the unexplained list is reviewed
+- continuity at event dates
+- no event affects the series before its evidence is visible in the requested PIT context
 
-Goal:
+Out of scope: price-only (cash-excluded) series; pre-2020 history.
 
-Create deterministic versioned price-continuity datasets without modifying raw prices.
+## PR #26 — Canonical Derived v1 (Legacy Calculator Ports)
 
-Required layering:
+Status: **PLANNED**. Depends on: PRs #17–#25 as each metric requires.
 
-```text
-raw official OHLC
-+ PIT-safe corporate actions
-→ versioned share/price adjustment factors
-→ adjusted OHLC
-→ total-return series
-```
-
-In scope:
+Definitions, each ported from the legacy calculator and reconciled to its legacy table:
 
 ```text
-share adjustment factor
-price adjustment factor
-adjusted OHLC
-total-return factor/series
-derivation version
-input lineage/fingerprint
-raw vs adjusted query contract
+technical_indicators:v1          MA/VMA 5-240, KD, RSI 6/12, MACD, Bollinger
+                                 (raw close, as legacy consumers were trained)
+institutional_streaks:v1         foreign/trust/dealer streak days
+institutional_cumulative_flow:v1 legacy trust/dealer "holding" proxies
+shareholding_concentration:v1    large/mid/small holder ratios and WoW
+valuation_metrics:v1             TTM EPS, PE, PE percentile, ROE
+margin_metrics:v1                utilization and WoW changes
+short_interest_metrics:v1        SBL/short ratios and WoW changes
 ```
 
-Acceptance criteria:
+Materialization follows §17: the rolling as-of series only.
 
-- [ ] raw OHLC is unchanged
-- [ ] adjustment convention is documented/versioned
-- [ ] same PIT inputs + derivation version produce identical outputs
-- [ ] no future corporate action leaks backward
-- [ ] official ex-right/ex-dividend reference prices reconcile with derived results where available
-- [ ] representative split and 盈餘配股 examples produce economically continuous adjusted returns
+Acceptance: reconciliation to legacy tables. Intentional differences caused by PIT-correct inputs are listed and explained.
 
-## PR #26 — Canonical Reusable Derived Metrics
-
-Status: **PLANNED**
-
-Depends on:
-
-```text
-PR #18–#25 as required by each metric
-```
-
-Goal:
-
-Implement only stable cross-repository derived definitions.
-
-Initial domains:
-
-```text
-historical returns
-MA / volatility
-RSI / MACD if standardized
-
-shareholding concentration
-
-TTM EPS
-canonical ROE/ROA/margins
-computed PE/PB where formula is standardized
-
-margin usage ratios
-short-interest / SBL pressure metrics
-```
-
-Rules:
-
-```text
-explicit derivation_version
-PIT-safe input resolution
-input lineage/fingerprint
-computed_at is provenance, not publication time
-materialized and virtual semantics must match
-```
-
-Model-specific feature engineering remains downstream.
+Out of scope: composite pressure scores (downstream); adjusted-price variants of the indicators (a later derivation version).
 
 ---
 
-# 31. Planned PRs — API, SDK, Cache, Operations, and Cutover
+## PR #33 — Issuer Dividend Declarations
 
-## PR #27 — Public REST API v1
+Status: **PLANNED**. Depends on: PR #19.
 
-Status: **PLANNED**
+Why: the earnings / legal-reserve / capital-surplus split exists in no exchange result feed. MOPS is its only public source.
 
-Depends on:
-
-```text
-stable observed-source service contracts
-PR #25/#26 for derived endpoints included in v1
-```
-
-Goal:
-
-Expose correct Data Center semantics without exposing tables.
-
-Standardize:
+Source contract (audit §4.13, verified live 2026-09-15):
 
 ```text
-information_as_of
-knowledge_as_of
-system_as_of
-source
-derivation_version
+primary   POST mopsov.twse.com.tw/server-java/t05st09sub
+          encodeURIComponent=1&step=1&firstin=1&off=1
+          TYPEK={sii|otc}  YEAR={ROC year}  qryType=1
+          one whole-market big5 HTML table per request
 
-errors
-pagination
-provenance
-OpenAPI
+cross-check  openapi.twse.com.tw/v1/opendata/t187ap45_L      JSON, 股利年度 114-115
+             www.tpex.org.tw/openapi/v1/mopsfin_t187ap39_O   JSON, frozen at 出表日期 1100804
 ```
 
-Acceptance criteria:
+`TYPEK` has four values — `sii` 上市, `otc` 上櫃, `rotc` 興櫃, `pub` 公開發行 with no board. The four sets are disjoint, and membership follows the company's status *at query time*, not at the dividend year: 58 of the 792 companies returned by `otc`/民國109 were listed on TPEx only after 2021. So `sii` + `otc` covers the whole v1 universe including its members' pre-listing years, and `rotc`/`pub` add only companies outside it (audit §4.13).
 
-- [ ] API works with cache disabled
-- [ ] provenance is returned
-- [ ] invalid PIT combinations fail loudly
-- [ ] endpoints call domain/PIT services rather than reimplementing SQL semantics
+History: 2 markets × ROC years 107-115 = 18 requests, then 2 per day. `t05st09sub` is on the host that blocked the legacy scraper on 2026-07-02, so the 3-second interval applies; at 18 requests that is under a minute.
 
-## PR #28 — Python SDK and Downstream Integration Contract
+The TPEx OpenAPI dataset stopped updating at the 民國110 header change. That is TPEx's republication going stale, not a source being withdrawn: MOPS serves `TYPEK=otc` for 110-115 normally. The PR uses MOPS for both markets and keeps the two OpenAPI feeds only as an independent cross-check of overlapping years.
 
-Status: **PLANNED**
-
-Depends on:
+Header variant, mandatory to handle:
 
 ```text
-PR #27
+ROC <= 109   6 sub-columns under 股東配發內容 (19 cells/row)
+             法定盈餘公積 and 資本公積 published as ONE combined figure,
+             for cash and for stock dividends alike
+ROC >= 110   8 sub-columns (21 cells/row), the two reserves split apart
 ```
 
-Goal:
+`盈餘轉增資配股` is therefore available for every year. Only the reserve split is unavailable before 民國110. A row from those years sets the legal-reserve component to NULL and records the combined figure in the capital-surplus column with an explicit `reserves_combined` flag. No PR may present a pre-110 capital-surplus figure as reserve-pure.
 
-Give downstream repositories a stable client contract.
+Storage: a new `dividend_declaration_versions` table. `corporate_action_versions` is untouched and its split columns stay NULL (§2.3); this domain is published as its own series.
 
-Target consumers:
+Identity: `(security, dividend_year, dividend_period_text, sequence)`. TPEx OpenAPI rows, which lack 股利所屬期間, additionally need the board-resolution date, and two groups still collide and quarantine (audit §4.13).
+
+Time model:
 
 ```text
-my_stock_project
-stock-eps-model
-stock-model-selection
-future backtest/screener/AI consumers
+information_as_of  董事會決議（擬議）股利分派日
+published_at       capture_bound from forward capture; for the years imported
+                   once at backfill, the release rule is the capture date, since
+                   no feed publishes a per-row release instant
 ```
 
-Acceptance criteria:
+Acceptance:
 
-- [ ] no downstream PostgreSQL credentials are required
-- [ ] no downstream Redis credentials are required
-- [ ] SDK exposes explicit PIT context
-- [ ] representative downstream query integration tests pass
+- both header variants parse; a 19-cell row and a 21-cell row from the same import round-trip correctly
+- the `reserves_combined` flag is set for every ROC ≤ 109 row and for every row taken from the frozen TPEx OpenAPI feed
+- only `TYPEK=sii` and `TYPEK=otc` are requested; `rotc` and `pub` are rejected at the adapter boundary (§1.1)
+- identity is unique within each (market, year) import; any duplicate quarantines
+- re-importing a past year after a new listing adds the newly visible rows as new records for that period; it must not diff them against existing rows as corrections, and a smaller row set must not be read as retraction
+- a 決議進度 change on re-capture produces a new version under the same identity, not an in-place update
+- overlapping years reconcile against the TWSE OpenAPI feed (114-115) and the frozen TPEx feed (107-110); differences are listed
+- `corporate_action_versions` and `security_events` are unchanged by this PR
+- the API marks the series as declaration data with no verified link to an executed event
 
-## PR #29 — Optional Cache Abstraction
-
-Status: **PLANNED**
-
-Depends on:
-
-```text
-PR #27
-```
-
-Goal:
-
-Add caching without changing resolver semantics.
-
-Implement:
-
-```text
-Cache protocol
-NullCache
-cache-key canonicalizer
-codec/policy
-```
-
-Acceptance criteria:
-
-- [ ] `CACHE_BACKEND=none` is fully functional
-- [ ] cache keys include all PIT/source/derivation identity
-- [ ] cold/no-cache results are equivalent
-
-## PR #30 — Redis Backend
-
-Status: **PLANNED**
-
-Depends on:
-
-```text
-PR #29
-```
-
-Goal:
-
-Add optional Redis query-result caching.
-
-Acceptance criteria:
-
-- [ ] Redis outage falls back to authoritative PostgreSQL execution
-- [ ] cache-on/cache-off results are identical
-- [ ] short connection/socket timeouts exist
-- [ ] Redis persistence is not required for correctness
-- [ ] cache hit/miss/error/bypass metrics exist
-
-## PR #31 — Operational Tooling and Observability
-
-Status: **PLANNED**
-
-Depends on:
-
-```text
-production ingestion and API paths
-```
-
-Goal:
-
-Make import/query/derivation/cache behavior operationally diagnosable.
-
-Include:
-
-```text
-ingest run metrics
-backfill progress
-quarantine reporting
-PIT query latency
-PostgreSQL latency
-derivation metrics
-cache metrics
-source failures
-coverage gaps
-reconciliation status
-```
-
-Do not optimize based on assumptions; measure PostgreSQL/SSD/cache behavior.
-
-## PR #32 — Full Correctness CI Gate
-
-Status: **PLANNED**
-
-Depends on:
-
-```text
-all v1 critical domain implementations
-```
-
-Goal:
-
-Make permanent correctness regression a merge gate.
-
-CI must cover:
-
-```text
-PostgreSQL 18
-Alembic upgrade
-Alembic downgrade/guarded downgrade semantics
-alembic check
-
-append-only rules
-seal/concurrency rules
-Market/System PIT
-publication evidence
-source capability
-cross-source reconciliation
-raw-first restart
-corporate actions
-adjusted price
-derived datasets
-API
-cache equivalence
-```
-
-Acceptance criteria:
-
-- [ ] critical PIT regression blocks merge
-- [ ] schema/domain drift blocks merge
-- [ ] source-import-order reconciliation regression blocks merge
-- [ ] adjusted-price correctness regression blocks merge
-- [ ] cache-disabled mode is always tested
-
-## PR #33 — `my_stock_project` Cutover and Data Center v1 Release
-
-Status: **PLANNED**
-
-Depends on:
-
-```text
-PR #24
-PR #27
-PR #28
-PR #32
-```
-
-Goal:
-
-Make `stock-data-center` the authoritative data provider for the original project and
-declare Data Center v1 ready.
-
-Cutover rule:
-
-```text
-my_stock_project
-    must consume API/SDK
-
-my_stock_project
-    must not maintain a competing authoritative stock database
-```
-
-Acceptance criteria:
-
-- [ ] required `my_stock_project` reads work through API/SDK
-- [ ] direct legacy DB dependencies are removed or explicitly transitional
-- [ ] old/new result reconciliation is documented
-- [ ] historical PIT examples are validated end to end
-- [ ] raw vs adjusted price usage is explicit in consumers
-- [ ] v1 release notes document supported source/date coverage
-- [ ] unresolved source gaps/anomalies are documented rather than hidden
+Out of scope: linking a declaration to an executed ex-dividend event; the `rotc` and `pub` markets, excluded from the v1 universe by §1.1; the TPEx-only 董監酬勞 and 員工紅利 columns of the OpenAPI feed; `qryType=2` (股利所屬年度) as a second axis.
 
 ---
 
-# 32. Cross-PR Acceptance Rules
+# 25. Planned PRs — Operations, API, Cutover
 
-These rules apply to every PR above.
+## PR #27 — Scheduled Forward Capture
 
-## 32.1 Temporal Correctness
+Status: **PLANNED**. Depends on: PRs #16–#24.
 
-Never invent:
+Daily, weekly, monthly, and quarterly jobs run the adapters. They include retries, calendar-based missing-data alerts, and correction detection by re-fetching recent periods. The report on revision rates per dataset quantifies the backfill limitation described in PR #15.
 
-```text
-historical published_at
-historical ingested_at
-historical knowledge
-```
+Capture runs the §3.1 flow: read the expected coverage from PR #16, reconcile it against what is stored, emit jobs carrying their purpose, fetch, ingest. The job list is in memory and the fetcher is the local HTTP one; this PR builds no queue and no separate service. The point is that the scheduler decides what to fetch and why, and no adapter does.
 
-If publication time is unknown:
+Acceptance:
 
-```text
-published_at = NULL
-```
+- two weeks of unattended runs with complete coverage and resumable failures
+- a scheduled run and a gap-fill run over the same missing period produce different evidence, and the gap-fill row resolves by its release rule
+- the set of pending jobs can be listed before any fetch happens
 
-Market PIT must not silently treat unknown evidence as known.
+## PR #28 — Public REST API v1
 
-## 32.2 Raw-First Ingestion
+Status: **PLANNED**. Depends on: PR #15 decision, data PRs.
 
-For external sources where bytes/artifacts are available:
+Expose correct Data Center semantics without exposing tables. The endpoints cover the queries legacy consumers issue: daily panels, indices, valuation, chip data, monthly revenue, financial facts and summaries, TDCC, corporate actions, adjusted prices, and derived metrics. Every response carries its PIT context and provenance. Unsourced columns are omitted or explicitly flagged as unavailable.
 
-```text
-fetch
-→ durable raw artifact
-→ checkpoint
-→ parse
-→ normalize
-→ canonical write
-```
+## PR #29 — Python SDK and Downstream Integration Contract
 
-Do not normalize first and hope to reconstruct provenance later.
+Status: **PLANNED**. Downstream repositories need no PostgreSQL credentials.
 
-## 32.3 Failure Classification
+## PR #30 — Operations and Observability
 
-Use quarantine for:
+Status: **PLANNED**. Covers ingest progress, quarantine, coverage and reconciliation status, and PIT/DB latency.
 
-```text
-invalid source data
-ambiguous source semantics
-domain validation failure
-unexplained impossible values
-```
+## PR #31 — Full Correctness CI Gate
 
-Do not quarantine ordinary:
+Status: **PLANNED**. CI covers PostgreSQL 18, Alembic, PIT, publication evidence, source capability, raw-first restart, corporate-action identity and revisions, adjusted prices, derived datasets, and the API. Corporate-action CI includes the result-feed duplicate scan, the correction regressions, and the announcement-feed rejection fixture.
 
-```text
-database outage
-network infrastructure failure after durable capture
-programming bug
-writer operational failure
-```
+## PR #32 — `my_stock_project` Cutover and v1 Release
 
-Operational failures should remain resumable from retained raw bytes when possible.
+Status: **PLANNED**. Depends on: PRs #25–#31.
 
-## 32.4 Cross-Source Reconciliation
+`my_stock_project` consumes the API/SDK and stops maintaining a competing authoritative database. The final reconciliation compares every legacy table that consumers read with the API results, and every difference is classified.
 
-Final reconciliation truth must be reproducible from stored source histories.
+---
 
-It must not depend on:
+# 26. Not in v1
 
-```text
-which source imported first
-worker scheduling
-current process state
-```
+Three different things were being kept in one list. They are separated here
+because they need different treatment: the first group must never be planned
+again, the second waits on a stated trigger, and only the third could become a
+later version.
 
-If a result is provisional, label it provisional and provide a deterministic final
-reconciliation pass.
+## 26.1 Not obtainable — no source exists
 
-## 32.5 Migration Safety
+No future version can deliver these without a source that does not exist today.
+A PR that proposes one must first produce the endpoint and field label, or be
+rejected.
 
-A downgrade must either:
+| Item | Evidence |
+|---|---|
+| Corporate-action announcement, record, and payment dates | Published by no inspected feed, the announcement feeds included (audit §4.10, §4.13) |
+| Linking a dividend declaration to its executed ex-dividend event | Neither declaration feed carries an ex-date or a locator; the MOPS page says so itself (audit §4.13) |
+| Legal-reserve vs capital-surplus split before 民國110 | MOPS published the two reserves as one combined figure until the 民國110 header change (audit §4.13) |
+| Index trade value; OHLC for any index other than the TAIEX | Not in `MI_INDEX` or `indexSummary`; no TPEx equivalent of `MI_5MINS_HIST` found (audit §4.2) |
+| Historical security name and industry changes | No official history source identified; `t187ap03_*` is a current snapshot |
+| Order-book depth (`bid_snapshot`, `ask_snapshot`) | The daily files publish one level only, already stored in `last_bid_*`/`last_ask_*` (audit §4.1) |
+| First-published *values*: monthly revenue before 2026M02, iXBRL before 2025Q4, exchange daily data before forward capture | MOPS serves the latest corrected values, and no capture recorded the earlier ones (audit §7.1). For monthly revenue the `revswarm` headline figures are rounded to 0.01億 — enough to detect that a correction happened, not to restore the original 千元 number (audit §7.4). |
+| Publication *dates* for the 10.3% of 2020M01-2026M01 monthly revenue with no verified report | `revswarm` found no dated report that passed its guards. These fall through to the release rule. Re-running its later engines could reduce the gap, so this is a coverage limit rather than a hard one. |
+| TDCC history before the portal window, if the archive were lost | The portal serves about 51 weeks and OpenData only the latest. The 375 archived weeks cannot be re-fetched from any official endpoint, so the archive is the only copy (audit §4.9). This is a preservation constraint, not a missing dataset: v1 has every week it needs. |
 
-```text
-safely represent all stored history
-or
-fail explicitly before mutation when the previous schema cannot represent it
-```
+## 26.2 Waiting on a stated trigger
 
-Never delete/collapse valid append-only PIT history merely to make downgrade succeed.
+Obtainable, but deliberately not built until the trigger fires. No trigger, no PR.
 
-## 32.6 Corporate-Action / Price Rule
+| Item | Trigger |
+|---|---|
+| Cache abstraction, Redis backend | The API/DB latency measured in PR #30 proves insufficient. Invariants A–C apply if one is ever added. |
+| Stock tags | An official source with effective dates appears. A third-party current snapshot is not one. |
+| XBRL codebook, margin market summary | A consumer reads them. Neither has one today. |
+| Price-only adjusted series; adjusted-price indicator variants | A consumer needs them. Not required to reproduce the legacy consumers. |
 
-Raw prices are source facts.
+## 26.3 Obtainable, out of v1 by decision
 
-Never "fix" a historical chart by rewriting raw OHLC.
+These have a source and could be built. They are out of v1 to keep it to the
+legacy scope. This is the only group a later version would draw from.
 
-Continuity belongs in:
+| Item | What it would take |
+|---|---|
+| Financial-industry financial statements | A financial-industry account taxonomy and its separate statutory deadlines (audit §7.1). MOPS serves the filings today. |
+| Pre-2020 history | The exchange feeds accept earlier date ranges and could be re-fetched. TDCC cannot, except for the 27 weeks the `TDCC` archive holds back to 2019-06-28; anything earlier is gone. |
+| `rotc` and `pub` markets | MOPS serves all four `TYPEK` values. Excluded by §1.1, not by availability. |
+| `qryType=2` (股利所屬年度) as a second dividend-declaration axis | One more request per market-year against `t05st09sub` (audit §4.13). |
+| TPEx-only declaration columns: 董監酬勞, 員工紅利 | Present in the frozen TPEx OpenAPI feed; no TWSE counterpart, so the series would be one-sided. |
 
-```text
-corporate-action adjustment factors
-adjusted OHLC
-total-return series
-```
+---
 
-A large price jump alone is not evidence of a corporate action.
+# 27. Cross-PR Acceptance Rules
 
-## 32.7 Scope Discipline
+## 27.1 Temporal correctness
 
-Each PR must state what it intentionally does not do.
+Never invent historical `published_at`, `ingested_at`, or knowledge. Rule-derived bounds exist only as PR #15 defines them.
 
-Examples:
+## 27.2 Raw-first ingestion
 
 ```text
-no Redis in an ingestion PR
-no derived calculator in a raw-source PR
-no unrelated performance refactor in a correctness fix
-no silent schema expansion for convenience
+fetch → durable raw artifact → checkpoint → parse → normalize → canonical write
 ```
 
-## 32.8 Review / Merge Evidence
+The artifact origin is `official_fetch` unless §14 allows `legacy_archive`.
 
-Before merge, each PR should provide as applicable:
+## 27.3 Failure classification
+
+Quarantine invalid or ambiguous source data, unknown header variants, and domain validation failures. Operational failures stay resumable once raw bytes are captured.
+
+## 27.4 Cross-source reconciliation
+
+Final truth must be reproducible from stored source histories and independent of import order.
+
+## 27.5 Migration safety
+
+A downgrade must either safely represent stored history or fail explicitly before mutation.
+
+## 27.6 Corporate-action / price rule
+
+Raw prices are source facts. Continuity belongs in adjustment factors and adjusted series.
+
+## 27.7 Corporate-action identity gate
+
+Before a real-source adapter calls `register_corporate_action_event()`, it must prove:
+
+```text
+1. the source is an exchange result feed (Invariant G(2)); announcement feeds are rejected;
+2. source_event_key is "<feed>:<locator date>" and contains no revision content;
+3. a full-history duplicate scan finds zero duplicate keys;
+4. same locator with changed terms -> same event, new revision;
+5. separate executed events -> distinct keys;
+6. a removed row -> retraction, not deletion.
+```
+
+If any item cannot be established, stop before normalized event registration.
+
+## 27.8 Source-field rule
+
+Every stored or promised field satisfies §2.4. Every adapter PR updates `docs/source_field_audit.md`.
+
+## 27.9 Legacy reconciliation
+
+Every adapter and derived PR reconciles against the legacy `stock_db` over 2020-01-02 → 2026-09-11 and classifies every difference. Matching the legacy data is evidence, not the goal: a PIT-correct difference is acceptable when it is explained.
+
+## 27.10 Scope discipline
+
+Each PR states what it intentionally does not do. Do not absorb unrelated refactors or optimizations.
+
+## 27.11 Review / merge evidence
+
+Before merge, provide as applicable:
 
 ```text
 focused regression suite
@@ -2597,10 +1283,13 @@ git diff --check
 Alembic check
 migration round-trip or guarded downgrade test
 opt-in live-source verification
-acceptance/reconciliation report
+legacy reconciliation report
+acceptance report (docs/pr_reports/pr-<N>-acceptance-report.md)
 ```
 
-# 33. Suggested Source Layout
+---
+
+# 28. Suggested Source Layout
 
 ```text
 stock-data-center/
@@ -2609,108 +1298,79 @@ stock-data-center/
 ├── AGENTS.md
 ├── pyproject.toml
 ├── docker-compose.yml
-├── .env.example
 ├── alembic.ini
 ├── migrations/
 ├── data/
-│   └── raw/
+│   └── raw/                    content-addressed artifact store only
+│       └── <ab>/<sha256>       written by LocalRawArtifactStore; no source
+│                               archive and no processed/ staging layer
 ├── docs/
-│   ├── architecture.md
+│   ├── source_field_audit.md
+│   ├── data_domain_inventory.md
 │   ├── pit_semantics.md
 │   ├── schema.md
-│   ├── data_sources.md
-│   ├── data_domain_inventory.md
+│   ├── real_source_ingestion.md
 │   ├── derived_data.md
-│   ├── cache.md
 │   ├── phase_reports/
+│   ├── pr_reports/
 │   └── decisions/
 ├── src/
 │   └── stock_data_center/
 │       ├── api/
-│       ├── services/
 │       ├── pit/
 │       ├── derived/
-│       │   ├── technical/
-│       │   ├── ownership/
-│       │   ├── valuation/
-│       │   └── margin/
-│       ├── cache/
-│       │   ├── base.py
-│       │   ├── null_cache.py
-│       │   ├── redis_cache.py
-│       │   ├── keys.py
-│       │   ├── codec.py
-│       │   └── policy.py
-│       ├── storage/
 │       ├── ingestion/
 │       │   ├── adapters/
-│       │   ├── backfill/
-│       │   ├── reconciliation/
-│       │   └── manifests/
-│       └── domain/
+│       │   └── reconciliation/
+│       └── <domain packages>/
 └── tests/
     ├── unit/
-    ├── integration/
-    ├── pit/
-    └── regression/
+    └── integration/
 ```
 
 ---
 
-# 34. Definition of Done for v1
+# 29. Definition of Done for v1
 
 Version 1 is complete when:
 
-- [ ] PostgreSQL 18 is the sole authoritative data store
-- [ ] market PIT supports `information_as_of` + `knowledge_as_of`
-- [ ] system PIT supports exact ingestion reconstruction
-- [ ] business revisions and publication-evidence revisions are separate
-- [ ] complex aggregates are concurrency-safe and seal-protected
-- [ ] source-level PIT capability is enforced
-- [ ] XBRL full context identity is supported
-- [ ] raw provenance is auditable
-
-- [ ] all known v1 legacy/source domains have an explicit storage/ownership mapping
-- [ ] all required observed domains have PIT-safe storage/query support
-- [ ] real source adapters exist for supported v1 observed domains
-- [ ] representative pilot and historical backfill have auditable manifests/reconciliation
-- [ ] source-native units are normalized before canonical storage
-- [ ] backfill does not invent publication time or fake System-PIT history
-- [ ] imported raw artifacts/provenance are auditable
-- [ ] reusable canonical derived datasets have versioned derivation semantics
-- [ ] model-specific features remain outside Data Center
-
-- [ ] REST API is stable
-- [ ] Redis is optional
-- [ ] Data Center works without Redis
-- [ ] Redis failure falls back safely
-- [ ] cache keys are PIT-aware
-- [ ] derived cache keys include derivation identity
-- [ ] cache-on/cache-off results are identical
-- [ ] full PIT/domain/derived/cache regression suite runs in CI
-- [ ] downstream ML repos need neither DB nor Redis access
+- PostgreSQL 18 is the sole authoritative data store.
+- Every domain in §16 marked for v1 covers 2020-01-02 through cutover. Data comes from official endpoints, except TDCC weeks that predate forward capture, which come from the two documented archives (§14).
+- Each domain has a legacy reconciliation report with every difference classified.
+- Forward capture runs unattended on the trading calendar.
+- Market PIT is usable for history under the approved PR #15 policy. If the owner rejects rule-derived evidence, the API documents that history is System-PIT only.
+- System PIT reconstructs actual ingestion exactly.
+- Business revisions and publication-evidence revisions are separate.
+- Complex aggregates are concurrency-safe and seal-protected.
+- XBRL full context identity is supported.
+- Corporate actions come only from exchange result feeds that pass the identity gate. Announcement feeds remain un-normalized.
+- Adjusted prices use the reference-price convention and have reviewed discontinuity reports.
+- Canonical derived v1 metrics reproduce the legacy calculators, with explained PIT differences.
+- No API field is presented as data unless a verified source field populates it.
+- Downstream ML repos use only the API/SDK. Redis is not required.
 
 ---
 
-# 35. Core Design Principles
+# 30. Core Design Principles
 
 1. Correct historical visibility before convenience.
-2. Phase 1 defines the complete known v1 storage contract, not only the first few datasets.
-3. PostgreSQL is truth; Redis is disposable optimization.
-4. Redis may improve performance but may never change semantics.
-5. Market time and Data Center knowledge time are separate clocks.
-6. System PIT means actual complete ingestion history.
-7. Business revisions and evidence revisions are separate.
-8. Complex aggregates become visible only when sealed and remain correct under concurrency.
-9. Sources remain separate unless an explicit reconciliation policy exists.
-10. Data Center may own deterministic cross-repo canonical derived datasets.
-11. Every canonical derived dataset must have a derivation version and PIT-safe input lineage.
-12. `computed_at` is derivation provenance, not market publication time.
-13. Model-specific features remain in ML repositories.
-14. Cache resolved results, not database implementation details.
-15. Every cache identity must include all PIT/source/derivation semantics.
-16. Downstream ML systems never reproduce PIT rules.
-17. Real-data import is raw-first, source-explicit, idempotent, and reconciliation-driven.
-18. Historical backfill never invents publication time or System-PIT history.
-19. Full-market backfill follows a successful representative pilot.
-20. Measure SSD/database behavior before claiming cache benefit.
+2. PostgreSQL is truth; any cache is a disposable optimization.
+3. Market time and Data Center knowledge time are separate clocks.
+4. System PIT means actual complete ingestion history.
+5. Business revisions and publication evidence are separate.
+6. Complex aggregates become visible only when sealed and remain correct under concurrency.
+7. Sources remain separate unless an explicit reconciliation policy exists.
+8. Data Center may own deterministic cross-repository canonical derived datasets.
+9. Every canonical derived dataset has a derivation version and PIT-safe lineage.
+10. `computed_at` is derivation provenance, not market publication time.
+11. Model-specific features remain in ML repositories.
+12. Downstream systems never reproduce PIT rules.
+13. Real-data import is raw-first, source-explicit, idempotent, and reconciliation-driven.
+14. Historical backfill never invents publication time or System-PIT history. Rule-derived bounds are labeled evidence, never silent defaults.
+15. Raw official prices are never rewritten to hide discontinuities.
+16. Corporate-action identity must survive corrections. Announcement feeds lack it; exchange result feeds carry it through the executed event date or locator.
+17. Current-snapshot uniqueness is evidence to test, not proof of identity.
+18. If stable source identity is not available, fail closed rather than manufacture a synthetic event.
+19. No stored or promised field without a named source field: design follows what sources actually publish.
+20. v1 is the legacy scope rebuilt with PIT, not a superset of every conceivable field.
+21. Measure before optimizing: no cache until latency is measured.
