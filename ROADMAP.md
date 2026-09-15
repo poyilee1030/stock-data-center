@@ -162,6 +162,36 @@ TWSE / TPEx / MOPS / TDCC
 
 PostgreSQL is authoritative. A query-result cache (NullCache/Redis) may sit between the API and the resolver later, but it is not part of v1 delivery (§26.2).
 
+## 3.1 The fetch boundary
+
+Ingestion is written as a one-way data flow, even though v1 runs all of it in one process:
+
+```text
+expected coverage        what each dataset should hold for each period
+        |                (PR #16, from the trading calendar)
+        v
+reconcile                compare against what is stored
+        |
+        v
+fetch jobs               a serializable request + a purpose:
+        |                first_capture | gap_fill | correction_check
+        v
+fetch                    SourceFetcher: job -> FetchedArtifact
+        |
+        v
+raw-first ingest         parse, version, and record the purpose on the ingest run
+```
+
+Two properties make this worth writing down now.
+
+**The purpose is decided when the job is issued, never inferred after the fetch.** It selects the evidence type (§9). A `first_capture` produces `capture_bound`; a `gap_fill` or `correction_check` produces none and the version falls back to its release rule. Without this, a row fetched in 2027 because a query noticed it was missing would claim `capture_bound` 2027 and stay invisible to Market PIT for all of 2026 — publication time would become a function of when somebody happened to look.
+
+**Fetching is already replaceable.** `SourceFetcher` is a one-method Protocol, adapters only describe a resource and parse bytes, and `FetchedArtifact.fetched_at` is explicit data rather than the caller's `now()`, so a fetch performed elsewhere or earlier carries an honest timestamp. Moving fetching out of process later means supplying a different `SourceFetcher` and replacing the in-process job list with a real queue. No adapter, evidence rule, or writer changes.
+
+v1 builds no queue and no separate service. The flow above is the shape, not the topology. What would justify splitting it out is a second consumer, or a source that needs more than one egress IP — neither exists today. The real pressure that does exist is the shared MOPS request budget (§13), which the rate governor in PR #20 addresses inside one process.
+
+The risk this section exists to prevent: adapters that decide what to fetch, call the fetcher, and judge evidence inline. That works in one process and is invisible until the day it has to be split, at which point "what needs fetching" is scattered across a dozen adapters with nowhere to list it.
+
 ---
 
 # 4. Core Architectural Invariants
@@ -721,6 +751,7 @@ Rules:
 - A revision first captured after the rule instant receives only `capture_bound`. A correction is never visible before it was actually seen.
 - Documented limitation: history before any capture record stores latest-corrected values, made visible at rule instants. This allows correction look-ahead, which the legacy system also has. It affects monthly revenue before 2026M02, XBRL before 2025Q4, and all exchange daily data before forward capture. PR #27 reports forward-capture revision rates so the size of this effect is measured.
 - Move source policy (capability and accepted evidence types) from generic raw-first orchestration into each adapter's source declaration. This absorbs the former "source capability hook" PR.
+- Record a `purpose` on the ingest run — `first_capture`, `gap_fill`, or `correction_check` — and derive the evidence type from it (§3.1). The purpose is set when the fetch is requested, never inferred afterwards, so a row fetched years later because a query noticed it was missing cannot claim `capture_bound` at that later instant.
 
 Alternative: keep official-only evidence. v1 then exposes history through System PIT only, and historical Market-PIT queries return nothing.
 
@@ -732,6 +763,7 @@ Acceptance:
 - Each rule has an id, a version, and a cited official schedule or statute. Permanent tests cover weekends, holidays, year boundaries, and deadlines that fall on non-business days.
 - Revision-after-rule regression.
 - Exchange daily rules are validated against forward captures: the data for trade date D is fetchable at the rule instant.
+- A `gap_fill` ingest of a period that was never captured produces no `capture_bound`; the version resolves by its release rule.
 
 Out of scope: inventing instants for sources without a documented schedule or statute.
 
@@ -756,11 +788,14 @@ Source contract: TWSE `FMTQIK` (one request per month, listing every actual trad
 
 Schema impact: new observed calendar table (market, trading date, source, lineage).
 
+The validator must already know what each dataset should hold before it can report a gap. That knowledge is exposed as a queryable expected-coverage declaration, not left implicit inside report generation, because it is what PR #27 turns into fetch jobs (§3.1).
+
 Acceptance:
 
 - the 2020-01-02 → 2026-09-11 calendar matches the trade dates in the legacy archive, or each difference is explained
 - typhoon closures (for example, 2024-07-24/25) appear as closures
 - the coverage report separates non-trading days from missing data and does not rely on today's security universe
+- expected coverage can be queried directly for a (dataset, period) range, not only rendered as a report
 
 ## PR #17 — Whole-Market Daily Prices
 
@@ -861,7 +896,17 @@ Status: **PLANNED**. Depends on: PR #16, PR #17.
 
 Source contract (audit §4.3–4.4): `T86`, `BFI82U`, `MI_QFIIS`; TPEx `3itrade_hedge`, `3itrdsum`, MOPS `t13sa150_otc`. History: about 9,800 requests.
 
-Acceptance: legacy `institutional_investors`, `institutional_summary`, and `foreign_holding` reconcile. The broken TPEx summary artifact of 2026-07-10 is re-fetched or quarantined.
+This PR is where the fetch layer stops being GET-only, so it also completes the two pieces §3.1 depends on:
+
+- **`SourceResource` becomes a complete request.** MOPS `t13sa150_otc` is a POST with a form body returning big5, which the current `HttpSourceFetcher` cannot express: it issues `GET` with a fixed `Accept: application/json`. Add method, body, and headers, so a resource is a full, serializable description of one fetch — which is also what a job needs to be.
+- **A per-host rate governor, injected into the fetcher.** Four v1 PRs (#20, #22, #23, #33) call `mopsov.twse.com.tw`, today each with its own sleep and no view of the others. MOPS blocked the legacy scraper on 2026-07-02 and the legacy 23:50 XBRL window already overruns into the 03:00 retry (audit §7.2). One budget per host, enforced in one place.
+
+Acceptance:
+
+- legacy `institutional_investors`, `institutional_summary`, and `foreign_holding` reconcile
+- the broken TPEx summary artifact of 2026-07-10 is re-fetched or quarantined
+- a POST resource round-trips through serialization unchanged
+- every MOPS request in the process passes through the governor; a test proves two adapters running together cannot exceed the host budget
 
 ## PR #21 — Margin Trading and Securities Lending
 
@@ -1084,7 +1129,13 @@ Status: **PLANNED**. Depends on: PRs #16–#24.
 
 Daily, weekly, monthly, and quarterly jobs run the adapters. They include retries, calendar-based missing-data alerts, and correction detection by re-fetching recent periods. The report on revision rates per dataset quantifies the backfill limitation described in PR #15.
 
-Acceptance: two weeks of unattended runs with complete coverage and resumable failures.
+Capture runs the §3.1 flow: read the expected coverage from PR #16, reconcile it against what is stored, emit jobs carrying their purpose, fetch, ingest. The job list is in memory and the fetcher is the local HTTP one; this PR builds no queue and no separate service. The point is that the scheduler decides what to fetch and why, and no adapter does.
+
+Acceptance:
+
+- two weeks of unattended runs with complete coverage and resumable failures
+- a scheduled run and a gap-fill run over the same missing period produce different evidence, and the gap-fill row resolves by its release rule
+- the set of pending jobs can be listed before any fetch happens
 
 ## PR #28 — Public REST API v1
 
