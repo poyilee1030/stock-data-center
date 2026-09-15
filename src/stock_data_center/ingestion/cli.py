@@ -21,12 +21,14 @@ from stock_data_center.ingestion.adapters import (
     TWSEDelistingHistoryAdapter,
     TWSEListingHistoryAdapter,
     TWSESecurityMetadataAdapter,
+    TWSETradingCalendarAdapter,
 )
 from stock_data_center.ingestion.daily_market import DailyMarketImporter
 from stock_data_center.ingestion.models import (
     DailyMarketRequest,
     SecurityLifecycleRequest,
     SecurityMetadataRequest,
+    TradingCalendarRequest,
 )
 from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
 from stock_data_center.ingestion.security_lifecycle import (
@@ -34,6 +36,7 @@ from stock_data_center.ingestion.security_lifecycle import (
     reconcile_security_transfers,
 )
 from stock_data_center.ingestion.security_metadata import SecurityMetadataImporter
+from stock_data_center.ingestion.trading_calendar import TradingCalendarImporter
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -67,6 +70,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     security_history.add_argument("--import-id", type=UUID)
     security_history.add_argument("--raw-root", type=Path, default=Path("data/raw"))
+    calendar = subparsers.add_parser(
+        "trading-calendar",
+        help="import one month of actual trading days",
+    )
+    calendar.add_argument("--source", choices=("twse",), default="twse")
+    calendar.add_argument("--month", required=True, help="Gregorian YYYY-MM")
+    calendar.add_argument("--import-id", type=UUID)
+    calendar.add_argument("--raw-root", type=Path, default=Path("data/raw"))
     subparsers.add_parser(
         "security-transfer-reconciliation",
         help="recompute final transfer matching from canonical TWSE/TPEx histories",
@@ -105,6 +116,18 @@ def main(argv: list[str] | None = None) -> int:
                 adapter=adapter,
                 request=DailyMarketRequest(
                     args.security_code, date.fromisoformat(f"{args.month}-01")
+                ),
+                import_id=import_id,
+            )
+        elif args.command == "trading-calendar":
+            importer = TradingCalendarImporter(
+                engine,
+                raw_store=LocalRawArtifactStore(args.raw_root),
+            )
+            result = importer.run(
+                adapter=TWSETradingCalendarAdapter(),
+                request=TradingCalendarRequest(
+                    date.fromisoformat(f"{args.month}-01")
                 ),
                 import_id=import_id,
             )

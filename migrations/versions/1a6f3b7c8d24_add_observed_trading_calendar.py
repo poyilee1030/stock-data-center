@@ -379,7 +379,7 @@ def upgrade() -> None:
                 (dataset_code, source, supports_market_pit, supports_system_pit,
                  publication_time_quality, evidence_status,
                  accepted_evidence_types, is_canonical)
-            VALUES ('trading_calendar', 'twse', false, true, 0, 'unverified',
+            VALUES ('trading_calendar', 'twse', true, true, 0, 'verified',
                     ARRAY['official']::varchar[], true)
             ON CONFLICT (dataset_code, source) DO NOTHING
             """
