@@ -407,6 +407,12 @@ legacy_archive   only where an archive holds something no official re-fetch
                  fetched_at is the Data Center's read time.
                  Where the archive's own filename disagrees with the payload,
                  the payload wins and the file is rejected (PR #24).
+
+v1 depends on four archives that no official endpoint can reproduce: the two
+TDCC archives, the legacy XBRL documents, the legacy monthly-revenue
+`market.csv` first-seen rows, and `revswarm.db`. Three of them live outside
+this repository. PR #32 must not declare cutover complete while a v1 rebuild
+still depends on a path under `~/GitHubLL`.
 ```
 
 ---
@@ -598,12 +604,12 @@ Scope:
 
 - Correct `docs/data_domain_inventory.md` and `.json` where they claim unsourced fields:
   - stock-tag effective dates
-  - market-index OHLC and trade value
-  - daily bid/ask snapshots
+  - index trade value, and index OHLC for anything other than the TAIEX (§2.3)
+  - daily order-book depth (`bid_snapshot`/`ask_snapshot`); the one published level is sourced and belongs in `last_bid_*`/`last_ask_*`
   - monthly-revenue currency as an observation
-  - corporate-action announcement/record/payment dates
-- Correct them where they drop sourced fields that consumers read: the monthly-revenue published comparatives.
-- Mark stock tags, the XBRL codebook, and the margin market summary as not in v1.
+  - corporate-action announcement/record/payment dates and the earnings/capital-surplus split
+- Correct them where they drop sourced fields that consumers read: the monthly-revenue published comparatives, and the TAIEX OHLC that PR #18 adds.
+- Mark stock tags, the XBRL codebook, and the margin market summary as not in v1, and add the new domain `dividend_declaration_versions` (PR #33).
 - Add a contract test: every column of every observed `*_versions` table maps to an audited source field or is listed as unsourced or partially sourced.
 
 Schema impact: none. Migration: none. PIT impact: none.
@@ -920,6 +926,8 @@ Source contract (audit §4.9):
   - legacy `my_stock_project/data/raw/shareholding` — 340 files, and the only source of 2020-06-20, 2020-09-25, 2021-02-19 and 2022-11-04
 - both archives carry the same six-column OpenData header, so one parser handles all of them
 - the portal per-security query only for repairs inside its roughly one-year window
+
+New runtime dependency: a 7z reader (`py7zr`), since 2021 onward is stored as `.7z`. PR #24 adds it to `pyproject.toml`; it is not declared today.
 
 The importer keys on the 資料日期 column, never on the filename: `20200619.CSV` and `20200619.zip` both contain 20200612 data, and trusting the name would invent a week and drop the real one. It must also handle the slash date format in `20190628.zip`, the ten double-BOM files, mixed extension case, and the 51 content dates that have duplicate copies (every pair agrees exactly, so either may be kept).
 
