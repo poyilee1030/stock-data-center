@@ -944,9 +944,10 @@ Status: **PLANNED**. Depends on: PR #6 contract, PR #16.
 Source contract (audit §4.9):
 
 - OpenData `id=1-5` weekly, from the first forward capture onward
-- `legacy_archive` artifacts up to the first forward capture, from two complementary archives whose union is 375 weeks, 2019-06-28 to 2026-09-11, of which 348 fall inside the v1 window:
-  - `my_stock_project/data/raw/TDCC` — 422 files, 371 weeks
-  - `my_stock_project/data/raw/shareholding` — 340 files, and the only source of 2020-06-20, 2020-09-25, 2021-02-19 and 2022-11-04
+- `legacy_archive` artifacts up to the first forward capture, 375 weeks from 2019-06-28 to 2026-09-11, of which 348 fall inside the v1 window:
+  - `my_stock_project/data/raw/TDCC` — 422 files, 371 weeks. This is the archive. It contains `shareholding` on all 336 overlapping dates.
+  - `my_stock_project/data/raw/shareholding` — needed for exactly four weeks `TDCC` lacks: 2020-06-20, 2020-09-25, 2021-02-19, 2022-11-04. Its other 336 files are equal to or a filtered subset of the `TDCC` file for the same date, because the legacy scraper began dropping ETFs on 2023-09-15 (audit §4.9). Never prefer it over `TDCC`.
+  - `my_stock_project/data/raw/shareholding_div` — not a source. It is the 1,849-security portal reconstruction of 2026-07-09, superseded by the real 4,003-security bulk file in `TDCC`.
 - both archives carry the same six-column OpenData header, so one parser handles all of them
 - the portal per-security query only for repairs inside its roughly one-year window
 
@@ -959,7 +960,8 @@ Acceptance:
 - all 375 union weeks import, each keyed by its content date
 - a file whose name disagrees with its content date is rejected with that fact named, not silently renamed
 - every remaining interval of 10 or more days resolves to a Lunar New Year closure; any other gap fails the import
-- 2026-07-09 imports as the complete 4,003-security file from the `TDCC` archive, not as the 1,849-security reconstruction in `shareholding`
+- 2026-07-09 imports as the complete 4,003-security file from `TDCC`; neither the `shareholding` row set nor `shareholding_div` is used for it
+- no imported week has fewer securities than the `TDCC` file for that date, which would mean a filtered `shareholding` file was preferred
 - legacy `shareholding` reconciles on the 340 weeks it holds
 
 ---
