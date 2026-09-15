@@ -17,11 +17,16 @@ from stock_data_center.ingestion.adapters.security_metadata import (
     TPExSecurityMetadataAdapter,
     TWSESecurityMetadataAdapter,
 )
+from stock_data_center.ingestion.adapters.trading_calendar import (
+    TradingCalendarAdapter,
+    TWSETradingCalendarAdapter,
+)
 
 __all__ = [
     "DailyMarketAdapter",
     "SecurityLifecycleAdapter",
     "SecurityMetadataAdapter",
+    "TradingCalendarAdapter",
     "TPExDailyMarketAdapter",
     "TPExDelistingHistoryAdapter",
     "TPExListingHistoryAdapter",
@@ -30,4 +35,5 @@ __all__ = [
     "TWSEDelistingHistoryAdapter",
     "TWSEListingHistoryAdapter",
     "TWSESecurityMetadataAdapter",
+    "TWSETradingCalendarAdapter",
 ]
