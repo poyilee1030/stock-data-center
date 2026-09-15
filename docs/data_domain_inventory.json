@@ -17,6 +17,1360 @@
     "publish_time": "publication_evidence.published_at",
     "phase7_stock_quantity": "canonical shares; explicit source lots multiply by 1000 before observation, storage, and hashing"
   },
+  "storage_contract": {
+    "description": "Per-column source coverage of every observed *_versions table, aligned with docs/source_field_audit.md. ROADMAP PR #14.",
+    "coverage_terms": {
+      "sourced": "an inspected official endpoint publishes the value for the whole v1 window and both markets",
+      "partially_sourced": "published for only some dates, markets, or securities; audit section 5 lists every one",
+      "unsourced": "no inspected source publishes it; the column stays NULL and no v1 PR may promise it",
+      "internal": "identity, interval boundary, or provenance linkage that is not expected to come from a source field"
+    },
+    "source_fields_note": "Exact published column labels where the audit records them; where the audit certifies a whole table instead (4.3, 4.4, 4.5), the endpoint is named.",
+    "structural_columns": [
+      "business_content_hash",
+      "id",
+      "ingest_run_id",
+      "ingested_at",
+      "predecessor_version_id",
+      "raw_artifact_id",
+      "source"
+    ],
+    "excluded_tables": {
+      "derived_metric_versions": "Canonical derived data, not an observed source domain. Its contract is the derived dataset definition registry, not a source field mapping."
+    },
+    "tables": {
+      "corporate_action_versions": {
+        "dataset_code": "corporate_action",
+        "v1": true,
+        "roadmap_pr": 19,
+        "reason": "Exchange result feeds TWT49U, TWTAUU, TWTB8U, TPEx exDailyQ and revivt, plus the TWSE Detail endpoints (audit 4.10).",
+        "columns": {
+          "event_id": {
+            "coverage": "internal",
+            "note": "Stable event identity (security, source, source event key). TWSE's 詳細資料 locator \"{code},{yyyymmdd}\" exists only in response=json."
+          },
+          "action_type": {
+            "coverage": "sourced",
+            "source_fields": [
+              "權/息",
+              "減資原因"
+            ],
+            "audit_section": "4.10",
+            "note": "Derived from the feed that published the row and its own event marker, not invented."
+          },
+          "capital_reduction_kind": {
+            "coverage": "sourced",
+            "source_fields": [
+              "減資原因"
+            ],
+            "audit_section": "4.10",
+            "note": "TWTAUU and revivt publish the reduction reason."
+          },
+          "announcement_date": {
+            "coverage": "unsourced",
+            "audit_section": "4.10",
+            "note": "No exchange result feed carries an announcement date. The issuer declaration feeds that do carry board-resolution dates have no link to an executed event (PR #33, audit 4.13)."
+          },
+          "ex_date": {
+            "coverage": "sourced",
+            "source_fields": [
+              "資料日期",
+              "除權息日期",
+              "恢復買賣日期"
+            ],
+            "audit_section": "4.10",
+            "note": "Ex-right/ex-dividend date, or the resumption date for capital reduction and par-value change."
+          },
+          "record_date": {
+            "coverage": "unsourced",
+            "audit_section": "4.10",
+            "note": "No exchange result feed carries a record date."
+          },
+          "payment_date": {
+            "coverage": "unsourced",
+            "audit_section": "4.10",
+            "note": "No exchange result feed carries a payment date."
+          },
+          "cash_dividend_per_share": {
+            "coverage": "sourced",
+            "source_fields": [
+              "(每股配發現金股利)除息",
+              "現金股利"
+            ],
+            "audit_section": "4.10",
+            "note": "TWT49UDetail for TWSE, exDailyQ for TPEx."
+          },
+          "capital_reduction_cash_return_per_share": {
+            "coverage": "sourced",
+            "source_fields": [
+              "每股退還股款"
+            ],
+            "audit_section": "4.10",
+            "note": "TWTAVUDetail and the revivt inline detail."
+          },
+          "earnings_stock_ratio": {
+            "coverage": "unsourced",
+            "audit_section": "4.10",
+            "note": "The exchange feeds publish only the combined free-share figure. The earnings / capital-surplus split exists only in the MOPS issuer declaration feed, stored as its own domain by PR #33 (audit 4.13)."
+          },
+          "capital_surplus_stock_ratio": {
+            "coverage": "unsourced",
+            "audit_section": "4.10",
+            "note": "The exchange feeds publish only the combined free-share figure. The split exists only in the MOPS issuer declaration feed (PR #33), and before ROC 110 the two reserves arrive as one number (audit 4.13)."
+          },
+          "free_share_ratio": {
+            "coverage": "sourced",
+            "source_fields": [
+              "A. 每千股無償配股",
+              "每仟股無償配股"
+            ],
+            "audit_section": "4.10",
+            "note": "Free shares per 1,000 divided by 1,000."
+          },
+          "old_shares": {
+            "coverage": "partially_sourced",
+            "source_fields": [
+              "每壹仟股換發新股票"
+            ],
+            "audit_section": "4.10",
+            "note": "Capital reduction only: the old side is the constant 1,000 of 每壹仟股. TWTB8U par-value-change detail fields are not yet verified and no TPEx par-value endpoint was found."
+          },
+          "new_shares": {
+            "coverage": "partially_sourced",
+            "source_fields": [
+              "每壹仟股換發新股票"
+            ],
+            "audit_section": "4.10",
+            "note": "Capital reduction only. TWTB8U par-value-change detail fields are not yet verified and no TPEx par-value endpoint was found."
+          },
+          "rights_ratio": {
+            "coverage": "sourced",
+            "source_fields": [
+              "按股東持股比例每千股認購",
+              "按持股比例仟股認購"
+            ],
+            "audit_section": "4.10",
+            "note": "TWT49UDetail/TWTAVUDetail for TWSE, exDailyQ for TPEx."
+          },
+          "subscription_price": {
+            "coverage": "sourced",
+            "source_fields": [
+              "每股認購金額",
+              "現金增資認購價"
+            ],
+            "audit_section": "4.10",
+            "note": "TWSE Detail endpoints and TPEx exDailyQ."
+          },
+          "close_before": {
+            "coverage": "sourced",
+            "source_fields": [
+              "除權息前收盤價",
+              "停止買賣前收盤價格",
+              "最後交易日之收盤價格"
+            ],
+            "audit_section": "4.10",
+            "note": "Published by every result feed."
+          },
+          "official_reference_price": {
+            "coverage": "sourced",
+            "source_fields": [
+              "除權息參考價",
+              "恢復買賣參考價",
+              "減資恢復買賣開始日參考價格"
+            ],
+            "audit_section": "4.10",
+            "note": "Published by every result feed."
+          },
+          "official_rights_dividend_value": {
+            "coverage": "sourced",
+            "source_fields": [
+              "權值+息值"
+            ],
+            "audit_section": "4.10",
+            "note": "TWT49U and exDailyQ."
+          },
+          "source_event_type": {
+            "coverage": "sourced",
+            "source_fields": [
+              "權/息",
+              "減資原因"
+            ],
+            "audit_section": "4.10",
+            "note": "The source's own event wording, kept verbatim alongside the normalized action_type."
+          },
+          "source_terms": {
+            "coverage": "sourced",
+            "source_fields": [
+              "漲停價格",
+              "跌停價格",
+              "開盤競價基準",
+              "減除股利參考價",
+              "最近一次申報每股 (單位)淨值",
+              "最近一次申報每股 (單位)盈餘"
+            ],
+            "audit_section": "4.10",
+            "note": "Published terms with no dedicated column are kept verbatim (audit 6)."
+          }
+        }
+      },
+      "daily_price_versions": {
+        "dataset_code": "daily_price",
+        "v1": true,
+        "roadmap_pr": 17,
+        "reason": "TWSE MI_INDEX?type=ALLBUT0999 stock section and TPEx stk_wn1430, three header variants (audit 4.1).",
+        "columns": {
+          "security_id": {
+            "coverage": "internal",
+            "note": "Stable Data Center identity resolved from the source security code."
+          },
+          "trade_date": {
+            "coverage": "sourced",
+            "source_fields": [
+              "report date of the requested MI_INDEX file",
+              "report date of the requested stk_wn1430 file"
+            ],
+            "audit_section": "4.1",
+            "note": "The daily feeds serve one whole-market file per trade date; the date is the request key, not a row column."
+          },
+          "open_price": {
+            "coverage": "sourced",
+            "source_fields": [
+              "開盤價",
+              "開盤"
+            ],
+            "audit_section": "4.1",
+            "note": "TWSE 開盤價, TPEx 開盤."
+          },
+          "high_price": {
+            "coverage": "sourced",
+            "source_fields": [
+              "最高價",
+              "最高"
+            ],
+            "audit_section": "4.1",
+            "note": "TWSE 最高價, TPEx 最高."
+          },
+          "low_price": {
+            "coverage": "sourced",
+            "source_fields": [
+              "最低價",
+              "最低"
+            ],
+            "audit_section": "4.1",
+            "note": "TWSE 最低價, TPEx 最低."
+          },
+          "close_price": {
+            "coverage": "sourced",
+            "source_fields": [
+              "收盤價",
+              "收盤"
+            ],
+            "audit_section": "4.1",
+            "note": "TWSE 收盤價, TPEx 收盤."
+          },
+          "volume": {
+            "coverage": "sourced",
+            "source_fields": [
+              "成交股數"
+            ],
+            "audit_section": "4.1",
+            "note": "Published in shares by both markets."
+          },
+          "trade_value": {
+            "coverage": "sourced",
+            "source_fields": [
+              "成交金額",
+              "成交金額(元)"
+            ],
+            "audit_section": "4.1",
+            "note": "TWSE 成交金額, TPEx 成交金額(元)."
+          },
+          "trade_count": {
+            "coverage": "sourced",
+            "source_fields": [
+              "成交筆數"
+            ],
+            "audit_section": "4.1",
+            "note": "Published by both markets."
+          },
+          "price_change": {
+            "coverage": "sourced",
+            "source_fields": [
+              "漲跌價差",
+              "漲跌"
+            ],
+            "audit_section": "4.1",
+            "note": "TWSE publishes an unsigned 漲跌價差 with a separate sign column; TPEx publishes a signed 漲跌."
+          },
+          "price_direction": {
+            "coverage": "partially_sourced",
+            "source_fields": [
+              "漲跌(+/-)"
+            ],
+            "audit_section": "4.1",
+            "note": "TWSE only. stk_wn1430 carries a signed 漲跌 and no direction column."
+          },
+          "bid_snapshot": {
+            "coverage": "unsourced",
+            "audit_section": "4.1",
+            "note": "Multi-level order-book depth blob. No daily whole-market endpoint publishes depth; the one published level is stored in last_bid_price/last_bid_volume."
+          },
+          "ask_snapshot": {
+            "coverage": "unsourced",
+            "audit_section": "4.1",
+            "note": "Multi-level order-book depth blob. No daily whole-market endpoint publishes depth; the one published level is stored in last_ask_price/last_ask_volume."
+          },
+          "last_bid_price": {
+            "coverage": "sourced",
+            "source_fields": [
+              "最後揭示買價",
+              "最後買價"
+            ],
+            "audit_section": "4.1",
+            "note": "The single published bid level."
+          },
+          "last_ask_price": {
+            "coverage": "sourced",
+            "source_fields": [
+              "最後揭示賣價",
+              "最後賣價"
+            ],
+            "audit_section": "4.1",
+            "note": "The single published ask level."
+          },
+          "last_bid_volume": {
+            "coverage": "partially_sourced",
+            "source_fields": [
+              "最後揭示買量",
+              "最後買量(千股)",
+              "最後買量(張數)"
+            ],
+            "audit_section": "4.1",
+            "note": "TWSE on all dates, in lots. TPEx only from 2020-04-30; the label changes 千股 to 張數 on 2025-01-10, both meaning 1,000 shares."
+          },
+          "last_ask_volume": {
+            "coverage": "partially_sourced",
+            "source_fields": [
+              "最後揭示賣量",
+              "最後賣量(千股)",
+              "最後賣量(張數)"
+            ],
+            "audit_section": "4.1",
+            "note": "TWSE on all dates, in lots. TPEx only from 2020-04-30; the label changes 千股 to 張數 on 2025-01-10, both meaning 1,000 shares."
+          }
+        }
+      },
+      "financial_filing_versions": {
+        "dataset_code": "financial_filing",
+        "v1": true,
+        "roadmap_pr": 23,
+        "reason": "MOPS server-java/t164sb01, one iXBRL document per (CO_ID, SYEAR, SSEASON, REPORT_ID) (audit 4.8).",
+        "columns": {
+          "security_id": {
+            "coverage": "internal",
+            "note": "Stable Data Center identity resolved from the source security code."
+          },
+          "filing_key": {
+            "coverage": "internal",
+            "note": "Synthetic (security, year, quarter, report type), matching the endpoint's own request key. t164sb01 publishes no filing ID, publication instant, or amendment sequence."
+          },
+          "report_year": {
+            "coverage": "sourced",
+            "source_fields": [
+              "SYEAR"
+            ],
+            "audit_section": "4.8",
+            "note": "The request key the endpoint answers on."
+          },
+          "report_quarter": {
+            "coverage": "sourced",
+            "source_fields": [
+              "SSEASON"
+            ],
+            "audit_section": "4.8",
+            "note": "The request key the endpoint answers on."
+          },
+          "period_start": {
+            "coverage": "sourced",
+            "source_fields": [
+              "XBRL context period startDate"
+            ],
+            "audit_section": "4.8",
+            "note": "The iXBRL contexts carry explicit periods."
+          },
+          "period_end": {
+            "coverage": "sourced",
+            "source_fields": [
+              "XBRL context period endDate/instant"
+            ],
+            "audit_section": "4.8",
+            "note": "The iXBRL contexts carry explicit periods."
+          },
+          "currency": {
+            "coverage": "sourced",
+            "source_fields": [
+              "unitRef"
+            ],
+            "audit_section": "4.8",
+            "note": "The document declares unitRef values (TWD, Shares, Pure, EarningsPerShare)."
+          }
+        }
+      },
+      "foreign_holding_versions": {
+        "dataset_code": "foreign_holding",
+        "v1": true,
+        "roadmap_pr": 20,
+        "reason": "TWSE fund/MI_QFIIS (12 columns) and TPEx MOPS t13sa150_otc (11 columns). Audit 4.4 certifies every column of this table as sourced.",
+        "columns": {
+          "security_id": {
+            "coverage": "internal",
+            "note": "Stable Data Center identity resolved from the source security code."
+          },
+          "trade_date": {
+            "coverage": "sourced",
+            "source_fields": [
+              "report date of the requested MI_QFIIS file",
+              "report date of the requested t13sa150_otc response"
+            ],
+            "audit_section": "4.4",
+            "note": "One whole-market file per trade date."
+          },
+          "issued_shares": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/MI_QFIIS",
+              "TPEx MOPS t13sa150_otc"
+            ],
+            "audit_section": "4.4",
+            "note": "Audit 4.4: every foreign_holding_versions column is sourced. issued_shares is the only whole-market issued-share series for both markets and legacy consumers read it."
+          },
+          "investable_shares": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/MI_QFIIS",
+              "TPEx MOPS t13sa150_otc"
+            ],
+            "audit_section": "4.4",
+            "note": "Audit 4.4: every foreign_holding_versions column is sourced. issued_shares is the only whole-market issued-share series for both markets and legacy consumers read it."
+          },
+          "held_shares": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/MI_QFIIS",
+              "TPEx MOPS t13sa150_otc"
+            ],
+            "audit_section": "4.4",
+            "note": "Audit 4.4: every foreign_holding_versions column is sourced. issued_shares is the only whole-market issued-share series for both markets and legacy consumers read it."
+          },
+          "investable_ratio": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/MI_QFIIS",
+              "TPEx MOPS t13sa150_otc"
+            ],
+            "audit_section": "4.4",
+            "note": "Audit 4.4: every foreign_holding_versions column is sourced. issued_shares is the only whole-market issued-share series for both markets and legacy consumers read it."
+          },
+          "held_ratio": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/MI_QFIIS",
+              "TPEx MOPS t13sa150_otc"
+            ],
+            "audit_section": "4.4",
+            "note": "Audit 4.4: every foreign_holding_versions column is sourced. issued_shares is the only whole-market issued-share series for both markets and legacy consumers read it."
+          },
+          "foreign_legal_limit_ratio": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/MI_QFIIS",
+              "TPEx MOPS t13sa150_otc"
+            ],
+            "audit_section": "4.4",
+            "note": "Audit 4.4: every foreign_holding_versions column is sourced. issued_shares is the only whole-market issued-share series for both markets and legacy consumers read it."
+          },
+          "mainland_legal_limit_ratio": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/MI_QFIIS",
+              "TPEx MOPS t13sa150_otc"
+            ],
+            "audit_section": "4.4",
+            "note": "Audit 4.4: every foreign_holding_versions column is sourced. issued_shares is the only whole-market issued-share series for both markets and legacy consumers read it."
+          },
+          "change_reason": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/MI_QFIIS",
+              "TPEx MOPS t13sa150_otc"
+            ],
+            "audit_section": "4.4",
+            "note": "Audit 4.4: every foreign_holding_versions column is sourced. issued_shares is the only whole-market issued-share series for both markets and legacy consumers read it."
+          },
+          "source_last_update_date": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/MI_QFIIS",
+              "TPEx MOPS t13sa150_otc"
+            ],
+            "audit_section": "4.4",
+            "note": "Audit 4.4: every foreign_holding_versions column is sourced. issued_shares is the only whole-market issued-share series for both markets and legacy consumers read it."
+          }
+        }
+      },
+      "institutional_investor_versions": {
+        "dataset_code": "institutional_investor",
+        "v1": true,
+        "roadmap_pr": 20,
+        "reason": "TWSE fund/T86 (one 19-column header for all dates) and TPEx 3itrade_hedge (24 columns). Audit 4.3 certifies every column of this table as sourced for both markets.",
+        "columns": {
+          "security_id": {
+            "coverage": "internal",
+            "note": "Stable Data Center identity resolved from the source security code."
+          },
+          "trade_date": {
+            "coverage": "sourced",
+            "source_fields": [
+              "report date of the requested T86 file",
+              "report date of the requested 3itrade_hedge file"
+            ],
+            "audit_section": "4.3",
+            "note": "One whole-market file per trade date."
+          },
+          "foreign_buy": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/T86",
+              "TPEx 3itrade_hedge"
+            ],
+            "audit_section": "4.3",
+            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+          },
+          "foreign_sell": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/T86",
+              "TPEx 3itrade_hedge"
+            ],
+            "audit_section": "4.3",
+            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+          },
+          "foreign_net": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/T86",
+              "TPEx 3itrade_hedge"
+            ],
+            "audit_section": "4.3",
+            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+          },
+          "foreign_dealer_buy": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/T86",
+              "TPEx 3itrade_hedge"
+            ],
+            "audit_section": "4.3",
+            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+          },
+          "foreign_dealer_sell": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/T86",
+              "TPEx 3itrade_hedge"
+            ],
+            "audit_section": "4.3",
+            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+          },
+          "foreign_dealer_net": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/T86",
+              "TPEx 3itrade_hedge"
+            ],
+            "audit_section": "4.3",
+            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+          },
+          "trust_buy": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/T86",
+              "TPEx 3itrade_hedge"
+            ],
+            "audit_section": "4.3",
+            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+          },
+          "trust_sell": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/T86",
+              "TPEx 3itrade_hedge"
+            ],
+            "audit_section": "4.3",
+            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+          },
+          "trust_net": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/T86",
+              "TPEx 3itrade_hedge"
+            ],
+            "audit_section": "4.3",
+            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+          },
+          "dealer_self_buy": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/T86",
+              "TPEx 3itrade_hedge"
+            ],
+            "audit_section": "4.3",
+            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+          },
+          "dealer_self_sell": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/T86",
+              "TPEx 3itrade_hedge"
+            ],
+            "audit_section": "4.3",
+            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+          },
+          "dealer_self_net": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/T86",
+              "TPEx 3itrade_hedge"
+            ],
+            "audit_section": "4.3",
+            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+          },
+          "dealer_hedge_buy": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/T86",
+              "TPEx 3itrade_hedge"
+            ],
+            "audit_section": "4.3",
+            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+          },
+          "dealer_hedge_sell": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/T86",
+              "TPEx 3itrade_hedge"
+            ],
+            "audit_section": "4.3",
+            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+          },
+          "dealer_hedge_net": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/T86",
+              "TPEx 3itrade_hedge"
+            ],
+            "audit_section": "4.3",
+            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+          },
+          "dealer_net": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/T86",
+              "TPEx 3itrade_hedge"
+            ],
+            "audit_section": "4.3",
+            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+          },
+          "total_net": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/T86",
+              "TPEx 3itrade_hedge"
+            ],
+            "audit_section": "4.3",
+            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+          }
+        }
+      },
+      "institutional_market_summary_versions": {
+        "dataset_code": "institutional_market_summary",
+        "v1": true,
+        "roadmap_pr": 20,
+        "reason": "TWSE fund/BFI82U and TPEx 3itrdsum (audit 4.3).",
+        "columns": {
+          "market": {
+            "coverage": "internal",
+            "note": "Market of the requested feed: BFI82U is TWSE, 3itrdsum is TPEx."
+          },
+          "trade_date": {
+            "coverage": "sourced",
+            "source_fields": [
+              "report date of the requested BFI82U file",
+              "report date of the requested 3itrdsum file"
+            ],
+            "audit_section": "4.3",
+            "note": "One market-level file per trade date."
+          },
+          "institution": {
+            "coverage": "sourced",
+            "source_fields": [
+              "單位名稱"
+            ],
+            "audit_section": "4.3",
+            "note": "Published by both markets."
+          },
+          "buy": {
+            "coverage": "sourced",
+            "source_fields": [
+              "買進金額",
+              "買進金額(元)"
+            ],
+            "audit_section": "4.3",
+            "note": "TWSE 買進金額, TPEx 買進金額(元)."
+          },
+          "sell": {
+            "coverage": "sourced",
+            "source_fields": [
+              "賣出金額",
+              "賣出金額(元)"
+            ],
+            "audit_section": "4.3",
+            "note": "TWSE 賣出金額, TPEx 賣出金額(元)."
+          },
+          "net": {
+            "coverage": "sourced",
+            "source_fields": [
+              "買賣差額",
+              "買賣超(元)"
+            ],
+            "audit_section": "4.3",
+            "note": "TWSE 買賣差額, TPEx 買賣超(元)."
+          }
+        }
+      },
+      "margin_trading_versions": {
+        "dataset_code": "margin_trading",
+        "v1": true,
+        "roadmap_pr": 21,
+        "reason": "TWSE MI_MARGN per-security table and TPEx margin_bal, both in lots; margin-short columns also come from the legacy margin_sbl contract (audit 4.5).",
+        "columns": {
+          "security_id": {
+            "coverage": "internal",
+            "note": "Stable Data Center identity resolved from the source security code."
+          },
+          "trade_date": {
+            "coverage": "sourced",
+            "source_fields": [
+              "report date of the requested MI_MARGN file",
+              "report date of the requested margin_bal file"
+            ],
+            "audit_section": "4.5",
+            "note": "One whole-market file per trade date."
+          },
+          "margin_buy": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE MI_MARGN",
+              "TPEx margin_bal"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5: every margin_trading_versions quantity column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+          },
+          "margin_sell": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE MI_MARGN",
+              "TPEx margin_bal"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5: every margin_trading_versions quantity column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+          },
+          "margin_cash_repayment": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE MI_MARGN",
+              "TPEx margin_bal"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5: every margin_trading_versions quantity column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+          },
+          "margin_previous_balance": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE MI_MARGN",
+              "TPEx margin_bal"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5: every margin_trading_versions quantity column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+          },
+          "margin_balance": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE MI_MARGN",
+              "TPEx margin_bal"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5: every margin_trading_versions quantity column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+          },
+          "margin_next_limit": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE MI_MARGN",
+              "TPEx margin_bal"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5: every margin_trading_versions quantity column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+          },
+          "short_buy": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE MI_MARGN",
+              "TPEx margin_bal"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5: every margin_trading_versions quantity column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+          },
+          "short_sell": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE MI_MARGN",
+              "TPEx margin_bal"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5: every margin_trading_versions quantity column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+          },
+          "short_stock_repayment": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE MI_MARGN",
+              "TPEx margin_bal"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5: every margin_trading_versions quantity column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+          },
+          "short_previous_balance": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE MI_MARGN",
+              "TPEx margin_bal"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5: every margin_trading_versions quantity column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+          },
+          "short_balance": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE MI_MARGN",
+              "TPEx margin_bal"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5: every margin_trading_versions quantity column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+          },
+          "short_next_limit": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE MI_MARGN",
+              "TPEx margin_bal"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5: every margin_trading_versions quantity column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+          },
+          "offset_balance": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE MI_MARGN",
+              "TPEx margin_bal"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5: every margin_trading_versions quantity column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+          },
+          "margin_utilization_ratio": {
+            "coverage": "partially_sourced",
+            "source_fields": [
+              "資使用率(%)"
+            ],
+            "audit_section": "4.5",
+            "note": "TPEx margin_bal only; MI_MARGN publishes no utilization ratio, so the TWSE values stay NULL."
+          },
+          "short_utilization_ratio": {
+            "coverage": "partially_sourced",
+            "source_fields": [
+              "券使用率(%)"
+            ],
+            "audit_section": "4.5",
+            "note": "TPEx margin_bal only; MI_MARGN publishes no utilization ratio, so the TWSE values stay NULL."
+          }
+        }
+      },
+      "market_index_metadata_versions": {
+        "dataset_code": "market_index_metadata",
+        "v1": true,
+        "roadmap_pr": 18,
+        "reason": "Index identity is (source, published index name); neither source publishes an index code (audit 4.2).",
+        "columns": {
+          "market_index_id": {
+            "coverage": "internal",
+            "note": "Stable Data Center index identity; no source publishes an index code."
+          },
+          "effective_from": {
+            "coverage": "unsourced",
+            "audit_section": "4.2",
+            "note": "No official effective date. The column can only record the first observation date of the published name."
+          },
+          "effective_to": {
+            "coverage": "unsourced",
+            "audit_section": "4.2",
+            "note": "No official effective date. The column can only record the last observation date of the published name."
+          },
+          "market": {
+            "coverage": "sourced",
+            "source_fields": [
+              "publishing venue of the index list"
+            ],
+            "audit_section": "4.2",
+            "note": "The feed that publishes the list identifies the market: MI_INDEX is TWSE, indexSummary is TPEx."
+          },
+          "name": {
+            "coverage": "sourced",
+            "source_fields": [
+              "指數"
+            ],
+            "audit_section": "4.2",
+            "note": "The published index name is the identity; there is no code."
+          }
+        }
+      },
+      "market_index_versions": {
+        "dataset_code": "market_index",
+        "v1": true,
+        "roadmap_pr": 18,
+        "reason": "TWSE MI_INDEX index sections and TPEx afterTrading/indexSummary; TAIEX OHLC from MI_5MINS_HIST (audit 4.2).",
+        "columns": {
+          "market_index_id": {
+            "coverage": "internal",
+            "note": "Stable Data Center index identity; no source publishes an index code."
+          },
+          "trade_date": {
+            "coverage": "sourced",
+            "source_fields": [
+              "report date of the requested MI_INDEX file",
+              "report date of the requested indexSummary file"
+            ],
+            "audit_section": "4.2",
+            "note": "One whole-list file per trade date; the date is the request key."
+          },
+          "open_value": {
+            "coverage": "partially_sourced",
+            "source_fields": [
+              "開盤指數"
+            ],
+            "audit_section": "4.2",
+            "note": "TAIEX only, from rwd/zh/TAIEX/MI_5MINS_HIST (one calendar month per request). The whole-list index sources publish no OHLC and no TPEx equivalent was found."
+          },
+          "high_value": {
+            "coverage": "partially_sourced",
+            "source_fields": [
+              "最高指數"
+            ],
+            "audit_section": "4.2",
+            "note": "TAIEX only, from rwd/zh/TAIEX/MI_5MINS_HIST. The whole-list index sources publish no OHLC and no TPEx equivalent was found."
+          },
+          "low_value": {
+            "coverage": "partially_sourced",
+            "source_fields": [
+              "最低指數"
+            ],
+            "audit_section": "4.2",
+            "note": "TAIEX only, from rwd/zh/TAIEX/MI_5MINS_HIST. The whole-list index sources publish no OHLC and no TPEx equivalent was found."
+          },
+          "close_value": {
+            "coverage": "sourced",
+            "source_fields": [
+              "收盤指數",
+              "收市指數"
+            ],
+            "audit_section": "4.2",
+            "note": "TWSE 收盤指數, TPEx 收市指數."
+          },
+          "change_points": {
+            "coverage": "sourced",
+            "source_fields": [
+              "漲跌點數",
+              "漲跌"
+            ],
+            "audit_section": "4.2",
+            "note": "TWSE 漲跌點數 with its 漲跌(+/-) sign column, TPEx 漲跌."
+          },
+          "change_percent": {
+            "coverage": "sourced",
+            "source_fields": [
+              "漲跌百分比(%)",
+              "漲跌幅度(%)"
+            ],
+            "audit_section": "4.2",
+            "note": "TWSE 漲跌百分比(%), TPEx 漲跌幅度(%)."
+          },
+          "trade_value": {
+            "coverage": "unsourced",
+            "audit_section": "4.2",
+            "note": "Not in any inspected index source."
+          }
+        }
+      },
+      "monthly_revenue_versions": {
+        "dataset_code": "monthly_revenue",
+        "v1": true,
+        "roadmap_pr": 22,
+        "reason": "MOPS nas/t21/{sii|otc}/t21sc03_{ROC year}_{month}_{0|1} (audit 4.7).",
+        "columns": {
+          "security_id": {
+            "coverage": "internal",
+            "note": "Stable Data Center identity resolved from the source security code."
+          },
+          "revenue_year": {
+            "coverage": "sourced",
+            "source_fields": [
+              "ROC year in the requested t21sc03 page path"
+            ],
+            "audit_section": "4.7",
+            "note": "The page is requested by year and month; there is no row-level period column."
+          },
+          "revenue_month": {
+            "coverage": "sourced",
+            "source_fields": [
+              "month in the requested t21sc03 page path"
+            ],
+            "audit_section": "4.7",
+            "note": "The page is requested by year and month; there is no row-level period column."
+          },
+          "revenue": {
+            "coverage": "sourced",
+            "source_fields": [
+              "當月營收"
+            ],
+            "audit_section": "4.7",
+            "note": "Published in 千元 (the page states 單位：千元) and multiplied by 1,000 to TWD before storage."
+          },
+          "currency": {
+            "coverage": "unsourced",
+            "audit_section": "4.7",
+            "note": "A page-level constant, not a per-row observation: the page states 單位：千元 and every row is TWD."
+          }
+        }
+      },
+      "official_valuation_versions": {
+        "dataset_code": "official_valuation",
+        "v1": true,
+        "roadmap_pr": 18,
+        "reason": "TWSE BWIBBU_d and TPEx pera (audit 4.6).",
+        "columns": {
+          "security_id": {
+            "coverage": "internal",
+            "note": "Stable Data Center identity resolved from the source security code."
+          },
+          "trade_date": {
+            "coverage": "sourced",
+            "source_fields": [
+              "report date of the requested BWIBBU_d file",
+              "report date of the requested pera file"
+            ],
+            "audit_section": "4.6",
+            "note": "One whole-market file per trade date."
+          },
+          "pe_ratio": {
+            "coverage": "sourced",
+            "source_fields": [
+              "本益比"
+            ],
+            "audit_section": "4.6",
+            "note": "Published by both markets."
+          },
+          "pb_ratio": {
+            "coverage": "sourced",
+            "source_fields": [
+              "股價淨值比"
+            ],
+            "audit_section": "4.6",
+            "note": "Published by both markets."
+          },
+          "dividend_yield": {
+            "coverage": "sourced",
+            "source_fields": [
+              "殖利率(%)"
+            ],
+            "audit_section": "4.6",
+            "note": "Published by both markets."
+          },
+          "dividend_year": {
+            "coverage": "sourced",
+            "source_fields": [
+              "股利年度"
+            ],
+            "audit_section": "4.6",
+            "note": "Published by both markets."
+          },
+          "dividend_per_share": {
+            "coverage": "partially_sourced",
+            "source_fields": [
+              "每股股利(註)"
+            ],
+            "audit_section": "4.6",
+            "note": "TPEx pera only; BWIBBU_d has no per-share dividend column."
+          },
+          "report_period": {
+            "coverage": "partially_sourced",
+            "source_fields": [
+              "財報年/季"
+            ],
+            "audit_section": "4.6",
+            "note": "TWSE on all dates; TPEx only from 2025-01-02."
+          }
+        }
+      },
+      "securities_lending_versions": {
+        "dataset_code": "securities_lending",
+        "v1": true,
+        "roadmap_pr": 21,
+        "reason": "TWSE TWT93U (15 columns, two header rows) and TPEx margin_sbl (15 columns). Audit 4.5 certifies every column of this table as sourced.",
+        "columns": {
+          "security_id": {
+            "coverage": "internal",
+            "note": "Stable Data Center identity resolved from the source security code."
+          },
+          "trade_date": {
+            "coverage": "sourced",
+            "source_fields": [
+              "report date of the requested TWT93U file",
+              "report date of the requested margin_sbl file"
+            ],
+            "audit_section": "4.5",
+            "note": "One whole-market file per trade date."
+          },
+          "previous_balance": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE TWT93U",
+              "TPEx margin_sbl"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5: every securities_lending_versions column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+          },
+          "borrowed": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE TWT93U",
+              "TPEx margin_sbl"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5: every securities_lending_versions column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+          },
+          "returned": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE TWT93U",
+              "TPEx margin_sbl"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5: every securities_lending_versions column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+          },
+          "balance": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE TWT93U",
+              "TPEx margin_sbl"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5: every securities_lending_versions column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+          },
+          "next_limit": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE TWT93U",
+              "TPEx margin_sbl"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5: every securities_lending_versions column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+          },
+          "next_available_limit": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE TWT93U",
+              "TPEx margin_sbl"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5: every securities_lending_versions column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+          },
+          "adjustment": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE TWT93U",
+              "TPEx margin_sbl"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5: every securities_lending_versions column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+          },
+          "note": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE TWT93U",
+              "TPEx margin_sbl"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5: every securities_lending_versions column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+          }
+        }
+      },
+      "security_metadata_versions": {
+        "dataset_code": "security_metadata",
+        "v1": true,
+        "roadmap_pr": 11,
+        "reason": "MOPS t187ap03_L / mopsfin_t187ap03_O current snapshots (PR #10, ADR-0016) and official listing/delisting history (PR #11, ADR-0017); audit 4.11.",
+        "columns": {
+          "security_id": {
+            "coverage": "internal",
+            "note": "Stable Data Center identity resolved from the source security code."
+          },
+          "effective_from": {
+            "coverage": "sourced",
+            "source_fields": [
+              "official snapshot report date",
+              "official venue listing date",
+              "official venue delisting date"
+            ],
+            "audit_section": "4.11",
+            "note": "ADR-0016 uses the snapshot report date; ADR-0017 uses the official listing and delisting dates."
+          },
+          "effective_to": {
+            "coverage": "internal",
+            "note": "Interval boundary closed by the successor version's effective_from; not a published field."
+          },
+          "market": {
+            "coverage": "sourced",
+            "source_fields": [
+              "market of the publishing snapshot feed"
+            ],
+            "audit_section": "4.11",
+            "note": "t187ap03_L is 上市, mopsfin_t187ap03_O is 上櫃."
+          },
+          "name": {
+            "coverage": "partially_sourced",
+            "source_fields": [
+              "公司簡稱"
+            ],
+            "audit_section": "4.11",
+            "note": "The snapshot publishes the current name only. No official source of historical name changes is used, so earlier effective dates carry the current value."
+          },
+          "industry": {
+            "coverage": "partially_sourced",
+            "source_fields": [
+              "產業別"
+            ],
+            "audit_section": "4.11",
+            "note": "The snapshot publishes the current industry only. No official source of historical industry changes is used."
+          },
+          "listed_on": {
+            "coverage": "sourced",
+            "source_fields": [
+              "official venue listing date"
+            ],
+            "audit_section": "4.11",
+            "note": "PR #11 lifecycle history."
+          },
+          "delisted_on": {
+            "coverage": "sourced",
+            "source_fields": [
+              "official venue delisting date"
+            ],
+            "audit_section": "4.11",
+            "note": "PR #11 lifecycle history."
+          }
+        }
+      },
+      "security_tag_versions": {
+        "dataset_code": "security_tag",
+        "v1": false,
+        "roadmap_pr": null,
+        "reason": "Not in v1 (ROADMAP 16). The legacy stock_tags table was scraped from MoneyDJ, a third party, as a current snapshot, and no legacy consumer reads it.",
+        "columns": {
+          "security_id": {
+            "coverage": "internal",
+            "note": "Stable Data Center identity resolved from the source security code."
+          },
+          "tag": {
+            "coverage": "unsourced",
+            "audit_section": "4.11",
+            "note": "Only a third-party (MoneyDJ) snapshot exists; no official source publishes security tags."
+          },
+          "effective_from": {
+            "coverage": "unsourced",
+            "audit_section": "4.11",
+            "note": "The third-party snapshot carries no effective dates."
+          },
+          "effective_to": {
+            "coverage": "unsourced",
+            "audit_section": "4.11",
+            "note": "The third-party snapshot carries no effective dates."
+          }
+        }
+      },
+      "tdcc_snapshot_versions": {
+        "dataset_code": "tdcc_snapshot",
+        "v1": true,
+        "roadmap_pr": 24,
+        "reason": "TDCC OpenData getOD.ashx?id=1-5 for the latest week and the consolidated 375-week archive for history (audit 4.9).",
+        "columns": {
+          "security_id": {
+            "coverage": "internal",
+            "note": "Stable Data Center identity resolved from the source security code."
+          },
+          "snapshot_date": {
+            "coverage": "sourced",
+            "source_fields": [
+              "資料日期"
+            ],
+            "audit_section": "4.9",
+            "note": "Keyed on the column, never on the filename: two archive files are named for their download date and carry an earlier 資料日期 (audit 4.9)."
+          },
+          "distribution_schema": {
+            "coverage": "sourced",
+            "source_fields": [
+              "持股分級"
+            ],
+            "audit_section": "4.9",
+            "note": "The numeric level codebook 1-17 recovered in audit 4.9. Level 16 carries two different labels across securities, so a parser must not assume 16 is the adjustment row."
+          }
+        }
+      },
+      "xbrl_concept_catalog_versions": {
+        "dataset_code": "xbrl_concept_catalog",
+        "v1": false,
+        "roadmap_pr": null,
+        "reason": "Not in v1 (ROADMAP 16). The legacy xbrl_codebook table is read by no consumer and this audit inspected no official concept-catalogue endpoint.",
+        "columns": {
+          "concept_qname": {
+            "coverage": "unsourced",
+            "audit_section": "4.8",
+            "note": "No official concept-catalogue endpoint was inspected; the audit covers only the iXBRL documents themselves (4.8)."
+          },
+          "statement_type": {
+            "coverage": "unsourced",
+            "audit_section": "4.8",
+            "note": "No official concept-catalogue endpoint was inspected."
+          },
+          "account_name_zh": {
+            "coverage": "unsourced",
+            "audit_section": "4.8",
+            "note": "No official concept-catalogue endpoint was inspected."
+          },
+          "account_name_en": {
+            "coverage": "unsourced",
+            "audit_section": "4.8",
+            "note": "No official concept-catalogue endpoint was inspected."
+          }
+        }
+      }
+    }
+  },
   "fields": [
     {
       "legacy_table": "daily_quotes",
@@ -113,15 +1467,15 @@
       "legacy_table": "daily_quotes",
       "legacy_field": "bid",
       "disposition": "observed",
-      "target": "daily_price_versions.bid_snapshot",
-      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+      "target": "daily_price_versions.last_bid_price",
+      "reason": "The daily whole-market files publish one order-book level only (TWSE 最後揭示買價, TPEx 最後買價), so the legacy bid maps to the single last bid level, not to the multi-level bid_snapshot blob, which no source provides (audit 4.1, 5). The legacy column itself is NULL in every row."
     },
     {
       "legacy_table": "daily_quotes",
       "legacy_field": "ask",
       "disposition": "observed",
-      "target": "daily_price_versions.ask_snapshot",
-      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+      "target": "daily_price_versions.last_ask_price",
+      "reason": "The daily whole-market files publish one order-book level only (TWSE 最後揭示賣價, TPEx 最後賣價), so the legacy ask maps to the single last ask level, not to the multi-level ask_snapshot blob, which no source provides (audit 4.1, 5). The legacy column itself is NULL in every row."
     },
     {
       "legacy_table": "daily_quotes",
@@ -1372,58 +2726,58 @@
     {
       "legacy_table": "monthly_revenue",
       "legacy_field": "revenue_last_month",
-      "disposition": "canonical_derived",
-      "target": "derived_metric_versions (revenue_last_month; monthly_revenue_growth:v1)",
-      "reason": "Recomputed from PIT-safe monthly revenue history rather than duplicated as a source fact."
+      "disposition": "observed",
+      "target": "monthly_revenue_versions.revenue_last_month",
+      "reason": "Source field 上月營收. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3)."
     },
     {
       "legacy_table": "monthly_revenue",
       "legacy_field": "revenue_last_year",
-      "disposition": "canonical_derived",
-      "target": "derived_metric_versions (revenue_last_year; monthly_revenue_growth:v1)",
-      "reason": "Recomputed from PIT-safe monthly revenue history rather than duplicated as a source fact."
+      "disposition": "observed",
+      "target": "monthly_revenue_versions.revenue_last_year_month",
+      "reason": "Source field 去年當月營收. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3)."
     },
     {
       "legacy_table": "monthly_revenue",
       "legacy_field": "mom_pct",
-      "disposition": "canonical_derived",
-      "target": "derived_metric_versions (mom_pct; monthly_revenue_growth:v1)",
-      "reason": "Recomputed from PIT-safe monthly revenue history rather than duplicated as a source fact."
+      "disposition": "observed",
+      "target": "monthly_revenue_versions.mom_pct",
+      "reason": "Source field 上月比較增減(%). Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3)."
     },
     {
       "legacy_table": "monthly_revenue",
       "legacy_field": "yoy_pct",
-      "disposition": "canonical_derived",
-      "target": "derived_metric_versions (yoy_pct; monthly_revenue_growth:v1)",
-      "reason": "Recomputed from PIT-safe monthly revenue history rather than duplicated as a source fact."
+      "disposition": "observed",
+      "target": "monthly_revenue_versions.yoy_pct",
+      "reason": "Source field 去年同月增減(%). Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3)."
     },
     {
       "legacy_table": "monthly_revenue",
       "legacy_field": "revenue_cumulative",
-      "disposition": "canonical_derived",
-      "target": "derived_metric_versions (revenue_cumulative; monthly_revenue_growth:v1)",
-      "reason": "Recomputed from PIT-safe monthly revenue history rather than duplicated as a source fact."
+      "disposition": "observed",
+      "target": "monthly_revenue_versions.cumulative_revenue",
+      "reason": "Source field 當月累計營收. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3)."
     },
     {
       "legacy_table": "monthly_revenue",
       "legacy_field": "revenue_cumulative_last_year",
-      "disposition": "canonical_derived",
-      "target": "derived_metric_versions (revenue_cumulative_last_year; monthly_revenue_growth:v1)",
-      "reason": "Recomputed from PIT-safe monthly revenue history rather than duplicated as a source fact."
+      "disposition": "observed",
+      "target": "monthly_revenue_versions.cumulative_revenue_last_year",
+      "reason": "Source field 去年累計營收. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3)."
     },
     {
       "legacy_table": "monthly_revenue",
       "legacy_field": "cumulative_yoy_pct",
-      "disposition": "canonical_derived",
-      "target": "derived_metric_versions (cumulative_yoy_pct; monthly_revenue_growth:v1)",
-      "reason": "Recomputed from PIT-safe monthly revenue history rather than duplicated as a source fact."
+      "disposition": "observed",
+      "target": "monthly_revenue_versions.cumulative_yoy_pct",
+      "reason": "Source field 前期比較增減(%). Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3)."
     },
     {
       "legacy_table": "monthly_revenue",
       "legacy_field": "comment",
-      "disposition": "raw_artifact_only",
-      "target": "raw_artifacts",
-      "reason": "Free-form source commentary is retained in immutable raw evidence in v1."
+      "disposition": "observed",
+      "target": "monthly_revenue_versions.note",
+      "reason": "Source field 備註. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3)."
     },
     {
       "legacy_table": "monthly_revenue",
@@ -2674,30 +4028,30 @@
     {
       "legacy_table": "xbrl_codebook",
       "legacy_field": "statement_type",
-      "disposition": "observed",
-      "target": "xbrl_concept_catalog_versions.statement_type",
-      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+      "disposition": "deprecated",
+      "target": "not in v1",
+      "reason": "Not in v1 (ROADMAP 16). No legacy consumer reads xbrl_codebook and this audit inspected no official concept-catalogue endpoint; the iXBRL documents themselves carry the namespace-aware concept identity that financial_facts needs (audit 4.8, 5). xbrl_concept_catalog_versions therefore stays empty."
     },
     {
       "legacy_table": "xbrl_codebook",
       "legacy_field": "account_code",
-      "disposition": "observed",
-      "target": "xbrl_concept_catalog_versions.concept_qname",
-      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+      "disposition": "deprecated",
+      "target": "not in v1",
+      "reason": "Not in v1 (ROADMAP 16). No legacy consumer reads xbrl_codebook and this audit inspected no official concept-catalogue endpoint; the iXBRL documents themselves carry the namespace-aware concept identity that financial_facts needs (audit 4.8, 5). xbrl_concept_catalog_versions therefore stays empty."
     },
     {
       "legacy_table": "xbrl_codebook",
       "legacy_field": "account_name_cht",
-      "disposition": "observed",
-      "target": "xbrl_concept_catalog_versions.account_name_zh",
-      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+      "disposition": "deprecated",
+      "target": "not in v1",
+      "reason": "Not in v1 (ROADMAP 16). No legacy consumer reads xbrl_codebook and this audit inspected no official concept-catalogue endpoint; the iXBRL documents themselves carry the namespace-aware concept identity that financial_facts needs (audit 4.8, 5). xbrl_concept_catalog_versions therefore stays empty."
     },
     {
       "legacy_table": "xbrl_codebook",
       "legacy_field": "account_name_eng",
-      "disposition": "observed",
-      "target": "xbrl_concept_catalog_versions.account_name_en",
-      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+      "disposition": "deprecated",
+      "target": "not in v1",
+      "reason": "Not in v1 (ROADMAP 16). No legacy consumer reads xbrl_codebook and this audit inspected no official concept-catalogue endpoint; the iXBRL documents themselves carry the namespace-aware concept identity that financial_facts needs (audit 4.8, 5). xbrl_concept_catalog_versions therefore stays empty."
     },
     {
       "legacy_table": "stock_info",
@@ -2760,14 +4114,14 @@
       "legacy_field": "symbol",
       "disposition": "identity",
       "target": "security.security_code",
-      "reason": "Legacy symbol resolves to stable Data Center identity."
+      "reason": "Legacy symbol resolves to stable Data Center identity, but the stock-tag domain itself is not in v1 (ROADMAP 16)."
     },
     {
       "legacy_table": "stock_tags",
       "legacy_field": "tag",
-      "disposition": "observed",
-      "target": "security_tag_versions.tag",
-      "reason": "Source-observable value is retained in the versioned v1 domain contract."
+      "disposition": "deprecated",
+      "target": "not in v1",
+      "reason": "Not in v1 (ROADMAP 16). The only known source is a MoneyDJ current snapshot, a third party with no effective dates, and no legacy consumer reads the table (audit 2, 4.11, 5). security_tag_versions therefore stays empty."
     },
     {
       "legacy_table": "stock_tags",

@@ -63,11 +63,19 @@ averaged, or selected by latest ingestion.
 
 ## Legacy field disposition
 
-Observed `revenue` in currency-major units and `currency` are returned from
-`monthly_revenue_versions`. Publication timestamps remain publication evidence.
-Free-form source `comment` and parser coordinates remain raw-artifact-only.
+Observed `revenue` in currency-major units is returned from
+`monthly_revenue_versions`. `currency` is stored there too, but it is not an
+observation: the MOPS page states 單位：千元 as a page-level constant, so the
+value is always TWD (audit §5). Publication timestamps remain publication
+evidence, and parser coordinates remain raw-artifact-only.
 
-MoM, YoY, cumulative revenue, and cumulative YoY are not duplicated as observed
-facts. They remain the virtual canonical-derived contract
-`monthly_revenue_growth:v1`, whose actual calculator and PIT-safe input lineage
-belong to Phase 10.
+MoM, YoY, cumulative revenue, cumulative YoY, the two comparative revenue
+figures, and 備註 are published in the same MOPS row as 當月營收 and are read by
+legacy consumers (audit §4.7, §6). PR #22 therefore stores them as observed
+published comparatives, kept exactly as published and never reconciled against
+our own series; the 2026M06/M07 pair, where 11 of 1,846 companies disagree, is
+the regression fixture (audit §7.3). The virtual canonical-derived contract
+`monthly_revenue_growth:v1` that would have recomputed them, and whose
+calculator and PIT-safe input lineage would have belonged to Phase 10, leaves v1
+with that decision (ROADMAP §16, PR #22). Until PR #22 lands,
+`monthly_revenue_versions` still stores `revenue` and `currency` only.

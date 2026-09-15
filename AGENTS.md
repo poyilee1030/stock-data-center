@@ -88,13 +88,13 @@ Each required criterion must be PASS/FAIL with concrete evidence.
 
 ## Current PR-Based Sequence
 
-ROADMAP §20 is the authoritative ledger. Its current snapshot identifies PRs #1–#12 as MERGED and labels PR #13 as `THIS PR` (a contextual marker, not an additional status value):
+ROADMAP §20 is the authoritative ledger. Its current snapshot identifies PRs #1–#13 as MERGED and labels PR #14 as `THIS PR` (a contextual marker, not an additional status value):
 
 ```text
 PR #11  authoritative security lifecycle history        MERGED
 PR #12  Taiwan corporate-action contract               MERGED
-PR #13  source-reality rebuild of ROADMAP/AGENTS/audit   THIS PR
-PR #14  source-reality alignment                       PLANNED
+PR #13  source-reality rebuild of ROADMAP/AGENTS/audit   MERGED
+PR #14  source-reality alignment                       THIS PR
 PR #15  availability-time evidence policy              PLANNED (owner decision / ADR-0020)
 PR #16  trading calendar + coverage validator          PLANNED
 PR #17  whole-market daily prices                      PLANNED

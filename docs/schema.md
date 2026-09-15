@@ -23,6 +23,13 @@ migrations are the deployment record in `migrations/versions/`.
 | Credit/short data | `margin_trading_versions`, `securities_lending_versions` |
 | Reference/event data | `market_index`, `market_index_metadata_versions`, `market_index_versions`, `corporate_action_events`, `corporate_action_versions`, `security_tag_versions` |
 | Official source metrics | `official_valuation_versions`, `xbrl_concept_catalog_versions` |
+
+`security_tag_versions` and `xbrl_concept_catalog_versions` exist in the schema but
+are not in v1 (ROADMAP §16): no official source publishes security tags, and no
+consumer reads the XBRL codebook. They stay empty. The per-column source coverage
+of every observed `*_versions` table is `storage_contract` in
+[`data_domain_inventory.json`](data_domain_inventory.json), checked against this
+schema and audit §5 by `tests/unit/test_pr14_storage_contract_source_coverage.py`.
 | Canonical derived data | `derived_dataset_definitions`, `derived_computation_runs`, `derived_metric_versions` |
 | Publication knowledge | `publication_evidence` |
 

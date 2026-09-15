@@ -1,6 +1,6 @@
 # Source Field Audit
 
-Status date: 2026-09-14.
+Status date: 2026-09-15.
 
 This document records which fields the legacy database, the legacy raw archive,
 and the official endpoints actually provide. `ROADMAP.md` uses it as the
@@ -537,26 +537,58 @@ legacy scraper on 2026-07-02, so the 3-second interval applies. The volume is
 small: 2 markets × 9 ROC years = 18 requests for the whole history, then 2 per
 day to track revisions.
 
-## 5. Current schema columns with no source
+## 5. Schema columns with no source, or with partial coverage
 
-These columns stay NULL. No PR may present them as available data.
+One row per stored column that an official source does not fully provide. An
+`unsourced` column stays NULL and no PR may present it as available data; a
+`partially sourced` column exists for only some dates, markets, or securities,
+and the reason says which. This table is the normative list: the machine-readable
+per-column contract in `data_domain_inventory.json` (`storage_contract`) must
+agree with it exactly, and a unit test fails if it does not.
 
-| Column | Why |
-| --- | --- |
-| `daily_price_versions.bid_snapshot`, `ask_snapshot` | Multi-level order-book blobs. The daily files publish one level only, and that level is already stored in `last_bid_price`/`last_ask_price`/`last_bid_volume`/`last_ask_volume` (see 4.1). No daily whole-market endpoint publishes depth |
-| `market_index_versions.open_value`, `high_value`, `low_value` | Not in `MI_INDEX` or `indexSummary`. Sourced for the TAIEX alone from `MI_5MINS_HIST` (see 4.2); no TPEx equivalent found |
-| `market_index_versions.trade_value` | Not in any inspected index source |
-| `market_index_metadata_versions.effective_from/effective_to` as official dates | No official effective dates, only observation dates |
-| `security_tag_versions` (whole table) | Only a third-party snapshot without dates |
-| `corporate_action_versions.announcement_date`, `record_date`, `payment_date`, `earnings_stock_ratio`, `capital_surplus_stock_ratio` | Not in any exchange result feed |
-| `monthly_revenue_versions.currency` as an observation | A page-level constant (TWD) |
-| `publication_evidence.published_at` from an official source | No inspected source publishes a per-row release instant |
+| Column | Status | Why |
+| --- | --- | --- |
+| `corporate_action_versions.announcement_date` | unsourced | No exchange result feed carries an announcement date. The issuer declaration feeds that do carry board-resolution dates have no link to an executed event (PR #33, audit 4.13). |
+| `corporate_action_versions.record_date` | unsourced | No exchange result feed carries a record date. |
+| `corporate_action_versions.payment_date` | unsourced | No exchange result feed carries a payment date. |
+| `corporate_action_versions.earnings_stock_ratio` | unsourced | The exchange feeds publish only the combined free-share figure. The earnings / capital-surplus split exists only in the MOPS issuer declaration feed, stored as its own domain by PR #33 (audit 4.13). |
+| `corporate_action_versions.capital_surplus_stock_ratio` | unsourced | The exchange feeds publish only the combined free-share figure. The split exists only in the MOPS issuer declaration feed (PR #33), and before ROC 110 the two reserves arrive as one number (audit 4.13). |
+| `corporate_action_versions.old_shares` | partially sourced | Capital reduction only: the old side is the constant 1,000 of 每壹仟股. TWTB8U par-value-change detail fields are not yet verified and no TPEx par-value endpoint was found. |
+| `corporate_action_versions.new_shares` | partially sourced | Capital reduction only. TWTB8U par-value-change detail fields are not yet verified and no TPEx par-value endpoint was found. |
+| `daily_price_versions.price_direction` | partially sourced | TWSE only. stk_wn1430 carries a signed 漲跌 and no direction column. |
+| `daily_price_versions.bid_snapshot` | unsourced | Multi-level order-book depth blob. No daily whole-market endpoint publishes depth; the one published level is stored in last_bid_price/last_bid_volume. |
+| `daily_price_versions.ask_snapshot` | unsourced | Multi-level order-book depth blob. No daily whole-market endpoint publishes depth; the one published level is stored in last_ask_price/last_ask_volume. |
+| `daily_price_versions.last_bid_volume` | partially sourced | TWSE on all dates, in lots. TPEx only from 2020-04-30; the label changes 千股 to 張數 on 2025-01-10, both meaning 1,000 shares. |
+| `daily_price_versions.last_ask_volume` | partially sourced | TWSE on all dates, in lots. TPEx only from 2020-04-30; the label changes 千股 to 張數 on 2025-01-10, both meaning 1,000 shares. |
+| `margin_trading_versions.margin_utilization_ratio` | partially sourced | TPEx margin_bal only; MI_MARGN publishes no utilization ratio, so the TWSE values stay NULL. |
+| `margin_trading_versions.short_utilization_ratio` | partially sourced | TPEx margin_bal only; MI_MARGN publishes no utilization ratio, so the TWSE values stay NULL. |
+| `market_index_metadata_versions.effective_from` | unsourced | No official effective date. The column can only record the first observation date of the published name. |
+| `market_index_metadata_versions.effective_to` | unsourced | No official effective date. The column can only record the last observation date of the published name. |
+| `market_index_versions.open_value` | partially sourced | TAIEX only, from rwd/zh/TAIEX/MI_5MINS_HIST (one calendar month per request). The whole-list index sources publish no OHLC and no TPEx equivalent was found. |
+| `market_index_versions.high_value` | partially sourced | TAIEX only, from rwd/zh/TAIEX/MI_5MINS_HIST. The whole-list index sources publish no OHLC and no TPEx equivalent was found. |
+| `market_index_versions.low_value` | partially sourced | TAIEX only, from rwd/zh/TAIEX/MI_5MINS_HIST. The whole-list index sources publish no OHLC and no TPEx equivalent was found. |
+| `market_index_versions.trade_value` | unsourced | Not in any inspected index source. |
+| `monthly_revenue_versions.currency` | unsourced | A page-level constant, not a per-row observation: the page states 單位：千元 and every row is TWD. |
+| `official_valuation_versions.dividend_per_share` | partially sourced | TPEx pera only; BWIBBU_d has no per-share dividend column. |
+| `official_valuation_versions.report_period` | partially sourced | TWSE on all dates; TPEx only from 2025-01-02. |
+| `security_metadata_versions.name` | partially sourced | The snapshot publishes the current name only. No official source of historical name changes is used, so earlier effective dates carry the current value. |
+| `security_metadata_versions.industry` | partially sourced | The snapshot publishes the current industry only. No official source of historical industry changes is used. |
+| `security_tag_versions.tag` | unsourced | Only a third-party (MoneyDJ) snapshot exists; no official source publishes security tags. |
+| `security_tag_versions.effective_from` | unsourced | The third-party snapshot carries no effective dates. |
+| `security_tag_versions.effective_to` | unsourced | The third-party snapshot carries no effective dates. |
+| `xbrl_concept_catalog_versions.concept_qname` | unsourced | No official concept-catalogue endpoint was inspected; the audit covers only the iXBRL documents themselves (4.8). |
+| `xbrl_concept_catalog_versions.statement_type` | unsourced | No official concept-catalogue endpoint was inspected. |
+| `xbrl_concept_catalog_versions.account_name_zh` | unsourced | No official concept-catalogue endpoint was inspected. |
+| `xbrl_concept_catalog_versions.account_name_en` | unsourced | No official concept-catalogue endpoint was inspected. |
 
-Partially sourced columns: `official_valuation_versions.dividend_per_share`
-(TPEx only), `report_period` (TPEx from 2025-01-02),
-`margin_trading_versions.*_utilization_ratio` (TPEx only),
-`daily_price_versions.price_direction` (TWSE only), and `last_*_volume` (TPEx
-from 2020-04-30).
+Beyond the stored columns, `publication_evidence.published_at` has no official
+source at all: no inspected source publishes a per-row release instant (§7).
+ROADMAP PR #15 is the decision point for what to do about that.
+
+Every other column of every observed `*_versions` table is either sourced for the
+whole v1 window and both markets — §4 names the endpoint and the published field
+label for each one — or internal: identity, an interval boundary, or provenance
+linkage that is not expected to come from a source field.
 
 ## 6. Source fields not stored
 
