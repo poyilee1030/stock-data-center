@@ -29,6 +29,13 @@ from stock_data_center.market_calendar import TradingCalendarService
 
 END_OF_DAY = time(23, 59, 59)
 
+# Both registered deadline rules cover 上市 and 上櫃 issuers alike, and only one
+# calendar exists: no official TPEx trading-day source was found, and TPEx
+# opened on exactly the same 1,627 dates as TWSE across the whole v1 window
+# (ADR-0021 §4). Naming it here keeps that a recorded decision rather than an
+# accidental default; pass `market=` explicitly when that stops being true.
+CALENDAR_MARKET = "TWSE"
+
 
 class ReleaseRuleService:
     """Turn a registered rule and a period into a no-later-than instant."""
@@ -59,7 +66,7 @@ class ReleaseRuleService:
         rule_id: str,
         version: int,
         period: date,
-        market: str = "TWSE",
+        market: str = CALENDAR_MARKET,
     ) -> datetime:
         return self.resolve(
             connection,
@@ -76,7 +83,7 @@ class ReleaseRuleService:
         rule_id: str,
         version: int,
         period: date,
-        market: str = "TWSE",
+        market: str = CALENDAR_MARKET,
     ) -> ResolvedReleaseInstant:
         rule = self.rule(connection, rule_id=rule_id, version=version)
         zone = ZoneInfo(rule.timezone)

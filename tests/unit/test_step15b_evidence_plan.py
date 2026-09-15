@@ -24,6 +24,7 @@ def plan(**changes):
         "version_created": True,
         "captured_at": CAPTURED_AT,
         "rule_instant": RULE_LATER,
+        "rule_source": "monthly_revenue_statutory@1",
     }
     arguments.update(changes)
     return evidence_plan(**arguments)
@@ -49,8 +50,7 @@ def test_a_capture_later_than_the_rule_falsifies_it() -> None:
     assert items[0].published_at == CAPTURED_AT
 
 
-def test_a_gap_fill_never_claims_a_capture(
-) -> None:
+def test_a_gap_fill_never_claims_a_capture() -> None:
     """The row was public long before we noticed it was missing."""
     items = plan(purpose=IngestPurpose.GAP_FILL)
 

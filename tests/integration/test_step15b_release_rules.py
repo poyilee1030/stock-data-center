@@ -303,3 +303,61 @@ def test_the_evidence_source_names_the_rule_and_its_version(db: Connection) -> N
 
     assert resolved.evidence_source == "monthly_revenue_statutory@1"
     assert resolved.published_at == taipei(2024, 2, 12)
+
+
+def test_the_planned_ranks_are_the_registered_ranks(db: Connection) -> None:
+    """Finding 5. The Python constants used to drift from the registry freely.
+
+    A future ADR that changed a rank in the migration alone would have failed
+    only at insert time, with no unit-level signal.
+    """
+    from stock_data_center.evidence import EVIDENCE_RANKS
+
+    registered = dict(
+        db.execute(
+            sa.text(
+                "SELECT evidence_type, quality_rank FROM evidence_types "
+                "WHERE rank_is_enforced"
+            )
+        ).all()
+    )
+
+    assert EVIDENCE_RANKS == registered
+
+
+def test_a_rule_that_could_not_be_evaluated_is_refused_at_registration(
+    db: Connection,
+) -> None:
+    """Finding 3. "The 29th of next month" has no meaning in February."""
+    with pytest.raises(sa.exc.DBAPIError):
+        with db.begin_nested():
+            db.execute(
+                sa.text(
+                    """
+                    INSERT INTO release_rules
+                        (rule_id, version, rule_kind, parameters, timezone,
+                         business_day_shift, authority)
+                    VALUES ('impossible_day', 1, 'day_of_next_month',
+                            '{"day": 30}'::jsonb, 'Asia/Taipei', true, 'test')
+                    """
+                )
+            )
+
+    db.execute(
+        sa.text(
+            """
+            INSERT INTO release_rules
+                (rule_id, version, rule_kind, parameters, timezone,
+                 business_day_shift, authority)
+            VALUES ('representable_day', 1, 'day_of_next_month',
+                    '{"day": 28}'::jsonb, 'Asia/Taipei', true, 'test')
+            """
+        )
+    )
+
+
+def test_release_rules_cannot_be_truncated(db: Connection) -> None:
+    """Finding 4. Evidence cites a rule by string; no foreign key protects it."""
+    with pytest.raises(sa.exc.DBAPIError):
+        with db.begin_nested():
+            db.execute(sa.text("TRUNCATE release_rules"))

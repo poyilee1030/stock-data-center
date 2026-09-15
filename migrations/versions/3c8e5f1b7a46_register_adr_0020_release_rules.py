@@ -92,6 +92,13 @@ IMMUTABLE = r"""
 CREATE TRIGGER trg_release_rules_immutable
 BEFORE UPDATE OR DELETE ON release_rules
 FOR EACH ROW EXECUTE FUNCTION stockdc_reject_mutation();
+
+-- Evidence cites a rule by its rule_id@version string, with no foreign key to
+-- follow, so a truncate would erase the authority behind every rule-derived
+-- row while leaving the rows themselves.
+CREATE TRIGGER trg_release_rules_no_truncate
+BEFORE TRUNCATE ON release_rules
+FOR EACH STATEMENT EXECUTE FUNCTION stockdc_reject_mutation();
 """
 
 
@@ -112,6 +119,14 @@ def upgrade() -> None:
             name=op.f("ck_release_rules_rule_kind_value"),
         ),
         sa.CheckConstraint("version > 0", name=op.f("ck_release_rules_version_positive")),
+        # "the 29th of next month" has no meaning in February, so a rule that
+        # could not be evaluated is refused at registration rather than at
+        # evaluation time, months later.
+        sa.CheckConstraint(
+            "rule_kind <> 'day_of_next_month' OR "
+            "((parameters->>'day')::int BETWEEN 1 AND 28)",
+            name=op.f("ck_release_rules_day_of_month_representable"),
+        ),
         sa.CheckConstraint(
             "btrim(authority) <> ''", name=op.f("ck_release_rules_authority_nonempty")
         ),
@@ -133,5 +148,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute("DROP TRIGGER trg_release_rules_immutable ON release_rules;")
+    op.execute(
+        "DROP TRIGGER trg_release_rules_no_truncate ON release_rules;"
+        "DROP TRIGGER trg_release_rules_immutable ON release_rules;"
+    )
     op.drop_table("release_rules")

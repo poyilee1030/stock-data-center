@@ -36,14 +36,17 @@ def evidence_plan(
     version_created: bool,
     captured_at: datetime,
     rule_instant: datetime | None,
-    rule_source: str = "release_rule",
+    rule_source: str | None = None,
 ) -> tuple[PlannedEvidence, ...]:
     """Every evidence row this import is entitled to write, in rank order.
 
-    A capture bound is a proven upper bound, so only a run that actually saw the
-    row first may claim one: a `first_capture`, or a `correction_check` for the
-    revision it newly found. A `gap_fill` noticed the row was missing long after
-    it was published and proves nothing about when.
+    A capture bound is a proven upper bound, so only a run that actually *saw*
+    the row first may claim one, and seeing it first means creating its version.
+    A run that fetched again and found the version already there was not first:
+    someone captured it earlier, and our later instant is a looser bound that
+    would supersede the real one, because two capture bounds share a rank and
+    the resolver breaks ties by `recorded_at`. A `gap_fill` noticed the row was
+    missing long after it was published and proves nothing about when.
 
     The write-side rule from §2: if a first sighting happened *after* the rule
     instant, the row is a late filer and the rule is falsified for it, so the
@@ -52,10 +55,13 @@ def evidence_plan(
     """
     if captured_at.tzinfo is None:
         raise ValueError("captured_at must be timezone-aware (CLAUDE.md §34)")
+    if rule_instant is not None:
+        _require_rule_attribution(rule_source)
 
-    proves_first_sighting = purpose is IngestPurpose.FIRST_CAPTURE or (
-        purpose is IngestPurpose.CORRECTION_CHECK and version_created
-    )
+    proves_first_sighting = version_created and purpose in {
+        IngestPurpose.FIRST_CAPTURE,
+        IngestPurpose.CORRECTION_CHECK,
+    }
 
     items: list[PlannedEvidence] = []
     if proves_first_sighting:
@@ -78,7 +84,7 @@ def evidence_plan(
                     evidence_kind="assertion",
                     published_at=rule_instant,
                     quality_rank=EVIDENCE_RANKS["release_rule"],
-                    evidence_source=rule_source,
+                    evidence_source=rule_source,  # type: ignore[arg-type]
                 )
             )
 
@@ -95,3 +101,20 @@ def evidence_plan(
             )
         )
     return tuple(items)
+
+
+def _require_rule_attribution(rule_source: str | None) -> None:
+    """Rule evidence names `rule_id@version` or it is not written.
+
+    Storage is append-only, so unattributable evidence can never be corrected —
+    only superseded by something that does say which rule produced it.
+    """
+    if rule_source is None:
+        raise TypeError(
+            "rule_instant requires rule_source; ADR-0020 §3 records the rule as "
+            "rule_id@version"
+        )
+    if "@" not in rule_source or not rule_source.split("@")[0].strip():
+        raise ValueError(
+            f"rule_source must be rule_id@version, got {rule_source!r}"
+        )

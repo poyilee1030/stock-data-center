@@ -52,6 +52,11 @@ release_rules = sa.Table(
         name="rule_kind_value",
     ),
     sa.CheckConstraint("version > 0", name="version_positive"),
+    sa.CheckConstraint(
+        "rule_kind <> 'day_of_next_month' OR "
+        "((parameters->>'day')::int BETWEEN 1 AND 28)",
+        name="day_of_month_representable",
+    ),
     sa.CheckConstraint("btrim(authority) <> ''", name="authority_nonempty"),
 )
 

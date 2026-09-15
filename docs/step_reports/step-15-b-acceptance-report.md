@@ -68,15 +68,44 @@ adapter's behaviour changes.
 Database migrated from zero to `3c8e5f1b7a46`:
 
 ```text
-355 passed, 3 skipped, 1 warning
+364 passed, 3 skipped, 1 warning
 ```
 
-Baseline before this step: 327. The 17 release-rule regressions and 11
-evidence-plan unit tests are the difference; no existing test changed.
+Baseline before this step: 327. The 37 new tests are the difference; no
+existing test changed except the evidence-plan ones, which now pass the rule
+attribution the contract requires.
 
 The Step 14 storage-contract guard again required the new table to be
 classified, and the Step 15-a metadata-DDL guard kept the new constraints
 honest.
+
+## Code-review findings
+
+Six findings, all verified before anything changed; none was a false positive.
+One accompanying remark did not hold up, below.
+
+| # | Finding | Verified by | Fix |
+| --- | --- | --- | --- |
+| 1 | `FIRST_CAPTURE` ignored `version_created`, so rerunning a backfill wrote a second `capture_bound` at a later instant | Ran it: first run bound 2024-02-05, rerun bound 2026-09-16. Two bounds share rank 80 and the resolver breaks ties by `recorded_at`, so the looser one wins and a row visible at an early `information_as_of` stops being visible. | Seeing a row first means creating its version, so both purposes now gate on `version_created`. Three regressions. |
+| 2 | `rule_source` defaulted to `"release_rule"`, not `rule_id@version` | Read against ADR-0020 §3 | Required, and validated: append-only storage can never correct unattributed evidence. |
+| 3 | `day_of_next_month` above 28 raises in February | `date(2024,2,1).replace(day=30)` → `ValueError` | A `CHECK` refuses such a rule at registration. "The 29th of next month" has no meaning in February. |
+| 4 | The immutability trigger missed `TRUNCATE` | The repo pairs row-level with statement-level triggers in `4d2a6f8c1e30` and `d81b5c9a3f20` | Added. Evidence cites a rule by string with no foreign key, so a truncate would erase the authority behind every rule-derived row. |
+| 5 | `EVIDENCE_RANKS` duplicated the registry with nothing binding them | Read | An integration test asserts the constants equal the enforced registry rows. |
+| 6 | `market="TWSE"` silently applied the TWSE calendar to otc issuers | Read | Behaviour unchanged — it is ADR-0021 §4's decision — but it is now a named constant carrying that reasoning, not a bare default. |
+
+### One remark that did not hold
+
+The review also stated that "alembic on the CLI ignores an exported
+`DATABASE_URL` and uses alembic.ini's hard-coded URL". It does not:
+`migrations/env.py:16` reads `config.attributes.get("database_url") or
+os.getenv("DATABASE_URL")` and overrides the ini. Checked by running
+`DATABASE_URL=...stockdc_envcheck alembic upgrade head`, which built the schema
+in `stockdc_envcheck`, not in the ini's `stockdc`.
+
+The other remark — that the long-lived local `stockdc` database is several
+revisions behind and is the sole cause of local integration failures — is
+correct, and is why every figure in this report comes from a database migrated
+from zero.
 
 ## Scope exclusions confirmed
 
