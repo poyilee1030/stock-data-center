@@ -8,6 +8,7 @@ import pytest
 import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import Connection, Engine
 from sqlalchemy.engine import make_url
 
@@ -23,6 +24,15 @@ def alembic_config(database_url: str = TEST_DATABASE_URL) -> Config:
     config.set_main_option("sqlalchemy.url", database_url)
     config.attributes["database_url"] = database_url
     return config
+
+
+def alembic_head(database_url: str = TEST_DATABASE_URL) -> str:
+    """The single head revision of the migration chain.
+
+    Tests that assert a blocked downgrade left the version untouched compare
+    against this, not a literal, so adding a migration does not break them.
+    """
+    return ScriptDirectory.from_config(alembic_config(database_url)).get_current_head()
 
 
 @pytest.fixture(scope="session")

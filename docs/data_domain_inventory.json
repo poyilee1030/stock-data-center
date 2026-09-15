@@ -64,7 +64,8 @@
       "securities_lending_version_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field.",
       "security_transfer_event_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field.",
       "tdcc_snapshot_seals": "Aggregate seal state, decided by us, never published by a source.",
-      "tdcc_snapshot_version_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field."
+      "tdcc_snapshot_version_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field.",
+      "trading_calendar_version_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field."
     },
     "tables": {
       "corporate_action_events": {
@@ -1709,6 +1710,42 @@
             ],
             "audit_section": "4.9",
             "note": "The numeric level codebook 1-17 recovered in audit 4.9. Level 16 carries two different labels across securities, so a parser must not assume 16 is the adjustment row."
+          }
+        }
+      },
+      "trading_calendar_versions": {
+        "dataset_code": "trading_calendar",
+        "v1": true,
+        "roadmap_pr": 16,
+        "reason": "TWSE afterTrading/FMTQIK, one request per month listing every actual trading day (audit 4.12). The version is month-grained because the month is the artifact and the revision unit: a closure is an absence from the day list, so correcting one changes the list and produces a new version.",
+        "columns": {
+          "market": {
+            "coverage": "sourced",
+            "source_fields": [
+              "publishing venue of the monthly report"
+            ],
+            "audit_section": "4.12",
+            "note": "FMTQIK is the TWSE market report. No official TPEx trading-day source was found, so no TPEx row may be written (ROADMAP 22, PR #16)."
+          },
+          "calendar_month": {
+            "coverage": "sourced",
+            "source_fields": [
+              "date=YYYYMM01 request key"
+            ],
+            "audit_section": "4.12",
+            "note": "One report per calendar month; the month is the request key."
+          },
+          "trading_days": {
+            "coverage": "sourced",
+            "source_fields": [
+              "日期"
+            ],
+            "audit_section": "4.12",
+            "note": "Every actual trading day the report lists. July 2024 omits the 07-24/25 typhoon closures, so an absence is the closure."
+          },
+          "coverage_through": {
+            "coverage": "internal",
+            "note": "The last date this version can speak for. A month fetched before it ends publishes a partial list, and days after this bound are unknown, never closed."
           }
         }
       },

@@ -9,7 +9,7 @@ from uuid import uuid4
 import pytest
 import sqlalchemy as sa
 from alembic import command
-from conftest import alembic_config
+from conftest import alembic_config, alembic_head
 from sqlalchemy.exc import DBAPIError
 
 from stock_data_center.ingestion import (
@@ -376,7 +376,7 @@ def test_transfer_history_blocks_destructive_downgrade_before_mutation(
         with engine.connect() as connection:
             assert connection.scalar(
                 sa.text("SELECT version_num FROM alembic_version")
-            ) == ("7c9e2a4b6d81")
+            ) == (alembic_head())
             tables = set(sa.inspect(connection).get_table_names())
             assert "security_transfer_events" in tables
             assert "security_transfer_event_observations" in tables

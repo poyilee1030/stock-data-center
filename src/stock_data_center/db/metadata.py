@@ -683,6 +683,75 @@ tdcc_distribution_schema_buckets = sa.Table(
     ),
 )
 
+trading_calendar_versions = sa.Table(
+    "trading_calendar_versions",
+    metadata,
+    sa.Column("id", sa.BigInteger(), sa.Identity(), primary_key=True),
+    sa.Column("market", sa.String(32), nullable=False),
+    sa.Column("source", sa.String(64), nullable=False),
+    sa.Column("calendar_month", sa.Date(), nullable=False),
+    # The business content of one month: the days the market actually opened.
+    # A closure is an absence from this list, so a corrected closure is a new
+    # version rather than an update.
+    sa.Column("trading_days", postgresql.ARRAY(sa.Date()), nullable=False),
+    # The last date this version can speak for. An in-month fetch publishes a
+    # partial list, and days after this bound are unknown, never closed.
+    sa.Column("coverage_through", sa.Date(), nullable=False),
+    sa.Column("business_content_hash", sa.CHAR(64)),
+    sa.Column("ingested_at", aware_timestamp),
+    sa.Column("raw_artifact_id", uuid_type, nullable=False),
+    sa.Column("ingest_run_id", uuid_type, nullable=False),
+    *lineage_constraints(),
+    sa.UniqueConstraint(
+        "market",
+        "source",
+        "calendar_month",
+        "business_content_hash",
+        name="uq_trading_calendar_business_revision",
+    ),
+    sa.CheckConstraint(
+        "calendar_month = date_trunc('month', calendar_month)::date",
+        name="calendar_month_is_first_day",
+    ),
+    sa.CheckConstraint("cardinality(trading_days) > 0", name="month_has_open_day"),
+    sa.CheckConstraint(
+        "trading_days = ("
+        "  SELECT array_agg(DISTINCT day ORDER BY day)"
+        "    FROM unnest(trading_days) AS day"
+        ")",
+        name="trading_days_sorted_distinct",
+    ),
+    sa.CheckConstraint(
+        "trading_days[1] >= calendar_month "
+        "AND trading_days[cardinality(trading_days)] "
+        "    < (calendar_month + INTERVAL '1 month')::date",
+        name="trading_days_inside_month",
+    ),
+    sa.CheckConstraint(
+        "coverage_through >= trading_days[cardinality(trading_days)] "
+        "AND coverage_through >= calendar_month "
+        "AND coverage_through < (calendar_month + INTERVAL '1 month')::date",
+        name="coverage_through_inside_month",
+    ),
+)
+
+trading_calendar_version_observations = sa.Table(
+    "trading_calendar_version_observations",
+    metadata,
+    sa.Column("calendar_version_id", sa.BigInteger(), nullable=False),
+    sa.Column("raw_artifact_id", uuid_type, nullable=False),
+    sa.Column("ingest_run_id", uuid_type, nullable=False),
+    sa.PrimaryKeyConstraint(
+        "calendar_version_id", "raw_artifact_id", "ingest_run_id"
+    ),
+    sa.ForeignKeyConstraint(
+        ["calendar_version_id"],
+        ["trading_calendar_versions.id"],
+        ondelete="RESTRICT",
+    ),
+    *lineage_constraints(),
+)
+
 tdcc_snapshot_versions = sa.Table(
     "tdcc_snapshot_versions",
     metadata,
@@ -1550,6 +1619,7 @@ publication_evidence = sa.Table(
     sa.Column("official_valuation_version_id", sa.BigInteger()),
     sa.Column("security_tag_version_id", sa.BigInteger()),
     sa.Column("xbrl_concept_catalog_version_id", sa.BigInteger()),
+    sa.Column("trading_calendar_version_id", sa.BigInteger()),
     sa.Column("publication_evidence_hash", sa.CHAR(64), nullable=False, unique=True),
     sa.Column("raw_artifact_id", uuid_type, nullable=False),
     sa.Column("ingest_run_id", uuid_type, nullable=False),
@@ -1620,6 +1690,10 @@ publication_evidence = sa.Table(
         ["xbrl_concept_catalog_version_id"],
         ["xbrl_concept_catalog_versions.id"], ondelete="RESTRICT"
     ),
+    sa.ForeignKeyConstraint(
+        ["trading_calendar_version_id"],
+        ["trading_calendar_versions.id"], ondelete="RESTRICT"
+    ),
     *lineage_constraints(),
     sa.CheckConstraint(
         "evidence_kind IN ('assertion', 'correction', 'retraction', 'unknown')",
@@ -1640,7 +1714,7 @@ publication_evidence = sa.Table(
         "market_index_version_id, market_index_metadata_version_id, "
         "corporate_action_version_id, "
         "official_valuation_version_id, security_tag_version_id, "
-        "xbrl_concept_catalog_version_id) = 1",
+        "xbrl_concept_catalog_version_id, trading_calendar_version_id) = 1",
         name="exactly_one_target",
     ),
 )
@@ -1694,6 +1768,8 @@ for _name, _table, _columns in (
      ("security_id", "source", "effective_from", "ingested_at")),
     ("ix_xbrl_concept_catalog_pit", xbrl_concept_catalog_versions,
      ("source", "concept_qname", "ingested_at")),
+    ("ix_trading_calendar_pit", trading_calendar_versions,
+     ("market", "source", "calendar_month", "ingested_at")),
 ):
     sa.Index(_name, *(_table.c[column] for column in _columns))
 

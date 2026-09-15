@@ -10,7 +10,7 @@ from alembic import command
 from sqlalchemy import Connection
 from sqlalchemy.exc import DBAPIError
 
-from conftest import alembic_config
+from conftest import alembic_config, alembic_head
 from stock_data_center.market_reference import (
     AmountScale,
     CorporateActionObservation,
@@ -740,7 +740,7 @@ def test_pr12_downgrade_preserves_corporate_action_history_and_raw_ohlc(
         with isolated_engine.connect() as connection:
             assert connection.scalar(sa.text(
                 "SELECT version_num FROM alembic_version"
-            )) == "7c9e2a4b6d81"
+            )) == alembic_head()
             columns = {column["name"] for column in sa.inspect(connection).get_columns(
                 "corporate_action_versions"
             )}
