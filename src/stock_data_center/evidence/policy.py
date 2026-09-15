@@ -9,13 +9,30 @@ own policy would then ignore.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from dataclasses import dataclass
+from datetime import UTC, date, datetime
 
 import sqlalchemy as sa
 from sqlalchemy import Connection
 
-from stock_data_center.db.metadata import dataset_release_rules, dataset_sources
+from stock_data_center.db.metadata import (
+    dataset_release_rules,
+    dataset_sources,
+    publication_evidence,
+)
 from stock_data_center.evidence.models import ReleaseRule
+
+_EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
+
+# Which publication_evidence column carries each dataset's version id.
+DATASET_TARGETS = {
+    "daily_price": "daily_price_version_id",
+    "security_metadata": "security_metadata_version_id",
+    "monthly_revenue": "monthly_revenue_version_id",
+    "financial_filing": "financial_filing_version_id",
+    "tdcc_snapshot": "tdcc_snapshot_version_id",
+    "trading_calendar": "trading_calendar_version_id",
+}
 from stock_data_center.evidence.plan import PlannedEvidence, evidence_plan
 from stock_data_center.evidence.release_rules import ReleaseRuleService
 from stock_data_center.provenance import IngestPurpose
@@ -64,17 +81,74 @@ class EvidencePolicyService:
         purpose: IngestPurpose,
         version_created: bool,
         captured_at: datetime,
+        version_id: int | None = None,
     ) -> tuple[PlannedEvidence, ...]:
-        rule = self.rule_for(
+        """Plan one version's evidence. Prefer `bind` when writing many rows."""
+        return self.bind(
             connection, dataset_code=dataset_code, source=source
+        ).plan(
+            connection,
+            period=period,
+            purpose=purpose,
+            version_created=version_created,
+            captured_at=captured_at,
+            version_id=version_id,
         )
+
+    def bind(
+        self, connection: Connection, *, dataset_code: str, source: str
+    ) -> BoundEvidencePolicy:
+        """Resolve the rule and the allowlist once for a whole write.
+
+        Both are constant for a `(dataset_code, source)`, and a whole-market
+        import writes thousands of rows through them.
+        """
+        accepted = connection.scalar(
+            sa.select(dataset_sources.c.accepted_evidence_types).where(
+                dataset_sources.c.dataset_code == dataset_code,
+                dataset_sources.c.source == source,
+            )
+        )
+        if accepted is None:
+            raise LookupError(f"no source policy for {dataset_code}/{source}")
+        return BoundEvidencePolicy(
+            rules=self._rules,
+            dataset_code=dataset_code,
+            source=source,
+            rule=self.rule_for(
+                connection, dataset_code=dataset_code, source=source
+            ),
+            accepted=frozenset(accepted),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class BoundEvidencePolicy:
+    """One dataset source's policy, resolved once."""
+
+    rules: ReleaseRuleService
+    dataset_code: str
+    source: str
+    rule: ReleaseRule | None
+    accepted: frozenset[str]
+
+    def plan(
+        self,
+        connection: Connection,
+        *,
+        period: date,
+        purpose: IngestPurpose,
+        version_created: bool,
+        captured_at: datetime,
+        version_id: int | None = None,
+    ) -> tuple[PlannedEvidence, ...]:
         rule_instant = None
         rule_source = None
-        if rule is not None:
-            resolved = self._rules.resolve(
+        if self.rule is not None:
+            resolved = self.rules.resolve(
                 connection,
-                rule_id=rule.rule_id,
-                version=rule.version,
+                rule_id=self.rule.rule_id,
+                version=self.rule.version,
                 period=period,
             )
             rule_instant = resolved.published_at
@@ -86,36 +160,54 @@ class EvidencePolicyService:
             captured_at=captured_at,
             rule_instant=rule_instant,
             rule_source=rule_source,
+            proven_capture_at=self._stored_capture(connection, version_id),
         )
-        self._require_accepted(
-            connection, dataset_code=dataset_code, source=source, planned=planned
-        )
-        return planned
+        return self._filter(planned)
 
-    @staticmethod
-    def _require_accepted(
-        connection: Connection,
-        *,
-        dataset_code: str,
-        source: str,
-        planned: tuple[PlannedEvidence, ...],
-    ) -> None:
-        accepted = connection.scalar(
-            sa.select(dataset_sources.c.accepted_evidence_types).where(
-                dataset_sources.c.dataset_code == dataset_code,
-                dataset_sources.c.source == source,
+    def _stored_capture(
+        self, connection: Connection, version_id: int | None
+    ) -> datetime | None:
+        """The earliest capture already proven for this version.
+
+        Falsification has to follow from what is stored, not from whether *this*
+        run created the version: a re-import would otherwise append the very
+        rule an earlier run withheld, into storage that cannot take it back.
+        """
+        if version_id is None:
+            return None
+        target = DATASET_TARGETS.get(self.dataset_code)
+        if target is None:
+            return None
+        return connection.scalar(
+            sa.select(sa.func.min(publication_evidence.c.published_at)).where(
+                publication_evidence.c.dataset_code == self.dataset_code,
+                publication_evidence.c.source == self.source,
+                publication_evidence.c[target] == version_id,
+                publication_evidence.c.evidence_type == "capture_bound",
             )
         )
-        if accepted is None:
-            raise LookupError(
-                f"no source policy for {dataset_code}/{source}"
-            )
+
+    def _filter(
+        self, planned: tuple[PlannedEvidence, ...]
+    ) -> tuple[PlannedEvidence, ...]:
         unaccepted = sorted(
-            {item.evidence_type for item in planned} - set(accepted)
+            {item.evidence_type for item in planned} - self.accepted
         )
-        if unaccepted:
+        if not unaccepted:
+            return planned
+        if self.rule is not None:
+            # This source opted into a rule, so an allowlist that cannot carry
+            # the result is a half-finished migration, not a default.
             raise UnacceptedEvidenceTypeError(
-                f"{dataset_code}/{source} does not accept {unaccepted}; add them "
-                "to accepted_evidence_types in the same migration that maps the "
-                "rule, or the evidence would be written and then ignored"
+                f"{self.dataset_code}/{self.source} maps {self.rule.evidence_source} "
+                f"but does not accept {unaccepted}; add them to "
+                "accepted_evidence_types in the same migration"
             )
+        # A source that declared nothing keeps the pre-ADR-0020 behaviour rather
+        # than failing an import that was never opted in.
+        return evidence_plan(
+            purpose=IngestPurpose.UNSPECIFIED,
+            version_created=False,
+            captured_at=planned[0].published_at or _EPOCH,
+            rule_instant=None,
+        )

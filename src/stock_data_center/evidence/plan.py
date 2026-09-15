@@ -37,6 +37,7 @@ def evidence_plan(
     captured_at: datetime,
     rule_instant: datetime | None,
     rule_source: str | None = None,
+    proven_capture_at: datetime | None = None,
 ) -> tuple[PlannedEvidence, ...]:
     """Every evidence row this import is entitled to write, in rank order.
 
@@ -76,7 +77,13 @@ def evidence_plan(
         )
 
     if rule_instant is not None:
-        falsified = proves_first_sighting and captured_at > rule_instant
+        # Falsification follows from any proven first sighting, whether this run
+        # made it or an earlier one already recorded it. Otherwise a re-import
+        # would append the rule an earlier run deliberately withheld.
+        proven_at = proven_capture_at
+        if proves_first_sighting and (proven_at is None or captured_at < proven_at):
+            proven_at = captured_at
+        falsified = proven_at is not None and proven_at > rule_instant
         if not falsified:
             items.append(
                 PlannedEvidence(
@@ -88,9 +95,12 @@ def evidence_plan(
                 )
             )
 
-    if not items:
-        # Nothing is provable, so nothing is claimed. This is the pre-ADR-0020
-        # behaviour, kept exactly: market-invisible rather than invented.
+    if not items and proven_capture_at is None:
+        # Nothing is provable and nothing was ever recorded, so nothing is
+        # claimed. This is the pre-ADR-0020 behaviour, kept exactly:
+        # market-invisible rather than invented. A version that already carries
+        # a proven capture needs no such row — it would only add a rank-0 head
+        # asserting ignorance next to evidence.
         items.append(
             PlannedEvidence(
                 evidence_type="official",

@@ -97,6 +97,11 @@ class DailyMarketImporter(RawFirstImporter[DailyMarketRequest, ParsedDailyMarket
         evidence_deduplicated = 0
         evidence_observations = 0
         unknown_observations = 0
+        # The rule and the allowlist are constant for this source, and a
+        # whole-market import writes thousands of rows through them.
+        bound = self._policy.bind(
+            connection, dataset_code="daily_price", source=adapter.source
+        )
         for observation in parsed.rows:
             written = self._writer.append_daily_price(
                 connection,
@@ -110,14 +115,13 @@ class DailyMarketImporter(RawFirstImporter[DailyMarketRequest, ParsedDailyMarket
 
             # What this version may claim follows from the run that produced it
             # and the rule its source declared, never from a hard-coded type.
-            for planned in self._policy.plan(
+            for planned in bound.plan(
                 connection,
-                dataset_code="daily_price",
-                source=adapter.source,
                 period=observation.trade_date,
                 purpose=context.purpose,
                 version_created=written.created,
                 captured_at=context.captured_at,
+                version_id=written.version_id,
             ):
                 evidence_existed = connection.scalar(
                     sa.select(
@@ -127,8 +131,14 @@ class DailyMarketImporter(RawFirstImporter[DailyMarketRequest, ParsedDailyMarket
                             publication_evidence.c.source == adapter.source,
                             publication_evidence.c.daily_price_version_id
                             == written.version_id,
+                            publication_evidence.c.evidence_kind
+                            == planned.evidence_kind,
                             publication_evidence.c.evidence_type
                             == planned.evidence_type,
+                            publication_evidence.c.evidence_source
+                            == planned.evidence_source,
+                            publication_evidence.c.quality_rank
+                            == planned.quality_rank,
                             publication_evidence.c.published_at.is_not_distinct_from(
                                 planned.published_at
                             ),

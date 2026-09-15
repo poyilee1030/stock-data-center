@@ -27,13 +27,6 @@ class EvidenceContext:
     captured_at: datetime
 
 
-class ArtifactOrigin(str, Enum):
-    """How the bytes were obtained (ROADMAP §14)."""
-
-    OFFICIAL_FETCH = "official_fetch"
-    LEGACY_ARCHIVE = "legacy_archive"
-
-
 class SourceQuantityUnit(str, Enum):
     SHARE = "share"
     LOT_1000_SHARES = "lot_1000_shares"

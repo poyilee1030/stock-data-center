@@ -65,10 +65,24 @@ package owns: they are the vocabulary the lifecycle *declares* and the policy
 Database migrated from zero to `4d9f2a6c8b17`:
 
 ```text
-373 passed, 3 skipped, 1 warning
+378 passed, 3 skipped, 1 warning
 ```
 
 Baseline before this step: 364.
+
+## Code-review findings
+
+Seven findings, all verified before anything changed; none was a false positive.
+
+| # | Finding | Fix |
+| --- | --- | --- |
+| 1 | On resume, `purpose` came from the current call while `captured_at` came from the original run, so a `gap_fill` that captured and died could be rerun as `first_capture` and claim a capture bound at the earlier instant | Both are now read back from the run that fetched. The purpose belongs to that run, not to the call that resumed it. |
+| 2 | Falsification was derived from `version_created`, so a re-import appended the very rule an earlier run withheld — into append-only storage | Falsification now follows from any *proven* capture stored for the version. A version that already carries one also stops receiving a pointless `unknown` row. |
+| 3 | A `daily_price` source outside the migration's two aborted the import, contradicting "nothing is enabled by default" | A source that declared no rule degrades to `unknown`, exactly as before. The loud failure is reserved for a source that *did* map a rule but cannot carry the result — a half-finished migration. |
+| 4 | `ArtifactOrigin` was imported and then redefined, so the two classes were not identical and `isinstance` across them was false | The local definition, left behind by an earlier edit of mine, is deleted. Verified at runtime. |
+| 5 | The dedup probe keyed on fewer columns than the hash, so a genuinely new row could be reported as deduplicated | The probe now keys on everything the hash covers. |
+| 6 | The opt-in replaced the allowlist instead of adding to it, and the downgrade left it widened with no rule to produce those types | Upgrade unions; downgrade restores. Checked by a downgrade/re-upgrade round trip: the allowlist returns to `{official}`. |
+| 7 | The rule and allowlist were queried per row, about 60 round trips per security-month | `bind()` resolves both once per write. |
 
 ## Scope exclusions confirmed
 

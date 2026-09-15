@@ -77,7 +77,13 @@ def upgrade() -> None:
                         ARRAY['official', 'capture_bound',
                               'release_rule']::varchar[], false)
                 ON CONFLICT (dataset_code, source) DO UPDATE
-                   SET accepted_evidence_types = EXCLUDED.accepted_evidence_types
+                   SET accepted_evidence_types = (
+                           SELECT array_agg(DISTINCT t ORDER BY t)
+                             FROM unnest(
+                                 dataset_sources.accepted_evidence_types
+                                 || EXCLUDED.accepted_evidence_types
+                             ) AS t
+                       )
                 """
             ).bindparams(source=source)
         )
@@ -95,4 +101,19 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # Leaving the widened allowlist would have sources advertising types no
+    # rule can produce any more.
+    op.execute(
+        sa.text(
+            """
+            UPDATE dataset_sources
+               SET accepted_evidence_types = (
+                       SELECT array_agg(DISTINCT t ORDER BY t)
+                         FROM unnest(accepted_evidence_types) AS t
+                        WHERE t NOT IN ('capture_bound', 'release_rule')
+                   )
+             WHERE dataset_code = 'daily_price'
+            """
+        )
+    )
     op.drop_table("dataset_release_rules")
