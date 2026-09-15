@@ -479,7 +479,7 @@ The MOPS iXBRL documents provide contexts with explicit dimensions, units, and d
 | Domain | v1 | Official source (audit section) | Notes |
 |---|---|---|---|
 | Security identity / metadata / lifecycle | MERGED (#10, #11) | `t187ap03_L`, `mopsfin_t187ap03_O`, listing/delisting history | current name/industry only; no historical industry changes |
-| Trading calendar | PR #16 | TWSE `FMTQIK` (§4.12) | |
+| Trading calendar | PR #16 | TWSE `FMTQIK` (§4.12) | TWSE only; TPEx has no official source and measured identical to TWSE on all 1,627 dates |
 | Daily prices | PR #17 | TWSE `MI_INDEX`, TPEx `stk_wn1430` (§4.1) | bid/ask snapshots unsourced |
 | Market indices | PR #18 | `MI_INDEX` index sections, TPEx `indexSummary` (§4.2); `MI_5MINS_HIST` for TAIEX OHLC | close / change for all; OHLC for the TAIEX only |
 | Official valuation | PR #18 | `BWIBBU_d`, TPEx `pera` (§4.6) | |
@@ -588,9 +588,9 @@ Status date: 2026-09-15.
 | #11 | MERGED | Authoritative security listing/delisting/venue lifecycle history |
 | #12 | MERGED | Hardened Taiwan corporate-action contract |
 | #13 | MERGED | Source-reality rebuild of this roadmap, `CLAUDE.md` (then named `AGENTS.md`), and `docs/source_field_audit.md` |
-| #14 | THIS PR | Source-reality alignment of inventory and storage contract |
+| #14 | MERGED | Source-reality alignment of inventory and storage contract |
 | #15 | PLANNED | Availability-time evidence policy (owner decision) |
-| #16 | PLANNED | Trading calendar and coverage validator |
+| #16 | THIS PR | Trading calendar and coverage validator |
 | #17 | PLANNED | Whole-market daily prices |
 | #18 | PLANNED | Market indices and official valuation |
 | #19 | PLANNED | Exchange corporate-action result feeds |
@@ -812,20 +812,22 @@ Common rules for PRs #16–#24:
 
 ## PR #16 — Trading Calendar and Coverage Validator
 
-Status: **PLANNED**. Depends on: PR #14.
+Status: **THIS PR**. Depends on: PR #14. Required by PR #15 (ADR-0020 release rules move deadlines off non-business days through this calendar).
 
 Source contract: TWSE `FMTQIK` (one request per month, listing every actual trading day), cross-checked with TWSE `holidaySchedule` where available and with the dates of whole-market daily files. TPEx trading days must equal TWSE's for 2020 onward, or a difference must come from an official TPEx source.
 
-Schema impact: new observed calendar table (market, trading date, source, lineage).
+Schema impact: `trading_calendar_versions` (+ its observation link and a seventeenth `publication_evidence` target) and `dataset_expected_coverage`. ADR-0021 records why the version is month-grained rather than day-grained: the month is the published artifact *and* the revision unit, so a corrected closure changes the day list and becomes a new version. A day-grained table cannot express a closure that was corrected, because rows are never deleted.
 
 The validator must already know what each dataset should hold before it can report a gap. That knowledge is exposed as a queryable expected-coverage declaration, not left implicit inside report generation, because it is what PR #27 turns into fetch jobs (§3.1).
 
 Acceptance:
 
-- the 2020-01-02 → 2026-09-11 calendar matches the trade dates in the legacy archive, or each difference is explained
-- typhoon closures (for example, 2024-07-24/25) appear as closures
-- the coverage report separates non-trading days from missing data and does not rely on today's security universe
-- expected coverage can be queried directly for a (dataset, period) range, not only rendered as a report
+- [x] the 2020-01-02 → 2026-09-11 calendar matches the trade dates in the legacy archive, or each difference is explained
+- [x] typhoon closures (for example, 2024-07-24/25) appear as closures
+- [x] the coverage report separates non-trading days from missing data and does not rely on today's security universe
+- [x] expected coverage can be queried directly for a (dataset, period) range, not only rendered as a report
+
+Measured before implementation, as the baseline: TWSE and TPEx opened on exactly the same 1,627 dates in the window, zero differences either way, so the TPEx equivalence this PR relies on is measured rather than assumed. No official TPEx calendar source exists, so no TPEx row is written; TPEx datasets declare the TWSE calendar and the declaration records why.
 
 ## PR #17 — Whole-Market Daily Prices
 

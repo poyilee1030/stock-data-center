@@ -67,6 +67,20 @@ separate final reconciliation after the relevant source histories are present;
 it recomputes the result from canonical history and is independent of import
 order.
 
+## Trading-calendar adapter
+
+The fourth milestone imports the market's actual open days:
+
+- [TWSE `afterTrading/FMTQIK`](https://www.twse.com.tw/rwd/zh/afterTrading/FMTQIK),
+  one request per calendar month.
+
+The report lists only the days the market actually traded, so a closure is an
+absence rather than a flag. The importer stores one version per month with the
+day list as its business content, and bounds a still-running month with
+`coverage_through` so its remaining days stay unknown rather than closed. The
+endpoint publishes no release instant, so months are stored with `unknown`
+evidence and `published_at = NULL`. See [`trading_calendar.md`](trading_calendar.md).
+
 ## Running one resource
 
 Apply migrations, set `DATABASE_URL`, and use an explicit UUID when a job may
@@ -106,7 +120,17 @@ python -m stock_data_center.ingestion.cli security-history \
   --import-id 88888888-8888-4888-8888-888888888888
 
 python -m stock_data_center.ingestion.cli security-transfer-reconciliation
+
+python -m stock_data_center.ingestion.cli trading-calendar \
+  --month 2024-07 \
+  --import-id 99999999-9999-4999-8999-999999999999
+
+python -m stock_data_center.ingestion.cli trading-calendar \
+  --month 2020-01 --through 2026-09 --min-interval-seconds 1.5
 ```
+
+A history run derives one import id per month from the run id, so a run that
+fails midway resumes with the remaining months instead of restarting.
 
 The command prints the persisted manifest/reconciliation without connection
 credentials. Reusing the same successful `import_id` and identical scope reads

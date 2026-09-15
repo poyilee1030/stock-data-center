@@ -5,10 +5,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import time
 from dataclasses import asdict
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
-from uuid import UUID, uuid4
+from uuid import UUID, uuid4, uuid5
 
 import sqlalchemy as sa
 
@@ -37,6 +38,13 @@ from stock_data_center.ingestion.security_lifecycle import (
 )
 from stock_data_center.ingestion.security_metadata import SecurityMetadataImporter
 from stock_data_center.ingestion.trading_calendar import TradingCalendarImporter
+
+
+def _months(first: date, last: date):
+    month = first
+    while month <= last:
+        yield month
+        month = (month.replace(day=28) + timedelta(days=7)).replace(day=1)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -76,6 +84,16 @@ def main(argv: list[str] | None = None) -> int:
     )
     calendar.add_argument("--source", choices=("twse",), default="twse")
     calendar.add_argument("--month", required=True, help="Gregorian YYYY-MM")
+    calendar.add_argument(
+        "--through",
+        help="optional Gregorian YYYY-MM; import every month from --month to it",
+    )
+    calendar.add_argument(
+        "--min-interval-seconds",
+        type=float,
+        default=1.5,
+        help="throttle between months of a history run",
+    )
     calendar.add_argument("--import-id", type=UUID)
     calendar.add_argument("--raw-root", type=Path, default=Path("data/raw"))
     subparsers.add_parser(
@@ -124,13 +142,30 @@ def main(argv: list[str] | None = None) -> int:
                 engine,
                 raw_store=LocalRawArtifactStore(args.raw_root),
             )
-            result = importer.run(
-                adapter=TWSETradingCalendarAdapter(),
-                request=TradingCalendarRequest(
-                    date.fromisoformat(f"{args.month}-01")
-                ),
-                import_id=import_id,
+            first = date.fromisoformat(f"{args.month}-01")
+            last = (
+                date.fromisoformat(f"{args.through}-01")
+                if args.through
+                else first
             )
+            if last < first:
+                parser.error("--through must not be before --month")
+            months = list(_months(first, last))
+            base_id = import_id
+            for index, month in enumerate(months):
+                if index:
+                    time.sleep(args.min_interval_seconds)
+                # One import id per month, derived from the run id, so each
+                # month resumes on its own and a run that fails midway
+                # continues with the rest instead of restarting.
+                import_id = (
+                    base_id if len(months) == 1 else uuid5(base_id, str(month))
+                )
+                result = importer.run(
+                    adapter=TWSETradingCalendarAdapter(),
+                    request=TradingCalendarRequest(month),
+                    import_id=import_id,
+                )
         elif args.command == "security-metadata":
             adapter = (
                 TWSESecurityMetadataAdapter()
