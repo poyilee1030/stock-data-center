@@ -9,7 +9,7 @@ from uuid import uuid4
 import pytest
 import sqlalchemy as sa
 from alembic import command
-from conftest import alembic_config
+from conftest import alembic_config, alembic_head
 from sqlalchemy.exc import DBAPIError
 
 from stock_data_center.ingestion import (
@@ -453,7 +453,7 @@ def test_reassertion_history_blocks_unrepresentable_downgrade(
         with engine.connect() as connection:
             assert connection.scalar(
                 sa.text("SELECT version_num FROM alembic_version")
-            ) == ("7c9e2a4b6d81")
+            ) == (alembic_head())
             assert connection.scalar(
                 sa.text(
                     """

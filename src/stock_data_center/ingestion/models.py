@@ -50,6 +50,35 @@ class SecurityMetadataRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class TradingCalendarRequest:
+    """Request one calendar month of actual trading days."""
+
+    month: date
+
+    def __post_init__(self) -> None:
+        if self.month.day != 1:
+            raise ValueError("month must be the first day of the requested month")
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedTradingCalendar:
+    """The actual trading days one source published for one month."""
+
+    market: str
+    month: date
+    trading_days: tuple[date, ...]
+    source_fields: tuple[str, ...]
+
+    @property
+    def coverage_start(self) -> date | None:
+        return self.trading_days[0] if self.trading_days else None
+
+    @property
+    def coverage_end(self) -> date | None:
+        return self.trading_days[-1] if self.trading_days else None
+
+
+@dataclass(frozen=True, slots=True)
 class SecurityLifecycleRequest:
     """Request one official historical listing-lifecycle resource."""
 

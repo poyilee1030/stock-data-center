@@ -1,6 +1,6 @@
 # ADR-0020：可得時間（availability-time）證據政策
 
-狀態：**Accepted**，供 ROADMAP PR #15 實作。owner 於 2026-09-15 裁決下列六項。
+狀態：**Accepted**，供 ROADMAP Step 15 實作。owner 於 2026-09-15 裁決下列六項。
 延伸 ADR-0002（業務版本與發布證據）與 ADR-0010（來源專屬的可接受證據型別）。
 
 ## 裁決摘要
@@ -11,12 +11,12 @@
 | 2 | TDCC 週度是否給 release rule | **給**：資料日期後第一個星期日 12:00 |
 | 3 | ingest `purpose` 存在哪裡 | **`ingest_runs` 上具型別、有 `CHECK` 的新欄位**，不放 JSONB |
 | 4 | 月營收公告日期的證據來源 | **legacy 封存檔 `market.csv` 本身**（路徑 + mtime）。不讀 `revswarm.db`，不記逐列 engine/verifier |
-| 5 | PR #15 是否依賴 PR #16 | **是**，#16 的交易日曆先做 |
+| 5 | Step 15 是否依賴 Step 16 | **是**，#16 的交易日曆先做 |
 | 6 | 是否捕捉當日未結算的列 | **v1 不抓**。D 日資料一律 D+1 03:00 才可見 |
 
-裁決 3 使 ROADMAP PR #15 的「schema impact: none expected」失效，改為一個欄位。
-裁決 4 使 ROADMAP PR #15 中「`evidence_source` 記 dataset、engine、verifier」
-一句失效，該句刪除。裁決 5 使 ROADMAP 的相依從「PR #14」改為「PR #14、PR #16」。
+裁決 3 使 ROADMAP Step 15 的「schema impact: none expected」失效，改為一個欄位。
+裁決 4 使 ROADMAP Step 15 中「`evidence_source` 記 dataset、engine、verifier」
+一句失效，該句刪除。裁決 5 使 ROADMAP 的相依從「Step 14」改為「Step 14、Step 16」。
 這三處已在同一個變更中改正。
 
 ## 背景
@@ -89,14 +89,14 @@
 
 每條規則都有 id、版本，以及引用的時程或法規依據。`evidence_source` 記錄
 `rule_id@version`。所有規則時刻皆為**台北時間日終**，且一律至少是
-**法定死線順延到下一個營業日**（對照 PR #16 的交易日曆）。因此 2021Q2 解析到
+**法定死線順延到下一個營業日**（對照 Step 16 的交易日曆）。因此 2021Q2 解析到
 2021-08-16 而非 08-15，2026M04 的營收解析到 2026-05-11。
 
 | Rule id | 範圍 | 時刻 | 依據 |
 | --- | --- | --- | --- |
 | `monthly_revenue_statutory@1` | 月營收，全體發行人 | 次月 10 日 | 法定申報死線 |
 | `financial_statements_general@1` | 財報，一般業 | Q4 03/31、Q1 05/15、Q2 08/15、Q3 11/15 | legacy 捕捉視窗結束日與 `train_eps` 截止日；Q2/Q3 是法定 08/14、11/14 的隔日 |
-| — | 財報，**金融業** | **不定義** | 其死線不同（Q1/Q3 05/30、半年報 08/31，audit §7.1），且 PR #23 將其排除於 v1。日後的 PR 必須自訂規則，**不得沿用一般業規則**。 |
+| — | 財報，**金融業** | **不定義** | 其死線不同（Q1/Q3 05/30、半年報 08/31，audit §7.1），且 Step 23 將其排除於 v1。日後的 step 必須自訂規則，**不得沿用一般業規則**。 |
 | `exchange_daily_settled@1` | 交易所每日資料集 | 次一日曆日 03:00 | **裁決 1**。交易所在結算完成前即供應當日的列（事實 4），故任何在交易日當天解析的規則都不成立。23:30 時 27 個交易日中有 5 日不完整，03:00 時只剩 1 日；唯一那次失敗是隔天 09:54 才存檔，改成 08:00 同樣涵蓋不了，且該時戳是我方存檔時間，無法分辨「來源延遲」與「抓取失敗」。 |
 | `tdcc_weekly@1` | TDCC 週度分布 | 資料日期後第一個星期日 12:00 | **裁決 2**。依據是 legacy 星期日 10:20 的排程加餘裕。**本規則的依據是我方的排程觀察，不是 TDCC 官方公布的發布時程** —— 稽核中找不到官方時程。此限制隨規則一起記載。 |
 
@@ -158,7 +158,7 @@ ingest run**。
 因此 `evidence_source` 記的是**封存檔本身**：檔案路徑、mtime，
 以及該檔在 §14 `legacy_archive` origin 下的 raw artifact hash。
 **不記逐列的 engine / verifier** —— 那些只存在於未匯出的 `revswarm.db`。
-ROADMAP PR #15 原本承諾逐列記錄，是做不到的，該句刪除。
+ROADMAP Step 15 原本承諾逐列記錄，是做不到的，該句刪除。
 
 兩個窗口以期間區分，不需要逐列 provenance：
 
@@ -220,16 +220,16 @@ D 日的交易所資料一律在 D+1 03:00 才可見。結算完成前那個版�
   「最新更正後」的值，卻在規則時刻變為可見。2023 年對 2021 年數字發出的更正，
   會從 2021 年的規則時刻起就可見 —— 這是**更正的 look-ahead**。
   它影響 2026M02 之前的月營收、2025Q4 之前的 XBRL，以及 forward capture
-  之前的全部交易所每日資料。legacy 系統有同樣的缺陷。PR #27 會回報
+  之前的全部交易所每日資料。legacy 系統有同樣的缺陷。Step 27 會回報
   forward-capture 的改版率，讓這個效應的大小被量測，而不是被假設。
 - **v1 無法回測盤後當日策略**（§10）。
-- Adapter PRs #16–#24 不被本 ADR 阻擋。在其實作 PR 附加核可證據之前，
+- Adapter Steps 16–24 不被本 ADR 阻擋。在其實作 step 附加核可證據之前，
   它們發出 `unknown` 證據；核可後的證據日後附加，不需要動到業務版本。
 - 來源政策（capability 與可接受證據型別）從通用的 raw-first 編排移進
-  各 adapter 自己的 source 宣告，吸收原本的「source capability hook」PR。
-- CLAUDE.md §31 與 §32 必須在 PR #15 中依本 ADR 改寫。
+  各 adapter 自己的 source 宣告，吸收原本的「source capability hook」step。
+- CLAUDE.md §31 與 §32 必須在 Step 15 中依本 ADR 改寫。
 
-## PR #15 的實作要求
+## Step 15 的實作要求
 
 - 每條規則都有 id、版本，以及引用的官方時程或法規。永久測試涵蓋週末、假日、
   年度邊界，以及落在非營業日的死線（至少 2021-05-15、2021-08-14、2020-11-14、

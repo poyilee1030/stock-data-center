@@ -4,8 +4,8 @@ Status date: 2026-09-15.
 
 This document records which fields the legacy database, the legacy raw archive,
 and the official endpoints actually provide. `ROADMAP.md` uses it as the
-source-reality baseline: a planned PR may promise a stored field only if this
-audit (or the PR's own verified update to it) names the source field that
+source-reality baseline: a planned step may promise a stored field only if this
+audit (or the step's own verified update to it) names the source field that
 populates it.
 
 ## 1. What was inspected
@@ -66,7 +66,7 @@ Nothing in the legacy stack consumes dividend or corporate-action data.
 | `stock_info`, `stock_tags` | Parsed current snapshots | No |
 
 Because the official endpoints still serve 2020 onward for every domain except
-TDCC, re-fetching gives byte-faithful artifacts through the existing PR #9
+TDCC, re-fetching gives byte-faithful artifacts through the existing Step 9
 raw-first lifecycle. The archives are needed for TDCC history, for the recovered
 monthly-revenue publication dates (§7.4), for the pre-2026 first-seen records
 (§7.1), and as a reconciliation baseline.
@@ -107,7 +107,7 @@ TPEx `stk_wn1430` (one file per trade date) has three header variants:
 Source fields not stored: TPEx 發行股數 and next-day limit prices; TWSE 本益比
 (duplicated by `BWIBBU_d`).
 
-The PR #9 pilot adapters (`STOCK_DAY`, `tradingStock`) take one request per
+The Step 9 pilot adapters (`STOCK_DAY`, `tradingStock`) take one request per
 security per month. Daily capture for about 2,200 securities would need about
 2,200 requests per trade date, so these adapters suit pilots and spot checks,
 not production.
@@ -131,7 +131,7 @@ never fetched: `rwd/zh/TAIEX/MI_5MINS_HIST?date=YYYYMM01&response=json`
 calendar month per request, verified live for 2026-01. It covers only
 `發行量加權股價指數`, not the other ~270 published indices, and carries no trade
 value. No TPEx equivalent was found in this audit; `4.2` probes of
-`indexes/histIndex` and `openapi/v1/tpex_otc_index_history` both 404. PR #18
+`indexes/histIndex` and `openapi/v1/tpex_otc_index_history` both 404. Step 18
 must spike TPEx before promising OTC index OHLC.
 
 ### 4.3 Institutional flows and summary
@@ -346,7 +346,7 @@ All of these were verified live on 2026-09-14 and serve historical date ranges.
   scraper used, flattens the column to the link label `除權息資料`, and 最近一次申報資料
   季別/日期 likewise loses its MOPS URL. Verified on 2026-09-15: the JSON row for
   00939 on 2026-01-02 carries `00939,20260102` where the archived CSV carries
-  `除權息資料`. PR #19 must request JSON; the legacy CSV archive cannot supply
+  `除權息資料`. Step 19 must request JSON; the legacy CSV archive cannot supply
   Invariant G(2) identity.
   The 15-column header is byte-identical in every archived year 2020-2026, so
   this feed needs no header-variant handling.
@@ -396,12 +396,12 @@ archive.
 
 The issuer summary feeds (TWSE `t187ap45_L`, TPEx `mopsfin_t187ap39_O`) do
 split earnings and capital-surplus stock dividends, but they lack a stable
-event identity (see ROADMAP PR #13). Their contract and coverage limits are in
-§4.13; PR #33 stores them as their own domain.
+event identity (see ROADMAP Step 13). Their contract and coverage limits are in
+§4.13; Step 33 stores them as their own domain.
 
 ### 4.11 Security metadata, lifecycle, and tags
 
-- PR #10 uses current snapshots (`t187ap03_L`, `mopsfin_t187ap03_O`). PR #11
+- Step 10 uses current snapshots (`t187ap03_L`, `mopsfin_t187ap03_O`). Step 11
   uses listing and delisting history. No official source of historical name or
   industry changes is used.
 - `stock_tags` comes from MoneyDJ, a third party: a current snapshot with no
@@ -562,11 +562,11 @@ marked *stays NULL* is in fact nullable in the live schema.
 
 | Column | Status | Effect | Why |
 | --- | --- | --- | --- |
-| `corporate_action_versions.announcement_date` | unsourced | stays NULL | No exchange result feed carries an announcement date. The issuer declaration feeds that do carry board-resolution dates have no link to an executed event (PR #33, audit 4.13). |
+| `corporate_action_versions.announcement_date` | unsourced | stays NULL | No exchange result feed carries an announcement date. The issuer declaration feeds that do carry board-resolution dates have no link to an executed event (Step 33, audit 4.13). |
 | `corporate_action_versions.record_date` | unsourced | stays NULL | No exchange result feed carries a record date. |
 | `corporate_action_versions.payment_date` | unsourced | stays NULL | No exchange result feed carries a payment date. |
-| `corporate_action_versions.earnings_stock_ratio` | unsourced | stays NULL | The exchange feeds publish only the combined free-share figure. The earnings / capital-surplus split exists only in the MOPS issuer declaration feed, stored as its own domain by PR #33 (audit 4.13). |
-| `corporate_action_versions.capital_surplus_stock_ratio` | unsourced | stays NULL | The exchange feeds publish only the combined free-share figure. The split exists only in the MOPS issuer declaration feed (PR #33), and before ROC 110 the two reserves arrive as one number (audit 4.13). |
+| `corporate_action_versions.earnings_stock_ratio` | unsourced | stays NULL | The exchange feeds publish only the combined free-share figure. The earnings / capital-surplus split exists only in the MOPS issuer declaration feed, stored as its own domain by Step 33 (audit 4.13). |
+| `corporate_action_versions.capital_surplus_stock_ratio` | unsourced | stays NULL | The exchange feeds publish only the combined free-share figure. The split exists only in the MOPS issuer declaration feed (Step 33), and before ROC 110 the two reserves arrive as one number (audit 4.13). |
 | `corporate_action_versions.old_shares` | partially sourced | holds the values that exist | Capital reduction only: the old side is the constant 1,000 of 每壹仟股. TWTB8U par-value-change detail fields are not yet verified and no TPEx par-value endpoint was found. |
 | `corporate_action_versions.new_shares` | partially sourced | holds the values that exist | Capital reduction only. TWTB8U par-value-change detail fields are not yet verified and no TPEx par-value endpoint was found. |
 | `daily_price_versions.price_direction` | partially sourced | holds the values that exist | TWSE only. stk_wn1430 carries a signed 漲跌 and no direction column. |
@@ -597,7 +597,7 @@ marked *stays NULL* is in fact nullable in the live schema.
 
 Beyond the stored columns, `publication_evidence.published_at` has no official
 source at all: no inspected source publishes a per-row release instant (§7).
-ROADMAP PR #15 is the decision point for what to do about that.
+ROADMAP Step 15 is the decision point for what to do about that.
 
 Every other column of every table in the storage contract is either sourced for
 the whole v1 window and both markets — §4 names the endpoint and the published
@@ -608,7 +608,7 @@ provenance linkage that is not expected to come from a source field.
 
 | Field | Decision |
 | --- | --- |
-| Monthly-revenue published comparatives | Store as observed (ROADMAP PR #22); legacy consumers read them |
+| Monthly-revenue published comparatives | Store as observed (ROADMAP Step 22); legacy consumers read them |
 | TPEx daily 發行股數 and next-day limits | Not stored; `foreign_holding.issued_shares` covers both markets |
 | TPEx margin 資屬證金/券屬證金, TWSE 註記 | Not stored; no consumer |
 | TPEx institutional foreign/dealer totals | Not stored; they are sums of stored columns |
@@ -624,7 +624,7 @@ None of the inspected sources gives a per-row release instant:
 - TDCC carries the data date.
 
 Under the current rules, all imported history therefore has
-`published_at = NULL` and is invisible to Market PIT. ROADMAP PR #15 is the
+`published_at = NULL` and is invisible to Market PIT. ROADMAP Step 15 is the
 decision point for this.
 
 **Same-day rows are published before they are final.** Observed 2026-09-15 at
@@ -769,7 +769,7 @@ publication from a failed fetch. `error_scraper.log` records missing files
 without an HTTP status.
 
 Combined with the same-day incompleteness in §7, this is the evidence behind
-the 03:00 next-day release rule for exchange daily datasets (ROADMAP PR #15).
+the 03:00 next-day release rule for exchange daily datasets (ROADMAP Step 15).
 
 ### 7.3 Published comparatives as correction evidence
 
@@ -841,7 +841,7 @@ the 10th; for 36,492 of those the 10th is a business day, so the release rule
 resolves to that same instant and treating them as rule-bound changes nothing.
 Only 3,696 rows (2.9%) have a weekend 10th, where the rule moves to the next
 business day and the row resolves 1-2 days late. Late is safe; early is not.
-PR #22 therefore reads the CSV and treats any row on the 10th as rule-bound.
+Step 22 therefore reads the CSV and treats any row on the 10th as rule-bound.
 
 **Independent quality check.** `revswarm` also captured the announced revenue
 from the article headline, rounded to 0.01億, for 110,653 trusted rows.

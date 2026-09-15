@@ -1,6 +1,6 @@
 # ADR-0018: Taiwan corporate-action contract
 
-Status: Accepted for PR #12
+Status: Accepted for Step 12
 
 ## Decision
 

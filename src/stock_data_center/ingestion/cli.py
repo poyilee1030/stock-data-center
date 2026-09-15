@@ -5,10 +5,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import time
 from dataclasses import asdict
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
-from uuid import UUID, uuid4
+from uuid import UUID, uuid4, uuid5
 
 import sqlalchemy as sa
 
@@ -21,12 +22,14 @@ from stock_data_center.ingestion.adapters import (
     TWSEDelistingHistoryAdapter,
     TWSEListingHistoryAdapter,
     TWSESecurityMetadataAdapter,
+    TWSETradingCalendarAdapter,
 )
 from stock_data_center.ingestion.daily_market import DailyMarketImporter
 from stock_data_center.ingestion.models import (
     DailyMarketRequest,
     SecurityLifecycleRequest,
     SecurityMetadataRequest,
+    TradingCalendarRequest,
 )
 from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
 from stock_data_center.ingestion.security_lifecycle import (
@@ -34,6 +37,14 @@ from stock_data_center.ingestion.security_lifecycle import (
     reconcile_security_transfers,
 )
 from stock_data_center.ingestion.security_metadata import SecurityMetadataImporter
+from stock_data_center.ingestion.trading_calendar import TradingCalendarImporter
+
+
+def _months(first: date, last: date):
+    month = first
+    while month <= last:
+        yield month
+        month = (month.replace(day=28) + timedelta(days=7)).replace(day=1)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -67,6 +78,24 @@ def main(argv: list[str] | None = None) -> int:
     )
     security_history.add_argument("--import-id", type=UUID)
     security_history.add_argument("--raw-root", type=Path, default=Path("data/raw"))
+    calendar = subparsers.add_parser(
+        "trading-calendar",
+        help="import one month of actual trading days",
+    )
+    calendar.add_argument("--source", choices=("twse",), default="twse")
+    calendar.add_argument("--month", required=True, help="Gregorian YYYY-MM")
+    calendar.add_argument(
+        "--through",
+        help="optional Gregorian YYYY-MM; import every month from --month to it",
+    )
+    calendar.add_argument(
+        "--min-interval-seconds",
+        type=float,
+        default=1.5,
+        help="throttle between months of a history run",
+    )
+    calendar.add_argument("--import-id", type=UUID)
+    calendar.add_argument("--raw-root", type=Path, default=Path("data/raw"))
     subparsers.add_parser(
         "security-transfer-reconciliation",
         help="recompute final transfer matching from canonical TWSE/TPEx histories",
@@ -91,6 +120,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         import_id = args.import_id or uuid4()
+        calendar_runs: list = []
         if args.command == "daily-market":
             adapter = (
                 TWSEDailyMarketAdapter()
@@ -108,6 +138,37 @@ def main(argv: list[str] | None = None) -> int:
                 ),
                 import_id=import_id,
             )
+        elif args.command == "trading-calendar":
+            importer = TradingCalendarImporter(
+                engine,
+                raw_store=LocalRawArtifactStore(args.raw_root),
+            )
+            first = date.fromisoformat(f"{args.month}-01")
+            last = (
+                date.fromisoformat(f"{args.through}-01")
+                if args.through
+                else first
+            )
+            if last < first:
+                parser.error("--through must not be before --month")
+            months = list(_months(first, last))
+            base_id = import_id
+            calendar_runs = []
+            for index, month in enumerate(months):
+                if index:
+                    time.sleep(args.min_interval_seconds)
+                # One import id per month, derived from the run id, so each
+                # month resumes on its own and a run that fails midway
+                # continues with the rest instead of restarting.
+                import_id = (
+                    base_id if len(months) == 1 else uuid5(base_id, str(month))
+                )
+                result = importer.run(
+                    adapter=TWSETradingCalendarAdapter(),
+                    request=TradingCalendarRequest(month),
+                    import_id=import_id,
+                )
+                calendar_runs.append((month, import_id, result))
         elif args.command == "security-metadata":
             adapter = (
                 TWSESecurityMetadataAdapter()
@@ -146,6 +207,18 @@ def main(argv: list[str] | None = None) -> int:
             )
         with engine.connect() as connection:
             manifest = importer.manifest(connection, import_id)
+            months_report = [
+                {
+                    "month": f"{month:%Y-%m}",
+                    "import_id": str(month_id),
+                    "status": importer.manifest(connection, month_id).status,
+                    "trading_days": month_result.normalized_rows,
+                    "created": month_result.business_versions_created,
+                    "deduplicated": month_result.business_versions_deduplicated,
+                    "resumed": month_result.resumed_from_checkpoint,
+                }
+                for month, month_id, month_result in calendar_runs
+            ]
     finally:
         engine.dispose()
 
@@ -159,6 +232,9 @@ def main(argv: list[str] | None = None) -> int:
                     "result_counts": dict(manifest.result_counts),
                     "reconciliation": dict(manifest.reconciliation),
                 },
+                # A history run reports every month it imported, not only the
+                # last: an earlier month's warnings are the point of running it.
+                **({"months": months_report} if months_report else {}),
             },
             ensure_ascii=False,
             indent=2,

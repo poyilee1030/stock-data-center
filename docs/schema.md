@@ -25,6 +25,7 @@ migrations are the deployment record in `migrations/versions/`.
 | Official source metrics | `official_valuation_versions`, `xbrl_concept_catalog_versions` |
 | Canonical derived data | `derived_dataset_definitions`, `derived_computation_runs`, `derived_metric_versions` |
 | Publication knowledge | `publication_evidence` |
+| Trading calendar | `trading_calendar_versions`, `trading_calendar_version_observations`, `dataset_expected_coverage` |
 
 `security_tag_versions` and `xbrl_concept_catalog_versions` exist in the schema
 but are not in v1 (ROADMAP §16): no official source publishes security tags, and

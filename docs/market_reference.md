@@ -83,7 +83,7 @@ Corporate actions are observed evidence only. They are never inferred from a
 price jump. Official daily OHLC remains immutable source truth and is neither
 rewritten nor adjusted by this contract. Adjustment factors, adjusted prices,
 total-return series, real-source ingestion, and historical backfill are outside
-PR #12.
+Step 12.
 
 ## Temporal semantics
 

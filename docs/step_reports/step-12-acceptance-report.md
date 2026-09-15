@@ -1,4 +1,4 @@
-# PR #12 Acceptance Report
+# Step 12 Acceptance Report
 
 Status: IN REVIEW
 
@@ -32,13 +32,13 @@ Clean PostgreSQL database:
 239 passed, 3 skipped
 ```
 
-The three skips are opt-in live official-endpoint tests from PR #11 and are
+The three skips are opt-in live official-endpoint tests from Step 11 and are
 outside this schema/domain-only PR. Alembic metadata drift check passed. One
 SQLAlchemy reflection warning is emitted for intentionally `NOT VALID`
 constraints that preserve pre-PR legacy rows while enforcing all new writes.
 
 ## Scope exclusions confirmed
 
-PR #12 adds no external-source adapter, historical corporate-action backfill,
+Step 12 adds no external-source adapter, historical corporate-action backfill,
 price-jump inference, adjustment factor, adjusted price, total-return series,
 technical indicator, trading-calendar behavior, or Redis/cache work.
