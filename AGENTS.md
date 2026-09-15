@@ -1,6 +1,6 @@
 # AGENTS.md
 
-> Delivery is PR-driven. `ROADMAP.md` is authoritative for PR number, scope, dependencies, acceptance criteria, and out-of-scope work. Historical Phase terminology may remain in old ADRs/reports but must not drive new implementation planning.
+> Delivery is PR-driven. `ROADMAP.md` is authoritative for PR number, scope, dependencies, acceptance criteria, blockers, and out-of-scope work. Historical Phase terminology may remain in old ADRs/reports but must not drive new implementation planning.
 
 ## Purpose
 
@@ -30,9 +30,9 @@ strategy ranking logic
 model-specific experimental features
 ```
 
-The highest-priority requirement is:
+Highest-priority requirement:
 
-> Historical correctness must not depend on current database state, caller discipline, derivation timing, or cache availability.
+> Historical correctness must not depend on current database state, caller discipline, derivation timing, source import order, guessed source identity, or cache availability.
 
 ---
 
@@ -46,13 +46,14 @@ ROADMAP.md
 
 Do not maintain competing version-suffixed roadmaps in the repository root.
 
-The delivery unit is a **pull request**.
+The delivery unit is a pull request.
 
 Before implementation, identify the current PR and read its:
 
 ```text
 goal
 dependencies
+status / blockers
 in-scope work
 out-of-scope work
 schema/PIT/provenance impact
@@ -63,15 +64,9 @@ acceptance criteria
 
 Work one PR at a time.
 
-Do not implement later planned PRs merely because adjacent code is convenient to add.
+If a required correctness criterion fails, stop. Do not reinterpret the requirement simply to keep implementation moving.
 
-If correctness of the current PR requires a change outside its original implementation detail,
-make the minimum correctness fix and document why it belongs in the current PR.
-
-If review discovers an independent requirement, create/propose a follow-up PR instead of
-silently expanding scope.
-
-New implementation progress is tracked with:
+Use only:
 
 ```text
 MERGED
@@ -81,50 +76,44 @@ BLOCKED
 SUPERSEDED
 ```
 
-Do not use "Phase complete" as a progress claim.
-
-Historical artifacts may still contain names such as:
-
-```text
-Phase 9
-Phase 9 Pilot 1
-docs/phase_reports/...
-```
-
-Do not rename historical artifacts solely for terminology cleanup.
-
 For new PR acceptance evidence, prefer:
 
 ```text
 docs/pr_reports/pr-<N>-acceptance-report.md
 ```
 
-or the repository's current equivalent if a different PR-report convention is already established.
-
-Each required PR criterion must be marked PASS/FAIL with concrete evidence.
-
-If a required correctness criterion fails, stop and keep the PR unmerged.
+Each required criterion must be PASS/FAIL with concrete evidence.
 
 ---
 
-
 ## Current PR-Based Sequence
 
-At the time this file was aligned to the PR-based roadmap:
+Current roadmap snapshot:
 
 ```text
 PR #11  authoritative security lifecycle history        MERGED
-PR #12  Taiwan corporate-action contract               IN REVIEW
-PR #13  official corporate-action raw-first pilot      PLANNED
-PR #14  authoritative Taiwan trading calendar          PLANNED
-PR #15  historical corporate-action backfill           PLANNED
-PR #16  full daily-market historical backfill          PLANNED
+PR #12  Taiwan corporate-action contract               MERGED
+PR #13  official dividend summary pilot                SUPERSEDED (by #19)
+PR #14  source-reality alignment                       PLANNED
+PR #15  availability-time evidence policy              PLANNED (owner decision / ADR-0020)
+PR #16  trading calendar + coverage validator          PLANNED
+PR #17  whole-market daily prices                      PLANNED
+PR #19  exchange corporate-action result feeds         PLANNED
 ```
 
-This block is only a convenience snapshot.
+`ROADMAP.md` remains authoritative if this snapshot becomes stale.
 
-`ROADMAP.md` remains authoritative if PR numbering/status changes.
+PR #13 is superseded because the issuer dividend summary feeds do not expose a proven correction-stable event identity, and TPEx live data falsified the proposed `(security, dividend_year, period)` identity. Announcement feeds stay un-normalized. Corporate actions come from exchange result feeds under ROADMAP Invariant G(2).
 
+Do not bypass the announcement-feed blocker by inventing another mutable composite key.
+
+## Source-Field Rule
+
+`docs/source_field_audit.md` records which fields the legacy DB, the legacy raw archive, and the official endpoints actually provide.
+
+Do not add, populate, or promise a stored field unless you can name its official endpoint, exact source field label, the date range in which it exists, and its unit conversion. Update the audit in the same PR.
+
+Columns the audit lists as unsourced stay NULL and must not be presented as data.
 
 ---
 
@@ -168,31 +157,21 @@ which source policy applies
 which canonical derivation definition applies
 ```
 
-Downstream consumers receive resolved data.
-
-Do not move PIT logic into downstream repos.
+Downstream consumers receive resolved data. Do not move PIT logic into downstream repos.
 
 ---
 
 # 4. PostgreSQL Is Authoritative
 
-PostgreSQL is the source of truth.
+PostgreSQL is the source of truth. Redis is never authoritative.
 
-Redis is never authoritative.
-
-The following operation must remain semantically safe:
-
-```text
-delete all Redis keys
-```
-
-After deletion, correct results must still be returned from PostgreSQL-backed resolution.
+Deleting all Redis keys must not change correctness.
 
 ---
 
 # 5. Redis Is Optional
 
-Both configurations are valid:
+Both are valid:
 
 ```env
 CACHE_BACKEND=none
@@ -205,16 +184,7 @@ CACHE_BACKEND=redis
 REDIS_URL=redis://host:6379
 ```
 
-Do not require Redis to:
-
-```text
-run migrations
-start in CACHE_BACKEND=none
-ingest data
-resolve PIT queries
-calculate canonical derived data
-pass core correctness tests
-```
+Do not require Redis to run migrations, ingest data, resolve PIT queries, calculate canonical derived data, or pass core correctness tests.
 
 ---
 
@@ -232,41 +202,25 @@ resolve(Q, Redis warm cache)
 resolve(Q, Redis unavailable with fallback)
 ```
 
-Differences in performance are allowed.
-
-Differences in business/PIT output are P0 bugs.
+Differences in performance are allowed. Differences in business/PIT output are P0 bugs.
 
 ---
 
 # 7. Redis Failure Must Degrade Performance Only
 
-If Redis GET fails:
+Redis GET failure:
 
 ```text
-log/metric
-bypass cache
-query PostgreSQL
-return correct result
+log/metric -> bypass cache -> query PostgreSQL -> return correct result
 ```
 
-If Redis SET fails:
+Redis SET failure must not fail a correct response.
 
-```text
-log/metric
-still return the PostgreSQL result
-```
-
-Never fail a correct Data Center query solely because cache infrastructure is unavailable.
-
-Use short Redis connection/socket timeouts.
-
-Do not implement long blocking retries in the request path.
+Use short connection/socket timeouts. Do not implement long blocking retries in the request path.
 
 ---
 
 # 8. Cache Layer Placement
-
-Cache resolved Data Center responses above the PIT resolver / canonical-derivation service.
 
 Correct:
 
@@ -278,16 +232,7 @@ API
  -> PostgreSQL
 ```
 
-Avoid:
-
-```text
-API route containing Redis code
-SQL repository containing Redis code
-PIT resolver changing semantics based on cache
-derived calculator changing formulas based on cache
-```
-
-Use a cache abstraction.
+Avoid Redis-specific code inside API routes, SQL repositories, PIT semantics, or derived formulas.
 
 ---
 
@@ -300,27 +245,13 @@ NullCache
 RedisCache
 ```
 
-Application services should depend on the cache interface, not Redis directly.
-
-Suggested package:
-
-```text
-src/stock_data_center/cache/
-```
-
-Do not create a separate `stock-redis-service` repository.
-
-Redis is infrastructure of this repository.
+Application services depend on the cache interface, not Redis directly.
 
 ---
 
 # 10. Cache Key Correctness
 
-Cache keys are part of PIT correctness.
-
-Canonical cache identity must include every semantically relevant query field.
-
-At minimum:
+Canonical cache identity must include every semantically relevant field:
 
 ```text
 cache contract version
@@ -330,32 +261,15 @@ dataset/endpoint
 business query parameters
 source
 pit mode
-```
-
-For market PIT:
-
-```text
 information_as_of
 knowledge_as_of
-```
-
-For system PIT:
-
-```text
 system_as_of
+derivation_version where applicable
 ```
 
-For canonical derived queries:
-
-```text
-derivation_version
-```
-
-Omitting any PIT cutoff or derivation identity from a cached query key is a P0 bug.
+Omitting a relevant PIT/source/derivation parameter is a P0 bug.
 
 Use canonical serialization before hashing.
-
-Do not depend on Python dictionary insertion order or unstable object string representations.
 
 ---
 
@@ -363,7 +277,7 @@ Do not depend on Python dictionary insertion order or unstable object string rep
 
 Semantic changes must not silently reuse old cached results.
 
-Version/cache namespace changes are required when relevant behavior changes:
+Bump relevant namespace/version for changes to:
 
 ```text
 cache contract
@@ -373,64 +287,25 @@ source reconciliation semantics
 derivation semantics
 ```
 
-Prefer namespace/version bumps over broad ad hoc deletion.
-
-Trusted migrations that backdate temporal metadata must explicitly purge or namespace-bump affected cache results.
-
 ---
 
 # 12. Cache Content
 
-Prefer caching normalized PIT-resolved Data Center results.
-
-Do not make PostgreSQL row/table layout part of the Redis contract.
-
-Good cache candidates:
-
-```text
-historical universe
-price windows
-resolved revenue
-resolved financials
-resolved TDCC
-institutional/margin/SBL query results
-canonical derived results
-large repeated historical query results
-```
-
-The objective is to avoid repeated DB/PIT/derivation work.
+Prefer caching normalized PIT-resolved Data Center results, not PostgreSQL row representations.
 
 ---
 
 # 13. Redis Persistence
 
-Treat Redis as disposable RAM cache.
+Redis is disposable RAM cache.
 
-Default dedicated-cache-host recommendation:
-
-```text
-AOF off
-RDB off
-```
-
-Do not rely on Redis persistence for:
-
-```text
-audit
-reproducibility
-business revision history
-publication evidence
-ingestion history
-derivation definitions
-```
-
-Those belong in PostgreSQL/raw provenance storage.
+Do not rely on Redis persistence for audit, revision history, evidence, ingestion history, or derivation definitions.
 
 ---
 
 # 14. PIT Time Types
 
-Use explicit temporal types/fields.
+Use explicit temporal types:
 
 Market PIT:
 
@@ -445,7 +320,7 @@ System PIT:
 system_as_of
 ```
 
-Do not collapse these into ambiguous `date`/`as_of` variables inside domain logic.
+Do not collapse them into ambiguous `date`/`as_of` variables.
 
 ---
 
@@ -463,9 +338,7 @@ AND
 recorded_at <= knowledge_as_of
 ```
 
-Then resolve authoritative evidence deterministically.
-
-Do not use `ingested_at` as a substitute for publication time.
+Do not use `ingested_at` as publication time.
 
 ---
 
@@ -487,63 +360,38 @@ Complex aggregate:
 seal.ingested_at <= system_as_of
 ```
 
-Do not use historical `published_at` to fake system ingestion history.
-
 ---
 
 # 17. Publication Evidence Rule
 
-Business content and publication evidence are separate concepts.
+Business content and publication evidence are separate.
 
-Do not create a business revision merely because:
+Do not create a business revision merely because publication evidence became known, improved, was corrected, or retracted.
 
-```text
-published_at became known
-publication evidence quality improved
-publication time was corrected
-publication evidence was retracted
-```
-
-Publication evidence is append-only.
-
-Use supersession/retraction records.
-
-Never UPDATE old evidence rows.
+Publication evidence inside Data Center is append-only. Use supersession/retraction records; never update old evidence rows.
 
 ---
 
 # 18. Evidence Times
 
-Publication evidence must preserve at least:
+Publication evidence preserves:
 
 ```text
 published_at
 recorded_at
 ```
 
-`published_at`:
+`published_at` = when the market could know.
 
-```text
-when the market could know
-```
+`recorded_at` = when Data Center learned/recorded the evidence.
 
-`recorded_at`:
-
-```text
-when Data Center learned/recorded that evidence
-```
-
-Normal `recorded_at` must be trusted storage/DB generated.
-
-Callers must not arbitrarily backdate it.
+Normal `recorded_at` is trusted storage/DB generated.
 
 ---
 
 # 19. Authoritative Evidence Resolution
 
-Evidence selection must be deterministic and documented.
-
-It must account for:
+Evidence selection must be deterministic and account for:
 
 ```text
 knowledge cutoff
@@ -554,7 +402,7 @@ retraction
 deterministic tie breaker
 ```
 
-Do not let API handlers improvise evidence selection.
+API handlers must not improvise evidence selection.
 
 ---
 
@@ -562,25 +410,9 @@ Do not let API handlers improvise evidence selection.
 
 Complex parent+children datasets are immutable aggregates.
 
-Only seal makes them PIT-visible.
+Only seal makes them PIT-visible. Resolvers ignore drafts.
 
-A committed draft may exist.
-
-Resolvers must ignore drafts.
-
-After seal, DB must reject:
-
-```text
-parent UPDATE
-parent DELETE
-child INSERT
-child UPDATE
-child DELETE
-```
-
-Do not rely only on repository call order.
-
-Enforce immutability in PostgreSQL.
+After seal, DB must reject parent and child mutation.
 
 ---
 
@@ -588,40 +420,26 @@ Enforce immutability in PostgreSQL.
 
 Seal and child mutation must serialize on the same aggregate identity.
 
-For concurrent seal vs child mutation, only these outcomes are valid:
+Valid outcomes:
 
 ```text
-child commits first
--> seal sees and hashes the child
-
-or
-
-seal commits first
--> child mutation is rejected
+child commits first -> seal sees/hashes child
+seal commits first -> child mutation rejected
 ```
 
-This outcome is forbidden:
+Forbidden:
 
 ```text
-seal hash excludes child
-but child commits afterward
+seal hash excludes child but child commits afterward
 ```
 
-Keep real multi-connection concurrency regression tests.
+Keep real multi-connection concurrency regressions.
 
 ---
 
 # 22. Seal Table Rule
 
-Prefer dataset-specific seal tables with real foreign keys.
-
-Avoid loose polymorphic references such as:
-
-```text
-aggregate_type + version_id
-```
-
-when they cannot be protected by real referential integrity.
+Prefer dataset-specific seal tables with real foreign keys. Avoid loose polymorphic aggregate references when referential integrity cannot be enforced.
 
 ---
 
@@ -629,9 +447,7 @@ when they cannot be protected by real referential integrity.
 
 Normal callers must not provide authoritative historical ingestion timestamps.
 
-For complex aggregates, the system-visible time is the server/trusted seal time.
-
-Historical timestamp preservation is allowed only through a dedicated trusted migration path with provenance and tests.
+Historical preservation is allowed only through a dedicated trusted migration path with provenance and tests.
 
 ---
 
@@ -639,20 +455,7 @@ Historical timestamp preservation is allowed only through a dedicated trusted mi
 
 `business_content_hash` is storage-generated from canonical business values.
 
-Caller-provided hashes are not authoritative.
-
-Do not include:
-
-```text
-published_at
-recorded_at
-raw artifact ID
-ingest run ID
-fetch timestamp
-seal time
-```
-
-in business content identity.
+Do not include publication/provenance/ingest metadata in business content identity.
 
 ---
 
@@ -666,50 +469,23 @@ publication_evidence_hash
 raw_artifact_hash
 ```
 
-Do not reuse a generic `content_hash` to mean different identities.
-
 ---
 
 # 26. Duplicate Fetch Rule
 
-A repeated fetch with unchanged business content:
-
-```text
-must not create a fake business revision
-```
-
-but:
-
-```text
-must preserve raw artifact / ingest provenance
-```
-
-Design lineage accordingly.
+Unchanged business content must not create a fake revision, but repeated fetch provenance must remain auditable.
 
 ---
 
 # 27. Provenance Integrity
 
-If a record stores:
-
-```text
-raw_artifact_id
-ingest_run_id
-```
-
-the DB should enforce that the artifact belongs to that ingest run.
-
-Do not allow mismatched lineage IDs.
+If a record stores `raw_artifact_id` and `ingest_run_id`, the DB should enforce that the artifact belongs to that run.
 
 ---
 
 # 28. Raw Artifact Rule
 
-Raw artifacts are immutable and content-addressed.
-
-Do not overwrite existing content-addressed paths with different bytes.
-
-Raw artifacts are evidence/provenance, not a cache.
+Raw artifacts are immutable and content-addressed. They are evidence/provenance, not cache.
 
 ---
 
@@ -721,9 +497,7 @@ PIT capability belongs to:
 (dataset_code, source)
 ```
 
-not only `dataset_code`.
-
-Do not let verified evidence rules for one source authorize another source.
+Do not let one source's verified evidence rules authorize another source.
 
 ---
 
@@ -740,43 +514,9 @@ overwrite
 choose latest ingest
 ```
 
-If a canonical source is configured, it must be explicit.
+New reconciliation policy requires ADR + permanent tests.
 
-New reconciliation policies require ADR + permanent regression tests.
-
-Final cross-source reconciliation truth must be deterministic with respect to stored source history.
-It must not depend on:
-
-```text
-which source imported first
-worker scheduling
-current process state
-```
-
-If reconciliation requires multiple sources, either:
-
-```text
-run final reconciliation only after the required histories exist
-```
-
-or:
-
-```text
-make reconciliation explicitly re-runnable/recomputable from canonical stored histories
-```
-
-A per-import result may be provisional only if it is clearly labeled provisional and a deterministic
-final reconciliation path exists.
-
-For market-transfer reconciliation, permanent tests must include materially different import orders,
-for example:
-
-```text
-TPEx exit -> TWSE entry -> reconcile
-TWSE entry -> TPEx exit -> reconcile
-```
-
-Both must converge to the same final matched/unmatched truth.
+Final reconciliation must be deterministic from stored histories and independent of source import order.
 
 ---
 
@@ -790,49 +530,27 @@ published_at IS NULL
 
 the row/version is market-PIT invisible by default.
 
-It may still be system-PIT visible if legitimately ingested by the system cutoff.
-
-Do not invent a historical publication timestamp.
+It may still be System-PIT visible if legitimately ingested by the system cutoff.
 
 ---
 
 # 32. Backfill Rule
 
-If reliable retained evidence proves a source was public earlier:
-
-```text
-published_at = proven historical publication time
-recorded_at  = actual time Data Center records the evidence
-ingested_at  = actual system ingestion/seal time
-```
-
-If historical publication time cannot be proved:
+If reliable evidence proves historical publication time, preserve it. Otherwise:
 
 ```text
 published_at = NULL
 ```
 
-Do not use current wall-clock time as fake historical publication metadata.
+Never use current wall-clock time as fake historical publication metadata.
 
 ---
 
 # 33. XBRL Context Rule
 
-Financial facts require a non-null canonical context identity.
-
-`context_hash` should represent relevant context including:
-
-```text
-entity
-period
-dimensions
-typed dimensions
-scenario/segment as applicable
-```
+Financial facts require a non-null canonical context identity covering entity, period, dimensions, typed dimensions, scenario/segment as applicable.
 
 Preserve namespace-aware concept identity.
-
-Do not rely on nullable date columns as the fact uniqueness key.
 
 ---
 
@@ -840,19 +558,10 @@ Do not rely on nullable date columns as the fact uniqueness key.
 
 Use timezone-aware timestamps only.
 
-Market interpretation:
-
 ```text
-Asia/Taipei
+market timezone: Asia/Taipei
+PostgreSQL: TIMESTAMPTZ
 ```
-
-Internal PostgreSQL storage:
-
-```text
-TIMESTAMPTZ
-```
-
-Never compare naive and aware datetimes silently.
 
 ---
 
@@ -864,7 +573,7 @@ Maintain:
 docs/data_domain_inventory.md
 ```
 
-Every relevant legacy table/domain/field must be mapped to one of:
+Every relevant legacy table/domain/field has an explicit disposition:
 
 ```text
 observed/source dataset
@@ -874,25 +583,11 @@ raw-artifact-only
 deprecated / intentionally removed
 ```
 
-The v1 inventory/storage ownership contract was established by earlier merged PRs and must remain
-complete as the repository evolves.
-
-A new PR that introduces a domain, removes a field, or changes ownership must update the inventory
-in the same PR.
-
-No known v1 legacy domain may silently become unmapped.
-
 ---
 
 # 36. Complete v1 Storage Contract Is a Permanent Invariant
 
-The repository contract is NOT merely:
-
-```text
-create a few core PIT tables
-```
-
-The known v1 storage contract covers:
+Known v1 coverage includes:
 
 ```text
 core identity/provenance
@@ -900,314 +595,122 @@ daily market data
 monthly revenue
 financial/XBRL
 TDCC
-
 institutional investor data
-foreign/trust/dealer source data
-
 margin trading
 short selling
 SBL
-
 market indices
 corporate actions
-official valuation source data
-
-canonical derived dataset definitions/storage strategy
+official valuation
+canonical derived definitions/storage strategy
 ```
 
-Later PRs may populate, backfill, expose, or derive these datasets, but they must not weaken the
-already-established ownership/storage contract without an explicit ROADMAP/ADR change.
+Later adapters/backfills must not weaken established ownership/storage semantics without explicit ROADMAP/ADR changes.
 
 ---
 
 # 37. Legacy Domain Coverage Rule
 
-When changing legacy/domain coverage, review the old DB inventory field-by-field.
-
-Do not silently omit old observable data.
-
-For each field/domain, explicitly decide:
+When changing legacy/domain coverage, review old inventory field-by-field and explicitly choose:
 
 ```text
 keep as observed
 recompute as canonical derived
-leave to downstream model
-preserve only in raw artifact
+leave downstream
+preserve only raw
 deprecate intentionally
 ```
-
-Document the decision.
 
 ---
 
 # 38. Observed vs Canonical-Derived Boundary
 
-Do not use this oversimplified boundary:
+Data Center owns observable/source facts plus deterministic reusable canonical derived data.
 
-```text
-raw -> Data Center
-derived -> ML repo
-```
-
-Use this boundary instead:
-
-```text
-Data Center
-=
-observable/source facts
-+
-deterministic reusable canonical derived data
-
-ML repos
-=
-model-specific transformations/features/labels/training
-```
-
-A derived value may belong in Data Center if it has a stable cross-repo financial definition.
+ML repositories own model-specific transformations, features, labels, and training.
 
 ---
 
 # 39. Canonical Derived Dataset Rule
 
-Canonical derived datasets are allowed in Data Center when they are:
-
-```text
-deterministic
-cross-repo reusable
-financially well-defined
-independent of a specific ML model
-reconstructible from PIT-safe Data Center inputs
-```
-
-Examples:
-
-```text
-technical indicators
-shareholding concentration
-TTM EPS
-canonical ROE/ROA/margins
-margin usage ratios
-short-interest/SBL ratios
-```
+Canonical derived datasets must be deterministic, cross-repo reusable, financially well-defined, model-independent, and reconstructible from PIT-safe inputs.
 
 ---
 
 # 40. Model-Specific Feature Rule
 
-Do not put model-specific features into Data Center.
-
-Forbidden examples:
-
-```text
-selection_score_v4
-momentum_quality_combo
-eps_growth_signal_weighted
-experiment-specific interaction terms
-```
-
-These belong in downstream ML repositories.
+Do not put model-specific features such as selection scores or experiment-specific interactions into Data Center.
 
 ---
 
 # 41. Derivation Version Is Mandatory
 
-Every canonical derived dataset must have an explicit:
-
-```text
-derivation_version
-```
-
-Formula changes require a new derivation version.
-
-Do not silently overwrite historical derived values with a changed implementation.
-
-Example:
-
-```text
-technical_indicators:v1
-technical_indicators:v2
-```
+Every canonical derived dataset has an explicit `derivation_version`. Formula changes require a new version.
 
 ---
 
 # 42. Derivation Definition Rule
 
-A canonical derivation definition must preserve enough information to identify its semantics.
-
-At minimum:
+Preserve enough information to identify derivation semantics:
 
 ```text
 dataset code
 derivation version
 formula/specification
-implementation version or git commit
+implementation version/git commit
 required input datasets
-calendar/timezone convention where relevant
-price-adjustment convention where relevant
+calendar/timezone convention
+price-adjustment convention
 registration timestamp
 ```
-
-Keep this in schema/docs appropriate to the implementation.
 
 ---
 
 # 43. Derived PIT Rule
 
-A derived value does not create a new market-publication time merely because Data Center computed it later.
-
-For market PIT:
-
-```text
-derived visibility inherits from PIT-safe input visibility
-```
-
-For example:
-
-```text
-MA20
-TTM EPS
-large-holder concentration
-margin usage ratio
-```
-
-must use only inputs visible under the requested PIT context.
-
-Do not set:
-
-```text
-published_at = computed_at
-```
-
-for a canonical derived metric.
+Derived visibility inherits from PIT-safe input visibility. Do not set `published_at = computed_at`.
 
 ---
 
 # 44. `computed_at` Rule
 
-`computed_at` means:
-
-```text
-when Data Center calculated/materialized the derived result
-```
-
-It is provenance / operational metadata.
-
-It is NOT:
-
-```text
-market publication time
-```
-
-Do not use `computed_at` to determine market PIT visibility.
+`computed_at` is computation provenance, not market publication time.
 
 ---
 
 # 45. Derived Lineage Rule
 
-Materialized canonical derived results must preserve:
-
-```text
-derivation_version
-input dataset identity
-input lineage / deterministic input fingerprint
-PIT context
-computation provenance
-business-content hash
-```
-
-Repeated recomputation with identical inputs and derivation version must not create a semantically different result.
+Materialized canonical results preserve derivation version, input identity/fingerprint, PIT context, computation provenance, and business-content hash.
 
 ---
 
 # 46. Materialized vs Virtual Derived Data
 
-Canonical derived datasets may be:
-
-```text
-materialized in PostgreSQL
-or
-computed on demand and cached
-```
-
-Storage strategy is a performance decision.
-
-The financial definition and PIT semantics must remain identical.
-
-Do not make downstream repos care whether a result is materialized or virtual.
+Storage strategy is a performance choice. Financial definition and PIT semantics must match.
 
 ---
 
 # 47. Shared Derived Data Goal
 
-If both:
-
-```text
-stock-eps-model
-stock-model-selection
-```
-
-need the same canonical metric, prefer one Data Center definition rather than independent reimplementations.
-
-This avoids:
-
-```text
-formula drift
-PIT drift
-duplicate computation
-inconsistent feature semantics
-```
+If multiple downstream repos need the same canonical metric, prefer one Data Center definition.
 
 ---
 
 # 48. Daily Market Legacy Coverage
 
-The legacy `daily_quotes` domain must be reviewed field-by-field.
-
-At minimum decide the v1 disposition of:
-
-```text
-OHLC
-volume
-trade value
-trade count
-price change
-bid/ask fields
-other source-observable values
-```
-
-Do not assume OHLCV alone is sufficient without an explicit inventory decision.
+Review legacy daily quote fields explicitly, including OHLC, volume, trade value, trade count, price change, bid/ask, and other source-observable values.
 
 ---
 
 # 49. Institutional / Chip-Flow Coverage
 
-The v1 storage contract must cover source data required to reproduce legacy institutional/chip-flow metrics, including as applicable:
-
-```text
-institutional investor buy/sell/net flow
-foreign investor data
-investment trust data
-dealer data
-foreign/trust/dealer holdings
-```
-
-Exact table decomposition may differ, but the domain cannot remain undefined.
+The storage contract covers source data needed for institutional flow/holding metrics where applicable.
 
 ---
 
 # 50. Margin / SBL Coverage
 
-The v1 storage contract must cover:
-
-```text
-margin trading
-short selling
-securities borrowing and lending
-```
-
-Derived pressure/ratio metrics may be canonical derived datasets.
-
-Do not migrate old model-specific interpretations as source facts.
+The storage contract covers margin trading, short selling, and securities borrowing/lending. Derived ratios are separate canonical derived data.
 
 ---
 
@@ -1217,23 +720,17 @@ The schema and real-source adapters must explicitly support, where available:
 
 ```text
 cash dividends
-
 earnings stock dividends / 盈餘配股
 capital-surplus stock dividends / 資本公積配股
-
 rights issues
 ex-dividend / ex-right events
-
 stock splits
 reverse splits
-
 capital reductions
-
 other explicitly supported corporate actions
 ```
 
-Do not collapse economically similar but legally/source-distinct events into one ambiguous type
-merely because their adjustment math may be similar.
+Do not collapse legally/source-distinct events merely because adjustment math may be similar.
 
 Preserve source terms and, where available:
 
@@ -1242,55 +739,27 @@ announcement_date
 ex_date
 record_date
 payment_date
-
 cash_dividend_per_share
-
 earnings_stock_ratio
 capital_surplus_stock_ratio
 free_share_ratio
-
 old_shares
 new_shares
-
 rights_ratio
 subscription_price
-
 close_before
 official_reference_price
 official_rights_dividend_value
-
 original source event type / terms
 ```
 
-For split-style events, prefer:
+For split-style events prefer `old_shares` / `new_shares` over ambiguous provider-specific ratios.
 
-```text
-old_shares
-new_shares
-```
-
-over a provider-specific ambiguous `split_ratio`.
-
-This is required for adjusted-price and total-return correctness.
+"Where available" is literal. The exchange result feeds that v1 ingests (`docs/source_field_audit.md` §4.10) do not publish `announcement_date`, `record_date`, `payment_date`, or the split between `earnings_stock_ratio` and `capital_surplus_stock_ratio`. Those columns stay NULL in v1.
 
 ## 51.1 Raw vs Adjusted Price Rule
 
-Official daily OHLC is observed source data.
-
-Never rewrite raw historical OHLC merely to remove a discontinuity caused by:
-
-```text
-cash dividend
-stock dividend
-stock split
-rights issue
-capital reduction
-```
-
-Adjusted price, adjustment factors, and total-return series are canonical derived data with explicit
-derivation versions.
-
-Required layering:
+Official daily OHLC is observed source data. Never rewrite raw history to remove a corporate-action discontinuity.
 
 ```text
 raw official OHLC
@@ -1299,153 +768,222 @@ raw official OHLC
 -> adjusted OHLC / total-return series
 ```
 
-Downstream consumers must be able to distinguish raw and adjusted series.
-
 ## 51.2 Corporate-Action Inference Rule
 
 Never infer a corporate action solely from a large price jump.
 
-A large unexplained raw-price move must trigger reconciliation/reporting:
-
-```text
-observed corporate action explains it
-other documented market event explains it
-or
-unexplained anomaly
-```
-
-If an official ex-right/ex-dividend reference price exists, preserve it as source data and use it to
-reconcile the deterministic calculation.
+If an official reference price exists, preserve it as source data and use it for reconciliation.
 
 ## 51.3 Adjustment Timing Rule
 
-Do not apply an adjustment event before its effective/ex date under the selected PIT context.
-
-Historical returns, MA, volatility, RSI/MACD, and other continuity-sensitive canonical metrics must
-declare which price convention they use.
+Do not apply an adjustment before its effective/ex date under the selected PIT context.
 
 ## 51.4 Historical Price Readiness Gate
 
-Raw daily-price ingestion may occur before all corporate-action history is complete because raw
-official prices are valid source facts.
+Raw daily-price ingestion may occur before complete corporate-action history because raw official prices are valid facts.
 
-However, do not declare historical prices **analysis-ready** for canonical returns, technical
-indicators, backtesting, or ML features until:
+Do not declare historical prices analysis-ready for returns, indicators, backtesting, or ML until:
 
 ```text
 corporate-action contract is explicit
-representative real-source corporate-action pilot passes
+representative real-source corporate-action source contracts pass
 supported corporate-action history is backfilled
-large price discontinuities are reconciled
+large discontinuities are reconciled
 ```
 
-Under the PR-based roadmap, this means the dependency/acceptance criteria for the relevant
-corporate-action and price-backfill PRs must be satisfied before adjusted/derived-price work starts.
+## 51.5 Corporate-Action Stable Identity Gate
+
+This is a hard correctness gate.
+
+Every normalized corporate action first registers stable identity using:
+
+```text
+(security_id, source, source_event_key)
+```
+
+A source-native event/document identifier is preferred.
+
+If a source lacks one, a synthetic `source_event_key` is permitted only when official source semantics prove that its components remain invariant across corrections/replacements.
+
+### Announcement feeds vs exchange result feeds
+
+The rest of this section distinguishes two kinds of feed.
+
+**Announcement/plan feeds** publish decisions whose dates and terms can still change. Examples: `t187ap45_L`, `mopsfin_t187ap39_O`, `TWT48U`. The forbidden-field list below applies to them in full. None has a proven link to an executed event, so none may enter `corporate_action_versions` or `security_events`.
+
+They may still be stored as their own domain when the feed has a workable key *within itself*. ROADMAP PR #33 does this for the two dividend-declaration feeds, in `dividend_declaration_versions`, with per-source column sets and no cross-feed join. Storing a declaration feed this way is not a claim about event identity, and it does not unblock any column in `corporate_action_versions`.
+
+**Exchange result feeds** record an event the exchange executed and priced on a trading date: `TWT49U`, `TWTAUU`, `TWTB8U`, TPEx `exDailyQ`, TPEx `revivt`.
+
+- The executed event date is a completed market fact, not a mutable plan. TWSE's own detail locator for these feeds is `(code, date)`, for example `1101,20240701`.
+- For these feeds, `source_event_key = "<feed>:<locator date>"` is permitted.
+- Changed terms under the same locator are revisions of the same event. A row removed from the feed is a retraction.
+- The adapter must still pass the full-history duplicate scan and the correction regressions (ROADMAP §27.7).
+
+The ex_date entry in the forbidden list below refers to announced or planned dates. It does not refer to the executed-date locator of a result feed.
+
+The following fact is permanent:
+
+> Current-snapshot uniqueness is not proof of correction-stable event identity.
+
+Do not use mutable business content merely to remove collisions. Unless an official contract explicitly proves immutability for identity purposes, the following are forbidden as synthetic event-key repair fields:
+
+```text
+action_type
+board_date
+announcement_date
+ex_date
+record_date
+payment_date
+cash amount
+stock ratio / share ratio
+reference price
+row ordinal
+company name
+adapter version
+```
+
+The same caution applies to business classification fields such as dividend year/period, accounting quarter/year label, and distribution period: they may be used only if official semantics prove correction stability, not merely because a live snapshot becomes unique.
+
+### PR #13 announcement-feed evidence (superseded PR, permanent fixture)
+
+The proposed TPEx identity:
+
+```text
+security_code + dividend_year + period
+```
+
+failed live verification:
+
+```text
+TPEx mopsfin_t187ap39_O
+2,483 rows
+65 duplicate identity groups
+```
+
+Representative collision:
+
+```text
+1591 / 108 / 1
+board_date = 1080806
+board_date = 1090505
+```
+
+This must remain a permanent example proving that dividend year/period is insufficient.
+
+Re-verified 2026-09-15 on the same feed, now known to be frozen at `出表日期` 1100804: the 65 groups are unchanged, and adding the board-resolution date leaves 2 (`5009/108/1/1080805`, `8426/108/1/1090319`). TWSE `t187ap45_L` needs `股利所屬期間` as well — `(公司代號, 股利年度, 期別)` alone has 30 duplicate groups there. Both keys are within-feed keys for PR #33 only. Neither is an event identity, and the fixture above stands.
+
+### Publication identity is not event identity
+
+MOPS/TWSE/TPEx interfaces may expose publication/filing locators such as a sequence number for an individual announcement.
+
+Do not equate:
+
+```text
+publication_id / filing sequence
+```
+
+with:
+
+```text
+corporate_action event_id
+```
+
+unless the official source explicitly defines a shared correction-stable event identity.
+
+A correction/replacement can be a new publication referring to the same business event. Some announcement workflows may withdraw/re-create records. Therefore an announcement locator alone does not satisfy the PR #12 event identity contract.
+
+### Summary-feed / exchange-feed joining
+
+Do not create authoritative event linkage between:
+
+```text
+TWSE t187ap45_L
+TWSE TWT48U_ALL
+TWSE TWT49U
+TPEx mopsfin_t187ap39_O
+TPEx tpex_exright_prepost
+TPEx tpex_exright_daily
+```
+
+using only heuristic combinations of security, ex-date, amount, ratio, action type, reference price, or row order.
+
+Such matching may be used only as explicitly labeled reconciliation evidence, never as an official foreign key or stable event identity.
+
+### Fail-closed requirement
+
+If stable identity cannot be proven:
+
+```text
+DO NOT call/register corporate_action_event
+DO NOT fabricate source_event_key
+DO NOT append mutable fields until uniqueness appears
+DO NOT weaken PR #12 semantics
+```
+
+Depending on current PR scope, allowed behavior is:
+
+```text
+retain raw artifact
+record source/research evidence
+quarantine ambiguous normalization
+emit blocker/reconciliation report
+stop before business-event registration
+```
+
+A blocked source is an acceptable correctness result.
+
+### Future adapter identity tests
+
+Any adapter that claims stable event identity must permanently test:
+
+```text
+same event with corrected date/amount/ratio -> same source_event_key
+separate real events -> different source_event_key
+live/current duplicate scan
+known collision fixture
+forbidden mutable fields absent from identity
+```
 
 ---
 
 # 52. Market Index Coverage
 
-The v1 schema must define historical market-index storage used by:
-
-```text
-market-regime features
-benchmarks
-backtests
-```
-
-Do not force downstream backtesters to source their own index data.
+Define historical market-index storage used by market-regime features, benchmarks, and backtests.
 
 ---
 
 # 53. Official Valuation vs Computed Valuation
 
-Keep these concepts separate:
-
-```text
-source-published PE/PB/dividend yield
-```
-
-and:
-
-```text
-Data Center-computed valuation metrics
-```
-
-The former is observed source data.
-
-The latter is canonical derived data.
-
-Do not collapse them into one ambiguous table without clear source/derivation semantics.
+Source-published PE/PB/dividend yield is observed source data. Data Center-computed valuation is canonical derived data. Keep them distinct.
 
 ---
 
 # 54. Monthly Revenue Derived Fields
 
-Values such as:
-
-```text
-MoM
-YoY
-cumulative revenue
-cumulative YoY
-```
-
-may be recomputed from PIT-safe monthly revenue history.
-
-Do not duplicate them as source facts unless preserving the source-published value itself is intentional and documented.
+MoM/YoY/cumulative values may be recomputed from PIT-safe history. Do not duplicate as source facts unless intentionally preserving source-published values.
 
 ---
 
 # 55. API Boundary Rule
 
-Public clients may know:
+Public clients may know dataset concepts, PIT context, source, derivation version, and provenance.
 
-```text
-dataset concepts
-PIT context
-source selection
-derivation version
-provenance
-```
-
-They must not know:
-
-```text
-PostgreSQL table names
-Redis key formats
-Alembic schema internals
-```
-
-Do not leak infrastructure details into downstream model repos.
+They must not know PostgreSQL table names, Redis key formats, or Alembic internals.
 
 ---
 
 # 56. Downstream Credential Rule
 
-`stock-eps-model` and `stock-model-selection` must not require:
-
-```text
-PostgreSQL credentials
-Redis credentials
-```
-
-They use only Data Center API/SDK credentials/configuration.
+Downstream ML repos must not require PostgreSQL or Redis credentials. They use API/SDK only.
 
 ---
 
 # 57. Ingestion and Query Separation
 
-Write path:
-
 ```text
-source -> raw artifact -> parser -> normalization -> PostgreSQL
-```
-
-Read path:
-
-```text
-client -> API -> optional cache -> PIT resolver / derived service -> PostgreSQL
+write: source -> raw artifact -> parser -> normalization -> PostgreSQL
+read: client -> API -> optional cache -> PIT/derived service -> PostgreSQL
 ```
 
 Do not route ingestion correctness through Redis.
@@ -1454,135 +992,57 @@ Do not route ingestion correctness through Redis.
 
 # 58. No Cache-Only Writes
 
-Never write business/evidence/derivation-definition data only to Redis.
-
-All durable writes go through authoritative storage/provenance paths.
+Never write durable business/evidence/derivation-definition data only to Redis.
 
 ---
 
 # 59. Query Alias Rule
 
-Avoid ambiguous cache behavior for:
-
-```text
-latest
-now
-```
-
-Resolve aliases to explicit semantics/timestamps before canonical cache identity whenever possible.
-
-Use shorter TTLs for intentionally dynamic current queries.
+Resolve `latest`/`now` aliases to explicit semantics/timestamps where possible before cache identity construction.
 
 ---
 
 # 60. Cache TTL Rule
 
-TTL is a performance policy, not a correctness mechanism.
-
-Never rely on:
-
-```text
-the wrong key will expire soon
-```
-
-as a substitute for correct cache identity.
+TTL is performance policy, never a correctness mechanism.
 
 ---
 
 # 61. Cache Serialization Rule
 
-Cache encoding must be deterministic and versioned.
-
-Cached payloads must retain enough response metadata/provenance to be semantically identical to an uncached response.
-
-Do not return a reduced-information cached response.
+Cache encoding is deterministic and versioned. Cached responses retain the same semantic metadata/provenance as uncached responses.
 
 ---
 
 # 62. Observability Rule
 
-Expose/log enough information to distinguish:
+Expose enough information to distinguish cache behavior, PostgreSQL queries, resolver latency, derivation latency, response size, ingest status, quarantine, source failures, coverage gaps, and reconciliation status.
 
-```text
-cache hit
-cache miss
-cache error
-cache bypass
-PostgreSQL query
-resolver latency
-derived calculation latency
-response size
-```
-
-Do not log sensitive credentials or raw connection strings.
+Do not log credentials.
 
 ---
 
 # 63. SSD Optimization Rule
 
-Redis/materialization are intended primarily as read/query workload optimizations.
-
-Do not claim SSD benefit without measurement.
-
-Use metrics such as:
-
-```text
-PostgreSQL blks_read / blks_hit
-query timings
-iostat
-cache hit/miss metrics
-derived recomputation counts
-```
-
-Redis does not eliminate PostgreSQL write I/O from:
-
-```text
-ingestion
-WAL
-indexes
-checkpoints
-vacuum
-```
+Do not claim SSD benefit without measurement. Redis does not eliminate PostgreSQL write I/O.
 
 ---
 
 # 64. Testing Cache Correctness
 
-Every cacheable query family must test at least:
-
-```text
-NullCache result
-Redis cold result
-Redis warm result
-Redis unavailable fallback result
-```
-
-All must match semantically.
-
-Also test that changing each relevant PIT/source/derivation parameter produces a distinct cache identity.
+Every cacheable query family tests NullCache, Redis cold/warm, and Redis-unavailable fallback equivalence.
 
 ---
 
 # 65. Testing Derived Correctness
 
-Every canonical derived dataset must have tests for:
-
-```text
-deterministic formula output
-derivation-version behavior
-PIT-safe input selection
-no future input leakage
-input lineage/fingerprint
-materialized vs virtual equivalence where both exist
-```
-
-A derivation bug is not fixed until a regression test exists.
+Every canonical derived dataset tests deterministic formulas, derivation versions, PIT-safe inputs, no future leakage, lineage, and materialized/virtual equivalence where applicable.
 
 ---
 
 # 66. PIT Regression Tests Are Permanent
 
-Once a PIT/leakage bug is found, add a regression test.
+Once a PIT/leakage/correctness bug is found, add a permanent regression.
 
 Permanent categories include:
 
@@ -1592,8 +1052,7 @@ late publication evidence
 knowledge cutoff
 system late ingestion
 backfill
-evidence correction
-evidence retraction
+evidence correction/retraction
 sealed aggregate
 seal concurrency
 source capability isolation
@@ -1601,6 +1060,9 @@ XBRL dimensions
 derived PIT inheritance
 cache PIT identity
 cache failure fallback
+corporate-action identity collision
+corporate-action correction-stability
+publication-vs-event identity
 ```
 
 ---
@@ -1609,29 +1071,22 @@ cache failure fallback
 
 When implementing one ROADMAP PR:
 
-- implement only that PR's dominant delivery goal
-- honor declared dependencies
+- implement only its dominant delivery goal
+- honor dependencies and blockers
 - honor explicit out-of-scope work
 - do not weaken existing acceptance criteria
-- do not silently change PIT semantics
-- do not silently change derivation semantics
-- record architectural changes in ADRs
-- keep PR acceptance/reconciliation evidence current
+- do not silently change PIT/identity/derivation semantics
+- record architectural changes in ADRs where appropriate
+- keep acceptance/reconciliation evidence current
 - avoid unrelated refactors
 
-If a future-PR optimization is needed for current correctness, document why.
-
-Do not use broad historical labels such as "Phase 9" as permission to implement multiple planned PRs
-at once.
+A `BLOCKED` PR is not permission to invent a workaround outside its contract.
 
 ---
 
 # 68. Historical Storage-Contract Preservation Rule
 
-Earlier merged PRs established the known v1 storage/ownership contract.
-
-Do not regress that contract while implementing later source adapters, backfills, APIs, caches, or
-derived datasets.
+Earlier merged PRs established v1 storage/ownership contracts.
 
 Before changing/removing an existing domain contract:
 
@@ -1640,53 +1095,34 @@ update ROADMAP
 update domain inventory
 write/adjust ADR if architectural
 provide migration semantics
-provide regression tests
+provide regressions
 ```
 
-Empty-but-correct contracts established by earlier PRs are not permission to reinterpret their
-semantics during later ingestion work.
+Empty-but-correct contracts do not grant permission to reinterpret semantics during later ingestion work.
 
 ---
 
 # 69. Cache Scope Rule
 
-Do not introduce Redis/cache work into storage, PIT, ingestion, or source-correctness PRs unless the
-current ROADMAP PR explicitly owns cache behavior.
-
-First complete authoritative correctness in PostgreSQL.
-
-Caching remains an optional optimization and must never be required for correctness.
+Do not introduce Redis/cache work into source-correctness PRs unless the current ROADMAP PR explicitly owns cache behavior.
 
 ---
 
 # 70. Real-Data Import PR Boundary
 
-Real external-source adapters and bulk historical backfills must be delivered through the dedicated
-PRs defined by ROADMAP.md.
-
-Contract PRs may implement:
-
-```text
-domain writers
-PIT resolvers
-normalization types
-controlled fixture ingestion
-migration tests
-```
+Real adapters and bulk backfills belong to dedicated ROADMAP PRs.
 
 Fixture-backed ingestion is not proof that real source import/backfill is complete.
 
-A bounded real-source pilot is not proof that full historical coverage/backfill is complete.
-
-Do not begin canonical-derived calculations merely because fixture or bounded pilot data exists.
+A bounded pilot is not proof that full historical coverage exists.
 
 ---
 
 # 71. Raw-First Adapter Rule
 
-For a real external source, preserve the raw artifact before normalization whenever retention is possible.
+For external sources, preserve raw artifacts before normalization whenever retention is possible.
 
-Required provenance should include as applicable:
+Required provenance as applicable:
 
 ```text
 source
@@ -1698,29 +1134,15 @@ ingest run
 adapter/parser version
 ```
 
-Do not discard the source representation after extracting canonical rows.
-
-For legacy PostgreSQL migration, preserve an auditable export/manifest even when original source bytes are unavailable.
+Do not discard source representation after extracting canonical rows.
 
 ---
 
 # 72. Source-Native Unit Rule
 
-A real adapter must know the source unit/scale before constructing a canonical observation.
+A real adapter must know source unit/scale before constructing canonical observations.
 
-Examples:
-
-```text
-MOPS thousand-TWD -> canonical major currency units
-TPEx lots -> canonical shares
-TWSE shares -> canonical shares
-```
-
-Do not guess a unit from numeric magnitude.
-
-Do not pass ambiguous source-native numbers into canonical writers.
-
-Business hashes use normalized canonical business content.
+Do not infer unit from numeric magnitude.
 
 ---
 
@@ -1728,76 +1150,33 @@ Business hashes use normalized canonical business content.
 
 Historical backfill never invents `published_at`.
 
-Allowed:
-
-```text
-published_at = historical public time proven by retained/authoritative evidence
-```
-
 If not provable:
 
 ```text
 published_at = NULL
 ```
 
-Do not substitute:
-
-```text
-current import time
-filesystem mtime
-effective/observation date
-legacy row existence
-```
-
-for publication time without an explicit source contract.
-
-`recorded_at` is the actual time this Data Center records the evidence.
+Do not substitute import time, file mtime, effective date, or legacy row existence.
 
 ---
 
 # 74. Historical Backfill System-PIT Rule
 
-Normal backfill records actual Data Center ingestion/seal time.
-
-Do not copy historical market/effective dates into:
-
-```text
-ingested_at
-seal.ingested_at
-```
-
-A trusted migration may preserve old-system ingestion time only if that timestamp genuinely represented completed ingestion and its semantics/provenance are documented and tested.
-
-Otherwise, it is correct for historical Market PIT and current-backfill System PIT to differ.
+Normal backfill records actual Data Center ingestion/seal time. Do not copy historical market/effective dates into `ingested_at`.
 
 ---
 
 # 75. Legacy Database Migration Rule
 
-The legacy `stock_db` is migration input, not automatically authoritative truth.
+Legacy `stock_db` is migration input, not automatically authoritative truth.
 
-Do not bulk-copy old tables into canonical tables without:
-
-```text
-legacy field mapping
-source-semantic validation
-unit normalization
-publication/PIT validation
-provenance capture
-new writer/trusted migration constraints
-```
-
-Do not import legacy derived tables as observed truth merely for compatibility.
-
-Prefer authoritative raw-source reconstruction where reliable history exists.
+Do not bulk-copy without field mapping, source-semantic validation, unit normalization, PIT validation, provenance capture, and new writer/trusted migration constraints.
 
 ---
 
 # 76. Backfill Idempotency and Restart Rule
 
 Bulk import/backfill must be safe to rerun and resume.
-
-Required:
 
 ```text
 same canonical content -> no fake business revision
@@ -1806,56 +1185,19 @@ repeated observation -> provenance remains auditable
 partial failure -> restart does not corrupt prior work
 ```
 
-Use explicit import IDs, checkpoints, and manifests.
-
-Do not design a one-shot migration that cannot safely resume.
-
 ---
 
 # 77. Pilot-Before-Bulk Rule
 
-Before a full historical backfill PR, the relevant real-data pilot and dependency PRs must pass.
+Before full historical backfill, relevant pilots and dependency PRs must pass.
 
-Do not use one giant "pilot phase" as a substitute for domain-specific evidence.
-
-Each bulk-import domain should have representative pilot coverage sufficient to exercise its own
-semantics.
-
-A real-data pilot must validate, as applicable:
-
-```text
-raw artifact
--> parser
--> normalization
--> trusted writer
--> PostgreSQL
--> PIT resolver
--> reconciliation
-```
-
-For historical daily prices specifically, do not begin/approve the full backfill merely because
-TWSE/TPEx daily-market raw ingestion works.
-
-The ROADMAP dependencies for:
-
-```text
-security lifecycle
-corporate-action contract/pilot/history
-authoritative trading calendar
-```
-
-must be satisfied according to the current PR plan.
-
-Do not declare daily-price history analysis-ready until corporate-action discontinuity reconciliation
-is available.
+For daily prices, corporate-action identity/history and trading-calendar dependencies must be satisfied before analysis-readiness claims.
 
 ---
 
 # 78. Import Reconciliation Rule
 
-Every real-data import/backfill needs reconciliation.
-
-At minimum report:
+Every real import/backfill reports at least:
 
 ```text
 source/domain
@@ -1871,28 +1213,9 @@ coverage gaps
 warnings/anomalies
 ```
 
-For legacy migration, compare old/new samples and counts where meaningful.
+Cross-source reconciliation must be reproducible from stored histories and independent of incidental import order.
 
-Differences caused by corrected revision/evidence modeling are allowed but must be explained.
-
-Never silently ignore discrepancies.
-
-Cross-source reconciliation must be reproducible from canonical stored histories and independent of
-incidental import order.
-
-For security market transfers, permanent tests must include both:
-
-```text
-exit source imported before entry source
-entry source imported before exit source
-```
-
-The final matched/unmatched result must converge to the same answer.
-
-If an import-time result can become stale when a counterpart source arrives later, mark it
-provisional and provide a deterministic final reconciliation pass.
-
-For historical price backfills, large discontinuities must be classified as:
+Historical price discontinuities are classified as:
 
 ```text
 explained_by_corporate_action
@@ -1900,129 +1223,57 @@ explained_by_other_documented_market_event
 unexplained_anomaly
 ```
 
-Do not silently smooth unexplained anomalies.
+Do not silently smooth anomalies.
 
 ---
 
 # 79. Import Manifest and Quarantine Rule
 
-Every pilot/bulk import must emit an auditable manifest containing enough information to identify:
+Every pilot/bulk import emits an auditable manifest with import ID, git commit, adapter version, source/scope, configuration fingerprint, timing, hashes where practical, result counts, warnings/errors, and reconciliation result.
 
-```text
-import ID
-git commit
-adapter/parser version
-source/scope
-configuration fingerprint
-start/end time
-input/raw hashes where practical
-result counts
-warnings/errors
-reconciliation result
-```
+Suspicious or semantically ambiguous records fail loudly or enter quarantine.
 
-Suspicious or semantically ambiguous records must fail loudly or enter an explicit quarantine path.
-
-Examples:
-
-```text
-unknown unit
-ambiguous EPS basis
-invalid XBRL context
-incomplete TDCC distribution
-unsupported evidence
-unmappable security/market
-```
-
-Preserve the raw artifact and failure reason.
+Corporate-action identity ambiguity is a quarantine/blocker condition, not a prompt to manufacture an ID.
 
 ---
 
 # 80. Derived Implementation PR Rule
 
-Earlier PRs may define canonical derived storage/definition contracts.
+Actual calculators belong in dedicated derived PRs unless a minimal implementation is required solely for contract validation.
 
-Actual calculators belong in the dedicated canonical-derived PRs defined by ROADMAP.md unless a
-minimal implementation is required solely for schema/contract validation.
-
-Do not implement model training logic inside canonical derived calculators.
-
-For price-derived calculations, enforce the dependency chain:
+For price-derived calculations:
 
 ```text
 raw official OHLC
 + PIT-safe corporate actions
 -> versioned adjustment factors
--> adjusted OHLC / total-return series
--> returns / technical indicators
+-> adjusted OHLC / total-return
+-> returns / indicators
 ```
 
-Do not bypass corporate-action readiness by computing indicators directly from mechanically
-discontinuous raw prices.
+Do not bypass corporate-action readiness.
 
 ---
 
 # 81. Migration Rule
 
-A migration that changes historical temporal, lineage, or derivation meaning must include explicit
-migration/downgrade semantics.
+A migration changing temporal, lineage, identity, or derivation meaning requires explicit migration/downgrade semantics.
 
-A downgrade must either:
+Downgrade either safely represents all history or fails before mutation.
 
-```text
-safely represent all stored history
-```
-
-or:
-
-```text
-fail explicitly before mutation when the previous schema cannot represent it
-```
-
-Never delete, merge, or collapse valid append-only PIT history merely to make downgrade succeed.
-
-Permanent regressions must cover any guarded-downgrade condition introduced by the migration.
-
-If a migration can change prior cached query results, include a cache-impact section:
-
-```text
-bump namespace
-or
-purge affected cache entries
-```
-
-before/with rollout.
+Never delete/collapse valid PIT history merely to make downgrade succeed.
 
 ---
 
 # 82. Redis Configuration Rule
 
-Redis-specific configuration belongs in deployment/configuration files.
-
-Do not hardcode:
-
-```text
-host IP
-port
-memory size
-password
-TTL
-```
-
-inside domain logic.
+Redis-specific configuration belongs in deployment/configuration, not domain logic.
 
 ---
 
 # 83. Security Rule
 
-If Redis is remote:
-
-- do not expose it publicly
-- restrict network access to trusted hosts
-- use authentication/TLS where the network environment requires it
-- never embed credentials in source control
-
-Redis is infrastructure, not a public API.
+If Redis is remote, restrict network access, use auth/TLS as appropriate, and never commit credentials.
 
 ---
 
@@ -2033,23 +1284,23 @@ When tradeoffs exist, prioritize:
 ```text
 1. PIT correctness
 2. historical auditability
-3. complete v1 domain ownership/storage contract
-4. provenance integrity
-5. real-source semantic correctness and unit normalization
-6. deterministic/idempotent import behavior
-7. source isolation
-8. derivation-version correctness
-9. import reconciliation/auditability
-10. migration/history preservation
-11. cache/result equivalence
-12. maintainability
-13. performance
-14. SSD/read reduction
-15. convenience
+3. stable source/business identity correctness
+4. complete v1 domain ownership/storage contract
+5. provenance integrity
+6. real-source semantic correctness and unit normalization
+7. deterministic/idempotent import behavior
+8. source isolation
+9. derivation-version correctness
+10. reconciliation/auditability
+11. migration/history preservation
+12. cache/result equivalence
+13. maintainability
+14. performance
+15. SSD/read reduction
+16. convenience
 ```
 
-Never trade PIT, auditability, provenance, source semantics, import determinism, source isolation,
-derivation correctness, reconciliation, migration safety, or cache correctness for performance.
+Never trade identity/PIT/auditability/provenance/source semantics/import determinism/reconciliation/migration safety/cache correctness for implementation convenience.
 
 ---
 
@@ -2058,17 +1309,19 @@ derivation correctness, reconciliation, migration safety, or cache correctness f
 Before declaring any PR complete/mergeable:
 
 ```text
-current PR number and ROADMAP scope are identified
-declared dependencies are satisfied
+current PR and ROADMAP scope identified
+declared dependencies satisfied
+PR is not BLOCKED by an unresolved correctness gate
 tests pass
 docs updated
 acceptance criteria evaluated
 PIT semantics preserved
 provenance preserved
+source identity semantics preserved
 no source-capability leakage
 no direct downstream DB/cache dependency introduced
-out-of-scope work was not silently absorbed
-review blockers/majors are resolved
+out-of-scope work not silently absorbed
+review blockers/majors resolved
 ```
 
 For schema/migration PRs additionally:
@@ -2076,9 +1329,7 @@ For schema/migration PRs additionally:
 ```text
 alembic upgrade passes
 alembic check/schema drift passes
-downgrade passes
-or
-downgrade is deliberately guarded before mutation when old schema cannot represent history
+downgrade passes or is deliberately guarded before mutation
 permanent migration regressions pass
 ```
 
@@ -2086,14 +1337,27 @@ For real-data ingestion/backfill PRs additionally:
 
 ```text
 real source adapters use explicit source semantics
-raw-first provenance is preserved
-publication time is proven or unknown
+raw-first provenance preserved
+publication time proven or unknown
 normal backfill preserves actual System-PIT ingestion time
-import is idempotent and restartable
+import is idempotent/restartable
 reconciliation/import manifests exist
-quarantined/anomalous records are reported
+quarantined/anomalous records reported
 real-data PIT spot checks pass
 cross-source reconciliation converges independent of import order where applicable
+```
+
+For corporate-action ingestion/backfill PRs additionally:
+
+```text
+native or synthetic source_event_key contract is documented
+identity survives corrections/replacements
+snapshot uniqueness is not used as sole proof
+known collision fixtures pass
+forbidden mutable business fields are absent from source_event_key
+publication identity is not silently treated as event identity
+heuristic issuer/exchange joins are not authoritative foreign keys
+ambiguous identity fails closed before event registration
 ```
 
 For full historical daily-price readiness additionally:
@@ -2110,10 +1374,10 @@ raw OHLC remains unchanged
 For derived-price/indicator PRs additionally:
 
 ```text
-adjustment convention is explicit/versioned
+adjustment convention explicit/versioned
 no future corporate action leaks backward
-raw vs adjusted series are distinguishable
-derived inputs are PIT-safe and lineage-complete
+raw vs adjusted distinguishable
+derived inputs PIT-safe and lineage-complete
 ```
 
 For cache PRs additionally:
@@ -2126,24 +1390,22 @@ Redis failure fallback passes
 
 Then publish/update PR acceptance evidence.
 
-Do not publish a new "Phase completion" claim for implementation progress.
-
 ---
 
 # 85.1 Agent Execution Protocol
 
-At the start of implementation work:
+At the start of implementation:
 
 ```text
 1. Read ROADMAP.md.
-2. Identify the current GitHub PR number.
-3. Confirm the PR status is IN REVIEW/PLANNED as appropriate.
-4. Read dependencies, acceptance criteria, and out-of-scope work.
-5. Inspect current main/head before coding.
-6. Implement only the current PR.
+2. Identify current GitHub PR.
+3. Read status, blockers, dependencies, acceptance criteria, out-of-scope work.
+4. If status is BLOCKED, do not implement around the blocker.
+5. Inspect current main/head.
+6. Implement only the current PR when its correctness gates permit implementation.
 ```
 
-At the end of implementation work, report:
+At the end report:
 
 ```text
 commit SHA
@@ -2151,24 +1413,25 @@ files/schema materially changed
 acceptance criteria satisfied
 tests/lint/migration checks
 known limitations
-explicitly deferred next-PR work
+explicitly deferred work
 ```
 
-If the current GitHub PR number differs from a predicted number in ROADMAP because another PR consumed
-the number, update ROADMAP to the actual number instead of forcing the code/history to match the
-prediction.
+For source research that discovers a failed identity/source-semantic assumption:
 
-Do not create a new broad "Phase" label to group unfinished work.
+```text
+stop implementation
+record the failing live/source evidence
+update ROADMAP/acceptance evidence
+preserve a regression fixture when practical
+do not patch the failure by adding mutable fields
+```
 
 ---
 
 # 86. Core Boundary
 
-Remember the repository contract:
-
 ```text
-stock-data-center
-owns:
+stock-data-center owns:
     source data
     temporal visibility
     publication evidence
@@ -2176,19 +1439,18 @@ owns:
     revisions
     provenance
     PostgreSQL
+    stable source/business identity contracts
     canonical reusable derived data
     optional cache
     API
 
-stock-eps-model
-owns:
+stock-eps-model owns:
     EPS-specific features
     EPS labels
     EPS training
     EPS prediction
 
-stock-model-selection
-owns:
+stock-model-selection owns:
     model-specific selection features
     forward-return labels
     selection training
@@ -2196,8 +1458,10 @@ owns:
     backtesting
 ```
 
-Redis must remain an optional implementation detail of `stock-data-center`.
+Redis remains optional.
 
-Canonical derived datasets must remain model-independent, versioned, PIT-safe, and reusable.
+Canonical derived datasets remain model-independent, versioned, PIT-safe, and reusable.
 
-Enabling, disabling, restarting, or losing Redis may affect performance, but must never affect PIT correctness or returned data.
+Enabling, disabling, restarting, or losing Redis may affect performance but never correctness.
+
+A source being official does not automatically make every row safely normalizable. If official data lacks a proven stable business identity required by the canonical contract, the correct outcome is to preserve evidence and remain blocked rather than invent semantics.
