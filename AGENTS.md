@@ -93,7 +93,7 @@ Current roadmap snapshot:
 ```text
 PR #11  authoritative security lifecycle history        MERGED
 PR #12  Taiwan corporate-action contract               MERGED
-PR #13  official dividend summary pilot                SUPERSEDED (by #19)
+PR #13  source-reality rebuild of ROADMAP/AGENTS/audit   THIS PR
 PR #14  source-reality alignment                       PLANNED
 PR #15  availability-time evidence policy              PLANNED (owner decision / ADR-0020)
 PR #16  trading calendar + coverage validator          PLANNED
@@ -103,7 +103,7 @@ PR #19  exchange corporate-action result feeds         PLANNED
 
 `ROADMAP.md` remains authoritative if this snapshot becomes stale.
 
-PR #13 is superseded because the issuer dividend summary feeds do not expose a proven correction-stable event identity, and TPEx live data falsified the proposed `(security, dividend_year, period)` identity. Announcement feeds stay un-normalized. Corporate actions come from exchange result feeds under ROADMAP Invariant G(2).
+The dividend-summary pilot that once held the #13 slot was abandoned, and never opened as a pull request: the issuer dividend summary feeds expose no proven correction-stable event identity, and TPEx live data falsified the proposed `(security, dividend_year, period)` identity. Announcement feeds never enter `corporate_action_versions`. Corporate actions come from exchange result feeds under ROADMAP Invariant G(2); the earnings/capital-surplus split comes from the declaration feeds that ROADMAP PR #33 stores as their own domain.
 
 Do not bypass the announcement-feed blocker by inventing another mutable composite key.
 
@@ -845,7 +845,7 @@ adapter version
 
 The same caution applies to business classification fields such as dividend year/period, accounting quarter/year label, and distribution period: they may be used only if official semantics prove correction stability, not merely because a live snapshot becomes unique.
 
-### PR #13 announcement-feed evidence (superseded PR, permanent fixture)
+### Announcement-feed evidence (abandoned pilot, permanent fixture)
 
 The proposed TPEx identity:
 

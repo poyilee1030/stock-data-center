@@ -216,7 +216,7 @@ stock or share ratio, reference price, dividend year/period, row ordinal,
 company name, adapter version
 ```
 
-No announcement feed has a proven stable identity, so announcement feeds are not normalized in v1. PR #13 falsified `(security, dividend_year, period)` on live TPEx data.
+No announcement feed has a proven stable identity, so announcement feeds never enter `corporate_action_versions`. The abandoned dividend-summary pilot falsified `(security, dividend_year, period)` on live TPEx data (§21.3).
 
 **2. Exchange result feeds**
 
@@ -550,7 +550,7 @@ Status date: 2026-09-14.
 | #10 | MERGED | Current TWSE/TPEx security metadata ingestion |
 | #11 | MERGED | Authoritative security listing/delisting/venue lifecycle history |
 | #12 | MERGED | Hardened Taiwan corporate-action contract |
-| #13 | SUPERSEDED | Official dividend summary pilot; identity unprovable; replaced by PR #19 |
+| #13 | THIS PR | Source-reality rebuild of this roadmap, `AGENTS.md`, and `docs/source_field_audit.md` |
 | #14 | PLANNED | Source-reality alignment of inventory and storage contract |
 | #15 | PLANNED | Availability-time evidence policy (owner decision) |
 | #16 | PLANNED | Trading calendar and coverage validator |
@@ -574,7 +574,7 @@ Status date: 2026-09-14.
 
 PRs #1–#12 established the storage, PIT, and raw-first foundations. Their writer contracts include some columns that no source populates (§2.3). Those columns stay nullable and unpopulated. They are not dropped, because dropping them brings no correctness gain.
 
-The former planned PRs #14–#33 are renumbered into #14–#32 above; #33 is a new PR, not a survivor of the old numbering. The former "Corporate-Action Identity Research Track", the "Official Reference-Price / Share-Count Pilot", and the "Historical Corporate-Action Backfill" are replaced by PR #19. The former "Source Capability Hook" is absorbed into PR #15. The former "Legacy Migration and Reconciliation" is split into the per-domain reconciliation acceptance of PRs #17–#26 and cutover PR #32. The former cache PRs are deferred (§26.2).
+Ledger numbers match the GitHub pull request numbers, and #13 is where that had to be re-established: the abandoned dividend-summary pilot held the slot but was never opened as a pull request, so it is not a GitHub number at all (§21.3). The former planned PRs #14–#33 are renumbered into #14–#32 above; #33 is a new PR, not a survivor of the old numbering. The former "Corporate-Action Identity Research Track", the "Official Reference-Price / Share-Count Pilot", and the "Historical Corporate-Action Backfill" are replaced by PR #19. The former "Source Capability Hook" is absorbed into PR #15. The former "Legacy Migration and Reconciliation" is split into the per-domain reconciliation acceptance of PRs #17–#26 and cutover PR #32. The former cache PRs are deferred (§26.2).
 
 ---
 
@@ -588,18 +588,26 @@ The `STOCK_DAY` / `tradingStock` adapters prove the raw-first lifecycle. They do
 
 `corporate_action_events` holds the stable `(security, source, source_event_key)`. `corporate_action_versions` holds the action type, dates, amounts, ratios, reference terms, and source terms. PR #19 populates it from exchange result feeds under Invariant G(2). The columns in §2.3 stay NULL.
 
-## 21.3 PR #13 — official dividend summary pilot (SUPERSEDED)
+## 21.3 PR #13 — source-reality rebuild
 
-The proposed TPEx identity `(security_code, dividend_year, period)` failed live verification on `mopsfin_t187ap39_O`: 2,483 rows, 65 duplicate groups. Representative collision:
+The abandoned dividend-summary pilot occupied this slot. It was never opened as a pull request. PR #13 is the work that replaced it: the source survey that falsified its premise, and the rebuild of this roadmap on what the sources actually publish.
+
+What it established, with the evidence in `docs/source_field_audit.md`:
+
+- what each official endpoint publishes, with header variants and date ranges, and which existing columns no source populates (§2.3)
+- Invariant G split into announcement feeds and exchange result feeds, whose executed-date locator gives the event identity that unblocks corporate actions, adjusted prices, and the dividend track
+- the availability-time evidence policy PR #15 turns into ADR-0020, including the recovered monthly-revenue publication dates
+- the TDCC archive consolidated from three directories into one of 375 weeks
+- §26 split into what cannot be built, what waits on a trigger, and what is merely out of v1
+
+The abandoned pilot's own result stays as a permanent fixture. Its proposed TPEx identity `(security_code, dividend_year, period)` failed live verification on `mopsfin_t187ap39_O`: 2,483 rows, 65 duplicate groups. Representative collision:
 
 ```text
 security_code 1591, dividend_year 108, period 1
 board_date 1080806  and  board_date 1090505
 ```
 
-No official summary or announcement feed exposes a correction-stable event ID. The 1591/108/1 collision stays as a permanent regression fixture showing that announcement feeds are rejected by the adapter identity policy.
-
-The information PR #13 wanted (cash dividend, stock distribution, reference prices) is available from exchange result feeds, which PR #19 ingests.
+No announcement feed exposes a correction-stable event ID. The 1591/108/1 collision stays as a permanent regression fixture showing that announcement feeds are rejected by the adapter identity policy. The information the pilot wanted — cash dividend, stock distribution, reference prices — comes from the exchange result feeds that PR #19 ingests, and the earnings/capital-surplus split from the declaration feeds that PR #33 stores as their own domain.
 
 ---
 
@@ -804,7 +812,7 @@ Out of scope: index trade value; OHLC for any index other than the TAIEX; index-
 
 Status: **PLANNED**. Depends on: PR #9, PR #12, PR #17.
 
-Supersedes: PR #13, the former reference-price pilot, and the former corporate-action backfill.
+Supersedes: the abandoned dividend-summary pilot (§21.3), the former reference-price pilot, and the former corporate-action backfill.
 
 Source contract (audit §4.10):
 
