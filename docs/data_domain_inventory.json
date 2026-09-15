@@ -36,9 +36,61 @@
       "source"
     ],
     "excluded_tables": {
-      "derived_metric_versions": "Canonical derived data, not an observed source domain. Its contract is the derived dataset definition registry, not a source field mapping."
+      "corporate_action_version_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field.",
+      "dataset_catalog": "Dataset policy registry, declared by us.",
+      "dataset_sources": "Per-source capability policy (ADR-0004), declared by us.",
+      "derived_computation_runs": "Derived computation provenance, declared by us.",
+      "derived_dataset_definitions": "Canonical derived dataset contract (ROADMAP 17), declared by us.",
+      "derived_metric_versions": "Canonical derived data, not an observed source domain. Its contract is the derived dataset definition registry, not a source field mapping.",
+      "financial_filing_seals": "Aggregate seal state, decided by us, never published by a source.",
+      "financial_filing_version_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field.",
+      "foreign_holding_version_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field.",
+      "import_checkpoints": "Real-import audit bookkeeping.",
+      "import_manifests": "Real-import audit bookkeeping.",
+      "import_quarantine": "Real-import audit bookkeeping.",
+      "ingest_runs": "Ingest-run provenance; carries no source field.",
+      "institutional_investor_version_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field.",
+      "institutional_market_summary_version_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field.",
+      "margin_trading_version_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field.",
+      "market_index_metadata_version_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field.",
+      "market_index_version_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field.",
+      "monthly_revenue_version_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field.",
+      "official_valuation_version_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field.",
+      "publication_evidence": "Publication evidence, not business content. Audit 5 records that no inspected source publishes a per-row release instant.",
+      "publication_evidence_observations": "Provenance link for publication evidence.",
+      "quarterly_financial_summary": "Canonical derived summary over sealed financial_facts; its lineage is a derivation definition, not a source field mapping.",
+      "raw_artifact_observations": "Fetch-observation provenance linking an artifact to an ingest run.",
+      "raw_artifacts": "Content-addressed source bytes (ROADMAP 14). The artifact is the source, so it has no field mapping.",
+      "securities_lending_version_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field.",
+      "security_transfer_event_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field.",
+      "tdcc_snapshot_seals": "Aggregate seal state, decided by us, never published by a source.",
+      "tdcc_snapshot_version_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field."
     },
     "tables": {
+      "corporate_action_events": {
+        "dataset_code": "corporate_action_event",
+        "v1": true,
+        "roadmap_pr": 19,
+        "reason": "Stable event identity for corporate_action_versions (audit 4.10).",
+        "columns": {
+          "security_id": {
+            "coverage": "internal",
+            "note": "Stable Data Center identity resolved from the source security code."
+          },
+          "source_event_key": {
+            "coverage": "sourced",
+            "source_fields": [
+              "詳細資料"
+            ],
+            "audit_section": "4.10",
+            "note": "TWSE's own detail locator \"{code},{yyyymmdd}\", available only in response=json; the CSV flattens it to the link label 除權息資料."
+          },
+          "created_at": {
+            "coverage": "internal",
+            "note": "Row creation time; operational provenance."
+          }
+        }
+      },
       "corporate_action_versions": {
         "dataset_code": "corporate_action",
         "v1": true,
@@ -69,6 +121,7 @@
           "announcement_date": {
             "coverage": "unsourced",
             "audit_section": "4.10",
+            "effect": "stays NULL",
             "note": "No exchange result feed carries an announcement date. The issuer declaration feeds that do carry board-resolution dates have no link to an executed event (PR #33, audit 4.13)."
           },
           "ex_date": {
@@ -84,11 +137,13 @@
           "record_date": {
             "coverage": "unsourced",
             "audit_section": "4.10",
+            "effect": "stays NULL",
             "note": "No exchange result feed carries a record date."
           },
           "payment_date": {
             "coverage": "unsourced",
             "audit_section": "4.10",
+            "effect": "stays NULL",
             "note": "No exchange result feed carries a payment date."
           },
           "cash_dividend_per_share": {
@@ -111,11 +166,13 @@
           "earnings_stock_ratio": {
             "coverage": "unsourced",
             "audit_section": "4.10",
+            "effect": "stays NULL",
             "note": "The exchange feeds publish only the combined free-share figure. The earnings / capital-surplus split exists only in the MOPS issuer declaration feed, stored as its own domain by PR #33 (audit 4.13)."
           },
           "capital_surplus_stock_ratio": {
             "coverage": "unsourced",
             "audit_section": "4.10",
+            "effect": "stays NULL",
             "note": "The exchange feeds publish only the combined free-share figure. The split exists only in the MOPS issuer declaration feed (PR #33), and before ROC 110 the two reserves arrive as one number (audit 4.13)."
           },
           "free_share_ratio": {
@@ -313,11 +370,13 @@
           "bid_snapshot": {
             "coverage": "unsourced",
             "audit_section": "4.1",
+            "effect": "stays NULL",
             "note": "Multi-level order-book depth blob. No daily whole-market endpoint publishes depth; the one published level is stored in last_bid_price/last_bid_volume."
           },
           "ask_snapshot": {
             "coverage": "unsourced",
             "audit_section": "4.1",
+            "effect": "stays NULL",
             "note": "Multi-level order-book depth blob. No daily whole-market endpoint publishes depth; the one published level is stored in last_ask_price/last_ask_volume."
           },
           "last_bid_price": {
@@ -357,6 +416,142 @@
             ],
             "audit_section": "4.1",
             "note": "TWSE on all dates, in lots. TPEx only from 2020-04-30; the label changes 千股 to 張數 on 2025-01-10, both meaning 1,000 shares."
+          }
+        }
+      },
+      "financial_facts": {
+        "dataset_code": "financial_fact",
+        "v1": true,
+        "roadmap_pr": 23,
+        "reason": "One ix:nonFraction fact of a MOPS t164sb01 iXBRL document, with its context, unit, and decimals (audit 4.8, ROADMAP 15).",
+        "columns": {
+          "filing_version_id": {
+            "coverage": "internal",
+            "note": "Link to the financial_filing_versions row the fact was parsed from."
+          },
+          "concept_qname": {
+            "coverage": "sourced",
+            "source_fields": [
+              "ix:nonFraction name"
+            ],
+            "audit_section": "4.8",
+            "note": "Namespace-aware concept identity, as the document declares it."
+          },
+          "context_hash": {
+            "coverage": "internal",
+            "note": "Canonical hash over entity, period, dimensions, and scenario/segment; computed by us so that fact identity never rests on concept plus dates alone (ROADMAP 15)."
+          },
+          "entity_identifier": {
+            "coverage": "sourced",
+            "source_fields": [
+              "xbrli:identifier"
+            ],
+            "audit_section": "4.8",
+            "note": "The context's entity identifier."
+          },
+          "period_type": {
+            "coverage": "sourced",
+            "source_fields": [
+              "xbrli:period"
+            ],
+            "audit_section": "4.8",
+            "note": "Instant or duration, as the context declares it."
+          },
+          "instant_date": {
+            "coverage": "sourced",
+            "source_fields": [
+              "xbrli:instant"
+            ],
+            "audit_section": "4.8",
+            "note": "Present on instant contexts."
+          },
+          "period_start": {
+            "coverage": "sourced",
+            "source_fields": [
+              "xbrli:startDate"
+            ],
+            "audit_section": "4.8",
+            "note": "Present on duration contexts."
+          },
+          "period_end": {
+            "coverage": "sourced",
+            "source_fields": [
+              "xbrli:endDate"
+            ],
+            "audit_section": "4.8",
+            "note": "Present on duration contexts."
+          },
+          "explicit_dimensions": {
+            "coverage": "sourced",
+            "source_fields": [
+              "xbrldi:explicitMember"
+            ],
+            "audit_section": "4.8",
+            "note": "The sample document carries explicit dimensions on its contexts."
+          },
+          "typed_dimensions": {
+            "coverage": "sourced",
+            "source_fields": [
+              "xbrldi:typedMember"
+            ],
+            "audit_section": "4.8",
+            "note": "Stored when the document uses typed dimensions; absent otherwise."
+          },
+          "scenario": {
+            "coverage": "sourced",
+            "source_fields": [
+              "xbrli:scenario"
+            ],
+            "audit_section": "4.8",
+            "note": "Stored as the document declares it, when present."
+          },
+          "segment": {
+            "coverage": "sourced",
+            "source_fields": [
+              "xbrli:segment"
+            ],
+            "audit_section": "4.8",
+            "note": "Stored as the document declares it, when present."
+          },
+          "unit_identity": {
+            "coverage": "sourced",
+            "source_fields": [
+              "unitRef"
+            ],
+            "audit_section": "4.8",
+            "note": "TWD, Shares, Pure, and EarningsPerShare appear in the sample."
+          },
+          "numeric_value": {
+            "coverage": "sourced",
+            "source_fields": [
+              "ix:nonFraction value"
+            ],
+            "audit_section": "4.8",
+            "note": "The fact value, scaled as the document declares."
+          },
+          "text_value": {
+            "coverage": "sourced",
+            "source_fields": [
+              "ix:nonNumeric value"
+            ],
+            "audit_section": "4.8",
+            "note": "Non-numeric facts keep their published text."
+          },
+          "is_nil": {
+            "coverage": "sourced",
+            "source_fields": [
+              "xsi:nil"
+            ],
+            "audit_section": "4.8",
+            "note": "The document marks a nil fact explicitly."
+          },
+          "decimals": {
+            "coverage": "sourced",
+            "source_fields": [
+              "decimals"
+            ],
+            "audit_section": "4.8",
+            "note": "Declared per fact by the document."
           }
         }
       },
@@ -902,6 +1097,22 @@
           }
         }
       },
+      "market_index": {
+        "dataset_code": "market_index",
+        "v1": true,
+        "roadmap_pr": 18,
+        "reason": "Stable identity only. Neither index source publishes a code, so the code is ours (audit 4.2).",
+        "columns": {
+          "index_code": {
+            "coverage": "internal",
+            "note": "Assigned by us: identity is (source, published index name), and no source publishes an index code."
+          },
+          "created_at": {
+            "coverage": "internal",
+            "note": "Row creation time; operational provenance."
+          }
+        }
+      },
       "market_index_metadata_versions": {
         "dataset_code": "market_index_metadata",
         "v1": true,
@@ -915,12 +1126,14 @@
           "effective_from": {
             "coverage": "unsourced",
             "audit_section": "4.2",
-            "note": "No official effective date. The column can only record the first observation date of the published name."
+            "effect": "stores a derived value",
+            "note": "No official effective date. The column is NOT NULL and holds the first observation date of the published name, which is ours, not the source's."
           },
           "effective_to": {
             "coverage": "unsourced",
             "audit_section": "4.2",
-            "note": "No official effective date. The column can only record the last observation date of the published name."
+            "effect": "stores a derived value",
+            "note": "No official effective date. The column holds the last observation date of the published name, which is ours, not the source's."
           },
           "market": {
             "coverage": "sourced",
@@ -1013,6 +1226,7 @@
           "trade_value": {
             "coverage": "unsourced",
             "audit_section": "4.2",
+            "effect": "stays NULL",
             "note": "Not in any inspected index source."
           }
         }
@@ -1054,7 +1268,8 @@
           "currency": {
             "coverage": "unsourced",
             "audit_section": "4.7",
-            "note": "A page-level constant, not a per-row observation: the page states 單位：千元 and every row is TWD."
+            "effect": "stores a documented constant",
+            "note": "A page-level constant, not a per-row observation: the page states 單位：千元. The column is NOT NULL and part of the revision identity, so it stores the constant TWD; it is never NULL."
           }
         }
       },
@@ -1220,6 +1435,27 @@
           }
         }
       },
+      "security": {
+        "dataset_code": "security",
+        "v1": true,
+        "roadmap_pr": 11,
+        "reason": "Stable identity only. Every observed attribute lives in security_metadata_versions.",
+        "columns": {
+          "security_code": {
+            "coverage": "sourced",
+            "source_fields": [
+              "公司代號",
+              "證券代號"
+            ],
+            "audit_section": "4.11",
+            "note": "The published security code is the stable identity."
+          },
+          "created_at": {
+            "coverage": "internal",
+            "note": "Row creation time; operational provenance."
+          }
+        }
+      },
       "security_metadata_versions": {
         "dataset_code": "security_metadata",
         "v1": true,
@@ -1299,17 +1535,152 @@
           "tag": {
             "coverage": "unsourced",
             "audit_section": "4.11",
+            "effect": "table stays empty",
             "note": "Only a third-party (MoneyDJ) snapshot exists; no official source publishes security tags."
           },
           "effective_from": {
             "coverage": "unsourced",
             "audit_section": "4.11",
+            "effect": "table stays empty",
             "note": "The third-party snapshot carries no effective dates."
           },
           "effective_to": {
             "coverage": "unsourced",
             "audit_section": "4.11",
+            "effect": "table stays empty",
             "note": "The third-party snapshot carries no effective dates."
+          }
+        }
+      },
+      "security_transfer_events": {
+        "dataset_code": "security_transfer_event",
+        "v1": true,
+        "roadmap_pr": 11,
+        "reason": "Official cross-market transfer terms, retained for re-runnable reconciliation without merging source histories (audit 4.11).",
+        "columns": {
+          "entry_version_id": {
+            "coverage": "internal",
+            "note": "Link to the security_metadata_versions row that opens the new venue."
+          },
+          "from_source": {
+            "coverage": "internal",
+            "note": "Identity of the source history the security transferred out of."
+          },
+          "from_market": {
+            "coverage": "sourced",
+            "source_fields": [
+              "market of the prior venue snapshot feed"
+            ],
+            "audit_section": "4.11",
+            "note": "The venue the security left, as its own snapshot feed published it."
+          },
+          "source_term": {
+            "coverage": "sourced",
+            "source_fields": [
+              "official transfer term"
+            ],
+            "audit_section": "4.11",
+            "note": "The source's own wording for the transfer, kept verbatim."
+          },
+          "recorded_at": {
+            "coverage": "internal",
+            "note": "Row creation time; operational provenance."
+          }
+        }
+      },
+      "tdcc_distribution": {
+        "dataset_code": "tdcc_distribution",
+        "v1": true,
+        "roadmap_pr": 24,
+        "reason": "The per-level rows of one TDCC weekly snapshot (audit 4.9).",
+        "columns": {
+          "snapshot_version_id": {
+            "coverage": "internal",
+            "note": "Link to the tdcc_snapshot_versions row the rows belong to."
+          },
+          "bucket_code": {
+            "coverage": "sourced",
+            "source_fields": [
+              "持股分級"
+            ],
+            "audit_section": "4.9",
+            "note": "The numeric level, 1-17; see the codebook in audit 4.9."
+          },
+          "holder_count": {
+            "coverage": "sourced",
+            "source_fields": [
+              "人數"
+            ],
+            "audit_section": "4.9",
+            "note": "Published per level."
+          },
+          "shares": {
+            "coverage": "sourced",
+            "source_fields": [
+              "股數"
+            ],
+            "audit_section": "4.9",
+            "note": "Published per level."
+          },
+          "ownership_percent": {
+            "coverage": "sourced",
+            "source_fields": [
+              "占集保庫存數比例%"
+            ],
+            "audit_section": "4.9",
+            "note": "Published per level."
+          }
+        }
+      },
+      "tdcc_distribution_schema_buckets": {
+        "dataset_code": "tdcc_distribution_schema_bucket",
+        "v1": true,
+        "roadmap_pr": 24,
+        "reason": "One level of a recovered TDCC codebook (audit 4.9).",
+        "columns": {
+          "distribution_schema": {
+            "coverage": "internal",
+            "note": "Link to the codebook version."
+          },
+          "bucket_code": {
+            "coverage": "sourced",
+            "source_fields": [
+              "持股分級"
+            ],
+            "audit_section": "4.9",
+            "note": "The numeric level, 1-17."
+          },
+          "bucket_role": {
+            "coverage": "internal",
+            "note": "Our classification of the level as a band, an adjustment row, or a total: level 16 carries two different labels across securities, so the role cannot be assumed from the number."
+          },
+          "description": {
+            "coverage": "sourced",
+            "source_fields": [
+              "持股分級 band label"
+            ],
+            "audit_section": "4.9",
+            "note": "The published band, for example 1,000-5,000 for level 2."
+          }
+        }
+      },
+      "tdcc_distribution_schemas": {
+        "dataset_code": "tdcc_distribution_schema",
+        "v1": true,
+        "roadmap_pr": 24,
+        "reason": "The TDCC holding-level codebook recovered in audit 4.9. The bulk file never states the share band a level means.",
+        "columns": {
+          "distribution_schema": {
+            "coverage": "internal",
+            "note": "Our name for one recovered codebook version."
+          },
+          "description": {
+            "coverage": "sourced",
+            "source_fields": [
+              "持股分級 band labels"
+            ],
+            "audit_section": "4.9",
+            "note": "The 1-17 band labels, identical in all 1,849 files of the deleted shareholding_div reconstruction."
           }
         }
       },
@@ -1350,21 +1721,25 @@
           "concept_qname": {
             "coverage": "unsourced",
             "audit_section": "4.8",
+            "effect": "table stays empty",
             "note": "No official concept-catalogue endpoint was inspected; the audit covers only the iXBRL documents themselves (4.8)."
           },
           "statement_type": {
             "coverage": "unsourced",
             "audit_section": "4.8",
+            "effect": "table stays empty",
             "note": "No official concept-catalogue endpoint was inspected."
           },
           "account_name_zh": {
             "coverage": "unsourced",
             "audit_section": "4.8",
+            "effect": "table stays empty",
             "note": "No official concept-catalogue endpoint was inspected."
           },
           "account_name_en": {
             "coverage": "unsourced",
             "audit_section": "4.8",
+            "effect": "table stays empty",
             "note": "No official concept-catalogue endpoint was inspected."
           }
         }
@@ -2728,56 +3103,64 @@
       "legacy_field": "revenue_last_month",
       "disposition": "observed",
       "target": "monthly_revenue_versions.revenue_last_month",
-      "reason": "Source field 上月營收. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3)."
+      "reason": "Source field 上月營收. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
+      "planned_pr": 22
     },
     {
       "legacy_table": "monthly_revenue",
       "legacy_field": "revenue_last_year",
       "disposition": "observed",
       "target": "monthly_revenue_versions.revenue_last_year_month",
-      "reason": "Source field 去年當月營收. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3)."
+      "reason": "Source field 去年當月營收. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
+      "planned_pr": 22
     },
     {
       "legacy_table": "monthly_revenue",
       "legacy_field": "mom_pct",
       "disposition": "observed",
       "target": "monthly_revenue_versions.mom_pct",
-      "reason": "Source field 上月比較增減(%). Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3)."
+      "reason": "Source field 上月比較增減(%). Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
+      "planned_pr": 22
     },
     {
       "legacy_table": "monthly_revenue",
       "legacy_field": "yoy_pct",
       "disposition": "observed",
       "target": "monthly_revenue_versions.yoy_pct",
-      "reason": "Source field 去年同月增減(%). Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3)."
+      "reason": "Source field 去年同月增減(%). Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
+      "planned_pr": 22
     },
     {
       "legacy_table": "monthly_revenue",
       "legacy_field": "revenue_cumulative",
       "disposition": "observed",
       "target": "monthly_revenue_versions.cumulative_revenue",
-      "reason": "Source field 當月累計營收. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3)."
+      "reason": "Source field 當月累計營收. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
+      "planned_pr": 22
     },
     {
       "legacy_table": "monthly_revenue",
       "legacy_field": "revenue_cumulative_last_year",
       "disposition": "observed",
       "target": "monthly_revenue_versions.cumulative_revenue_last_year",
-      "reason": "Source field 去年累計營收. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3)."
+      "reason": "Source field 去年累計營收. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
+      "planned_pr": 22
     },
     {
       "legacy_table": "monthly_revenue",
       "legacy_field": "cumulative_yoy_pct",
       "disposition": "observed",
       "target": "monthly_revenue_versions.cumulative_yoy_pct",
-      "reason": "Source field 前期比較增減(%). Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3)."
+      "reason": "Source field 前期比較增減(%). Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
+      "planned_pr": 22
     },
     {
       "legacy_table": "monthly_revenue",
       "legacy_field": "comment",
       "disposition": "observed",
       "target": "monthly_revenue_versions.note",
-      "reason": "Source field 備註. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3)."
+      "reason": "Source field 備註. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
+      "planned_pr": 22
     },
     {
       "legacy_table": "monthly_revenue",

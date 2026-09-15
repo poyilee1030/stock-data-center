@@ -34,7 +34,10 @@ answer the opposite question, which is the one a PR planning an adapter needs:
 *does an official source actually publish this stored column?* That is
 `storage_contract` in
 [`data_domain_inventory.json`](data_domain_inventory.json). Every column of
-every observed `*_versions` table is classified there:
+every table that holds observed content is classified there — which is not only
+the `*_versions` tables, since `financial_facts`, `tdcc_distribution`, its
+codebook tables, `corporate_action_events`, and `security_transfer_events` hold
+source values too:
 
 | Coverage | Meaning |
 | --- | --- |
@@ -45,9 +48,22 @@ every observed `*_versions` table is classified there:
 
 Seven structural columns (`id`, `source`, `business_content_hash`,
 `ingested_at`, `raw_artifact_id`, `ingest_run_id`, `predecessor_version_id`) are
-declared once for all tables instead of per table. `derived_metric_versions` is
-excluded with a reason: it is canonical derived data, not an observed source
-domain.
+declared once for all tables instead of per table. Every remaining table in the
+schema — provenance links, policy registries, seal state, import bookkeeping,
+and canonical derived data — is listed in `excluded_tables` with its reason, so
+a new table cannot appear in neither list unnoticed.
+
+An `unsourced` column also records its **effect**, because unsourced does not
+mean NULL: six of them are `NOT NULL`. The effect is *stays NULL*, *stores a
+documented constant* (monthly-revenue `currency`, always TWD), *stores a derived
+value* (index metadata observation dates), or *table stays empty* (a domain out
+of v1). A column marked *stays NULL* must be nullable in the live schema, and a
+test checks it.
+
+A legacy field whose `target` column does not exist yet carries `planned_pr`,
+naming the PR that adds it — the eight monthly-revenue comparatives point at
+PR #22. A target that exists in neither the schema nor a planned PR fails the
+test.
 
 `sourced` and `partially_sourced` entries name the published field labels, or
 the endpoint where the audit certifies a whole table (§4.3, §4.4, §4.5), and
@@ -84,7 +100,7 @@ and business hashing; an untyped quantity is rejected at the source boundary.
 | --- | --- | --- |
 | `stock_info` | `symbol`, `name`, `market`, industry/category, listing and delisting dates | Stable `security` identity plus observed `security_metadata_versions`; market, names/categories, and effective dates are revisioned. Explicit official cross-market transfer terms are retained in `security_transfer_events` for re-runnable reconciliation without merging source histories. |
 | `stock_tags` | `symbol`, tag/category, effective dates | **Not in v1** (ROADMAP §16). The only known source is a MoneyDJ current snapshot — a third party, with no effective dates — and no legacy consumer reads the table (audit §4.11, §5). `security_tag_versions` exists in the schema and stays empty. |
-| `daily_quotes` | `date`, `market`, `symbol`, `name`; OHLC; `volume`, `value`, `transactions`; `change`, `direction`; `bid`, `ask`; parsed last bid/ask price and volume; `pced_file`, `pced_row`, `pced_col` | OHLC, volume, trade value/count, change, and the single published last bid/ask price and volume are observed in `daily_price_versions`. `price_direction` is TWSE-only; TPEx publishes a signed 漲跌 instead. The multi-level `bid_snapshot`/`ask_snapshot` columns have no source and stay NULL: the daily whole-market files publish one order-book level, and it is already stored in `last_bid_*`/`last_ask_*` (audit §4.1, §5). Symbol resolves through stable `security`; market/name through effective-dated metadata. `pced_*` is raw-only parser provenance tied to `raw_artifacts`/`ingest_runs`, not business content. |
+| `daily_quotes` | `date`, `market`, `symbol`, `name`; OHLC; `volume`, `value`, `transactions`; `change`, `direction`; `bid`, `ask`; parsed last bid/ask price and volume; `pced_file`, `pced_row`, `pced_col` | OHLC, volume, trade value/count, change, and the single published last bid/ask price are observed in `daily_price_versions`; legacy `bid`/`ask`, NULL in every row, map to `last_bid_price`/`last_ask_price`. The source also publishes the matching last bid/ask *volume*, which PR #17 stores in `last_bid_volume`/`last_ask_volume`; the legacy table has no field for it. `price_direction` is TWSE-only; TPEx publishes a signed 漲跌 instead. The multi-level `bid_snapshot`/`ask_snapshot` columns have no source and stay NULL: the daily whole-market files publish one order-book level, and it is already stored in `last_bid_*`/`last_ask_*` (audit §4.1, §5). Symbol resolves through stable `security`; market/name through effective-dated metadata. `pced_*` is raw-only parser provenance tied to `raw_artifacts`/`ingest_runs`, not business content. |
 | `monthly_revenue` | year/month, current revenue, currency; MoM, YoY, cumulative revenue, cumulative YoY; comment; publication timestamp; `pced_*` | Current revenue is normalized to the currency's major unit and stored in `monthly_revenue_versions`. Version/evidence observation links preserve every fetch. The published comparatives — 上月營收, 去年當月營收, the three percentages, the cumulative values, and 備註 — are in the same MOPS row and read by legacy consumers, so PR #22 stores them as observed and never reconciles them against our own series (audit §4.7, §6, §7.3); `monthly_revenue_growth:v1` leaves v1 with them. `currency` is not an observation: the page states 單位：千元 as a page-level constant (audit §5). Publication time belongs only in `publication_evidence`; `pced_*` is raw-only. |
 | `income_statement` | All 40 declared legacy identity, statement, quarterly/accumulated metric, and `pced_*` fields | Deprecated pre-XBRL category. Namespace-aware `financial_facts` and sealed summaries are the v1 replacement; the JSON contract gives every field an explicit disposition. |
 | `balance_sheet` | All 24 declared legacy identity, statement, balance, ratio, and `pced_*` fields | Deprecated pre-XBRL category; replaced by namespace-aware financial facts and versioned summaries. |

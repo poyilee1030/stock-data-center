@@ -35,6 +35,18 @@ AUDIT_SECTION_5_STATUS = {
     "partially sourced": "partially_sourced",
 }
 
+# What an unsourced column actually holds. "Unsourced" alone does not imply NULL:
+# some columns are NOT NULL and hold a documented constant or a value derived from
+# our own observations.
+EFFECT_VALUES = {
+    "stays NULL",
+    "stores a documented constant",
+    "stores a derived value",
+    "table stays empty",
+}
+
+OBSERVED_TARGET = re.compile(r"^([a-z0-9_]+_versions)\.([a-z0-9_]+)$")
+
 
 def storage_contract() -> dict:
     return json.loads(INVENTORY_JSON.read_text())["storage_contract"]
@@ -56,27 +68,40 @@ def audit_section(number: str) -> str:
     return match.group(1)
 
 
-def audit_coverage_exceptions() -> dict[tuple[str, str], str]:
-    """`(table, column) -> status` as declared by audit section 5."""
+def audit_coverage_exceptions() -> dict[tuple[str, str], tuple[str, str]]:
+    """`(table, column) -> (status, effect)` as declared by audit section 5."""
     rows = {}
-    for line in audit_section("5").splitlines():
+    body = audit_section("5")
+    for line in body.splitlines():
         match = re.match(
-            r"\| `([a-z0-9_]+)\.([a-z0-9_]+)` \| (unsourced|partially sourced) \|",
+            r"\| `([a-z0-9_]+)\.([a-z0-9_]+)` \| (unsourced|partially sourced) \| ([^|]+?) \|",
             line.strip(),
         )
         if match:
-            table, column, status = match.groups()
-            rows[(table, column)] = AUDIT_SECTION_5_STATUS[status]
+            table, column, status, effect = match.groups()
+            rows[(table, column)] = (AUDIT_SECTION_5_STATUS[status], effect)
+    # A section parser that silently reads half the table would surface only as a
+    # confusing set inequality, so check it against the raw row count first.
+    table_rows = sum(
+        1 for line in body.splitlines() if line.strip().startswith("| `")
+    )
+    assert table_rows > 0, "audit section 5 parsed no rows"
+    assert len(rows) == table_rows, "audit section 5 has rows this parser cannot read"
     return rows
 
 
-def test_every_versions_table_is_classified_or_explicitly_excluded() -> None:
+def test_every_table_in_the_schema_is_classified_or_explicitly_excluded() -> None:
+    """The guard is total: a new table cannot slip past it unnoticed."""
     contract = storage_contract()
     covered = set(contract["tables"])
     excluded = set(contract["excluded_tables"])
 
     assert not covered & excluded
-    assert covered | excluded == schema_versions_tables()
+    assert covered | excluded == set(metadata.tables)
+    # Observed content is not confined to the *_versions shape: financial_facts and
+    # tdcc_distribution hold source values too, so the guard must not stop there.
+    assert schema_versions_tables() - excluded <= covered
+    assert covered - schema_versions_tables()
     for table, reason in contract["excluded_tables"].items():
         assert reason.strip(), table
 
@@ -98,7 +123,6 @@ def test_every_stored_column_has_a_source_coverage_entry() -> None:
 
 def test_every_coverage_entry_is_complete_and_valid() -> None:
     contract = storage_contract()
-    audit_text = AUDIT_MD.read_text()
     for table, entry in contract["tables"].items():
         assert isinstance(entry["v1"], bool), table
         assert entry["reason"].strip(), table
@@ -110,7 +134,20 @@ def test_every_coverage_entry_is_complete_and_valid() -> None:
             if coverage in {"sourced", "partially_sourced"}:
                 assert record["source_fields"], where
                 assert all(field.strip() for field in record["source_fields"]), where
-                assert record["audit_section"] in audit_text, where
+            if coverage == "unsourced":
+                assert record["effect"] in EFFECT_VALUES, where
+                if not entry["v1"]:
+                    assert record["effect"] == "table stays empty", where
+
+
+def test_a_column_that_stays_null_is_actually_nullable() -> None:
+    """"Unsourced" does not imply NULL, and the registry must not pretend it does."""
+    for table, entry in storage_contract()["tables"].items():
+        for column, record in entry["columns"].items():
+            if record.get("effect") == "stays NULL":
+                assert metadata.tables[table].columns[column].nullable, (
+                    f"{table}.{column} is NOT NULL and cannot stay NULL"
+                )
 
 
 def test_referenced_audit_sections_exist() -> None:
@@ -128,7 +165,10 @@ def test_referenced_audit_sections_exist() -> None:
 def test_unsourced_and_partial_columns_match_the_audit() -> None:
     contract = storage_contract()
     declared = {
-        (table, column): record["coverage"]
+        (table, column): (
+            record["coverage"],
+            record.get("effect", "holds the values that exist"),
+        )
         for table, entry in contract["tables"].items()
         for column, record in entry["columns"].items()
         if record["coverage"] in {"unsourced", "partially_sourced"}
@@ -214,6 +254,23 @@ def test_legacy_field_dispositions_follow_source_reality() -> None:
         for (table, field), item in fields.items():
             if table == legacy_table and item["disposition"] == "observed":
                 raise AssertionError(f"{table}.{field} is still observed")
+
+
+def test_observed_targets_exist_in_the_schema_or_name_the_pr_that_adds_them() -> None:
+    """A target column that exists nowhere must say which PR creates it."""
+    for item in json.loads(INVENTORY_JSON.read_text())["fields"]:
+        if item["disposition"] != "observed":
+            continue
+        match = OBSERVED_TARGET.match(item["target"])
+        if match is None:
+            continue
+        table, column = match.groups()
+        where = f"{item['legacy_table']}.{item['legacy_field']} -> {item['target']}"
+        assert table in metadata.tables, where
+        if column in metadata.tables[table].columns:
+            assert "planned_pr" not in item, f"{where} already exists"
+        else:
+            assert isinstance(item.get("planned_pr"), int), where
 
 
 def test_markdown_inventory_states_the_v1_exclusions_and_new_domain() -> None:

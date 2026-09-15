@@ -11,9 +11,9 @@ Schema impact: none. Migration: none. PIT impact: none. No file under `src/` or
 
 | Criterion | Result | Evidence |
 | --- | --- | --- |
-| Inventory, audit, and schema agree | PASS | `storage_contract` in `docs/data_domain_inventory.json` classifies all 154 non-structural columns of the 16 observed `*_versions` tables. `test_every_stored_column_has_a_source_coverage_entry` compares it against the live SQLAlchemy metadata; `test_unsourced_and_partial_columns_match_the_audit` compares its exception set against audit §5 row for row. |
-| The new test fails if a column is added without a source mapping | PASS | Adding `unsourced_probe_column` to `daily_price_versions` in `db/metadata.py` fails `test_every_stored_column_has_a_source_coverage_entry`; removing it restores green (run below). |
-| Unsourced-field claims corrected | PASS | stock-tag effective dates, index trade value, non-TAIEX index OHLC, order-book depth, monthly-revenue currency, and the corporate-action announcement/record/payment dates and earnings/capital-surplus split are all `unsourced` or `partially_sourced` in the registry and in audit §5. |
+| Inventory, audit, and schema agree | PASS | `storage_contract` in `docs/data_domain_inventory.json` classifies 194 non-structural columns across 24 tables and excludes the other 29 by name and reason, so all 53 tables in the metadata are accounted for. `test_every_stored_column_has_a_source_coverage_entry` compares the columns against the live SQLAlchemy metadata; `test_unsourced_and_partial_columns_match_the_audit` compares status *and* effect against audit §5 row for row. |
+| The new test fails if a column is added without a source mapping | PASS | Four fault injections, each failing the test that should catch it (runs below): an unmapped column on `daily_price_versions` and on `financial_facts`, a `stays NULL` effect on a `NOT NULL` column, and an `observed` target naming a column that exists in no migration and no planned PR. |
+| Unsourced-field claims corrected | PASS | stock-tag effective dates, index trade value, non-TAIEX index OHLC, order-book depth, monthly-revenue currency, and the corporate-action announcement/record/payment dates and earnings/capital-surplus split are all `unsourced` or `partially_sourced` in the registry and in audit §5, each with the effect it has on the stored column. |
 | Dropped sourced fields restored | PASS | The eight monthly-revenue published comparatives are `observed` against `monthly_revenue_versions.*` (PR #22 adds the columns); the TAIEX OHLC is `partially_sourced` from `MI_5MINS_HIST` instead of `unsourced`. |
 | Not-in-v1 domains marked | PASS | Stock tags, the XBRL codebook, the margin market summary, and `monthly_revenue_growth:v1` are marked **not in v1** in the inventory matrix and ROADMAP §16. |
 | New domain added | PASS | `dividend_declaration` is in the v1 storage contract matrix, naming the `dividend_declaration_versions` table PR #33 adds. |
@@ -49,10 +49,28 @@ Two gaps the audit implied but had not stated, added to §5 by this PR:
   not visible at the column level.
 
 Audit §5 was rewritten from two prose lists into one table with one row per
-`table.column` and a status of `unsourced` or `partially sourced`. No fact was
-added or removed by the restructuring itself; the row count grew from 8 grouped
+`table.column`, a status of `unsourced` or `partially sourced`, and an effect. No
+fact was removed by the restructuring itself; the row count grew from 8 grouped
 entries plus a prose sentence to 32 explicit columns, and it is now parseable,
 which is what lets the test compare it with the registry.
+
+## Unsourced does not mean NULL
+
+Both §5 and ROADMAP §2.3 said every unsourced column "stays NULL". Six of them
+are `NOT NULL`, and `monthly_revenue_versions.currency` is written today by
+shipped code (`src/stock_data_center/monthly_revenue/ingestion.py`) and is part
+of the revision-identity comparison. A PR obeying that rule literally would have
+violated a NOT NULL constraint. Each unsourced column now records its effect:
+
+| Effect | Columns |
+| --- | --- |
+| stays NULL | the depth blobs, index `trade_value`, and the five corporate-action columns |
+| stores a documented constant | `monthly_revenue_versions.currency` — the page unit 單位：千元, always TWD |
+| stores a derived value | `market_index_metadata_versions.effective_from`/`effective_to` — our own first and last observation dates |
+| table stays empty | `security_tag_versions` and `xbrl_concept_catalog_versions`, whose domains are out of v1 |
+
+`test_a_column_that_stays_null_is_actually_nullable` checks the first row against
+the live schema.
 
 ## Verification
 
@@ -60,26 +78,46 @@ Clean PostgreSQL database (`stockdc_pr14_probe`, migrated from zero to
 `7c9e2a4b6d81`):
 
 ```text
-248 passed, 3 skipped, 1 warning in 23.77s
+250 passed, 3 skipped, 1 warning in 23.79s
 ```
 
-Baseline on `main`, same database state: 183 passed. The 9 new tests are the
+Baseline on `main`, same database state: 183 passed. The 11 new tests are the
 whole difference; no existing test changed behaviour.
 
-Failing-on-purpose evidence for the acceptance criterion:
+Fault injection, all four at once:
 
 ```text
-$ # add sa.Column("unsourced_probe_column", sa.Text()) to daily_price_versions
+$ # 1. add sa.Column("probe_unmapped", sa.Text()) to financial_facts
+$ # 2. set monthly_revenue_versions.currency effect to "stays NULL"
+$ # 3. drop planned_pr from the monthly_revenue.mom_pct field
 $ pytest tests/unit/test_pr14_storage_contract_source_coverage.py -q
 FAILED ...::test_every_stored_column_has_a_source_coverage_entry
-1 failed, 8 passed
+FAILED ...::test_a_column_that_stays_null_is_actually_nullable
+FAILED ...::test_unsourced_and_partial_columns_match_the_audit
+FAILED ...::test_observed_targets_exist_in_the_schema_or_name_the_pr_that_adds_them
+4 failed, 7 passed
 ```
 
-All 9 tests were confirmed red before the documents were written (TDD):
+An earlier probe adding a column to `daily_price_versions` failed the same
+coverage test. All tests were confirmed red before the documents were written
+(TDD): the first nine as `9 failed in 0.14s`, the three added in review as
+`3 failed, 8 passed`.
 
-```text
-9 failed in 0.14s
-```
+## Review findings addressed
+
+A code review of the first push raised eight findings; all eight were confirmed
+against the schema and the shipped code, and all eight are fixed here.
+
+| # | Finding | Fix |
+| --- | --- | --- |
+| 1 | The new paragraph in `docs/schema.md` sat inside the storage-map table, so its last two rows rendered as literal pipe text | Paragraph moved below the table |
+| 2 | "Unsourced ⇒ stays NULL" is false for six `NOT NULL` columns, and `currency` is written today | Effect recorded per column, with a test that *stays NULL* implies nullable; §5 and ROADMAP §2.3 reworded |
+| 3 | The report repeated the same wrong claim | Scope-exclusions bullet corrected |
+| 4 | Eight `observed` targets name columns that exist in no migration | `planned_pr: 22` added, plus a test that every `observed` target exists or names its PR |
+| 5 | The guard covered only `*_versions`, so `financial_facts` and friends could gain unmapped columns silently | Coverage extended to every content-bearing table; every remaining table excluded by name and reason, so the guard is total |
+| 6 | The §5 section parser would silently drop rows below a future `### 5.1` | Parser asserts it read every `| \`table.column\`` row in the section |
+| 7 | `assert record["audit_section"] in audit_text` is a whole-document substring test, so "4.1" matches inside "4.10" | Removed; `test_referenced_audit_sections_exist` is the real check |
+| 8 | The inventory said last bid/ask *volume* is observed from a legacy field that does not exist | Reworded: the source publishes it, PR #17 stores it, the legacy table has no field for it |
 
 ## Known environment issue, not caused by this PR
 
@@ -93,7 +131,10 @@ local database resolves it; nothing in the migration chain needs changing.
 
 ## Scope exclusions confirmed
 
-- Unsourced columns are not dropped. They stay nullable and unpopulated.
+- Unsourced columns are not dropped. Most stay NULL; the six that are `NOT NULL`
+  hold a documented constant, a value derived from our own observations, or
+  nothing at all because their table is out of v1. Audit §5 records which, per
+  column, and a test checks that every column marked *stays NULL* is nullable.
 - No column was added to any table: the monthly-revenue comparatives are
   recorded as PR #22's schema change, not made here.
 - `dividend_declaration_versions` is documented as a planned domain; PR #33
