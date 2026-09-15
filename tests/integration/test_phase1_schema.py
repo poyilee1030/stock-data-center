@@ -633,7 +633,8 @@ def test_source_capabilities_and_lineage_are_isolated(db: Connection) -> None:
             sa.text(
                 """
                 SELECT source, supports_market_pit FROM dataset_sources
-                WHERE dataset_code = 'daily_price' ORDER BY source
+                WHERE dataset_code = 'daily_price'
+                  AND source IN ('source_a', 'source_b') ORDER BY source
                 """
             )
         ).all()

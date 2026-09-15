@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 import pytest
 
 from stock_data_center.evidence import evidence_plan
-from stock_data_center.ingestion.models import IngestPurpose
+from stock_data_center.provenance import IngestPurpose
 
 
 FIRST_SEEN = datetime(2024, 2, 5, 14, 0, tzinfo=UTC)

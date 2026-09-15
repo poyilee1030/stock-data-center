@@ -163,7 +163,10 @@ def test_real_import_framework_is_raw_first_pit_safe_and_restartable(
 
         assert first.business_versions_created == 1
         assert first.publication_evidence_created == 1
-        assert first.unknown_publication_observations == 1
+        # Step 15-c: daily_price follows exchange_daily_settled@1, so an import
+        # of history nobody captured resolves by its rule instead of staying
+        # market-invisible. Nothing is `unknown` any more.
+        assert first.unknown_publication_observations == 0
         assert fetcher.calls == 1
         with engine.connect() as connection:
             partial_manifest = DailyMarketImporter.manifest(
@@ -226,7 +229,17 @@ def test_real_import_framework_is_raw_first_pit_safe_and_restartable(
             assert system.data["volume"] == 1_666_000
             assert system.data["trade_value"] == 611_795_000
             assert system.provenance.ingested_at.date() == datetime.now(UTC).date()
-            assert market is None
+            # Step 15-c: this row used to be Market-PIT invisible, because the
+            # endpoint publishes no release instant and the import recorded
+            # `unknown`. It now resolves by exchange_daily_settled@1 — trade
+            # date 2025-09-01 at 03:00 on 09-02, Asia/Taipei.
+            assert market is not None
+            assert market.data["volume"] == 1_666_000
+            assert market.authoritative_evidence.evidence_type == "release_rule"
+            assert market.authoritative_evidence.evidence_source == "exchange_daily_settled@1"
+            assert market.authoritative_evidence.published_at == datetime(
+                2025, 9, 1, 19, 0, tzinfo=UTC
+            )
             assert connection.scalar(
                 sa.text("SELECT count(*) FROM daily_price_versions")
             ) == 1

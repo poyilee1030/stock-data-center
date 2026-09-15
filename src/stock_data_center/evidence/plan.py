@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
-from stock_data_center.ingestion.models import IngestPurpose
+from stock_data_center.provenance import IngestPurpose
 
 # ADR-0020 §1. Storage pins these for the four types, so a plan that disagrees
 # is rejected rather than silently outranking a capture.

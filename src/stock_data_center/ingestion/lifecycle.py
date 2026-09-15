@@ -30,6 +30,7 @@ from stock_data_center.db.metadata import (
 from stock_data_center.ingestion.http import HttpSourceFetcher, SourceFetcher
 from stock_data_center.ingestion.models import (
     ArtifactOrigin,
+    EvidenceContext,
     IngestPurpose,
     ImportManifestResult,
     ResourceImportResult,
@@ -264,6 +265,10 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
                     request=request,
                     parsed=parsed,
                     lineage=LineageRef(artifact_id, run_id),
+                    context=EvidenceContext(
+                        purpose=purpose,
+                        captured_at=self._captured_at(connection, artifact_id, run_id),
+                    ),
                 )
                 return self._complete_resource(
                     connection,
@@ -319,7 +324,24 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
         request: RequestT,
         parsed: ParsedT,
         lineage: LineageRef,
+        context: EvidenceContext,
     ) -> BusinessWriteResult: ...
+
+    @staticmethod
+    def _captured_at(
+        connection: Connection, artifact_id: UUID, run_id: UUID
+    ) -> datetime:
+        """When this artifact was actually fetched.
+
+        Read back rather than taken from the clock, so a resumed import records
+        the original fetch instant instead of the instant it resumed.
+        """
+        return connection.scalar(
+            sa.select(raw_artifact_observations.c.fetched_at).where(
+                raw_artifact_observations.c.raw_artifact_id == artifact_id,
+                raw_artifact_observations.c.ingest_run_id == run_id,
+            )
+        )
 
     @staticmethod
     def manifest(connection: Connection, import_id: UUID) -> ImportManifestResult:

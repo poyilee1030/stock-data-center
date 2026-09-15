@@ -10,14 +10,20 @@ from stock_data_center.evidence.plan import (
     PlannedEvidence,
     evidence_plan,
 )
+from stock_data_center.evidence.policy import (
+    EvidencePolicyService,
+    UnacceptedEvidenceTypeError,
+)
 from stock_data_center.evidence.release_rules import ReleaseRuleService
 
 __all__ = [
     "EVIDENCE_RANKS",
+    "EvidencePolicyService",
     "PlannedEvidence",
     "ReleaseRule",
     "ReleaseRuleService",
     "ResolvedReleaseInstant",
+    "UnacceptedEvidenceTypeError",
     "UnknownReleaseRuleError",
     "evidence_plan",
 ]

@@ -579,7 +579,16 @@ the row/version is market-PIT invisible by default.
 
 It may still be System-PIT visible if legitimately ingested by the system cutoff.
 
-Step 15 remains PLANNED and requires owner-approved ADR-0020 before implementation. Until it lands, adapter Steps 16–24 may proceed with `unknown` evidence; they are not blocked by the policy step. Append approved evidence later without rewriting business versions.
+ADR-0020 is approved and implemented (Steps 15-a, 15-b, 15-c). A version is market-PIT invisible only when nothing provable is available, which is now a narrower case than it used to be:
+
+```text
+capture_bound         this source saw the row first, at that instant
+legacy_capture_bound  the legacy scraper saw it first, at the end of that run
+press_report_bound    a dated secondary record proves it was public that day
+release_rule          a versioned schedule or statute says it was public by then
+```
+
+A dataset claims a type only if its `(dataset_code, source)` accepts it (ADR-0010) *and* the run's declared purpose entitles it to (ADR-0020 §5). A source that declares no release rule and captures nothing still records `unknown`, exactly as before. Adapter steps opt their own sources in with one migration; nothing is enabled by default.
 
 ---
 
@@ -593,7 +602,20 @@ published_at = NULL
 
 Never use current wall-clock time as fake historical publication metadata.
 
-ROADMAP Step 15 proposes `capture_bound`, `legacy_capture_bound`, `press_report_bound`, and `release_rule`, with per-(dataset, source) acceptance, explicit provenance, quality ordering, and versioned release rules. These proposals are not permission to enable new evidence types before ADR-0020 approval. Implement the exact approved policy and update §§31–32 in that step.
+A backfill claims only what it can prove. The declared ingest purpose decides:
+
+```text
+first_capture     may claim capture_bound, but only for a version it created
+correction_check  may claim it for a revision it newly found
+gap_fill          may not: it noticed the row was missing long after publication
+unspecified       may not
+```
+
+Seeing a row first means creating its version. A run that fetched again and found the version already there was not first, and its later instant is a looser bound that would supersede the real one.
+
+A first sighting later than the rule instant falsifies the rule for that row, which is then recorded with its capture alone. A backfill capture cannot falsify anything, because it is not a first sighting.
+
+Release rules are versioned and cite the schedule or statute they derive from; a rule with no authority is an invented instant. Correcting a rule means publishing a new version, never editing one.
 
 Real legacy first-seen records exist for monthly revenue from 2026M02 and XBRL from 2025Q4. Older synthetic deadlines and later backfill-run dates are not first-seen evidence. Reconstructed monthly-revenue announcement dates are separate from first-published values; they do not restore pre-correction values. The approved policy must document latest-corrected backfill look-ahead and keep later corrections invisible before their capture.
 
