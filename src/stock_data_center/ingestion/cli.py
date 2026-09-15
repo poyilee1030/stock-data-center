@@ -120,6 +120,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         import_id = args.import_id or uuid4()
+        calendar_runs: list = []
         if args.command == "daily-market":
             adapter = (
                 TWSEDailyMarketAdapter()
@@ -152,6 +153,7 @@ def main(argv: list[str] | None = None) -> int:
                 parser.error("--through must not be before --month")
             months = list(_months(first, last))
             base_id = import_id
+            calendar_runs = []
             for index, month in enumerate(months):
                 if index:
                     time.sleep(args.min_interval_seconds)
@@ -166,6 +168,7 @@ def main(argv: list[str] | None = None) -> int:
                     request=TradingCalendarRequest(month),
                     import_id=import_id,
                 )
+                calendar_runs.append((month, import_id, result))
         elif args.command == "security-metadata":
             adapter = (
                 TWSESecurityMetadataAdapter()
@@ -204,6 +207,18 @@ def main(argv: list[str] | None = None) -> int:
             )
         with engine.connect() as connection:
             manifest = importer.manifest(connection, import_id)
+            months_report = [
+                {
+                    "month": f"{month:%Y-%m}",
+                    "import_id": str(month_id),
+                    "status": importer.manifest(connection, month_id).status,
+                    "trading_days": month_result.normalized_rows,
+                    "created": month_result.business_versions_created,
+                    "deduplicated": month_result.business_versions_deduplicated,
+                    "resumed": month_result.resumed_from_checkpoint,
+                }
+                for month, month_id, month_result in calendar_runs
+            ]
     finally:
         engine.dispose()
 
@@ -217,6 +232,9 @@ def main(argv: list[str] | None = None) -> int:
                     "result_counts": dict(manifest.result_counts),
                     "reconciliation": dict(manifest.reconciliation),
                 },
+                # A history run reports every month it imported, not only the
+                # last: an earlier month's warnings are the point of running it.
+                **({"months": months_report} if months_report else {}),
             },
             ensure_ascii=False,
             indent=2,

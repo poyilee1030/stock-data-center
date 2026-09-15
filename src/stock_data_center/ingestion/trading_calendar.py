@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import Connection, Engine
 
@@ -27,6 +28,11 @@ from stock_data_center.market_calendar import (
     TradingCalendarWriter,
 )
 from stock_data_center.market_calendar.models import CalendarLineageRef
+
+
+# CLAUDE.md §34: the market timezone is Asia/Taipei. Whether a month is over
+# is a fact about the market, never about the host running the import.
+MARKET_TIMEZONE = ZoneInfo("Asia/Taipei")
 
 
 class TradingCalendarImporter(
@@ -149,7 +155,7 @@ class TradingCalendarImporter(
         month that has already ended may claim its whole month.
         """
         month_end = _month_end(parsed.month)
-        today = self._today or date.today()
+        today = self._today or datetime.now(MARKET_TIMEZONE).date()
         if today > month_end:
             return month_end
         # Still inside the month: claim only what the source actually showed.

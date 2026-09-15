@@ -78,7 +78,7 @@ and the declaration records the measurement behind it.
 Database migrated from zero to `1a6f3b7c8d24`:
 
 ```text
-305 passed, 3 skipped, 1 warning
+312 passed, 3 skipped, 1 warning
 ```
 
 Baseline on `main`, same database state: 300 passed after the registry and
@@ -113,6 +113,38 @@ reasons.
 new migration would break them. They now compare against the script head through
 a `conftest.alembic_head()` helper — the assertion's intent was "the blocked
 downgrade left the version untouched", not "the head is this literal".
+
+## Code-review findings
+
+A `/code-review` pass raised 12 findings. All 12 were verified against the
+running code before anything was changed; none was a false positive. Eleven are
+fixed here, one is scheduled as its own step.
+
+| # | Finding | Verified by | Disposition |
+| --- | --- | --- | --- |
+| 1 | `coverage_through` advanced the contiguity walk on month presence alone, so a partial month followed by a complete one made unpublished days answer `False` | Stored July published only through the 11th plus a complete August; `is_trading_day(2024-07-12)` returned `False` | Fixed. The walk stops at the first month that did not reach its own end. |
+| 2 | `_latest_versions` partitioned by source but filtered on market only, unioning two sources' calendars | Read | Fixed. Each call reads one source, the canonical one unless named. |
+| 3 | The observed-period query had no source predicate, so one market's rows counted as another's coverage | Read | Fixed. The declaration carries `source`, and the query filters on it. |
+| 4 | `report()` on `trading_calendar` crashed: not in `DATASET_CONTRACTS` | `get_contract('trading_calendar')` raised `UnknownDatasetError` | Fixed. The calendar is registered. |
+| 5 | Observed periods outside the expectation were filtered away instead of surfaced | Read | Fixed. `CoverageReport.unexpected` reports them, and `is_complete` accounts for them. |
+| 6 | `non_trading_days` used the caller's unclipped range while `expected` was clipped to the declared window | Read | Fixed. Both follow the window. |
+| 7 | `set(observed)` was rebuilt for every expected element | Read | Fixed. |
+| 8 | `downgrade()` dropped `trading_calendar_versions`, destroying append-only history instead of refusing | Read | Fixed. A `P0001` preflight refuses before mutating, matching the Step 12 convention, with a regression. |
+| 9 | The evidence hash includes every target column, so adding one shifts the hash for every dataset and breaks dedup | Computed `to_jsonb(row) - exclusions` in PostgreSQL; the new column is present | **Scheduled as Step 34.** Not introduced here — Step 8 did the same — and fixing it changes the hash function for every domain, so it needs its own step and regression set. |
+| 10 | A multi-month CLI run printed only the last month's manifest | Read | Fixed. The run reports every month. |
+| 11 | `date.today()` decided whether a month was over in the process timezone | CLAUDE.md §34 requires Asia/Taipei | Fixed. |
+| 12 | (grouped with 6) | | Fixed. |
+
+Finding 1 is the one that matters: the calendar was claiming closures it never
+saw, which ADR-0021 §3 exists to prevent. The original partial-month test only
+covered a partial month in *last* position, so it could not see the bug — the
+test had grown alongside the implementation and inherited its blind spot.
+`tests/integration/test_pr16_review_findings.py` keeps one regression per
+finding.
+
+Finding 3's fix surfaced something the documentation claimed and the code never
+did: TPEx datasets were documented as using the TWSE calendar, but nothing
+recorded that. The declaration now carries `calendar_market`.
 
 ## Scope exclusions confirmed
 

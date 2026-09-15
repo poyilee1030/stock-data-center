@@ -92,9 +92,11 @@ def declare_daily_price(db: Connection) -> None:
         sa.text(
             """
             INSERT INTO dataset_expected_coverage
-                (dataset_code, market, cadence, period_column, window_start, note)
-            VALUES ('daily_price', 'TWSE', 'trading_day', 'trade_date',
-                    DATE '2020-01-02', 'one whole-market file per trade date')
+                (dataset_code, market, source, calendar_market, cadence,
+                 period_column, window_start, note)
+            VALUES ('daily_price', 'TWSE', 'twse', 'TWSE', 'trading_day',
+                    'trade_date', DATE '2020-01-02',
+                    'one whole-market file per trade date')
             ON CONFLICT (dataset_code, market) DO NOTHING
             """
         )
@@ -152,6 +154,8 @@ def test_expected_coverage_is_declared_and_queryable_on_its_own(
         (row.dataset_code, row.market): row for row in EXPECTED.declarations(db)
     }
     calendar = migrated[("trading_calendar", "TWSE")]
+    assert calendar.source == "twse"
+    assert calendar.calendar_market == "TWSE"
     assert calendar.cadence == "calendar_month"
     assert calendar.period_column == "calendar_month"
     assert calendar.window_start == date(2020, 1, 1)

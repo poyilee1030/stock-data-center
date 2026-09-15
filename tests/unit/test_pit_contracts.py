@@ -19,6 +19,7 @@ EXPECTED_OBSERVED_DATASETS = {
     "official_valuation",
     "security_tag",
     "xbrl_concept_catalog",
+    "trading_calendar",
 }
 
 

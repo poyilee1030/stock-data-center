@@ -8,7 +8,6 @@ import sqlalchemy as sa
 from sqlalchemy import Connection
 
 from stock_data_center.coverage.models import CoverageReport, ExpectedCoverage
-from stock_data_center.db import metadata
 from stock_data_center.db.metadata import dataset_expected_coverage
 from stock_data_center.market_calendar import TradingCalendarService
 from stock_data_center.pit.contracts import get_contract
@@ -65,7 +64,10 @@ class ExpectedCoverageService:
             return ()
         if declaration.cadence == "trading_day":
             return self._calendar.trading_days(
-                connection, market=market, start=window_start, end=window_end
+                connection,
+                market=declaration.calendar_market,
+                start=window_start,
+                end=window_end,
             )
         if declaration.cadence == "calendar_month":
             return tuple(_months_between(window_start, window_end))
@@ -97,6 +99,10 @@ class CoverageValidator:
         declaration = self._expected.declaration(
             connection, dataset_code=dataset_code, market=market
         )
+        window_start = max(start, declaration.window_start)
+        window_end = end if declaration.window_end is None else min(
+            end, declaration.window_end
+        )
         expected = self._expected.expected_periods(
             connection, dataset_code=dataset_code, market=market, start=start, end=end
         )
@@ -104,16 +110,25 @@ class CoverageValidator:
             connection, declaration=declaration, start=start, end=end
         )
         non_trading_days: tuple[date, ...] = ()
-        if declaration.cadence == "trading_day":
+        if declaration.cadence == "trading_day" and window_start <= window_end:
+            # The closure list follows the declared window, exactly as the
+            # expectation does; dates outside it are not this dataset's
+            # closures any more than they are its gaps.
             open_days = set(
                 self._calendar.trading_days(
-                    connection, market=market, start=start, end=end
+                    connection,
+                    market=declaration.calendar_market,
+                    start=window_start,
+                    end=window_end,
                 )
             )
             non_trading_days = tuple(
-                day for day in _days_between(start, end) if day not in open_days
+                day
+                for day in _days_between(window_start, window_end)
+                if day not in open_days
             )
         expected_set = set(expected)
+        observed_set = set(observed)
         return CoverageReport(
             dataset_code=dataset_code,
             market=market,
@@ -123,7 +138,8 @@ class CoverageValidator:
             window_end=declaration.window_end,
             expected=expected,
             observed=tuple(day for day in observed if day in expected_set),
-            missing=tuple(day for day in expected if day not in set(observed)),
+            missing=tuple(day for day in expected if day not in observed_set),
+            unexpected=tuple(day for day in observed if day not in expected_set),
             non_trading_days=non_trading_days,
         )
 
@@ -135,20 +151,24 @@ class CoverageValidator:
         start: date,
         end: date,
     ) -> tuple[date, ...]:
-        """Distinct periods the dataset holds at least one row for.
+        """Distinct periods this source holds at least one row for.
+
+        Filtered by source: one market's rows are not another's coverage, and
+        several markets share a version table.
 
         Deliberately period-grained: per-security completeness would need a
         PIT-resolved universe, and asking today's universe would make an old
         report change whenever a security is added.
         """
-        table = metadata.tables[
-            get_contract(declaration.dataset_code).version_table.name
-        ]
+        table = get_contract(declaration.dataset_code).version_table
         column = table.c[declaration.period_column]
+        predicates = [column >= start, column <= end]
+        if "source" in table.c:
+            predicates.append(table.c.source == declaration.source)
+        if "market" in table.c:
+            predicates.append(table.c.market == declaration.market)
         rows = connection.execute(
-            sa.select(sa.distinct(column))
-            .where(column >= start, column <= end)
-            .order_by(column)
+            sa.select(sa.distinct(column)).where(*predicates).order_by(column)
         ).scalars()
         return tuple(rows)
 

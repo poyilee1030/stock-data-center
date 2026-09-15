@@ -688,6 +688,13 @@ dataset_expected_coverage = sa.Table(
     metadata,
     sa.Column("dataset_code", sa.String(64), nullable=False),
     sa.Column("market", sa.String(32), nullable=False),
+    # Which source history the expectation is about. Observed rows of another
+    # source never count as this one's coverage.
+    sa.Column("source", sa.String(64), nullable=False),
+    # Whose trading calendar decides the expected periods. TPEx datasets name
+    # TWSE here because no official TPEx calendar exists; `note` records the
+    # measurement behind that (ADR-0021).
+    sa.Column("calendar_market", sa.String(32), nullable=False),
     # How often the source publishes a period the dataset must hold.
     sa.Column("cadence", sa.String(32), nullable=False),
     # The version-table column holding that period's logical date.
@@ -698,7 +705,9 @@ dataset_expected_coverage = sa.Table(
     sa.Column("note", sa.Text(), nullable=False, server_default=sa.text("''")),
     sa.PrimaryKeyConstraint("dataset_code", "market"),
     sa.ForeignKeyConstraint(
-        ["dataset_code"], ["dataset_catalog.dataset_code"], ondelete="RESTRICT"
+        ["dataset_code", "source"],
+        ["dataset_sources.dataset_code", "dataset_sources.source"],
+        ondelete="RESTRICT",
     ),
     sa.CheckConstraint(
         "cadence IN ('trading_day', 'calendar_month')", name="cadence_value"

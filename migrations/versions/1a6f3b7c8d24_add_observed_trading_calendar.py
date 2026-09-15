@@ -337,15 +337,17 @@ def upgrade() -> None:
         "dataset_expected_coverage",
         sa.Column("dataset_code", sa.String(length=64), nullable=False),
         sa.Column("market", sa.String(length=32), nullable=False),
+        sa.Column("source", sa.String(length=64), nullable=False),
+        sa.Column("calendar_market", sa.String(length=32), nullable=False),
         sa.Column("cadence", sa.String(length=32), nullable=False),
         sa.Column("period_column", sa.String(length=64), nullable=False),
         sa.Column("window_start", sa.Date(), nullable=False),
         sa.Column("window_end", sa.Date(), nullable=True),
         sa.Column("note", sa.Text(), server_default=sa.text("''"), nullable=False),
         sa.ForeignKeyConstraint(
-            ["dataset_code"],
-            ["dataset_catalog.dataset_code"],
-            name=op.f("fk_dataset_expected_coverage_dataset_code_dataset_catalog"),
+            ["dataset_code", "source"],
+            ["dataset_sources.dataset_code", "dataset_sources.source"],
+            name=op.f("fk_dataset_expected_coverage_dataset_code_dataset_sources"),
             ondelete="RESTRICT",
         ),
         sa.PrimaryKeyConstraint(
@@ -391,9 +393,10 @@ def upgrade() -> None:
         sa.text(
             """
             INSERT INTO dataset_expected_coverage
-                (dataset_code, market, cadence, period_column, window_start, note)
-            VALUES ('trading_calendar', 'TWSE', 'calendar_month', 'calendar_month',
-                    DATE '2020-01-01',
+                (dataset_code, market, source, calendar_market, cadence,
+                 period_column, window_start, note)
+            VALUES ('trading_calendar', 'TWSE', 'twse', 'TWSE', 'calendar_month',
+                    'calendar_month', DATE '2020-01-01',
                     'TWSE FMTQIK publishes one report per calendar month (audit 4.12).')
             ON CONFLICT (dataset_code, market) DO NOTHING
             """
@@ -401,8 +404,31 @@ def upgrade() -> None:
     )
 
 
+GUARD_DOWNGRADE = r"""
+DO $$
+DECLARE stored_months bigint;
+BEGIN
+    SELECT count(*) INTO stored_months FROM trading_calendar_versions;
+    IF stored_months > 0 THEN
+        RAISE EXCEPTION USING
+            ERRCODE = 'P0001',
+            MESSAGE = 'cannot downgrade away imported trading-calendar history',
+            DETAIL = format(
+                '%s append-only trading-calendar month(s) would be destroyed by revision 7c9e2a4b6d81',
+                stored_months
+            ),
+            HINT = 'Keep revision 1a6f3b7c8d24 or newer; do not delete calendar history to force this downgrade.';
+    END IF;
+END;
+$$;
+"""
+
+
 def downgrade() -> None:
-    # The declarations reference dataset_catalog, so they go before its rows.
+    # Observed history is append-only. Dropping the table would erase it
+    # silently, so the downgrade refuses before it mutates anything.
+    op.execute(GUARD_DOWNGRADE)
+    # The declarations reference dataset_sources, so they go before its rows.
     op.drop_table("dataset_expected_coverage")
     op.execute(
         "DELETE FROM dataset_sources WHERE dataset_code = 'trading_calendar'"

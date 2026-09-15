@@ -155,6 +155,13 @@ DATASET_CONTRACTS: dict[str, DatasetContract] = {
             "xbrl_concept_catalog_version_id",
             "concept_qname",
         ),
+        _single(
+            "trading_calendar",
+            "trading_calendar_versions",
+            "trading_calendar_version_id",
+            "market",
+            "calendar_month",
+        ),
     )
 }
 

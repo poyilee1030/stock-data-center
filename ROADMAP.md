@@ -608,6 +608,7 @@ Status date: 2026-09-15.
 | 31 | PLANNED | Full correctness CI gate |
 | 32 | PLANNED | `my_stock_project` cutover and v1 release |
 | 33 | PLANNED | Issuer dividend declarations (MOPS OpenAPI), stored as their own domain |
+| 34 | PLANNED | Stable publication-evidence hash across added evidence targets |
 
 Steps 1–12 established the storage, PIT, and raw-first foundations. Their writer contracts include some columns that no source populates (§2.3). Those columns stay nullable and unpopulated. They are not dropped, because dropping them brings no correctness gain.
 
@@ -1090,6 +1091,18 @@ Acceptance: reconciliation to legacy tables. Intentional differences caused by P
 Out of scope: composite pressure scores (downstream); adjusted-price variants of the indicators (a later derivation version).
 
 ---
+
+## Step 34 — Stable Publication-Evidence Hash
+
+Status: **PLANNED**. Depends on: none.
+
+Problem, found by the Step 16 review. `publication_evidence_hash` is computed as `to_jsonb(NEW)` minus a fixed exclusion list, so it includes every evidence-target column, including the ones that are NULL for this dataset. Adding a seventeenth target in Step 16 therefore changed the hash **every dataset** computes, and the same happened when Step 8 added `market_index_metadata_version_id`.
+
+The consequence is not corrupted data — evidence is append-only and resolution ranks by quality and `recorded_at`, not by hash. It is lost deduplication: after such a migration, re-ingesting identical evidence no longer matches the stored row through `ON CONFLICT (publication_evidence_hash)`, and appends a duplicate instead.
+
+Likely fix: hash `jsonb_strip_nulls(to_jsonb(NEW) - ...)`, so an added nullable target cannot move an unrelated dataset's hash. That changes the hash function for every domain at once and needs its own regression set, which is why it is its own step rather than a patch inside Step 16.
+
+Out of scope: rewriting stored hashes. Existing rows keep theirs; the fix stabilizes future computation.
 
 ## Step 33 — Issuer Dividend Declarations
 

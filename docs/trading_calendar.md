@@ -55,7 +55,14 @@ Every call answers only inside imported, **contiguous** coverage; outside it the
 service raises `CalendarCoverageError`. A missing month is indistinguishable
 from a month of closures, so returning `False` would quietly turn "we never
 imported August" into "the market never opened in August". A gap between
-imported months stops coverage at the gap for the same reason.
+imported months stops coverage at the gap for the same reason, and so does a
+**partial month**: a month published only through the 11th bounds the calendar
+there even when later months are already imported, because the days between were
+never published.
+
+Each call reads one source — the canonical one unless `source=` names another.
+Two sources' calendars are never unioned; they are independent source histories,
+exactly as every other domain treats them.
 
 `next_trading_day_on_or_after` is what ADR-0020's release rules call: every rule
 instant is at least the statutory deadline moved to the next business day.
@@ -67,13 +74,19 @@ That knowledge is a row, not logic inside a report, because Step 27 turns it int
 fetch jobs:
 
 ```text
-dataset_expected_coverage(dataset_code, market, cadence, period_column,
-                          window_start, window_end, note)
+dataset_expected_coverage(dataset_code, market, source, calendar_market,
+                          cadence, period_column, window_start, window_end, note)
 ```
 
-`cadence` is `trading_day` or `calendar_month`. Each adapter step declares its own
-coverage next to the adapter that fills it; Step 16 declares only the calendar it
-owns, and an undeclared dataset is an error rather than an empty expectation.
+`cadence` is `trading_day` or `calendar_month`. `source` is the source history
+the expectation is about, so one market's rows never count as another's coverage
+when both share a version table. `calendar_market` is whose calendar decides the
+expected periods: TPEx datasets name `TWSE` there, because no official TPEx
+calendar exists, and `note` carries the measurement behind that.
+
+Each adapter step declares its own coverage next to the adapter that fills it;
+Step 16 declares only the calendar it owns, and an undeclared dataset is an error
+rather than an empty expectation.
 
 ```python
 ExpectedCoverageService().expected_periods(
@@ -91,12 +104,15 @@ CoverageValidator().report(
 
 - `expected` — the periods the declaration implies, with closures already
   excluded;
-- `observed` — the periods the dataset actually holds a row for;
+- `observed` — the expected periods the dataset actually holds a row for;
 - `missing` — expected minus observed, the genuine gap;
-- `non_trading_days` — days in the range the market never opened.
+- `unexpected` — periods the dataset holds but the declaration never expected, a
+  price row on a day the market never opened, say;
+- `non_trading_days` — days in the declared window the market never opened.
 
 `missing` and `non_trading_days` can never overlap: a closure is never expected,
-so it can never be reported as a gap.
+so it can never be reported as a gap. An `unexpected` period is surfaced rather
+than filtered away — dropping it would hide the anomaly it is.
 
 The report is **period-grained on purpose**. Whether a date is covered must not
 depend on the security universe as it looks today — otherwise an old report

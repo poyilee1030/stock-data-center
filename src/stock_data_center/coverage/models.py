@@ -16,6 +16,8 @@ class ExpectedCoverage:
 
     dataset_code: str
     market: str
+    source: str
+    calendar_market: str
     cadence: str
     period_column: str
     window_start: date
@@ -40,8 +42,12 @@ class CoverageReport:
     expected: tuple[date, ...]
     observed: tuple[date, ...]
     missing: tuple[date, ...]
+    # Periods the dataset holds but the declaration never expected — a price
+    # row on a day the market never opened, say. Surfaced rather than filtered
+    # away, because silently dropping it hides the anomaly it is.
+    unexpected: tuple[date, ...]
     non_trading_days: tuple[date, ...]
 
     @property
     def is_complete(self) -> bool:
-        return not self.missing
+        return not self.missing and not self.unexpected
