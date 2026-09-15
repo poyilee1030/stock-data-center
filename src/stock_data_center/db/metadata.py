@@ -32,6 +32,34 @@ dataset_catalog = sa.Table(
     ),
 )
 
+release_rules = sa.Table(
+    "release_rules",
+    metadata,
+    sa.Column("rule_id", sa.String(64), primary_key=True),
+    sa.Column("version", sa.SmallInteger(), primary_key=True),
+    sa.Column("rule_kind", sa.String(32), nullable=False),
+    sa.Column("parameters", jsonb_type, nullable=False),
+    sa.Column("timezone", sa.String(64), nullable=False),
+    # A statutory deadline moves off a closure; a scheduled instant does not.
+    # ADR-0020 §3, as corrected in Step 15-b.
+    sa.Column("business_day_shift", sa.Boolean(), nullable=False),
+    # The published schedule or statute the rule derives from. A rule without a
+    # cited authority is an invented instant, which ROADMAP forbids.
+    sa.Column("authority", sa.Text(), nullable=False),
+    sa.CheckConstraint(
+        "rule_kind IN ('day_of_next_month', 'quarter_deadline', "
+        "'next_calendar_day_time', 'weekday_after_time')",
+        name="rule_kind_value",
+    ),
+    sa.CheckConstraint("version > 0", name="version_positive"),
+    sa.CheckConstraint(
+        "rule_kind <> 'day_of_next_month' OR "
+        "((parameters->>'day')::int BETWEEN 1 AND 28)",
+        name="day_of_month_representable",
+    ),
+    sa.CheckConstraint("btrim(authority) <> ''", name="authority_nonempty"),
+)
+
 evidence_types = sa.Table(
     "evidence_types",
     metadata,

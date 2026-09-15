@@ -589,8 +589,9 @@ Status date: 2026-09-15.
 | 12 | MERGED | Hardened Taiwan corporate-action contract |
 | 13 | MERGED | Source-reality rebuild of this roadmap, `CLAUDE.md` (then named `AGENTS.md`), and `docs/source_field_audit.md` |
 | 14 | MERGED | Source-reality alignment of inventory and storage contract |
-| 15-a | THIS STEP | Availability-time evidence vocabulary and ingest purpose |
-| 15-b | PLANNED | Release-rule evaluation and purpose-derived evidence |
+| 15-a | MERGED | Availability-time evidence vocabulary and ingest purpose |
+| 15-b | THIS STEP | Release-rule registry and evaluation |
+| 15-c | PLANNED | Applying the evidence policy to the adapters |
 | 16 | MERGED | Trading calendar and coverage validator |
 | 17 | PLANNED | Whole-market daily prices |
 | 18 | PLANNED | Market indices and official valuation |
@@ -702,8 +703,9 @@ ADR-0020 is approved (owner, 2026-09-15) and fixes the policy below. Depends on:
 
 Split for review (CLAUDE.md §1):
 
-- **Step 15-a — THIS STEP.** The vocabulary and its provenance: the `evidence_types` registry with ADR-0020's ranking enforced in storage, `ingest_runs.purpose`, and `raw_artifact_observations.artifact_origin`. Correct on its own — the vocabulary exists and is enforced, and adapters still emit `unknown` evidence.
-- **Step 15-b — PLANNED.** The release-rule registry and its evaluation against the Step 16 calendar, the purpose-to-evidence derivation, the write-side falsification rule, and the CLAUDE.md §31–32 rewrite. A versioned rule with no evaluator is a promise rather than a fact, so the registry ships with the code that reads it.
+- **Step 15-a — MERGED.** The vocabulary and its provenance: the `evidence_types` registry with ADR-0020's ranking enforced in storage, `ingest_runs.purpose`, and `raw_artifact_observations.artifact_origin`. Correct on its own — the vocabulary exists and is enforced, and adapters still emit `unknown` evidence.
+- **Step 15-b — THIS STEP.** The release-rule registry and its evaluation against the Step 16 calendar, plus `evidence_plan`, the pure decision of what a run's declared purpose entitles it to claim. A versioned rule with no evaluator is a promise rather than a fact, so the registry ships with the code that reads it. Correct on its own: the rules resolve and the policy computes, and no adapter's behaviour changes.
+- **Step 15-c — PLANNED.** Applying it: the lifecycle writes the planned evidence, each source opts into the new types through `accepted_evidence_types`, per-dataset reconciliation records what changed, and CLAUDE.md §31–32 are rewritten. That rewrite belongs here because §31–32 describe behaviour, and the behaviour changes only when the adapters do.
 
 Problem: No source provides a per-row publication instant (§2.2, fact 1). Under official-only evidence, imported history is Market-PIT invisible, and System PIT starts at import time (§7.3). Neither can answer the consumers' question ("what was knowable on date D?").
 
