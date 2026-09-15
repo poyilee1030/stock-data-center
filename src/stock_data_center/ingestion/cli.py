@@ -27,6 +27,7 @@ from stock_data_center.ingestion.adapters import (
 from stock_data_center.ingestion.daily_market import DailyMarketImporter
 from stock_data_center.ingestion.models import (
     DailyMarketRequest,
+    IngestPurpose,
     SecurityLifecycleRequest,
     SecurityMetadataRequest,
     TradingCalendarRequest,
@@ -50,6 +51,13 @@ def _months(first: date, last: date):
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="stock-data-center-ingest")
     parser.add_argument("--database-url", default=os.getenv("DATABASE_URL"))
+    parser.add_argument(
+        "--purpose",
+        choices=[purpose.value for purpose in IngestPurpose],
+        default=IngestPurpose.FIRST_CAPTURE.value,
+        help="why this fetch was requested (ADR-0020); only a first capture "
+        "may later claim capture-bound evidence",
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
     daily = subparsers.add_parser("daily-market")
     daily.add_argument("--source", choices=("twse", "tpex"), required=True)
@@ -137,6 +145,7 @@ def main(argv: list[str] | None = None) -> int:
                     args.security_code, date.fromisoformat(f"{args.month}-01")
                 ),
                 import_id=import_id,
+                purpose=IngestPurpose(args.purpose),
             )
         elif args.command == "trading-calendar":
             importer = TradingCalendarImporter(
@@ -167,6 +176,7 @@ def main(argv: list[str] | None = None) -> int:
                     adapter=TWSETradingCalendarAdapter(),
                     request=TradingCalendarRequest(month),
                     import_id=import_id,
+                    purpose=IngestPurpose(args.purpose),
                 )
                 calendar_runs.append((month, import_id, result))
         elif args.command == "security-metadata":
@@ -183,6 +193,7 @@ def main(argv: list[str] | None = None) -> int:
                 adapter=adapter,
                 request=SecurityMetadataRequest(args.expected_report_date),
                 import_id=import_id,
+                purpose=IngestPurpose(args.purpose),
             )
         else:
             adapters = {
@@ -204,6 +215,7 @@ def main(argv: list[str] | None = None) -> int:
                 adapter=adapter,
                 request=SecurityLifecycleRequest(args.year),
                 import_id=import_id,
+                purpose=IngestPurpose(args.purpose),
             )
         with engine.connect() as connection:
             manifest = importer.manifest(connection, import_id)

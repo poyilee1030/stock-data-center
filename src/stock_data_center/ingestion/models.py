@@ -14,6 +14,28 @@ from stock_data_center.market_data import (
 )
 
 
+class IngestPurpose(str, Enum):
+    """Why a fetch was requested (ADR-0020 §5).
+
+    Declared when the fetch is requested, never inferred afterwards: a row
+    fetched years later because a query noticed it was missing must not be able
+    to claim a capture bound at that later instant.
+    """
+
+    FIRST_CAPTURE = "first_capture"
+    GAP_FILL = "gap_fill"
+    CORRECTION_CHECK = "correction_check"
+    # Runs that predate the policy, and any run that declines to declare.
+    UNSPECIFIED = "unspecified"
+
+
+class ArtifactOrigin(str, Enum):
+    """How the bytes were obtained (ROADMAP §14)."""
+
+    OFFICIAL_FETCH = "official_fetch"
+    LEGACY_ARCHIVE = "legacy_archive"
+
+
 class SourceQuantityUnit(str, Enum):
     SHARE = "share"
     LOT_1000_SHARES = "lot_1000_shares"
