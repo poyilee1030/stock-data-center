@@ -225,7 +225,9 @@ archive has 45,324 files).
 - Portal `smWeb/qryStock`: per security, in a different format. On 2026-09-14
   its selector offered 51 dates, 2025-09-19 → 2026-09-11.
 - Everything earlier exists only in archives. There are two, and they are
-  complementary.
+  complementary. Both live under `~/GitHubLL/my_stock_project/data/raw`
+  (ROADMAP §14); `stock-data-center/data/raw` holds no source archive, only the
+  content-addressed artifact store.
 
 #### The two archives
 
@@ -233,8 +235,8 @@ Surveyed 2026-09-15 by decompressing and parsing every file.
 
 | Archive | Files | Weeks | Range |
 | --- | --- | --- | --- |
-| `stock-data-center/data/raw/TDCC` | 422 (`.csv`, `.zip`, `.7z`) | 371 | 2019-06-28 → 2026-09-11 |
-| legacy `my_stock_project/data/raw/shareholding` | 340 `.csv` | 340 | 2020-01-03 → 2026-09-11 |
+| `my_stock_project/data/raw/TDCC` | 422 (`.csv`, `.zip`, `.7z`) | 371 | 2019-06-28 → 2026-09-11 |
+| `my_stock_project/data/raw/shareholding` | 340 `.csv` | 340 | 2020-01-03 → 2026-09-11 |
 | union | | **375** | 2019-06-28 → 2026-09-11 |
 
 Of the union, 348 weeks fall inside the v1 window from 2020-01-02.
@@ -260,7 +262,7 @@ Four weeks exist **only** in the legacy archive and must be taken from it:
   because OpenData serves the latest published week and the next one was not out
   yet. Both payloads are byte-identical to `2020/20200612.csv`
   (md5 `494878fb2d7abc0ad194d4ab45dc3815`), so they held nothing new; they were
-  moved to `data/raw/TDCC/_quarantine/` on 2026-09-15 with a note, and the
+  moved to `TDCC/_quarantine/` on 2026-09-15 with a note, and the
   archive now has 422 files, 371 content dates and zero name/content
   mismatches. There is no 2020-06-19 TDCC week at all — that week's data date is
   2020-06-20, held only by the legacy archive.

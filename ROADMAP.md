@@ -414,10 +414,16 @@ archives, the legacy XBRL documents, and the legacy monthly-revenue
 `revswarm` announcement dates written back into it. `revswarm.db` itself is not
 a dependency; its result is in the CSV.
 
-By owner decision these stay under `~/GitHubLL/my_stock_project/data/raw` for
-now, and only the TDCC archive has been copied into this repository. PR #32
-must not declare cutover complete while a v1 rebuild still depends on a path
-outside this repository.
+By owner decision all of them stay under `~/GitHubLL/my_stock_project/data/raw`
+for now, the TDCC archive included. PR #32 must not declare cutover complete
+while a v1 rebuild still depends on a path outside this repository.
+
+`stock-data-center/data/raw` is therefore the content-addressed artifact store
+and nothing else. Keeping source archives out of it matters beyond tidiness:
+`LocalRawArtifactStore.read` validates a `storage_uri` only by checking that it
+resolves under the store root, so an archive nested inside that root would let
+a `storage_uri` pointing straight at an archive file pass the integrity check.
+With the archives outside, that is structurally impossible.
 ```
 
 ---
@@ -939,8 +945,8 @@ Source contract (audit §4.9):
 
 - OpenData `id=1-5` weekly, from the first forward capture onward
 - `legacy_archive` artifacts up to the first forward capture, from two complementary archives whose union is 375 weeks, 2019-06-28 to 2026-09-11, of which 348 fall inside the v1 window:
-  - `stock-data-center/data/raw/TDCC` — 424 files, 371 weeks
-  - legacy `my_stock_project/data/raw/shareholding` — 340 files, and the only source of 2020-06-20, 2020-09-25, 2021-02-19 and 2022-11-04
+  - `my_stock_project/data/raw/TDCC` — 422 files, 371 weeks
+  - `my_stock_project/data/raw/shareholding` — 340 files, and the only source of 2020-06-20, 2020-09-25, 2021-02-19 and 2022-11-04
 - both archives carry the same six-column OpenData header, so one parser handles all of them
 - the portal per-security query only for repairs inside its roughly one-year window
 
@@ -953,7 +959,7 @@ Acceptance:
 - all 375 union weeks import, each keyed by its content date
 - a file whose name disagrees with its content date is rejected with that fact named, not silently renamed
 - every remaining interval of 10 or more days resolves to a Lunar New Year closure; any other gap fails the import
-- 2026-07-09 imports as the complete 4,003-security file from `data/raw/TDCC`, not as the legacy 1,849-security reconstruction
+- 2026-07-09 imports as the complete 4,003-security file from the `TDCC` archive, not as the 1,849-security reconstruction in `shareholding`
 - legacy `shareholding` reconciles on the 340 weeks it holds
 
 ---
@@ -1237,7 +1243,9 @@ stock-data-center/
 ├── alembic.ini
 ├── migrations/
 ├── data/
-│   └── raw/
+│   └── raw/                    content-addressed artifact store only
+│       └── <ab>/<sha256>       written by LocalRawArtifactStore; no source
+│                               archive and no processed/ staging layer
 ├── docs/
 │   ├── source_field_audit.md
 │   ├── data_domain_inventory.md
