@@ -386,7 +386,7 @@ def upgrade() -> None:
         )
     )
     # Each adapter PR declares its own expected coverage next to the adapter
-    # that fills it; PR #16 declares only the calendar it owns.
+    # that fills it; Step 16 declares only the calendar it owns.
     op.execute(
         sa.text(
             """

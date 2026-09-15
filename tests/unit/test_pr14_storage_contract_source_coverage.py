@@ -1,4 +1,4 @@
-"""PR #14 — every stored column maps to audited source reality.
+"""Step 14 — every stored column maps to audited source reality.
 
 The storage contract, the source field audit, and the live schema must agree.
 A column added to an observed `*_versions` table without a source mapping fails
@@ -177,7 +177,7 @@ def test_unsourced_and_partial_columns_match_the_audit() -> None:
 
 
 def test_scope_corrections_of_pr_14() -> None:
-    """The specific claims ROADMAP PR #14 exists to correct."""
+    """The specific claims ROADMAP Step 14 exists to correct."""
     tables = storage_contract()["tables"]
 
     daily = tables["daily_price_versions"]["columns"]

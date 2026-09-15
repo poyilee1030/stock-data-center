@@ -71,11 +71,11 @@ evidence, and parser coordinates remain raw-artifact-only.
 
 MoM, YoY, cumulative revenue, cumulative YoY, the two comparative revenue
 figures, and 備註 are published in the same MOPS row as 當月營收 and are read by
-legacy consumers (audit §4.7, §6). PR #22 therefore stores them as observed
+legacy consumers (audit §4.7, §6). Step 22 therefore stores them as observed
 published comparatives, kept exactly as published and never reconciled against
 our own series; the 2026M06/M07 pair, where 11 of 1,846 companies disagree, is
 the regression fixture (audit §7.3). The virtual canonical-derived contract
 `monthly_revenue_growth:v1` that would have recomputed them, and whose
 calculator and PIT-safe input lineage would have belonged to Phase 10, leaves v1
-with that decision (ROADMAP §16, PR #22). Until PR #22 lands,
+with that decision (ROADMAP §16, Step 22). Until Step 22 lands,
 `monthly_revenue_versions` still stores `revenue` and `currency` only.

@@ -1,4 +1,4 @@
-# PR #14 Acceptance Report
+# Step 14 Acceptance Report
 
 Status: IN REVIEW
 
@@ -14,9 +14,9 @@ Schema impact: none. Migration: none. PIT impact: none. No file under `src/` or
 | Inventory, audit, and schema agree | PASS | `storage_contract` in `docs/data_domain_inventory.json` classifies 194 non-structural columns across 24 tables and excludes the other 29 by name and reason, so all 53 tables in the metadata are accounted for. `test_every_stored_column_has_a_source_coverage_entry` compares the columns against the live SQLAlchemy metadata; `test_unsourced_and_partial_columns_match_the_audit` compares status *and* effect against audit §5 row for row. |
 | The new test fails if a column is added without a source mapping | PASS | Four fault injections, each failing the test that should catch it (runs below): an unmapped column on `daily_price_versions` and on `financial_facts`, a `stays NULL` effect on a `NOT NULL` column, and an `observed` target naming a column that exists in no migration and no planned PR. |
 | Unsourced-field claims corrected | PASS | stock-tag effective dates, index trade value, non-TAIEX index OHLC, order-book depth, monthly-revenue currency, and the corporate-action announcement/record/payment dates and earnings/capital-surplus split are all `unsourced` or `partially_sourced` in the registry and in audit §5, each with the effect it has on the stored column. |
-| Dropped sourced fields restored | PASS | The eight monthly-revenue published comparatives are `observed` against `monthly_revenue_versions.*` (PR #22 adds the columns); the TAIEX OHLC is `partially_sourced` from `MI_5MINS_HIST` instead of `unsourced`. |
+| Dropped sourced fields restored | PASS | The eight monthly-revenue published comparatives are `observed` against `monthly_revenue_versions.*` (Step 22 adds the columns); the TAIEX OHLC is `partially_sourced` from `MI_5MINS_HIST` instead of `unsourced`. |
 | Not-in-v1 domains marked | PASS | Stock tags, the XBRL codebook, the margin market summary, and `monthly_revenue_growth:v1` are marked **not in v1** in the inventory matrix and ROADMAP §16. |
-| New domain added | PASS | `dividend_declaration` is in the v1 storage contract matrix, naming the `dividend_declaration_versions` table PR #33 adds. |
+| New domain added | PASS | `dividend_declaration` is in the v1 storage contract matrix, naming the `dividend_declaration_versions` table Step 33 adds. |
 
 ## What changed in the two documents
 
@@ -34,9 +34,9 @@ Corrections where it dropped sourced fields consumers read:
 
 | Legacy field | Was | Now |
 | --- | --- | --- |
-| `revenue_last_month`, `revenue_last_year`, `mom_pct`, `yoy_pct`, `revenue_cumulative`, `revenue_cumulative_last_year`, `cumulative_yoy_pct` | canonical derived (`monthly_revenue_growth:v1`) | observed `monthly_revenue_versions.*` (PR #22) |
-| `comment` (備註) | raw-artifact-only | observed `monthly_revenue_versions.note` (PR #22) |
-| TAIEX `open_value`/`high_value`/`low_value` | unsourced (audit §5) | partially sourced, `MI_5MINS_HIST` (PR #18) |
+| `revenue_last_month`, `revenue_last_year`, `mom_pct`, `yoy_pct`, `revenue_cumulative`, `revenue_cumulative_last_year`, `cumulative_yoy_pct` | canonical derived (`monthly_revenue_growth:v1`) | observed `monthly_revenue_versions.*` (Step 22) |
+| `comment` (備註) | raw-artifact-only | observed `monthly_revenue_versions.note` (Step 22) |
+| TAIEX `open_value`/`high_value`/`low_value` | unsourced (audit §5) | partially sourced, `MI_5MINS_HIST` (Step 18) |
 
 Two gaps the audit implied but had not stated, added to §5 by this PR:
 
@@ -117,7 +117,7 @@ against the schema and the shipped code, and all eight are fixed here.
 | 5 | The guard covered only `*_versions`, so `financial_facts` and friends could gain unmapped columns silently | Coverage extended to every content-bearing table; every remaining table excluded by name and reason, so the guard is total |
 | 6 | The §5 section parser would silently drop rows below a future `### 5.1` | Parser asserts it read every `| \`table.column\`` row in the section |
 | 7 | `assert record["audit_section"] in audit_text` is a whole-document substring test, so "4.1" matches inside "4.10" | Removed; `test_referenced_audit_sections_exist` is the real check |
-| 8 | The inventory said last bid/ask *volume* is observed from a legacy field that does not exist | Reworded: the source publishes it, PR #17 stores it, the legacy table has no field for it |
+| 8 | The inventory said last bid/ask *volume* is observed from a legacy field that does not exist | Reworded: the source publishes it, Step 17 stores it, the legacy table has no field for it |
 
 ## Known environment issue, not caused by this PR
 
@@ -136,6 +136,6 @@ local database resolves it; nothing in the migration chain needs changing.
   nothing at all because their table is out of v1. Audit §5 records which, per
   column, and a test checks that every column marked *stays NULL* is nullable.
 - No column was added to any table: the monthly-revenue comparatives are
-  recorded as PR #22's schema change, not made here.
-- `dividend_declaration_versions` is documented as a planned domain; PR #33
+  recorded as Step 22's schema change, not made here.
+- `dividend_declaration_versions` is documented as a planned domain; Step 33
   creates the table.

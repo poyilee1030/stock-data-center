@@ -18,7 +18,7 @@ There is **no TPEx equivalent**, so no TPEx row is ever written. That is not a
 guess about TPEx: measured on 2026-09-15 against the legacy archive, TWSE and
 TPEx opened on exactly the same 1,627 dates from 2020-01-02 to 2026-09-11, with
 zero differences either way. TPEx datasets therefore declare the TWSE calendar
-as their expectation, and the declaration records why (ROADMAP §22, PR #16). If
+as their expectation, and the declaration records why (ROADMAP §22, Step 16). If
 an official TPEx calendar source is ever found, it becomes a second source and
 the equivalence stops being an assumption.
 
@@ -63,7 +63,7 @@ instant is at least the statutory deadline moved to the next business day.
 ## Expected coverage
 
 The validator cannot report a gap until it knows what a dataset *should* hold.
-That knowledge is a row, not logic inside a report, because PR #27 turns it into
+That knowledge is a row, not logic inside a report, because Step 27 turns it into
 fetch jobs:
 
 ```text
@@ -71,8 +71,8 @@ dataset_expected_coverage(dataset_code, market, cadence, period_column,
                           window_start, window_end, note)
 ```
 
-`cadence` is `trading_day` or `calendar_month`. Each adapter PR declares its own
-coverage next to the adapter that fills it; PR #16 declares only the calendar it
+`cadence` is `trading_day` or `calendar_month`. Each adapter step declares its own
+coverage next to the adapter that fills it; Step 16 declares only the calendar it
 owns, and an undeclared dataset is an error rather than an empty expectation.
 
 ```python

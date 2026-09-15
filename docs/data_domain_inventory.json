@@ -18,7 +18,7 @@
     "phase7_stock_quantity": "canonical shares; explicit source lots multiply by 1000 before observation, storage, and hashing"
   },
   "storage_contract": {
-    "description": "Per-column source coverage of every observed *_versions table, aligned with docs/source_field_audit.md. ROADMAP PR #14.",
+    "description": "Per-column source coverage of every observed *_versions table, aligned with docs/source_field_audit.md. ROADMAP step 14.",
     "coverage_terms": {
       "sourced": "an inspected official endpoint publishes the value for the whole v1 window and both markets",
       "partially_sourced": "published for only some dates, markets, or securities; audit section 5 lists every one",
@@ -38,7 +38,7 @@
     "excluded_tables": {
       "corporate_action_version_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field.",
       "dataset_catalog": "Dataset policy registry, declared by us.",
-      "dataset_expected_coverage": "Declared expectation of what each dataset should hold, per market and cadence (ROADMAP 22, PR #16). It is our own declaration, not source content.",
+      "dataset_expected_coverage": "Declared expectation of what each dataset should hold, per market and cadence (ROADMAP 22, step 16). It is our own declaration, not source content.",
       "dataset_sources": "Per-source capability policy (ADR-0004), declared by us.",
       "derived_computation_runs": "Derived computation provenance, declared by us.",
       "derived_dataset_definitions": "Canonical derived dataset contract (ROADMAP 17), declared by us.",
@@ -124,7 +124,7 @@
             "coverage": "unsourced",
             "audit_section": "4.10",
             "effect": "stays NULL",
-            "note": "No exchange result feed carries an announcement date. The issuer declaration feeds that do carry board-resolution dates have no link to an executed event (PR #33, audit 4.13)."
+            "note": "No exchange result feed carries an announcement date. The issuer declaration feeds that do carry board-resolution dates have no link to an executed event (step 33, audit 4.13)."
           },
           "ex_date": {
             "coverage": "sourced",
@@ -169,13 +169,13 @@
             "coverage": "unsourced",
             "audit_section": "4.10",
             "effect": "stays NULL",
-            "note": "The exchange feeds publish only the combined free-share figure. The earnings / capital-surplus split exists only in the MOPS issuer declaration feed, stored as its own domain by PR #33 (audit 4.13)."
+            "note": "The exchange feeds publish only the combined free-share figure. The earnings / capital-surplus split exists only in the MOPS issuer declaration feed, stored as its own domain by step 33 (audit 4.13)."
           },
           "capital_surplus_stock_ratio": {
             "coverage": "unsourced",
             "audit_section": "4.10",
             "effect": "stays NULL",
-            "note": "The exchange feeds publish only the combined free-share figure. The split exists only in the MOPS issuer declaration feed (PR #33), and before ROC 110 the two reserves arrive as one number (audit 4.13)."
+            "note": "The exchange feeds publish only the combined free-share figure. The split exists only in the MOPS issuer declaration feed (step 33), and before ROC 110 the two reserves arrive as one number (audit 4.13)."
           },
           "free_share_ratio": {
             "coverage": "sourced",
@@ -1462,7 +1462,7 @@
         "dataset_code": "security_metadata",
         "v1": true,
         "roadmap_pr": 11,
-        "reason": "MOPS t187ap03_L / mopsfin_t187ap03_O current snapshots (PR #10, ADR-0016) and official listing/delisting history (PR #11, ADR-0017); audit 4.11.",
+        "reason": "MOPS t187ap03_L / mopsfin_t187ap03_O current snapshots (step 10, ADR-0016) and official listing/delisting history (step 11, ADR-0017); audit 4.11.",
         "columns": {
           "security_id": {
             "coverage": "internal",
@@ -1512,7 +1512,7 @@
               "official venue listing date"
             ],
             "audit_section": "4.11",
-            "note": "PR #11 lifecycle history."
+            "note": "step 11 lifecycle history."
           },
           "delisted_on": {
             "coverage": "sourced",
@@ -1520,7 +1520,7 @@
               "official venue delisting date"
             ],
             "audit_section": "4.11",
-            "note": "PR #11 lifecycle history."
+            "note": "step 11 lifecycle history."
           }
         }
       },
@@ -1726,7 +1726,7 @@
               "publishing venue of the monthly report"
             ],
             "audit_section": "4.12",
-            "note": "FMTQIK is the TWSE market report. No official TPEx trading-day source was found, so no TPEx row may be written (ROADMAP 22, PR #16)."
+            "note": "FMTQIK is the TWSE market report. No official TPEx trading-day source was found, so no TPEx row may be written (ROADMAP 22, step 16)."
           },
           "calendar_month": {
             "coverage": "sourced",
@@ -3141,7 +3141,7 @@
       "legacy_field": "revenue_last_month",
       "disposition": "observed",
       "target": "monthly_revenue_versions.revenue_last_month",
-      "reason": "Source field 上月營收. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
+      "reason": "Source field 上月營收. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by step 22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
       "planned_pr": 22
     },
     {
@@ -3149,7 +3149,7 @@
       "legacy_field": "revenue_last_year",
       "disposition": "observed",
       "target": "monthly_revenue_versions.revenue_last_year_month",
-      "reason": "Source field 去年當月營收. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
+      "reason": "Source field 去年當月營收. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by step 22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
       "planned_pr": 22
     },
     {
@@ -3157,7 +3157,7 @@
       "legacy_field": "mom_pct",
       "disposition": "observed",
       "target": "monthly_revenue_versions.mom_pct",
-      "reason": "Source field 上月比較增減(%). Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
+      "reason": "Source field 上月比較增減(%). Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by step 22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
       "planned_pr": 22
     },
     {
@@ -3165,7 +3165,7 @@
       "legacy_field": "yoy_pct",
       "disposition": "observed",
       "target": "monthly_revenue_versions.yoy_pct",
-      "reason": "Source field 去年同月增減(%). Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
+      "reason": "Source field 去年同月增減(%). Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by step 22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
       "planned_pr": 22
     },
     {
@@ -3173,7 +3173,7 @@
       "legacy_field": "revenue_cumulative",
       "disposition": "observed",
       "target": "monthly_revenue_versions.cumulative_revenue",
-      "reason": "Source field 當月累計營收. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
+      "reason": "Source field 當月累計營收. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by step 22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
       "planned_pr": 22
     },
     {
@@ -3181,7 +3181,7 @@
       "legacy_field": "revenue_cumulative_last_year",
       "disposition": "observed",
       "target": "monthly_revenue_versions.cumulative_revenue_last_year",
-      "reason": "Source field 去年累計營收. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
+      "reason": "Source field 去年累計營收. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by step 22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
       "planned_pr": 22
     },
     {
@@ -3189,7 +3189,7 @@
       "legacy_field": "cumulative_yoy_pct",
       "disposition": "observed",
       "target": "monthly_revenue_versions.cumulative_yoy_pct",
-      "reason": "Source field 前期比較增減(%). Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
+      "reason": "Source field 前期比較增減(%). Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by step 22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
       "planned_pr": 22
     },
     {
@@ -3197,7 +3197,7 @@
       "legacy_field": "comment",
       "disposition": "observed",
       "target": "monthly_revenue_versions.note",
-      "reason": "Source field 備註. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by PR #22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
+      "reason": "Source field 備註. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by step 22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
       "planned_pr": 22
     },
     {

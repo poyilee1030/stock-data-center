@@ -1,4 +1,4 @@
-"""PR #16 — reading the trading calendar, and refusing to answer beyond it.
+"""Step 16 — reading the trading calendar, and refusing to answer beyond it.
 
 A calendar that guesses is worse than one that refuses: a caller asking whether
 an unimported date was a trading day must get an error, never `False`.

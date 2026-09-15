@@ -1,8 +1,12 @@
-# PR #16 Acceptance Report
+# Step 16 Acceptance Report
 
 Status: IN REVIEW
 
 Scope: Trading Calendar and Coverage Validator
+
+Delivered by GitHub pull request [#15](https://github.com/poyilee1030/stock-data-center/pull/15). Step numbers
+and pull-request numbers diverged here and are not reconciled: ADR-0020 went
+straight to `main` without a pull request, so Step 16 opened as #15 (ROADMAP §20).
 
 Schema impact: `trading_calendar_versions`, its observation link, a seventeenth
 `publication_evidence` target, and `dataset_expected_coverage`.
@@ -99,7 +103,7 @@ asserts the constraint by name.
 
 ## Two incidental fixes this PR forced
 
-**The PR #14 storage-contract guard did its job.** Adding the tables failed
+**The Step 14 storage-contract guard did its job.** Adding the tables failed
 `test_every_table_in_the_schema_is_classified_or_explicitly_excluded`
 immediately. Both are classified: the calendar with its per-column source
 mapping, the observation link and `dataset_expected_coverage` as excluded with
@@ -115,6 +119,6 @@ downgrade left the version untouched", not "the head is this literal".
 - No TPEx calendar source is used or invented.
 - `holidaySchedule` is not used: it lists planned closures only, returned
   nothing before 2023, and cannot represent a typhoon closure.
-- Only `trading_calendar` declares its expected coverage here. PRs #17–#24
+- Only `trading_calendar` declares its expected coverage here. Steps 17–24
   declare their own alongside the adapters that fill them.
-- No release-rule evidence is written; that is PR #15 under ADR-0020.
+- No release-rule evidence is written; that is Step 15 under ADR-0020.

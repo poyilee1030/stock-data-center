@@ -1,4 +1,4 @@
-"""PR #16 — importing a month of trading days through the raw-first lifecycle."""
+"""Step 16 — importing a month of trading days through the raw-first lifecycle."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""PR #16 — storage contract for the observed trading calendar.
+"""Step 16 — storage contract for the observed trading calendar.
 
 The published artifact is one month, and the business content of that month is
 the set of days the market actually opened. A closure is therefore an absence

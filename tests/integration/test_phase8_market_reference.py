@@ -642,7 +642,7 @@ def test_populated_phase8_migration_backfills_lineage_and_round_trips_hash(
                          WHERE corporate_action_version_id=:id) AS observations
                   FROM corporate_action_versions WHERE id=:id
             """), {"id": before["id"]}).mappings().one()
-            # PR #12 changes the canonical field-name contract and hash namespace
+            # Step 12 changes the canonical field-name contract and hash namespace
             # without changing ingestion provenance.
             assert after["business_content_hash"] != before["business_content_hash"]
             assert after["ingested_at"] == before["ingested_at"]

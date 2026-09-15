@@ -1,4 +1,4 @@
-"""PR #16 — the TWSE FMTQIK trading-calendar adapter.
+"""Step 16 — the TWSE FMTQIK trading-calendar adapter.
 
 FMTQIK lists each *actual* trading day of one month, so a closure is an absence,
 never a flag. The adapter must therefore refuse anything that could silently
