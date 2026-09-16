@@ -13,6 +13,7 @@ from stock_data_center.market_data import (
     DailyPriceObservation,
     SecurityMetadataObservation,
 )
+from stock_data_center.market_reference.models import MarketIndexObservation
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +92,87 @@ class ParsedWholeMarketDaily:
     @property
     def coverage_end(self) -> date | None:
         return self.trade_date if self.rows else None
+
+
+@dataclass(frozen=True, slots=True)
+class MarketIndexRequest:
+    """Request one market's published index closes for one trade date."""
+
+    trade_date: date
+
+
+@dataclass(frozen=True, slots=True)
+class MarketIndexRow:
+    """One index's close inside a whole-list index file.
+
+    `section` is part of the identity, not decoration. TPEx publishes the same
+    name in its price section and its return section — `櫃買指數` appears in
+    both, at 395.52 and 735.15 — so the published name alone collides inside a
+    single file. TWSE avoids it by naming return indices distinctly, but the
+    identity has to hold for both feeds.
+    """
+
+    index_name: str
+    section: str
+    observation: MarketIndexObservation
+
+    def index_code(self, source: str) -> str:
+        return f"{source}:{self.section}:{self.index_name}"
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedMarketIndex:
+    """Every index one market published for one trade date."""
+
+    market: str
+    trade_date: date
+    rows: tuple[MarketIndexRow, ...]
+    section_count: int
+    source_fields: tuple[str, ...]
+
+    @property
+    def coverage_start(self) -> date | None:
+        return self.trade_date if self.rows else None
+
+    @property
+    def coverage_end(self) -> date | None:
+        return self.trade_date if self.rows else None
+
+
+@dataclass(frozen=True, slots=True)
+class TaiexHistoryRequest:
+    """Request one calendar month of TAIEX open/high/low/close."""
+
+    month: date
+
+    def __post_init__(self) -> None:
+        if self.month.day != 1:
+            raise ValueError("month must be the first day of the requested month")
+
+
+@dataclass(frozen=True, slots=True)
+class TaiexHistoryRow:
+    trade_date: date
+    observation: MarketIndexObservation
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedTaiexHistory:
+    """One month of OHLC for the single index this endpoint covers."""
+
+    market: str
+    index_name: str
+    month: date
+    rows: tuple[TaiexHistoryRow, ...]
+    source_fields: tuple[str, ...]
+
+    @property
+    def coverage_start(self) -> date | None:
+        return self.rows[0].trade_date if self.rows else None
+
+    @property
+    def coverage_end(self) -> date | None:
+        return self.rows[-1].trade_date if self.rows else None
 
 
 @dataclass(frozen=True, slots=True)

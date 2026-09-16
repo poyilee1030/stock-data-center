@@ -5,6 +5,12 @@ from stock_data_center.ingestion.adapters.daily_market import (
     TPExDailyMarketAdapter,
     TWSEDailyMarketAdapter,
 )
+from stock_data_center.ingestion.adapters.market_index import (
+    MarketIndexAdapter,
+    TPExMarketIndexAdapter,
+    TWSEMarketIndexAdapter,
+    TWSETaiexHistoryAdapter,
+)
 from stock_data_center.ingestion.adapters.security_lifecycle import (
     SecurityLifecycleAdapter,
     TPExDelistingHistoryAdapter,
@@ -29,6 +35,7 @@ from stock_data_center.ingestion.adapters.whole_market_daily import (
 
 __all__ = [
     "DailyMarketAdapter",
+    "MarketIndexAdapter",
     "SecurityLifecycleAdapter",
     "SecurityMetadataAdapter",
     "TradingCalendarAdapter",
@@ -40,8 +47,11 @@ __all__ = [
     "TWSEDelistingHistoryAdapter",
     "TWSEListingHistoryAdapter",
     "TWSESecurityMetadataAdapter",
+    "TPExMarketIndexAdapter",
     "TPExWholeMarketDailyAdapter",
     "TWSETradingCalendarAdapter",
+    "TWSEMarketIndexAdapter",
+    "TWSETaiexHistoryAdapter",
     "TWSEWholeMarketDailyAdapter",
     "WholeMarketDailyAdapter",
 ]
