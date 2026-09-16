@@ -1,6 +1,6 @@
 # Step 19-b Acceptance Report
 
-Status: IN REVIEW
+Status: IN REVIEW (#25)
 
 Scope: the TWSE result-feed adapters and their detail pages
 
