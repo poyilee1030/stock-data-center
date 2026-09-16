@@ -1,5 +1,11 @@
 """Real external-source adapters."""
 
+from stock_data_center.ingestion.adapters.corporate_action import (
+    CorporateActionListAdapter,
+    TPExExRightDailyAdapter,
+    TPExParValueChangeAdapter,
+    TPExReductionAdapter,
+)
 from stock_data_center.ingestion.adapters.daily_market import (
     DailyMarketAdapter,
     TPExDailyMarketAdapter,
@@ -34,6 +40,7 @@ from stock_data_center.ingestion.adapters.whole_market_daily import (
 )
 
 __all__ = [
+    "CorporateActionListAdapter",
     "DailyMarketAdapter",
     "MarketIndexAdapter",
     "SecurityLifecycleAdapter",
@@ -41,6 +48,7 @@ __all__ = [
     "TradingCalendarAdapter",
     "TPExDailyMarketAdapter",
     "TPExDelistingHistoryAdapter",
+    "TPExExRightDailyAdapter",
     "TPExListingHistoryAdapter",
     "TPExSecurityMetadataAdapter",
     "TWSEDailyMarketAdapter",
@@ -48,6 +56,8 @@ __all__ = [
     "TWSEListingHistoryAdapter",
     "TWSESecurityMetadataAdapter",
     "TPExMarketIndexAdapter",
+    "TPExParValueChangeAdapter",
+    "TPExReductionAdapter",
     "TPExWholeMarketDailyAdapter",
     "TWSETradingCalendarAdapter",
     "TWSEMarketIndexAdapter",

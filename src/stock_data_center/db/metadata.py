@@ -1373,12 +1373,12 @@ corporate_action_versions = sa.Table(
     sa.Column("payment_date", sa.Date()),
     sa.Column("cash_dividend_per_share", sa.Numeric(24, 8)),
     sa.Column("capital_reduction_cash_return_per_share", sa.Numeric(24, 8)),
-    sa.Column("earnings_stock_ratio", sa.Numeric(24, 8)),
-    sa.Column("capital_surplus_stock_ratio", sa.Numeric(24, 8)),
-    sa.Column("free_share_ratio", sa.Numeric(24, 8)),
+    sa.Column("earnings_stock_ratio", sa.Numeric(28, 12)),
+    sa.Column("capital_surplus_stock_ratio", sa.Numeric(28, 12)),
+    sa.Column("free_share_ratio", sa.Numeric(28, 12)),
     sa.Column("old_shares", sa.Numeric(24, 8)),
     sa.Column("new_shares", sa.Numeric(24, 8)),
-    sa.Column("rights_ratio", sa.Numeric(24, 8)),
+    sa.Column("rights_ratio", sa.Numeric(28, 12)),
     sa.Column("subscription_price", sa.Numeric(20, 6)),
     sa.Column("close_before", sa.Numeric(20, 6)),
     sa.Column("official_reference_price", sa.Numeric(20, 6)),
@@ -1428,8 +1428,8 @@ corporate_action_versions = sa.Table(
         "(rights_ratio IS NULL OR rights_ratio > 0) AND "
         "(subscription_price IS NULL OR subscription_price >= 0) AND "
         "(close_before IS NULL OR close_before >= 0) AND "
-        "(official_reference_price IS NULL OR official_reference_price >= 0) AND "
-        "(official_rights_dividend_value IS NULL OR official_rights_dividend_value >= 0)",
+        "(official_reference_price IS NULL OR official_reference_price >= 0)",
+        # official_rights_dividend_value is a signed difference (Step 19-a).
         name="corporate_action_values_nonnegative",
     ),
     sa.CheckConstraint(

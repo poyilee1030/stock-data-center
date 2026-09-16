@@ -1,6 +1,6 @@
 # Source Field Audit
 
-Status date: 2026-09-15.
+Status date: 2026-09-16.
 
 This document records which fields the legacy database, the legacy raw archive,
 and the official endpoints actually provide. `ROADMAP.md` uses it as the
@@ -454,46 +454,131 @@ intervals, including 2021-11-26 → 2021-12-24.
 
 ### 4.10 Corporate actions: exchange result feeds
 
-All of these were verified live on 2026-09-14 and serve historical date ranges.
+All of these were verified live on 2026-09-14 and again, feed by feed and year
+by year for 2020-2026, on 2026-09-16 (Step 19-a). Every list feed takes a date
+range and answers a whole calendar year in one request.
 
-- **TWSE `rwd/zh/exRight/TWT49U`**: 資料日期, 股票代號, 股票名稱, 除權息前收盤價,
-  除權息參考價, 權值+息值, 權/息, 漲停價格, 跌停價格, 開盤競價基準, 減除股利參考價,
+**A current-year file lists results that have not happened yet.** Fetched on
+2026-09-16, TWT49U listed 35 rows for 2026-09-16 and later, TWTAUU listed
+resumptions up to 2026-10-19 — the last three with `-` in place of every price —
+and `revivt` listed three for 2026-09-21. The exchanges publish the calculation
+ahead of the event. Invariant G(2) rests on the event being executed, so a
+request declares the last date whose rows count (`executed_through`) and later
+rows are counted, not stored.
+
+**Result-feed identity holds over the full history.** Zero duplicate
+`(code, locator)` and zero duplicate `(code, event date)` in any feed,
+2020-01-01 → 2026-12-31 as served on 2026-09-16:
+
+| Feed | Rows | Locator |
+| --- | ---: | --- |
+| `TWT49U` | 7,827 | `詳細資料` = `code,yyyymmdd`, the ex-date |
+| `TWTAUU` | 157 | `詳細資料` = `code  ,yyyymmdd`, TWSE's file date — one day before the halt in all 14 sampled details, never the resumption date |
+| `TWTB8U` | 10 | `詳細資料` = `code,halt,resumption` |
+| `exDailyQ` | 7,359 | none; the executed date stands in |
+| `revivt` | 111 | none; the resumption date stands in |
+| `pvChgRslt` | 13 | none; the resumption date stands in |
+
+**`權值+息值` is signed.** The feeds define it as 除權息前收盤價 − 除權息參考價, and
+a rights issue priced above the close makes it negative: TWSE 3563
+(2020-03-27, −0.616165), 3138, 1312 and 1312A; TPEx 8444 (2024-12-12,
+−0.204602) and 6846. The storage contract allowed only non-negative values until
+Step 19-a.
+
+**Share ratios need eleven places.** Free shares and rights are published per
+1,000 shares with up to eight places (`202.11906001`), and Step 19 divides by
+1,000. `NUMERIC(24, 8)` rounded that silently; Step 19-a widened the four ratio
+columns to `NUMERIC(28, 12)`. TPEx publishes cash dividends with eight places
+(`3.42936322`), which the TWD contract had capped at four.
+
+**A published zero means the item does not apply.** TWT49U's own note:
+`如果無該項配股率則用'0'帶入`. Zero terms are stored as NULL, never as 0.
+
+**The published type agrees with the terms.** On all 7,359 TPEx rows and on 53
+TWSE details sampled across years and instrument kinds: 息 has cash and no
+shares, 權 has shares and no cash, 權息 has both, and a rights ratio always comes
+with a subscription price. An adapter treats a disagreement as a quarantine.
+
+- **TWSE `rwd/zh/exRight/TWT49U?startDate=&endDate=&response=json`**: 資料日期
+  (`113年01月04日`), 股票代號, 股票名稱, 除權息前收盤價, 除權息參考價, 權值+息值, 權/息
+  (息 6,943 / 權息 443 / 權 441), 漲停價格, 跌停價格, 開盤競價基準, 減除股利參考價,
   詳細資料, 最近一次申報資料 季別/日期, 最近一次申報每股 (單位)淨值,
-  最近一次申報每股 (單位)盈餘. 詳細資料 is the exchange locator `"{code},{yyyymmdd}"`,
-  for example `1101,20240701`.
+  最近一次申報每股 (單位)盈餘. An empty range answers
+  `{"stat":"很抱歉，沒有符合條件的資料!"}` with no table; the response echoes
+  `strDate`/`endDate`.
   **The locator exists only in `response=json`.** `response=csv`, which the legacy
   scraper used, flattens the column to the link label `除權息資料`, and 最近一次申報資料
   季別/日期 likewise loses its MOPS URL. Verified on 2026-09-15: the JSON row for
   00939 on 2026-01-02 carries `00939,20260102` where the archived CSV carries
   `除權息資料`. Step 19 must request JSON; the legacy CSV archive cannot supply
   Invariant G(2) identity.
+  **`最近一次申報*` is today's filing, not the event's**: every 2024 row carries
+  `115年第2季`. Storing it would revise every past event each quarter, so it is
+  not event content.
   The 15-column header is byte-identical in every archived year 2020-2026, so
   this feed needs no header-variant handling.
-- **TWSE `TWT49UDetail?STK_NO=&T1=`**: (每股配發現金股利)除息, (增資配股)除權,
-  A. 每千股無償配股, B. 員工紅利轉增資, C. (有償)現金增資, 每股認購金額, a/b/c
-  認購股數, 按股東持股比例每千股認購.
-- **TWSE `rwd/zh/reducation/TWTAUU`** (capital reduction): 恢復買賣日期, 股票代號,
-  名稱, 停止買賣前收盤價格, 恢復買賣參考價, 漲停價格, 跌停價格, 開盤競價基準, 除權參考價,
-  減資原因, 詳細資料 (`"{code},{yyyymmdd}"`).
-- **TWSE `TWTAVUDetail?STK_NO=&FILE_DATE=`**: 停止買賣日期, 每壹仟股換發新股票,
-  每股退還股款, 原股每股配發現金股利, 減資並(有償)現金增資, 每股認購金額, 認購股數,
-  按股東持股比例每千股認購.
+- **TWSE `rwd/zh/exRight/TWT49UDetail?STK_NO=&T1=&response=json`** (`stat`
+  `ok`, lower case; an unknown locator answers `{"stat":"無相關資料"}`). Two
+  headers, sampled 2020-2026:
+  - common shares (37 of 53 samples, ETFs and TDRs included): 股票代號, 股票名稱,
+    (每股配發現金股利)除息 (`24.6 元／股`), (增資配股) 除權 (empty in every sample),
+    A. 按普通股股東持股比例每千股無償配股 (`140 股`), B. 員工紅利轉增資,
+    C. (有償) 現金增資, 每股認購金額 (`33 元／股`), a. 公開承銷, b. 員工認購,
+    ` c. 原股東認購` (leading space included), 按股東持股比例每千股認購
+    (`202.11906001 股`). B, C and a-c are share counts, not ratios.
+  - preferred shares (16 of 53): 股票代號, 股票名稱, (每股配發現金股利)除息,
+    (增資配股) 除權, F. 按特別股股東持股比例每千股無償配股,
+    G. 按特別股股東持股比例每千股有償認股, 每股認購金額.
+- **TWSE `rwd/zh/reducation/TWTAUU`** (capital reduction): 恢復買賣日期
+  (`113/01/22`), 股票代號, 名稱, 停止買賣前收盤價格, 恢復買賣參考價, 漲停價格, 跌停價格,
+  開盤競價基準, 除權參考價 (`--` in all 157 rows), 減資原因 (退還股款 87 / 彌補虧損 70),
+  詳細資料. The file's notes name the reductions filed together with an ex-dividend
+  (`除息併案辦理減資`: 2323 in 2022, 3356 in 2024), which TWT49U leaves out.
+- **TWSE `rwd/zh/reducation/TWTAVUDetail?STK_NO=&FILE_DATE=&response=json`**
+  (every label ends in `：`): 股票代號, 股票名稱, 停止買賣日期, 每壹仟股換發新股票
+  (`855.66635000 股`), 每股退還股款 (`1.443336 元/股`), 原股每股配發現金股利
+  (`2.900000 元/股` for 3356), 減資並(有償)現金增資, 每股認購金額, a. 公開承銷,
+  b. 員工認購, c. 原股東認購, 按股東持股比例每千股認購. No sampled reduction had a
+  cash increase.
 - **TWSE `rwd/zh/change/TWTB8U`** (par-value change): 恢復買賣日期, 股票代號, 名稱,
   停止買賣前收盤價格, 恢復買賣參考價, 漲停價格, 跌停價格, 開盤競價基準, 詳細資料. The
-  detail fields are not yet verified.
-- **TPEx `www/zh-tw/bulletin/exDailyQ`**: 除權息日期, 代號, 名稱, 除權息前收盤價,
-  除權息參考價, 權值, 息值, 權值+息值, 權/息, 漲停價, 跌停價, 開始交易基準價, 減除股利參考價,
+  response echoes the range under `params`. 1, 1, 1, 0, 1, 4, 2 events for 2020
+  through 2026.
+- **TWSE `rwd/zh/change/TWTB8UDetail?STK_NO=&STOP_DATE=&RESUME_DATE=`**,
+  verified for 8070 and 2327: it repeats the list row's eight price columns and
+  **publishes no exchange ratio**. A TWSE par-value change therefore has no
+  sourced `old_shares`/`new_shares`, and is stored as `other` with its prices.
+- **TPEx `www/zh-tw/bulletin/exDailyQ?startDate=YYYY/MM/DD&endDate=`**: 除權息日期
+  (`113/01/03`), 代號, 名稱, 除權息前收盤價, 除權息參考價, 權值, 息值, 權值+息值, 權/息
+  (除息 6,495 / 除權息 434 / 除權 430), 漲停價, 跌停價, 開始交易基準價, 減除股利參考價,
   現金股利, 每仟股無償配股, 現金增資股數, 現金增資認購價, 公開承銷股數, 員工認購股數,
-  原股東認購股數, 按持股比例仟股認購.
-- **TPEx `www/zh-tw/bulletin/revivt`** (capital reduction): 恢復買賣日期, 股票代號,
-  名稱, 最後交易日之收盤價格, 減資恢復買賣開始日參考價格, 漲停價格, 跌停價格, 開始交易基準價,
-  除權參考價, 減資原因, and 詳細資料 as inline HTML (停止買賣日期, 恢復買賣日期,
-  每壹仟股換發新股票, 每股退還股款, …).
-- **TPEx par-value change**: no endpoint verified yet.
+  原股東認購股數, 按持股比例仟股認購. The response echoes `date` as
+  `20240101~20241231`; an empty range is `stat` `ok` with an empty table.
+- **TPEx `www/zh-tw/bulletin/revivt`** (capital reduction): 恢復買賣日期
+  (`1130205`), 股票代號, 名稱, 最後交易日之收盤價格, 減資恢復買賣開始日參考價格, 漲停價格,
+  跌停價格, 開始交易基準價, 除權參考價 (`0.00` in all 111 rows), 減資原因 (彌補虧損 90 /
+  現金減資 21), and 詳細資料 as inline HTML with eight labels, identical in every
+  row: 股票代號/股票名稱:, 停止買賣日期:, 恢復買賣日期:, 每壹仟股換發新股票:
+  (`300.00000000&nbsp股`), 每股退還股款: (`0.00000000&nbsp元/股`), 現金增資總股數:,
+  現金增資認購價:, 現金增資配股率:. The last three are `NA` in every row, so the
+  unit of 現金增資配股率 has never been seen.
+- **TPEx `www/zh-tw/bulletin/pvChgRslt`** (par-value change, found through the
+  site menu `/data/menu/zh-tw/menu.json` on 2026-09-16): 恢復買賣日期, 證券代號,
+  證券名稱, 最後交易日之收盤價格, 恢復買賣開始參考價, 漲停價格, 跌停價格, 開始交易基準價,
+  詳細資料, the last as inline HTML: 證券代號/證券名稱:, 停止買賣日期:, 恢復買賣日期:,
+  變更股票面額換股率: (`10.00000000`), 變更前股票面額: (`10.00`), 變更後股票面額:
+  (`1.00`). 0, 0, 4, 0, 3, 1, 5 events for 2020 through 2026, every one a split,
+  and in every one the ratio equals the old par value over the new.
+
+**Not in Step 19's contract, found on the way.** ETF splits and reverse splits
+have result feeds of their own: TWSE `rwd/zh/split/TWTCAU`
+(`ETF分割(反分割)恢復買賣參考價格`, which lists 0050's 2025-06-18 split) and TPEx
+`bulletin/etfSplitRslt` and `bulletin/etfRvsRslt`. None of the six feeds above
+lists those events, and an adjusted 0050 series is wrong without them. ROADMAP
+records them as follow-up work before Step 25.
 
 Event volumes in the legacy archive (TWSE, year-to-date files, 2020-01-01 →
-2026-09-14): `TWT49U` about 1,280 rows in 2026 alone; `TWTB8U` par-value change
-is rare — 1, 1, 1, 0, 1, 4, 2 events for 2020 through 2026. The legacy
+2026-09-14): `TWT49U` about 1,280 rows in 2026 alone. The legacy
 `par_value_change/2023` directory is empty because the year had no events and
 the scraper writes nothing on an empty response, not because the fetch failed.
 The legacy system fetched one year-to-date request per feed per year and never
@@ -504,12 +589,12 @@ archive.
 | --- | --- |
 | ex_date (ex-right date or resumption date) | ✓ |
 | close_before, official_reference_price | ✓ in every feed |
-| official_rights_dividend_value | ✓ (`TWT49U`, `exDailyQ`) |
-| cash_dividend_per_share | ✓ (`TWT49UDetail`, `exDailyQ`) |
+| official_rights_dividend_value | ✓ (`TWT49U`, `exDailyQ`), signed |
+| cash_dividend_per_share | ✓ (`TWT49UDetail`, `TWTAVUDetail`, `exDailyQ`) |
 | free_share_ratio | ✓ (free shares per 1,000 ÷ 1,000) |
 | earnings_stock_ratio / capital_surplus_stock_ratio | ✗: exchange feeds publish only the combined free-share figure |
 | rights_ratio, subscription_price | ✓ |
-| old_shares / new_shares | ✓ for capital reduction (1,000 → 每壹仟股換發新股票); par-value change unverified |
+| old_shares / new_shares | ✓ for capital reduction (1,000 → 每壹仟股換發新股票) and TPEx par-value change (1 → 變更股票面額換股率); ✗ for TWSE par-value change |
 | capital_reduction_kind, capital_reduction_cash_return_per_share | ✓ (減資原因, 每股退還股款) |
 | announcement_date, record_date, payment_date | ✗ |
 
@@ -686,8 +771,8 @@ marked *stays NULL* is in fact nullable in the live schema.
 | `corporate_action_versions.payment_date` | unsourced | stays NULL | No exchange result feed carries a payment date. |
 | `corporate_action_versions.earnings_stock_ratio` | unsourced | stays NULL | The exchange feeds publish only the combined free-share figure. The earnings / capital-surplus split exists only in the MOPS issuer declaration feed, stored as its own domain by Step 33 (audit 4.13). |
 | `corporate_action_versions.capital_surplus_stock_ratio` | unsourced | stays NULL | The exchange feeds publish only the combined free-share figure. The split exists only in the MOPS issuer declaration feed (Step 33), and before ROC 110 the two reserves arrive as one number (audit 4.13). |
-| `corporate_action_versions.old_shares` | partially sourced | holds the values that exist | Capital reduction only: the old side is the constant 1,000 of 每壹仟股. TWTB8U par-value-change detail fields are not yet verified and no TPEx par-value endpoint was found. |
-| `corporate_action_versions.new_shares` | partially sourced | holds the values that exist | Capital reduction only. TWTB8U par-value-change detail fields are not yet verified and no TPEx par-value endpoint was found. |
+| `corporate_action_versions.old_shares` | partially sourced | holds the values that exist | Capital reduction in both markets: the old side is the constant 1,000 of 每壹仟股. TPEx par-value change (`pvChgRslt`): 1 against 變更股票面額換股率. TWSE par-value change: none — `TWTB8UDetail`, verified 2026-09-16, publishes no exchange ratio. |
+| `corporate_action_versions.new_shares` | partially sourced | holds the values that exist | Capital reduction in both markets (每壹仟股換發新股票) and TPEx par-value change (變更股票面額換股率). TWSE par-value change: none, as above. |
 | `daily_price_versions.price_direction` | partially sourced | holds the values that exist | TWSE publishes `+`/`-`/`X` in its own column. stk_wn1430 signs the number instead and has no direction column, so a TPEx row claims a direction only where the feed prints its 不比價 marker (除息 / 除權 / 除權息), which is stored as `X`. |
 | `daily_price_versions.bid_snapshot` | unsourced | stays NULL | Multi-level order-book depth blob. No daily whole-market endpoint publishes depth; the one published level is stored in last_bid_price/last_bid_volume. |
 | `daily_price_versions.ask_snapshot` | unsourced | stays NULL | Multi-level order-book depth blob. No daily whole-market endpoint publishes depth; the one published level is stored in last_ask_price/last_ask_volume. |
@@ -731,7 +816,9 @@ provenance linkage that is not expected to come from a source field.
 | TPEx daily 發行股數 and next-day limits | Not stored; `foreign_holding.issued_shares` covers both markets |
 | TPEx margin 資屬證金/券屬證金, TWSE 註記 | Not stored; no consumer |
 | TPEx institutional foreign/dealer totals | Not stored; they are sums of stored columns |
-| Ex-right limit prices, opening reference, 減除股利參考價, latest NAV/EPS | Keep in `source_terms` |
+| Ex-right limit prices, opening reference, 減除股利參考價, the TPEx 權值 / 息值 split, capital-increase share counts | Keep in `source_terms` |
+| TWT49U 最近一次申報 季別/日期, 每股淨值, 每股盈餘 | Not stored: the issuer's latest filing at fetch time, not the event's (§4.10); storing it would revise every past event each quarter |
+| Security name in every result feed | Not stored with the event: a rename would revise every past event |
 
 ## 7. Publication time
 

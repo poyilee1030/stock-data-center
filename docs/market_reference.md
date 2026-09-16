@@ -74,7 +74,12 @@ ordinary rights issue.
 
 Where the source supplies them, revisions retain `close_before`,
 `official_reference_price`, `official_rights_dividend_value`, the original
-`source_event_type`, and structured `source_terms`. These fields and all other
+`source_event_type`, and structured `source_terms`.
+`official_rights_dividend_value` is the exchanges' 權值+息值, defined as close
+before minus reference price, so it is the one signed term (`SignedTwdAmount`):
+a rights issue priced above the close publishes it negative. Share ratios are
+stored to twelve places and per-share TWD amounts to eight, because the feeds
+publish per-thousand figures with eight places (ADR-0019, Step 19-a). These fields and all other
 economic terms enter the storage-generated business hash. An announced event
 may temporarily have no `ex_date`; effective-date history queries exclude it
 until an ex-date revision is available.
