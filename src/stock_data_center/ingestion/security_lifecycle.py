@@ -28,6 +28,7 @@ from stock_data_center.ingestion.lifecycle import (
     RawFirstImporter,
 )
 from stock_data_center.ingestion.models import (
+    EvidenceContext,
     ParsedSecurityLifecycle,
     SecurityLifecycleRequest,
     SourceResource,
@@ -218,6 +219,7 @@ class SecurityLifecycleImporter(
         request: SecurityLifecycleRequest,
         parsed: ParsedSecurityLifecycle,
         lineage: LineageRef,
+        context: EvidenceContext,
     ) -> BusinessWriteResult:
         if not isinstance(adapter, SecurityLifecycleAdapter):
             raise TypeError(

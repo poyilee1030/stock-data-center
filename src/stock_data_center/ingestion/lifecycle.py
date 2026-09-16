@@ -30,6 +30,7 @@ from stock_data_center.db.metadata import (
 from stock_data_center.ingestion.http import HttpSourceFetcher, SourceFetcher
 from stock_data_center.ingestion.models import (
     ArtifactOrigin,
+    EvidenceContext,
     IngestPurpose,
     ImportManifestResult,
     ResourceImportResult,
@@ -264,6 +265,9 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
                     request=request,
                     parsed=parsed,
                     lineage=LineageRef(artifact_id, run_id),
+                    context=self._evidence_context(
+                        connection, artifact_id, run_id
+                    ),
                 )
                 return self._complete_resource(
                     connection,
@@ -319,7 +323,41 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
         request: RequestT,
         parsed: ParsedT,
         lineage: LineageRef,
+        context: EvidenceContext,
     ) -> BusinessWriteResult: ...
+
+    @staticmethod
+    def _evidence_context(
+        connection: Connection, artifact_id: UUID, run_id: UUID
+    ) -> EvidenceContext:
+        """What the run that fetched these bytes declared, and when.
+
+        Both are read back from that run rather than taken from this call. A
+        resumed import reuses the original artifact and its fetch instant, so
+        trusting the current call's purpose would let a run that declared
+        `gap_fill`, captured, and died be rerun as `first_capture` and claim a
+        capture bound at the earlier instant — laundering exactly the claim
+        ADR-0020 §5 refuses to infer.
+        """
+        row = connection.execute(
+            sa.select(
+                raw_artifact_observations.c.fetched_at, ingest_runs.c.purpose
+            )
+            .select_from(
+                raw_artifact_observations.join(
+                    ingest_runs,
+                    ingest_runs.c.id == raw_artifact_observations.c.ingest_run_id,
+                )
+            )
+            .where(
+                raw_artifact_observations.c.raw_artifact_id == artifact_id,
+                raw_artifact_observations.c.ingest_run_id == run_id,
+            )
+        ).mappings().one()
+        return EvidenceContext(
+            purpose=IngestPurpose(row["purpose"]),
+            captured_at=row["fetched_at"],
+        )
 
     @staticmethod
     def manifest(connection: Connection, import_id: UUID) -> ImportManifestResult:

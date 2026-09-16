@@ -18,6 +18,7 @@ from stock_data_center.ingestion.lifecycle import (
     RawFirstImporter,
 )
 from stock_data_center.ingestion.models import (
+    EvidenceContext,
     ParsedSecurityMetadata,
     SecurityMetadataRequest,
     SourceResource,
@@ -94,6 +95,7 @@ class SecurityMetadataImporter(
         request: SecurityMetadataRequest,
         parsed: ParsedSecurityMetadata,
         lineage: LineageRef,
+        context: EvidenceContext,
     ) -> BusinessWriteResult:
         created = 0
         deduplicated = 0

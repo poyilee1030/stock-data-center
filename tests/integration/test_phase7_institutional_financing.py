@@ -68,6 +68,9 @@ def configure_dataset(
                 :dataset, :source, true, true, 100, 'verified',
                 ARRAY['official'], :canonical
             )
+            ON CONFLICT (dataset_code, source) DO UPDATE
+               SET accepted_evidence_types = EXCLUDED.accepted_evidence_types,
+                   is_canonical = EXCLUDED.is_canonical
             """
         ),
         {"dataset": dataset_code, "source": source, "canonical": canonical},

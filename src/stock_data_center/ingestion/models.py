@@ -8,32 +8,23 @@ from datetime import UTC, date, datetime
 from enum import Enum
 from types import MappingProxyType
 
+from stock_data_center.provenance import ArtifactOrigin, IngestPurpose
 from stock_data_center.market_data import (
     DailyPriceObservation,
     SecurityMetadataObservation,
 )
 
 
-class IngestPurpose(str, Enum):
-    """Why a fetch was requested (ADR-0020 §5).
+@dataclass(frozen=True, slots=True)
+class EvidenceContext:
+    """What a run declared, and when it actually fetched (ADR-0020 §5).
 
-    Declared when the fetch is requested, never inferred afterwards: a row
-    fetched years later because a query noticed it was missing must not be able
-    to claim a capture bound at that later instant.
+    Passed to the business writer so the evidence a version receives follows
+    from the run that produced it, rather than from the clock at write time.
     """
 
-    FIRST_CAPTURE = "first_capture"
-    GAP_FILL = "gap_fill"
-    CORRECTION_CHECK = "correction_check"
-    # Runs that predate the policy, and any run that declines to declare.
-    UNSPECIFIED = "unspecified"
-
-
-class ArtifactOrigin(str, Enum):
-    """How the bytes were obtained (ROADMAP §14)."""
-
-    OFFICIAL_FETCH = "official_fetch"
-    LEGACY_ARCHIVE = "legacy_archive"
+    purpose: IngestPurpose
+    captured_at: datetime
 
 
 class SourceQuantityUnit(str, Enum):

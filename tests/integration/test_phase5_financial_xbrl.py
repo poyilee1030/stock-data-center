@@ -57,6 +57,9 @@ def configure(db: Connection, source: str = "mops", *, canonical: bool = True) -
                 'financial_filing', :source, true, true, 100, 'verified',
                 ARRAY['official'], :canonical
             )
+            ON CONFLICT (dataset_code, source) DO UPDATE
+               SET accepted_evidence_types = EXCLUDED.accepted_evidence_types,
+                   is_canonical = EXCLUDED.is_canonical
             """
         ),
         {"source": source, "canonical": canonical},

@@ -130,8 +130,25 @@ because it is not a first sighting.
 When nothing is provable, nothing is claimed: the plan falls back to `unknown`
 evidence with `published_at = NULL`, exactly as before ADR-0020.
 
-Step 15-c applies this to the adapters and opts each source into the new types;
-until it lands they still write `unknown` evidence.
+## Applying it
+
+Which rule a dataset follows is a row in `dataset_release_rules`, keyed by
+`(dataset_code, source)` like its accepted types. Opting a source in is one
+migration: map it to a rule, and add the types it will now claim to
+`accepted_evidence_types`. Planning a type the source does not accept raises
+rather than writing evidence the resolver would then filter out — a
+half-configured source fails loudly instead of quietly producing rows that look
+like evidence and prove nothing.
+
+`daily_price` is opted into `exchange_daily_settled@1` for both markets. Its
+imported history is therefore Market-PIT visible at 03:00 the day after each
+trade date, where it used to be invisible. Every other dataset still writes
+`unknown` until its own adapter step opts it in; nothing is enabled by default.
+
+One consequence is worth stating plainly, because it looks backwards at first: a
+real forward capture of exchange data runs *after* 03:00, so it falsifies the
+rule and the row keeps only its capture bound. The rule therefore matters most
+for history nobody captured — which is exactly the history it was written for.
 
 Two supported reconstructions are:
 

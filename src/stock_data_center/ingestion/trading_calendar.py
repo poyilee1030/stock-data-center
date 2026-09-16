@@ -18,6 +18,7 @@ from stock_data_center.ingestion.lifecycle import (
     RawFirstImporter,
 )
 from stock_data_center.ingestion.models import (
+    EvidenceContext,
     ParsedTradingCalendar,
     SourceResource,
     TradingCalendarRequest,
@@ -93,6 +94,7 @@ class TradingCalendarImporter(
         request: TradingCalendarRequest,
         parsed: ParsedTradingCalendar,
         lineage,
+        context: EvidenceContext,
     ) -> BusinessWriteResult:
         calendar_lineage = CalendarLineageRef(
             lineage.raw_artifact_id, lineage.ingest_run_id

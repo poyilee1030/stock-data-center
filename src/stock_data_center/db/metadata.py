@@ -60,6 +60,27 @@ release_rules = sa.Table(
     sa.CheckConstraint("btrim(authority) <> ''", name="authority_nonempty"),
 )
 
+dataset_release_rules = sa.Table(
+    "dataset_release_rules",
+    metadata,
+    sa.Column("dataset_code", sa.String(64), nullable=False),
+    sa.Column("source", sa.String(64), nullable=False),
+    sa.Column("rule_id", sa.String(64), nullable=False),
+    sa.Column("version", sa.SmallInteger(), nullable=False),
+    sa.Column("note", sa.Text(), nullable=False, server_default=sa.text("''")),
+    sa.PrimaryKeyConstraint("dataset_code", "source"),
+    sa.ForeignKeyConstraint(
+        ["dataset_code", "source"],
+        ["dataset_sources.dataset_code", "dataset_sources.source"],
+        ondelete="RESTRICT",
+    ),
+    sa.ForeignKeyConstraint(
+        ["rule_id", "version"],
+        ["release_rules.rule_id", "release_rules.version"],
+        ondelete="RESTRICT",
+    ),
+)
+
 evidence_types = sa.Table(
     "evidence_types",
     metadata,
