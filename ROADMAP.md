@@ -595,7 +595,7 @@ Status date: 2026-09-15.
 | 16 | MERGED | Trading calendar and coverage validator |
 | 17-a | MERGED | Whole-market daily-price adapters |
 | 17-b | MERGED | Whole-market daily-price import path |
-| 17-c | THIS STEP | Whole-market daily-price history backfill and reconciliation |
+| 17-c | MERGED | Whole-market daily-price history backfill and reconciliation |
 | 18 | PLANNED | Market indices and official valuation |
 | 19 | PLANNED | Exchange corporate-action result feeds |
 | 20 | PLANNED | Institutional flows, institutional summary, foreign holding |
@@ -910,7 +910,7 @@ Out of scope: the backfill.
 
 ### Step 17-c — History backfill and reconciliation
 
-Status: **THIS STEP**. Depends on: Step 17-b.
+Status: **MERGED** (#21). Depends on: Step 17-b.
 
 In scope: the throttled, resumable date-range runner; the 2020-01-02 →
 2026-09-11 backfill for both markets; the legacy reconciliation report and the
@@ -1250,10 +1250,74 @@ Daily, weekly, monthly, and quarterly jobs run the adapters. They include retrie
 
 Capture runs the §3.1 flow: read the expected coverage from Step 16, reconcile it against what is stored, emit jobs carrying their purpose, fetch, ingest. The job list is in memory and the fetcher is the local HTTP one; this PR builds no queue and no separate service. The point is that the scheduler decides what to fetch and why, and no adapter does.
 
+### The dispatch loop is state-driven, not a fixed timetable
+
+Decided 2026-09-16, from how the legacy system failed. Legacy ran one scheduled
+scrape; a run that failed had no next run until the following day, and the gap
+was found by a person checking. The response was a second timer — 23:30 and a
+03:00 retry — which is a fixed schedule guessing how many attempts will be
+needed.
+
+Step 27 inverts it. Every hour, for each declared `(dataset, market)`:
+
+```text
+read the declaration  -> what should exist
+reconcile             -> what is missing now
+dispatch              -> one job per still-missing period, and nothing else
+```
+
+The work shrinks on its own. If six datasets are missing at 20:00, six jobs go
+out; if three are still missing at 21:00, three do; by 23:00 perhaps one. A
+failed attempt needs no retry timer of its own, because the next hour's
+reconciliation simply still sees it missing. Nothing is dispatched for a period
+that is already complete.
+
+An escalation deadline ends the loop: a period still missing by a declared hour
+the next morning raises a notification naming the dataset, the period and the
+last reason code, rather than being retried silently for ever.
+
+Four things this needs beyond the loop:
+
+1. **Missing is not the only trigger.** A period can exist and be wrong. On
+   2026-03-27 the legacy archive was written at 14:10, before the odd-lot
+   session settled, by a catch-up run sweeping forward after the previous
+   night's failure; `skip if exists` then froze that partial version, and the
+   1,062-row difference in Step 17-c's reconciliation is the result. So the
+   loop also re-fetches a trailing window of recent periods. This costs nothing
+   here and repairs that whole class of error: identical content deduplicates
+   while the fetch stays auditable, and changed content becomes a new revision.
+   Legacy could not do this, because skipping an existing file made re-fetching
+   a no-op.
+2. **An earliest-availability time per dataset, which is not the release rule.**
+   `exchange_daily_settled@1` says when the market could *know* a trade date —
+   03:00 on D+1, a conservative visibility bound. Scheduling needs when the data
+   can be *fetched*, which for daily prices is after the odd-lot session settles
+   on D itself. Dispatching before that asks a source for something it has not
+   published yet, and TPEx answers exactly as it answers a closure.
+3. **Backoff on a period that is permanently absent.** TPEx serves nothing before
+   2007-07-02 and says nothing about why (audit §4.1). Without an attempt count
+   and a last-attempt time, an hourly loop against a mis-declared window becomes
+   an hourly pounding of the source. `import_checkpoints` holds part of this; a
+   record of when a period was first observed missing is still needed.
+4. **Scheduled and gap-fill capture claim different evidence, and earlier is
+   stronger.** A scheduled run on D is a genuine first sighting and may claim
+   `capture_bound`; a backfill three years later may not. A capture at 20:00 on
+   D also outranks the rule instant at 03:00 on D+1, so the evidence improves
+   the sooner the loop runs. This is why every day without forward capture
+   permanently costs that day its first-seen evidence — an argument for bringing
+   forward capture up on `daily_price` before the remaining domains are ready,
+   rather than only after them.
+
 Acceptance:
 
 - two weeks of unattended runs with complete coverage and resumable failures
+- an hourly loop dispatches only still-missing periods, and the dispatched set
+  shrinks across rounds within one evening
+- a period still missing at the escalation hour raises a notification carrying
+  the dataset, the period and the last reason code
 - a scheduled run and a gap-fill run over the same missing period produce different evidence, and the gap-fill row resolves by its release rule
+- a trailing re-fetch of a period whose published values changed creates a
+  revision, and one whose values did not creates none
 - the set of pending jobs can be listed before any fetch happens
 
 ## Step 28 — Public REST API v1
