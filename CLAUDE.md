@@ -101,17 +101,20 @@ Each required criterion must be PASS/FAIL with concrete evidence.
 
 ## Current Step Sequence
 
-ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–14 and 16 as MERGED and labels Step 15-a as `THIS STEP` (a contextual marker, not an additional status value):
+ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–16 as MERGED and labels Step 17-a as `THIS STEP` (a contextual marker, not an additional status value):
 
 ```text
 Step 11  authoritative security lifecycle history        MERGED
 Step 12  Taiwan corporate-action contract               MERGED
 Step 13  source-reality rebuild of ROADMAP/CLAUDE/audit   MERGED
 Step 14  source-reality alignment                       MERGED
-Step 15-a availability-time evidence vocabulary          THIS STEP
-Step 15-b release-rule evaluation                       PLANNED
+Step 15-a availability-time evidence vocabulary          MERGED
+Step 15-b release-rule evaluation                       MERGED
+Step 15-c applying the evidence policy to adapters      MERGED
 Step 16  trading calendar + coverage validator          MERGED
-Step 17  whole-market daily prices                      PLANNED
+Step 17-a whole-market daily-price adapters             THIS STEP
+Step 17-b whole-market daily-price import path          PLANNED
+Step 17-c whole-market history backfill                 PLANNED
 Step 18  market indices + official valuation            PLANNED
 Step 19  exchange corporate-action result feeds         PLANNED
 Step 20  institutional flows/summary + foreign holding  PLANNED
@@ -563,7 +566,7 @@ New reconciliation policy requires ADR + permanent tests.
 
 Final reconciliation must be deterministic from stored histories and independent of source import order.
 
-If multiple sources exist without a canonical-source policy, require explicit source selection or return separated results. Endpoints with different field coverage must not alternate revisions for one logical key: Step 17 uses distinct source codes or retires the Step 9 per-security pilots from production.
+If multiple sources exist without a canonical-source policy, require explicit source selection or return separated results. Endpoints with different field coverage must not alternate revisions for one logical key. Step 17-a settled that for daily prices with distinct source codes: the whole-market feeds are `twse_mi_index` and `tpex_otc_quotes`, the Step 9 per-security pilots remain `twse` and `tpex`, and nothing merges them.
 
 ---
 

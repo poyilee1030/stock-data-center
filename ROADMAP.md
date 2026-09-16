@@ -2,7 +2,7 @@
 
 > Delivery is tracked by step. One step = one branch = one pull request; a step too large to review splits into `step-N-a`, `step-N-b`, … (CLAUDE.md §1). Historical phase names are retained only as legacy references.
 >
-> Status date: 2026-09-15.
+> Status date: 2026-09-16.
 >
 > Source-reality baseline: [`docs/source_field_audit.md`](docs/source_field_audit.md). Every planned PR in this roadmap is scoped to fields that the audit shows actually exist.
 
@@ -412,7 +412,7 @@ Version 1 preserves source histories separately. Do not silently average, merge,
 
 If no canonical-source policy exists and multiple sources are possible, require explicit source selection or return separated source results. Any reconciliation policy requires an ADR and permanent regression tests.
 
-Two endpoints of the same source must not write alternating revisions of the same logical key. If they cover different fields, give them distinct source codes or retire one of them from production (Step 17).
+Two endpoints of the same source must not write alternating revisions of the same logical key. If they cover different fields, give them distinct source codes or retire one of them from production. Step 17-a settled the daily-price case with distinct source codes.
 
 Issuer/MOPS summary feeds and exchange result feeds must not be joined into an authoritative event link using security/date/amount/ratio heuristics.
 
@@ -480,7 +480,7 @@ The MOPS iXBRL documents provide contexts with explicit dimensions, units, and d
 |---|---|---|---|
 | Security identity / metadata / lifecycle | MERGED (#10, #11) | `t187ap03_L`, `mopsfin_t187ap03_O`, listing/delisting history | current name/industry only; no historical industry changes |
 | Trading calendar | Step 16 | TWSE `FMTQIK` (§4.12) | TWSE only; TPEx has no official source and measured identical to TWSE on all 1,627 dates |
-| Daily prices | Step 17 | TWSE `MI_INDEX`, TPEx `stk_wn1430` (§4.1) | bid/ask snapshots unsourced |
+| Daily prices | Steps 17-a–c | TWSE `MI_INDEX`, TPEx `stk_wn1430` (§4.1) | bid/ask snapshots unsourced |
 | Market indices | Step 18 | `MI_INDEX` index sections, TPEx `indexSummary` (§4.2); `MI_5MINS_HIST` for TAIEX OHLC | close / change for all; OHLC for the TAIEX only |
 | Official valuation | Step 18 | `BWIBBU_d`, TPEx `pera` (§4.6) | |
 | Corporate actions (exchange results) | Step 19 | `TWT49U`, `TWTAUU`, `TWTB8U`, TPEx `exDailyQ`, `revivt` (§4.10) | no announcement/record/payment dates |
@@ -591,9 +591,11 @@ Status date: 2026-09-15.
 | 14 | MERGED | Source-reality alignment of inventory and storage contract |
 | 15-a | MERGED | Availability-time evidence vocabulary and ingest purpose |
 | 15-b | MERGED | Release-rule registry and evaluation |
-| 15-c | THIS STEP | Applying the evidence policy to the adapters |
+| 15-c | MERGED | Applying the evidence policy to the adapters |
 | 16 | MERGED | Trading calendar and coverage validator |
-| 17 | PLANNED | Whole-market daily prices |
+| 17-a | THIS STEP | Whole-market daily-price adapters |
+| 17-b | PLANNED | Whole-market daily-price import path |
+| 17-c | PLANNED | Whole-market daily-price history backfill and reconciliation |
 | 18 | PLANNED | Market indices and official valuation |
 | 19 | PLANNED | Exchange corporate-action result feeds |
 | 20 | PLANNED | Institutional flows, institutional summary, foreign holding |
@@ -616,7 +618,7 @@ Steps 1–12 established the storage, PIT, and raw-first foundations. Their writ
 
 Step numbers are this roadmap's own and do not have to match GitHub pull request numbers. They did until Step 14; ADR-0020 was then committed straight to `main` without a pull request, so Step 16 opened as GitHub #15. Nothing is wrong with that, and nothing is renumbered to repair it: the step number identifies the work, the pull request number identifies the review. Each step's acceptance report records the pull request that delivered it.
 
-Step 13 is where the *step* numbering had to be re-established: the abandoned dividend-summary pilot held the slot but was never opened as a pull request at all (§21.3). The former planned Steps 14–33 are renumbered into 14–32 above; 33 is a new step, not a survivor of the old numbering. The former "Corporate-Action Identity Research Track", the "Official Reference-Price / Share-Count Pilot", and the "Historical Corporate-Action Backfill" are replaced by Step 19. The former "Source Capability Hook" is absorbed into Step 15. The former "Legacy Migration and Reconciliation" is split into the per-domain reconciliation acceptance of Steps 17–26 and cutover Step 32. The former cache steps are deferred (§26.2).
+Step 13 is where the *step* numbering had to be re-established: the abandoned dividend-summary pilot held the slot but was never opened as a pull request at all (§21.3). The former planned Steps 14–33 are renumbered into 14–32 above; 33 is a new step, not a survivor of the old numbering. The former "Corporate-Action Identity Research Track", the "Official Reference-Price / Share-Count Pilot", and the "Historical Corporate-Action Backfill" are replaced by Step 19. The former "Source Capability Hook" is absorbed into Step 15. The former "Legacy Migration and Reconciliation" is split into the per-domain reconciliation acceptance of Steps 17-a–26 and cutover Step 32. The former cache steps are deferred (§26.2).
 
 ---
 
@@ -624,7 +626,7 @@ Step 13 is where the *step* numbering had to be re-established: the abandoned di
 
 ## 21.1 Step 9 — per-security daily pilot
 
-The `STOCK_DAY` / `tradingStock` adapters prove the raw-first lifecycle. They do not suit production capture (§2.2, fact 9). Step 17 decides how they coexist with whole-market adapters without revision flapping.
+The `STOCK_DAY` / `tradingStock` adapters prove the raw-first lifecycle. They do not suit production capture (§2.2, fact 9). Step 17-a decided how they coexist with the whole-market adapters: distinct source codes, independent histories, no revision flapping.
 
 ## 21.2 Step 12 — corporate-action contract
 
@@ -705,7 +707,7 @@ Split for review (CLAUDE.md §1):
 
 - **Step 15-a — MERGED.** The vocabulary and its provenance: the `evidence_types` registry with ADR-0020's ranking enforced in storage, `ingest_runs.purpose`, and `raw_artifact_observations.artifact_origin`. Correct on its own — the vocabulary exists and is enforced, and adapters still emit `unknown` evidence.
 - **Step 15-b — MERGED.** The release-rule registry and its evaluation against the Step 16 calendar, plus `evidence_plan`, the pure decision of what a run's declared purpose entitles it to claim. A versioned rule with no evaluator is a promise rather than a fact, so the registry ships with the code that reads it. Correct on its own: the rules resolve and the policy computes, and no adapter's behaviour changes.
-- **Step 15-c — THIS STEP.** Applying it: the lifecycle writes the planned evidence, each source opts into the new types through `accepted_evidence_types`, per-dataset reconciliation records what changed, and CLAUDE.md §31–32 are rewritten. That rewrite belongs here because §31–32 describe behaviour, and the behaviour changes only when the adapters do.
+- **Step 15-c — MERGED.** Applying it: the lifecycle writes the planned evidence, each source opts into the new types through `accepted_evidence_types`, per-dataset reconciliation records what changed, and CLAUDE.md §31–32 are rewritten. That rewrite belongs here because §31–32 describe behaviour, and the behaviour changes only when the adapters do.
 
 Problem: No source provides a per-row publication instant (§2.2, fact 1). Under official-only evidence, imported history is Market-PIT invisible, and System PIT starts at import time (§7.3). Neither can answer the consumers' question ("what was knowable on date D?").
 
@@ -842,30 +844,92 @@ Measured before implementation, as the baseline: TWSE and TPEx opened on exactly
 
 ## Step 17 — Whole-Market Daily Prices
 
-Status: **PLANNED**. Depends on: Step 9 lifecycle, Step 11, Step 16.
+Split into 17-a, 17-b and 17-c: together they run past what one pull request can
+be reviewed as (CLAUDE.md §1), and the seams leave each part correct on its own —
+a verified parse, then an import, then the history.
 
-Source contract (audit §4.1):
+Source contract, verified live on 2026-09-16 (audit §4.1):
 
-- TWSE `MI_INDEX?type=ALLBUT0999`: stock section only. Index sections are handled in Step 18, reusing the same artifact.
-- TPEx `stk_wn1430`, including its three header variants.
-- One resource per (market, trade date).
+- TWSE `rwd/zh/afterTrading/MI_INDEX?date=…&type=ALLBUT0999&response=json`.
+  Ten tables; the stock section is the one whose first field is `證券代號`,
+  never a table index. The index sections are Step 18's, reusing the same
+  artifact. A closed date answers `stat` `很抱歉，沒有符合條件的資料!`.
+- TPEx `www/zh-tw/afterTrading/otc?date=YYYY/MM/DD&type=EW&response=json`, the
+  feed the audit calls `stk_wn1430`, with its three header variants. A closed
+  date answers `stat` `ok` with zero rows.
+- One resource per (market, trade date); about 3,300 requests for the window.
 
-History: about 3,300 requests.
+Source codes are `twse_mi_index` and `tpex_otc_quotes`, distinct from the Step 9
+per-security pilots (`twse`, `tpex`), because the two endpoints have different
+field coverage and Invariant G forbids alternating revisions of one logical key
+between them.
 
-Schema impact: none expected. `daily_price_versions` covers the sourced fields, and bid/ask snapshots stay NULL.
+Schema impact: none. `daily_price_versions` covers the sourced fields, and
+bid/ask snapshots stay NULL.
+
+### Step 17-a — Adapters
+
+Status: **THIS STEP**. Depends on: Step 9 lifecycle.
+
+In scope: the two adapters and their request/parse contract, every TPEx header
+variant, the unit declarations, and the audit rewrite that records what the live
+feeds actually publish.
 
 Acceptance:
 
-- per-date row counts and OHLC, volume, trade value, and trade count equal legacy `daily_quotes`
-- no revision flapping between these adapters and the Step 9 per-security adapters for the same key (distinct source codes or pilot retired from production)
-- idempotent re-runs; a changed file creates a revision
-- a report of priced securities that have no metadata row (ETFs, TDRs, preferred shares)
+- each TPEx header variant parses, and an unknown header or a `flagField` that
+  contradicts its header fails closed
+- source units are declared, not inferred: TWSE shares/TWD, TPEx shares/TWD, and
+  both markets' disclosed bid/ask volumes in lots, normalized ×1,000 to shares
+- a closed date fails closed in both markets
+- the parsed values equal legacy `daily_quotes` for every security legacy
+  carried, on dates covering all three variants
+- `price_direction` claims only what each feed publishes
+
+Out of scope: storage, evidence, the CLI, the backfill.
+
+### Step 17-b — Import path
+
+Status: **PLANNED**. Depends on: Step 17-a, Step 11, Step 16.
+
+In scope: set-based writes for a whole market-date, the importer on the Step 9
+raw-first lifecycle, its CLI, the two source codes opted into
+`exchange_daily_settled@1` with their accepted evidence types, and the
+`daily_price` expected-coverage declarations.
+
+Acceptance:
+
+- one real trade date per market imports end to end, raw-first
+- re-running the same date creates no revision; changed content creates one
+- no revision flapping with the Step 9 pilots: distinct source codes
+- a quarantined date keeps its raw artifact and writes no business row
+- imported rows resolve under Market PIT by the rule their source declared
+- the downgrade refuses to remove a source policy that imported history needs
+
+Out of scope: the backfill.
+
+### Step 17-c — History backfill and reconciliation
+
+Status: **PLANNED**. Depends on: Step 17-b.
+
+In scope: the throttled, resumable date-range runner; the 2020-01-02 →
+2026-09-11 backfill for both markets; the legacy reconciliation report and the
+report of priced securities with no metadata row.
+
+Acceptance:
+
+- every trading date in the window is imported or explicitly reported as a gap
+- per-date row counts and OHLC, volume, trade value, and trade count reconcile
+  against legacy `daily_quotes`, with every difference classified
+- a resumed run continues rather than restarting, and reruns stay idempotent
+- a report of priced securities that have no metadata row (ETFs, TDRs,
+  preferred shares)
 
 Out of scope: adjusted prices; per-security pilots in production.
 
 ## Step 18 — Market Indices and Official Valuation
 
-Status: **PLANNED**. Depends on: Step 16, Step 17.
+Status: **PLANNED**. Depends on: Step 16, Step 17-c.
 
 Source contract (audit §4.2, §4.6):
 
@@ -888,7 +952,7 @@ Out of scope: index trade value; OHLC for any index other than the TAIEX; index-
 
 ## Step 19 — Exchange Corporate-Action Result Feeds
 
-Status: **PLANNED**. Depends on: Step 9, Step 12, Step 17.
+Status: **PLANNED**. Depends on: Step 9, Step 12, Step 17-c.
 
 Supersedes: the abandoned dividend-summary pilot (§21.3), the former reference-price pilot, and the former corporate-action backfill.
 
@@ -935,7 +999,7 @@ Out of scope: MOPS summary normalization; adjustment factors (Step 25).
 
 ## Step 20 — Institutional Flows, Institutional Summary, Foreign Holding
 
-Status: **PLANNED**. Depends on: Step 16, Step 17.
+Status: **PLANNED**. Depends on: Step 16, Step 17-c.
 
 Source contract (audit §4.3–4.4): `T86`, `BFI82U`, `MI_QFIIS`; TPEx `3itrade_hedge`, `3itrdsum`, MOPS `t13sa150_otc`. History: about 9,800 requests.
 
@@ -953,7 +1017,7 @@ Acceptance:
 
 ## Step 21 — Margin Trading and Securities Lending
 
-Status: **PLANNED**. Depends on: Step 16, Step 17.
+Status: **PLANNED**. Depends on: Step 16, Step 17-c.
 
 Source contract (audit §4.5): `MI_MARGN`, `TWT93U`; TPEx `margin_bal`, `margin_sbl`. TWSE utilization ratios stay NULL. History: about 6,500 requests.
 
@@ -1063,7 +1127,7 @@ Acceptance:
 
 ## Step 25 — Adjusted Prices
 
-Status: **PLANNED**. Depends on: Step 16, Step 17, Step 19.
+Status: **PLANNED**. Depends on: Step 16, Step 17-c, Step 19.
 
 Method: §18 reference-price ratio. Backward cumulative factors are computed per security. Raw OHLC is untouched.
 
@@ -1077,7 +1141,7 @@ Out of scope: price-only (cash-excluded) series; pre-2020 history.
 
 ## Step 26 — Canonical Derived v1 (Legacy Calculator Ports)
 
-Status: **PLANNED**. Depends on: Steps 17–25 as each metric requires.
+Status: **PLANNED**. Depends on: Steps 17-c–25 as each metric requires.
 
 Definitions, each ported from the legacy calculator and reconciled to its legacy table:
 

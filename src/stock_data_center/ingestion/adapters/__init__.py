@@ -21,6 +21,11 @@ from stock_data_center.ingestion.adapters.trading_calendar import (
     TradingCalendarAdapter,
     TWSETradingCalendarAdapter,
 )
+from stock_data_center.ingestion.adapters.whole_market_daily import (
+    TPExWholeMarketDailyAdapter,
+    TWSEWholeMarketDailyAdapter,
+    WholeMarketDailyAdapter,
+)
 
 __all__ = [
     "DailyMarketAdapter",
@@ -35,5 +40,8 @@ __all__ = [
     "TWSEDelistingHistoryAdapter",
     "TWSEListingHistoryAdapter",
     "TWSESecurityMetadataAdapter",
+    "TPExWholeMarketDailyAdapter",
     "TWSETradingCalendarAdapter",
+    "TWSEWholeMarketDailyAdapter",
+    "WholeMarketDailyAdapter",
 ]

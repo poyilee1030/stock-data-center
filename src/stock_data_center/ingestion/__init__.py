@@ -9,6 +9,7 @@ from stock_data_center.ingestion.models import (
     ParsedDailyMarket,
     ParsedSecurityLifecycle,
     ParsedSecurityMetadata,
+    ParsedWholeMarketDaily,
     ResourceImportResult,
     ResourceQuarantinedError,
     SecurityLifecycleEvent,
@@ -19,6 +20,8 @@ from stock_data_center.ingestion.models import (
     SourceMoneyUnit,
     SourceQuantityUnit,
     SourceResource,
+    WholeMarketDailyRequest,
+    WholeMarketDailyRow,
 )
 from stock_data_center.ingestion.raw_storage import (
     LocalRawArtifactStore,
@@ -43,6 +46,7 @@ __all__ = [
     "ParsedDailyMarket",
     "ParsedSecurityLifecycle",
     "ParsedSecurityMetadata",
+    "ParsedWholeMarketDaily",
     "RawArtifactIntegrityError",
     "ResourceImportResult",
     "ResourceQuarantinedError",
@@ -59,5 +63,7 @@ __all__ = [
     "SourceQuantityUnit",
     "SourceResource",
     "StoredRawArtifact",
+    "WholeMarketDailyRequest",
+    "WholeMarketDailyRow",
     "reconcile_security_transfers",
 ]
