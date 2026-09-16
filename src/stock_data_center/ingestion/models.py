@@ -247,11 +247,20 @@ class CorporateActionRangeRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class CorporateActionDetailRequest:
+    """The TWSE detail page that completes one list row."""
+
+    locator: ExchangeLocator
+
+
+@dataclass(frozen=True, slots=True)
 class CorporateActionRow:
     """One executed event as its list row published it.
 
     `fields` holds what the row publishes, already in canonical units; the
-    adapter's `observation` turns it into a storable version or refuses.
+    adapter's `observation` turns it into a storable version or refuses. A row
+    with a `detail_request` is not an observation until that detail is read:
+    TWSE's list does not publish the amounts.
     """
 
     security_code: str
@@ -261,6 +270,7 @@ class CorporateActionRow:
     source_event_type: str
     fields: Mapping[str, object]
     source_terms: Mapping[str, str]
+    detail_request: CorporateActionDetailRequest | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "fields", MappingProxyType(dict(self.fields)))
@@ -290,6 +300,27 @@ class ParsedCorporateActionList:
     def coverage_end(self) -> date:
         """The range this file is complete for; a later row is not an event yet."""
         return min(self.end, self.executed_through)
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedCorporateActionDetail:
+    """One TWSE detail page, reduced to the terms its row needs.
+
+    `values` holds decimals in the source's own per-share or per-thousand units;
+    a published zero is None, because TWSE writes `0` where an item does not
+    apply (`如果無該項配股率則用'0'帶入`).
+
+    `locator` is the event the page was requested for. The page itself
+    publishes a security code but no date, so only the request says which of
+    that security's events it describes.
+    """
+
+    locator: ExchangeLocator
+    security_code: str
+    variant: str
+    values: Mapping[str, object]
+    source_terms: Mapping[str, str]
+    source_fields: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)

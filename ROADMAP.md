@@ -599,8 +599,8 @@ Status date: 2026-09-16.
 | 18-a | MERGED | Market-index adapters |
 | 18-b | MERGED | Market-index import path and backfill |
 | 18-c | PLANNED | Official valuation |
-| 19-a | THIS STEP | Result-feed contract, storage precision, and the TPEx adapters |
-| 19-b | PLANNED | TWSE result-feed adapters and their detail pages |
+| 19-a | MERGED | Result-feed contract, storage precision, and the TPEx adapters |
+| 19-b | THIS STEP | TWSE result-feed adapters and their detail pages |
 | 19-c | PLANNED | Corporate-action import path, retraction included |
 | 19-d | PLANNED | Corporate-action history backfill and legacy reconciliation |
 | 19-e | PLANNED | ETF split and reverse-split result feeds |
@@ -1094,7 +1094,7 @@ The fields in §2.3 stay NULL.
 
 ### Step 19-a — Result-feed contract, storage precision, TPEx adapters
 
-Status: **THIS STEP**.
+Status: **MERGED** (#24).
 
 In scope: the locator, request and row contract types; the announcement-feed
 rejection; the `executed_through` boundary; the storage corrections the feeds
@@ -1115,7 +1115,7 @@ Out of scope: TWSE adapters, storage writes, retraction, source policy, the CLI,
 
 ### Step 19-b — TWSE result-feed adapters
 
-Status: **PLANNED**. Depends on: Step 19-a.
+Status: **THIS STEP**. Depends on: Step 19-a.
 
 In scope: the `TWT49U`, `TWTAUU` and `TWTB8U` list adapters and the
 `TWT49UDetail` and `TWTAVUDetail` adapters, both detail header variants, and
@@ -1123,10 +1123,13 @@ the row-plus-detail completion.
 
 Acceptance:
 
-- zero duplicate `(code, locator)` over the full history of each TWSE feed
-- the parsed list values equal legacy `dividend` (6,182 rows) on date, close before, reference price, rights+dividend value, and type — measured before 19-a: zero differences, and 1,602 official-only rows (1,402 ETFs, 170 preferred shares, 30 TDRs)
-- `最近一次申報*` and the security name never reach business content
-- a TWSE par-value change stores no share terms
+- [x] zero duplicate `(code, locator)` over the full history of each TWSE feed
+- [x] the parsed list values equal legacy `dividend` (6,182 rows) on date, close before, reference price, rights+dividend value, and type — measured before 19-a: zero differences, and 1,602 official-only rows (1,402 ETFs, 170 preferred shares, 30 TDRs)
+- [x] `最近一次申報*` and the security name never reach business content
+- [x] a TWSE par-value change stores no share terms
+
+Every detail page is fetched and mapped in 19-d; 19-b proves the mapping on 68
+sampled details across 2020-2026, both header variants and both reduction kinds.
 
 ### Step 19-c — Corporate-action import path
 
