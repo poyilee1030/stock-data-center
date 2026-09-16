@@ -101,6 +101,15 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
         self._raw_store = raw_store or LocalRawArtifactStore()
         self._fetcher = fetcher or HttpSourceFetcher()
 
+    @property
+    def engine(self) -> Engine:
+        """The engine this importer writes through.
+
+        Exposed so a range runner can ask the calendar which dates to request
+        without being handed a second engine that might point elsewhere.
+        """
+        return self._engine
+
     def run(
         self,
         *,

@@ -51,3 +51,21 @@ class CoverageReport:
     @property
     def is_complete(self) -> bool:
         return not self.missing and not self.unexpected
+
+
+@dataclass(frozen=True, slots=True)
+class UnknownPricedSecurity:
+    """A security the price feed carries that no metadata source describes.
+
+    The whole-market feeds price every listed instrument; the company snapshots
+    Step 10 imports describe only companies. ETFs, TDRs and preferred shares
+    therefore have prices and no name, industry or venue. That is a real and
+    expected gap, not a defect — but it has to be visible, because a consumer
+    joining prices to metadata silently loses these rows.
+    """
+
+    security_id: int
+    security_code: str
+    first_priced_on: date
+    last_priced_on: date
+    priced_days: int

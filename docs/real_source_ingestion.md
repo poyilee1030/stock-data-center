@@ -69,6 +69,37 @@ its version rather than creating a revision, and the match back to an existing
 row is made on the business values the database hashes rather than on a hash
 recomputed in Python. One trade date imports in about 1.9 s end to end.
 
+### Walking a date range
+
+Step 17-c adds `--through`, which imports every published trading date in a
+range. Three things follow from the window being about 1,627 dates per market:
+
+- **The calendar decides which dates to ask for.** The runner reads
+  `dataset_expected_coverage.calendar_market` for the market — TPEx declares the
+  TWSE calendar, because no official TPEx calendar exists — and requests only
+  the days that calendar published. A closure is never requested, so it never
+  looks like a gap. A range the calendar has not imported raises before the
+  first request rather than after the last.
+- **Each date carries its own import id**, derived from the run's with `uuid5`,
+  so a run that dies on date 900 resumes at date 900 instead of starting over,
+  and two runs never collide on one checkpoint. The run's own id is derived too,
+  from `(source, start, end)`, so resuming is what happens when the same command
+  is run again — the operator does not have to have kept a UUID from the first
+  attempt. `--import-id` overrides it for a deliberately separate run, and every
+  run prints the id it used.
+- **The declared coverage window bounds the range.** A request reaching outside
+  `dataset_expected_coverage.window_start`/`window_end` is refused before the
+  first fetch, because those dates would be imported and then permanently
+  reported as `unexpected` by the coverage validator. Widening the declaration is
+  the same change that makes the report agree.
+- **One bad date is reported, not fatal.** It is named in the run report with
+  its reason code, the exit status is non-zero, and the remaining dates still
+  import. Ending the run would throw away everything that worked.
+
+The gap report is the Step 16 coverage validator, not a second implementation:
+`CoverageValidator.report` already answers which expected dates a dataset holds,
+which it is missing, and which closures are not its gaps.
+
 Availability time follows the source's declared release rule
 (`exchange_daily_settled@1`, ADR-0020): trade date D resolves at 03:00 on D+1,
 Asia/Taipei. A `first_capture` run additionally claims a capture bound for the
