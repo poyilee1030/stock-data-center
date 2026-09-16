@@ -6,7 +6,7 @@ Scope: Market-index adapters
 
 Schema impact: none. Migration impact: none. PIT impact: none — this step writes
 nothing; it turns official bytes into `MarketIndexObservation` values.
-`src/` changed by +573/−0 lines.
+`src/` changed by +622/−0 lines.
 
 ## Why Step 18 is split three ways
 
@@ -79,7 +79,7 @@ report it as such.
 | --- | --- | --- |
 | Every TWSE index section is read | PASS | 273 rows from 6 sections. A regression asserts the section count, so reading only the first would fail. |
 | Index identity survives the TPEx collision | PASS | `櫃買指數` parses twice with different `index_code` values and different closes; a repeated name *within* one section still raises `ambiguous_identity`. |
-| The TWSE adapter can reuse Step 17-c's artifact | PASS | Its resource key is `twse_mi_index:daily-quotes:<date>` — the price import's — so 18-b's lifecycle finds the stored artifact instead of fetching the file again. No TWSE index fetch is needed for the whole window. |
+| The adapter names the stored resource it would reuse | PASS | `stored_resource_key()` returns `twse_mi_index:daily-quotes:<date>`, where Step 17-c put the bytes. It is stated, not assumed: the lifecycle has no reprocess path, so 18-b has to build one. See the review findings below. |
 | The unsigned points are signed by their own column | PASS | 寶島股價指數 parses to `-865.63` from `865.63` plus a `-` marker; 40 rows are positive and every one has a positive percent. A blank sign with a non-zero magnitude raises `ambiguous_direction`, and `X` (不比價) stores no change. |
 | OHLC is the TAIEX's alone | PASS | `open/high/low/trade_value` are NULL for every whole-list row; `MI_5MINS_HIST` parses 2026-01-02 to `29016.68 / 29363.43 / 29007.75 / 29349.81` and claims no change columns, because that feed publishes none. |
 | Everything else fails closed | PASS | Closed date → `no_data_for_date`; wrong date → `date_mismatch`; changed header → `schema_mismatch`; repeated name in a section → `ambiguous_identity`; TAIEX row outside its month → `date_mismatch`. |
@@ -87,16 +87,36 @@ report it as such.
 ## Verification
 
 ```text
-192 passed
+197 passed
 ```
 
-Baseline before this step: 172. The 20 adapter tests added here are the
-difference, and each was seen to fail first. They run against captured response
+Baseline before this step: 172. The 25 adapter tests added here are the
+difference, and each was seen to fail first — 20 before the adapters existed and
+5 from the review, against the code as it was pushed. They run against captured response
 bytes with no database, which is the point of the seam: this step writes
 nothing.
 
 `ruff check` reports nothing new against `main`; the two pre-existing findings in
 `ingestion/models.py` are unchanged.
+
+## Code-review findings
+
+Six findings, all verified before anything changed; none was a false positive.
+The first invalidated a claim this report made.
+
+| # | Finding | Verified by | Disposition |
+| --- | --- | --- | --- |
+| 1 | Borrowing the price import's resource key does not reuse its artifact: checkpoints are scoped by `import_id`, so a new id re-fetches all 1,627 files and the price import's own id short-circuits on its completed checkpoint and writes no index row | Read `_completed_checkpoint` (`lifecycle.py:495`) and `_capture_raw`, which dedups artifacts by content hash *after* fetching. There is one `run` method and no reprocess path. | **Fixed, and the claim withdrawn.** The adapter has its own resource key and names the stored one through `stored_resource_key()`. Reuse is a lifecycle capability Step 18-b must build; ROADMAP, the audit prose and this report no longer say it already exists. |
+| 2 | Sections were selected by their first column's label, so renaming it silently dropped 30–50 indices for that date | Read. | Fixed. A section is recognised by its value columns; an unrecognised label on a matching section then raises `schema_mismatch`, and a file with no matching section does too. |
+| 3 | The section discarded the provider its title names, so the same index name published by TWSE and by TIP would quarantine the whole trade date | Read. Latent: 273 names, no duplicate today. | Fixed. The section is `label/provider` — `指數/臺灣證券交易所`, `報酬指數/臺灣指數公司`. |
+| 4 | `_decimal` returns None for `--`, and the observation skips None, so `close_value` could reach a NOT NULL column | Confirmed `market_index_versions.close_value` is `nullable=False`. | Fixed. A missing close raises `missing_value` here rather than becoming an `IntegrityError` in 18-b's writer. |
+| 5 | The magnitude was parsed before the sign was validated, so an unreadable sign with no magnitude returned None silently | Read; the whole-market adapter checks the marker first. | Fixed, and the fix exposed a real hazard: a first attempt at it removed the unknown-sign check without adding the new one, leaving the function accepting anything. The regression caught that state before it was committed. |
+| 6 | The TAIEX adapter mapped every non-OK status to `no_data_for_date`, so a maintenance page would read as an empty month across ~80 months | Read; the index adapter already made the distinction. | Fixed. Structural, as elsewhere: no `fields` key means no data, any other status stays `source_status`. |
+
+Finding 1 is the one that matters. The acceptance criterion it supported — "no
+new fetch for TWSE indices" — could not have been met by this design, and the
+report asserted it as PASS. It is now a 18-b requirement with a named hook
+rather than a property claimed for free.
 
 ## Scope exclusions confirmed
 

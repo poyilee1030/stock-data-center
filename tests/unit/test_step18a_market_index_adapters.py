@@ -45,10 +45,11 @@ def taiex(content: bytes = TAIEX, month: date = date(2026, 1, 1)):
 
 
 def row(parsed, name: str, section: str = "指數"):
+    """Match on the section label; TWSE appends its provider to it."""
     matches = [
         item
         for item in parsed.rows
-        if item.index_name == name and item.section == section
+        if item.index_name == name and item.section.split("/")[0] == section
     ]
     assert len(matches) == 1, f"{section}/{name} appears {len(matches)} times"
     return matches[0]
@@ -74,18 +75,6 @@ def test_the_index_sources_are_their_own_and_identity_is_the_published_name() ->
         TWSETaiexHistoryAdapter,
     ):
         assert adapter.dataset_code == "market_index"
-
-
-def test_twse_indices_reuse_the_artifact_step_17c_already_stored() -> None:
-    """The same source code as the prices, because it is the same artifact."""
-    assert TWSEMarketIndexAdapter.source == "twse_mi_index"
-    resource = TWSEMarketIndexAdapter().resource(
-        MarketIndexRequest(date(2026, 9, 11))
-    )
-    assert "type=ALLBUT0999" in resource.source_uri
-    # Same resource key as the price import, so the lifecycle finds the stored
-    # artifact instead of fetching the file a second time.
-    assert resource.resource_key == "twse_mi_index:daily-quotes:2026-09-11"
 
 
 # --- TWSE --------------------------------------------------------------------
@@ -141,12 +130,14 @@ def test_twse_rejects_a_response_for_another_date() -> None:
     assert error.value.reason_code == "date_mismatch"
 
 
-def test_twse_rejects_a_changed_index_header() -> None:
+def test_twse_rejects_a_file_with_no_recognisable_index_section() -> None:
+    """Renaming the value columns stops a table being an index section at all,
+    and a file with none of them is a contract change, not an empty answer."""
+
     def rename(payload):
         for table in payload["tables"]:
-            if table.get("fields") and table["fields"][0] == "指數":
+            if table.get("fields") and table["fields"][0] in ("指數", "報酬指數"):
                 table["fields"][1] = "收盤"
-                break
 
     with pytest.raises(SourceDataError) as error:
         twse(mutate(TWSE, rename))
@@ -263,3 +254,95 @@ def test_taiex_rejects_a_changed_header() -> None:
     with pytest.raises(SourceDataError) as error:
         taiex(mutate(TAIEX, rename))
     assert error.value.reason_code == "schema_mismatch"
+
+
+def test_the_twse_adapter_names_the_stored_resource_it_would_reuse() -> None:
+    """Reuse is a lifecycle capability 18-b must build, not a key coincidence.
+
+    An earlier version of this adapter borrowed the price import's resource key
+    and claimed that meant the artifact was reused. It does not: checkpoints are
+    scoped by `import_id`, so under a new one the file is fetched again, and
+    under the price import's own id the completed checkpoint short-circuits and
+    no index row is written at all. The adapter therefore has its own key and
+    states separately which stored resource holds its bytes.
+    """
+    request = MarketIndexRequest(date(2026, 9, 11))
+    adapter = TWSEMarketIndexAdapter()
+    assert adapter.resource(request).resource_key == (
+        "twse_mi_index:index-sections:2026-09-11"
+    )
+    assert adapter.stored_resource_key(request) == (
+        "twse_mi_index:daily-quotes:2026-09-11"
+    )
+
+
+def test_an_index_section_with_an_unknown_label_fails_closed() -> None:
+    """A section is recognised by its columns; its label must then be known.
+
+    Selecting sections by the first column's label alone means a rename drops
+    30-50 indices for that date with no error at all.
+    """
+
+    def rename(payload):
+        for table in payload["tables"]:
+            if table.get("fields") and table["fields"][0] == "報酬指數":
+                table["fields"][0] = "總報酬指數"
+                break
+
+    with pytest.raises(SourceDataError) as error:
+        twse(mutate(TWSE, rename))
+    assert error.value.reason_code == "schema_mismatch"
+
+
+def test_the_section_keeps_the_provider_the_title_names() -> None:
+    """Six sections, three providers. `指數` alone conflates them, so the same
+    name published by TWSE and by TIP would quarantine the whole date."""
+    parsed = twse()
+    sections = {item.section for item in parsed.rows}
+    assert len(sections) == 6
+    assert "指數/臺灣證券交易所" in sections
+    assert "報酬指數/臺灣指數公司" in sections
+
+
+def test_an_index_with_no_published_close_fails_closed() -> None:
+    """`close_value` is NOT NULL in storage, so a missing close has to be
+    rejected here rather than become an IntegrityError in 18-b's writer."""
+
+    def blank(payload):
+        table = next(
+            t for t in payload["tables"] if t.get("fields") and t["fields"][0] == "指數"
+        )
+        table["data"][0][1] = "--"
+
+    with pytest.raises(SourceDataError) as error:
+        twse(mutate(TWSE, blank))
+    assert error.value.reason_code == "missing_value"
+
+
+def test_an_unknown_sign_fails_closed_even_with_no_magnitude() -> None:
+    """The marker is validated before the magnitude, so a missing number cannot
+    turn an unreadable sign into a silent None."""
+
+    def break_it(payload):
+        table = next(
+            t for t in payload["tables"] if t.get("fields") and t["fields"][0] == "指數"
+        )
+        table["data"][0][2] = "<p>?</p>"
+        table["data"][0][3] = "--"
+
+    with pytest.raises(SourceDataError) as error:
+        twse(mutate(TWSE, break_it))
+    assert error.value.reason_code == "ambiguous_direction"
+
+
+def test_a_taiex_status_that_is_not_an_empty_answer_stays_a_status_error() -> None:
+    """Otherwise a maintenance page reads as an empty month, and 18-b walks
+    about 80 of them producing silent coverage gaps."""
+
+    def break_it(payload):
+        payload["stat"] = "系統忙碌中"
+        payload["data"] = []
+
+    with pytest.raises(SourceDataError) as error:
+        taiex(mutate(TAIEX, break_it))
+    assert error.value.reason_code == "source_status"

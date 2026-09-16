@@ -1,11 +1,14 @@
 """Market-index adapters: whole-list closes, plus the one index with OHLC.
 
-Three sources, and the first of them fetches nothing. TWSE publishes its index
-sections in the same `MI_INDEX` file as its stock section, which Step 17-c
-already stored for every trade date in the window, so this adapter reads a
-different part of an artifact the Data Center holds. Its resource key is
-deliberately the price import's, so the lifecycle finds that artifact rather
-than asking TWSE for the file a second time.
+TWSE publishes its index sections in the same `MI_INDEX` file as its stock
+section, which Step 17-c already stored for every trade date in the window. That
+artifact *could* be reparsed instead of fetched again, but the lifecycle cannot
+do it yet: checkpoints are scoped by `import_id`, so borrowing the price
+import's resource key would either re-fetch the file under a new id or
+short-circuit on the price import's completed checkpoint and write no index row
+at all. The adapter therefore has its own key and names the stored resource
+separately, through `stored_resource_key`. Building the reprocess path that uses
+it is Step 18-b's work.
 
 No feed publishes an index code, so identity has to be built. It is
 `(source, section, published name)` — not `(source, name)`, which audit §4.2
@@ -88,12 +91,20 @@ class TWSEMarketIndexAdapter(MarketIndexAdapter):
             }
         )
         return SourceResource(
-            # The price import's key on purpose: same file, same artifact.
             resource_key=(
-                f"{self.source}:daily-quotes:{request.trade_date.isoformat()}"
+                f"{self.source}:index-sections:{request.trade_date.isoformat()}"
             ),
             source_uri=f"{self.endpoint}?{query}",
         )
+
+    def stored_resource_key(self, request: MarketIndexRequest) -> str:
+        """Where Step 17-c already stored the bytes this adapter parses.
+
+        Stated, not assumed: a reprocess path in 18-b can look the artifact up
+        under this key instead of asking TWSE for the same file a second time.
+        Nothing in the current lifecycle does that.
+        """
+        return f"{self.source}:daily-quotes:{request.trade_date.isoformat()}"
 
     def parse(
         self, content: bytes, request: MarketIndexRequest
@@ -119,20 +130,23 @@ class TWSEMarketIndexAdapter(MarketIndexAdapter):
         if not isinstance(tables, list):
             raise SourceDataError("schema_mismatch", "TWSE tables is not a list")
 
+        # A section is recognised by its columns, and only then is its label
+        # checked. Selecting on the label alone means a rename silently drops
+        # 30-50 indices for that date instead of failing.
         sections = []
         for table in tables:
             if not isinstance(table, dict):
                 continue
             fields = table.get("fields")
-            if not isinstance(fields, list) or not fields:
-                continue
-            if fields[0] not in self.section_headers:
+            if not isinstance(fields, list) or len(fields) != 6:
                 continue
             if tuple(fields[1:]) != self.fields_tail:
+                continue
+            if fields[0] not in self.section_headers:
                 raise SourceDataError(
                     "schema_mismatch",
-                    f"TWSE index section {fields[0]!r} changed: expected "
-                    f"{self.fields_tail!r}, received {tuple(fields[1:])!r}",
+                    f"TWSE published an index section labelled {fields[0]!r}, "
+                    f"which this adapter does not recognise",
                 )
             sections.append(table)
         if not sections:
@@ -152,10 +166,13 @@ class TWSEMarketIndexAdapter(MarketIndexAdapter):
                 rows.append(
                     MarketIndexRow(
                         index_name=_index_name(values[0], self.source, number),
-                        section=table["fields"][0],
+                        section=_twse_section(table),
                         observation=MarketIndexObservation(
                             trade_date=request.trade_date,
-                            close_value=_decimal(values[1], "close value"),
+                            close_value=_required(
+                                _decimal(values[1], "close value"),
+                                f"{self.source} row {number} close value",
+                            ),
                             change_points=change,
                             change_percent=_decimal(values[4], "change percent"),
                         ),
@@ -245,7 +262,10 @@ class TPExMarketIndexAdapter(MarketIndexAdapter):
                         section=fields[0],
                         observation=MarketIndexObservation(
                             trade_date=request.trade_date,
-                            close_value=_decimal(values[1], "close value"),
+                            close_value=_required(
+                                _decimal(values[1], "close value"),
+                                f"{self.source} row {number} close value",
+                            ),
                             # TPEx signs the number itself and has no sign
                             # column, so nothing needs combining.
                             change_points=_decimal(values[2], "change points"),
@@ -294,10 +314,18 @@ class TWSETaiexHistoryAdapter:
     ) -> ParsedTaiexHistory:
         payload = _json_object(content)
         if payload.get("stat") != "OK":
+            # Same structural distinction the index adapter makes: a month TWSE
+            # has nothing for answers with no `fields` at all. Mapping every
+            # status here would let a maintenance page read as an empty month,
+            # and 18-b walks about 80 of them.
+            if "fields" not in payload:
+                raise SourceDataError(
+                    "no_data_for_date",
+                    f"TWSE has no TAIEX history for {request.month:%Y-%m}: "
+                    f"{payload.get('stat')!r}",
+                )
             raise SourceDataError(
-                "no_data_for_date",
-                f"TWSE has no TAIEX history for {request.month:%Y-%m}: "
-                f"{payload.get('stat')!r}",
+                "source_status", f"TWSE response status: {payload.get('stat')!r}"
             )
         fields = payload.get("fields")
         if not isinstance(fields, list) or tuple(fields) != self.fields:
@@ -332,7 +360,10 @@ class TWSETaiexHistoryAdapter:
                         open_value=_decimal(values[1], "open value"),
                         high_value=_decimal(values[2], "high value"),
                         low_value=_decimal(values[3], "low value"),
-                        close_value=_decimal(values[4], "close value"),
+                        close_value=_required(
+                            _decimal(values[4], "close value"),
+                            f"TAIEX row {number} close value",
+                        ),
                         # This feed publishes no change columns at all.
                     ),
                 )
@@ -366,6 +397,16 @@ def _signed_points(
     invented.
     """
     sign = _TAGS.sub("", marker).replace(" ", " ").strip().upper()
+    # The marker is validated before the magnitude is even parsed: a missing
+    # number must not turn an unreadable sign into a silent None.
+    if sign not in {"", "+", "-", "X"}:
+        raise SourceDataError(
+            "ambiguous_direction",
+            f"index row {row_number} publishes an unknown sign {sign!r}",
+        )
+    if sign == "X":
+        # 不比價: the index was not compared, so no change was published.
+        return None
     value = _decimal(magnitude, f"index row {row_number} change points")
     if value is None:
         return None
@@ -377,14 +418,6 @@ def _signed_points(
                 f"{magnitude!r}",
             )
         return value
-    if sign == "X":
-        # 不比價: the index was not compared, so no change was published.
-        return None
-    if sign not in {"+", "-"}:
-        raise SourceDataError(
-            "ambiguous_direction",
-            f"index row {row_number} publishes an unknown sign {sign!r}",
-        )
     if value < 0:
         raise SourceDataError(
             "impossible_value",
@@ -423,6 +456,28 @@ def _row(
             "schema_mismatch", f"{source} row {row_number} has an invalid shape"
         )
     return tuple(value)
+
+
+def _twse_section(table: dict) -> str:
+    """The section label plus the provider its title names.
+
+    Six sections, three providers: `價格指數(臺灣證券交易所)`,
+    `(跨市場)`, `(臺灣指數公司)` and the same three for return indices. The
+    label alone conflates them, so one name published by two providers would
+    quarantine the whole trade date instead of resolving two indices.
+    """
+    label = table["fields"][0]
+    title = table.get("title")
+    provider = ""
+    if isinstance(title, str) and "(" in title and title.rstrip().endswith(")"):
+        provider = title[title.rindex("(") + 1 : title.rindex(")")].strip()
+    return f"{label}/{provider}" if provider else label
+
+
+def _required(value: Decimal | None, field: str) -> Decimal:
+    if value is None:
+        raise SourceDataError("missing_value", f"{field} is not published")
+    return value
 
 
 def _index_name(value: str, source: str, row_number: int) -> str:

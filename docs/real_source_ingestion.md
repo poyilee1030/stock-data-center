@@ -123,9 +123,12 @@ Step 18-a adds three, and the first fetches nothing.
 | `twse_mi_5mins_hist` | `rwd/zh/TAIEX/MI_5MINS_HIST` | one calendar month of TAIEX OHLC |
 
 TWSE publishes its index sections in the same file as its stock section, which
-Step 17-c stored for every trade date in the window. The index adapter's
-resource key is therefore the price import's, so the lifecycle reuses that
-artifact rather than asking TWSE for the file a second time.
+Step 17-c stored for every trade date in the window. Those bytes *could* be
+reparsed instead of fetched again, and the adapter names where they are through
+`stored_resource_key()` — but the lifecycle has no reprocess path: checkpoints
+are scoped by `import_id`, so borrowing the price import's key would either
+re-fetch under a new id or short-circuit on the price import's own completed
+checkpoint and write nothing. Building that path is Step 18-b's work.
 
 **Index identity is `(source, section, published name)`.** No feed publishes an
 index code, and the name alone collides: TPEx repeats 32 of its 34 names across

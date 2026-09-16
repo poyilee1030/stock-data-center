@@ -939,9 +939,11 @@ tables.
 
 Source contract, verified live on 2026-09-16 (audit §4.2, §4.6):
 
-- TWSE indices: the `MI_INDEX` index sections. **Step 17-c already stored these
-  artifacts**; 18-a parses a different section of the same 1,627 files and
-  fetches nothing.
+- TWSE indices: the `MI_INDEX` index sections. Step 17-c already stored these
+  artifacts, so 18-b can reparse them instead of fetching 1,627 files again —
+  but only by adding a reprocess path to the lifecycle, which scopes checkpoints
+  by `import_id` and has no such path today. The adapter names the stored
+  resource; it does not get reuse for free.
 - TPEx indices: `www/zh-tw/afterTrading/indexSummary`, one file per trade date.
 - TAIEX OHLC: `rwd/zh/TAIEX/MI_5MINS_HIST?date=YYYYMM01`, one calendar month per
   request.
@@ -983,8 +985,8 @@ Acceptance:
 - every TWSE index section is read, not only the first — price and return, for
   TWSE, cross-market and TIP alike
 - index identity survives TPEx publishing one name in two sections
-- the TWSE adapter's resource key is the price import's, so the lifecycle can
-  reuse the artifact Step 17-c already stored instead of fetching it again
+- the adapter names the stored resource holding its bytes, without claiming the
+  lifecycle already reuses it
 - the unsigned `漲跌點數` is signed by its own column, and an unrecognised sign
   fails closed
 - `open/high/low` are parsed for the TAIEX alone and stay NULL elsewhere
@@ -1007,8 +1009,9 @@ Acceptance:
   both markets, with every difference classified
 - TAIEX close from `MI_5MINS_HIST` equals the `MI_INDEX` close on every trade
   date, or the row is quarantined
-- TWSE indices are imported from the artifacts Step 17-c already stored, with no
-  new fetch for that market
+- a reprocess path imports TWSE indices from the artifacts Step 17-c already
+  stored, with no new fetch for that market — or, if that path is not built, the
+  re-fetch is stated plainly rather than claimed away
 - TPEx return indices, which legacy never collected, are reported as new data
   rather than as a reconciliation difference
 
