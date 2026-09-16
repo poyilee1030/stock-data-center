@@ -13,6 +13,7 @@ import sqlalchemy as sa
 from sqlalchemy import Connection, RowMapping
 from sqlalchemy.dialects.postgresql import insert
 
+from stock_data_center.db.batch import batched as _batched
 from stock_data_center.db.metadata import (
     daily_price_versions,
     publication_evidence,
@@ -20,25 +21,6 @@ from stock_data_center.db.metadata import (
     security,
     security_metadata_versions,
 )
-
-# PostgreSQL sends the bind-parameter count as an int16, so one statement
-# carries at most 65,535 of them. A whole market-date is about 1,300 rows at 21
-# parameters each today, which fits, but the listed universe only grows and the
-# failure is a hard error at import time. Every multi-row insert here is split
-# by the parameters it actually binds rather than by a guessed row count, so
-# adding a column cannot quietly move the cliff.
-MAX_BIND_PARAMETERS = 65535
-
-
-def _batched(rows: Sequence[dict[str, object]]) -> list[Sequence[dict[str, object]]]:
-    if not rows:
-        return []
-    per_row = sum(
-        1 for value in rows[0].values() if not isinstance(value, sa.ClauseElement)
-    )
-    size = max(1, MAX_BIND_PARAMETERS // max(per_row, 1))
-    return [rows[start : start + size] for start in range(0, len(rows), size)]
-
 
 @dataclass(frozen=True, slots=True)
 class LineageRef:

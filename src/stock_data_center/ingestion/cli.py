@@ -17,25 +17,35 @@ from stock_data_center.ingestion.adapters import (
     TPExDailyMarketAdapter,
     TPExDelistingHistoryAdapter,
     TPExListingHistoryAdapter,
+    TPExMarketIndexAdapter,
     TPExSecurityMetadataAdapter,
     TPExWholeMarketDailyAdapter,
     TWSEDailyMarketAdapter,
     TWSEDelistingHistoryAdapter,
     TWSEListingHistoryAdapter,
+    TWSEMarketIndexAdapter,
     TWSESecurityMetadataAdapter,
+    TWSETaiexHistoryAdapter,
     TWSETradingCalendarAdapter,
     TWSEWholeMarketDailyAdapter,
 )
 from stock_data_center.ingestion.backfill import (
     WholeMarketDailyBackfill,
     default_base_import_id,
+    month_import_id,
 )
 from stock_data_center.ingestion.daily_market import DailyMarketImporter
+from stock_data_center.ingestion.market_index import (
+    MarketIndexImporter,
+    TaiexHistoryImporter,
+)
 from stock_data_center.ingestion.models import (
     DailyMarketRequest,
     IngestPurpose,
+    MarketIndexRequest,
     SecurityLifecycleRequest,
     SecurityMetadataRequest,
+    TaiexHistoryRequest,
     TradingCalendarRequest,
     WholeMarketDailyRequest,
 )
@@ -98,6 +108,33 @@ def main(argv: list[str] | None = None) -> int:
     )
     whole_market.add_argument("--import-id", type=UUID)
     whole_market.add_argument("--raw-root", type=Path, default=Path("data/raw"))
+    index = subparsers.add_parser(
+        "market-index",
+        help="import one market's published index closes for one trade date",
+    )
+    index.add_argument(
+        "--source", choices=("twse_mi_index", "tpex_index_summary"), required=True
+    )
+    index.add_argument("--trade-date", required=True, help="Gregorian YYYY-MM-DD")
+    index.add_argument(
+        "--through",
+        help="optional Gregorian YYYY-MM-DD; import every published trading "
+        "date from --trade-date to it, driven by the Step 16 calendar",
+    )
+    index.add_argument("--min-interval-seconds", type=float, default=1.5)
+    index.add_argument("--import-id", type=UUID)
+    index.add_argument("--raw-root", type=Path, default=Path("data/raw"))
+    taiex = subparsers.add_parser(
+        "taiex-history",
+        help="import one calendar month of TAIEX open/high/low/close",
+    )
+    taiex.add_argument("--month", required=True, help="Gregorian YYYY-MM")
+    taiex.add_argument(
+        "--through", help="optional Gregorian YYYY-MM; import every month to it"
+    )
+    taiex.add_argument("--min-interval-seconds", type=float, default=1.5)
+    taiex.add_argument("--import-id", type=UUID)
+    taiex.add_argument("--raw-root", type=Path, default=Path("data/raw"))
     security_metadata = subparsers.add_parser("security-metadata")
     security_metadata.add_argument("--source", choices=("twse", "tpex"), required=True)
     security_metadata.add_argument(
@@ -163,6 +200,7 @@ def main(argv: list[str] | None = None) -> int:
         import_id = args.import_id or uuid4()
         calendar_runs: list = []
         backfill_report = None
+        month_failures: list[dict] = []
         if args.command == "daily-market":
             adapter = (
                 TWSEDailyMarketAdapter()
@@ -217,6 +255,83 @@ def main(argv: list[str] | None = None) -> int:
                     import_id=import_id,
                     purpose=IngestPurpose(args.purpose),
                 )
+        elif args.command == "market-index":
+            importer = MarketIndexImporter(
+                engine, raw_store=LocalRawArtifactStore(args.raw_root)
+            )
+            adapter = (
+                TWSEMarketIndexAdapter()
+                if args.source == "twse_mi_index"
+                else TPExMarketIndexAdapter()
+            )
+            first = date.fromisoformat(args.trade_date)
+            if args.through:
+                last = date.fromisoformat(args.through)
+                if last < first:
+                    parser.error("--through must not be before --trade-date")
+                base_import_id = args.import_id or default_base_import_id(
+                    args.source, first, last
+                )
+                backfill_report = WholeMarketDailyBackfill(
+                    importer, request_factory=MarketIndexRequest
+                ).run(
+                    adapter=adapter,
+                    start=first,
+                    end=last,
+                    base_import_id=base_import_id,
+                    purpose=IngestPurpose(args.purpose),
+                    min_interval_seconds=args.min_interval_seconds,
+                )
+            else:
+                result = importer.run(
+                    adapter=adapter,
+                    request=MarketIndexRequest(first),
+                    import_id=import_id,
+                    purpose=IngestPurpose(args.purpose),
+                )
+        elif args.command == "taiex-history":
+            importer = TaiexHistoryImporter(
+                engine, raw_store=LocalRawArtifactStore(args.raw_root)
+            )
+            first = date.fromisoformat(f"{args.month}-01")
+            last = (
+                date.fromisoformat(f"{args.through}-01") if args.through else first
+            )
+            if last < first:
+                parser.error("--through must not be before --month")
+            months = list(_months(first, last))
+            # Derived, so a run that dies partway resumes by being run again.
+            base_id = args.import_id or default_base_import_id(
+                "twse_mi_5mins_hist", first, last
+            )
+            calendar_runs = []
+            fetched_last = False
+            for month in months:
+                if fetched_last:
+                    time.sleep(args.min_interval_seconds)
+                month_id = month_import_id(base_id, month)
+                try:
+                    result = importer.run(
+                        adapter=TWSETaiexHistoryAdapter(),
+                        request=TaiexHistoryRequest(month),
+                        import_id=month_id,
+                        purpose=IngestPurpose(args.purpose),
+                    )
+                except Exception as error:  # noqa: BLE001 - reported, not swallowed
+                    # One unreachable month says nothing about the next, and
+                    # ending the run would discard every month that worked.
+                    month_failures.append(
+                        {
+                            "month": f"{month:%Y-%m}",
+                            "import_id": str(month_id),
+                            "detail": f"{type(error).__name__}: {error}",
+                        }
+                    )
+                    fetched_last = True
+                    continue
+                fetched_last = not result.resumed_from_checkpoint
+                calendar_runs.append((month, month_id, result))
+                import_id = month_id
         elif args.command == "trading-calendar":
             importer = TradingCalendarImporter(
                 engine,
@@ -305,6 +420,18 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0 if backfill_report.is_complete else 1
 
+        if month_failures and not calendar_runs:
+            # Every month failed, so there is no manifest to read and no
+            # resource to describe — but this is precisely the run whose report
+            # matters. Name the failures and stop.
+            print(
+                json.dumps(
+                    {"month_failures": month_failures},
+                    ensure_ascii=False, indent=2, default=str,
+                )
+            )
+            return 1
+
         with engine.connect() as connection:
             manifest = importer.manifest(connection, import_id)
             months_report = [
@@ -322,6 +449,12 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         engine.dispose()
 
+    if month_failures:
+        # Non-zero, so a scripted run notices; the successful months still
+        # imported and are reported above.
+        exit_code = 1
+    else:
+        exit_code = 0
     print(
         json.dumps(
             {
@@ -335,13 +468,14 @@ def main(argv: list[str] | None = None) -> int:
                 # A history run reports every month it imported, not only the
                 # last: an earlier month's warnings are the point of running it.
                 **({"months": months_report} if months_report else {}),
+                **({"month_failures": month_failures} if month_failures else {}),
             },
             ensure_ascii=False,
             indent=2,
             default=str,
         )
     )
-    return 0
+    return exit_code
 
 
 if __name__ == "__main__":

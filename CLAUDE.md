@@ -101,7 +101,7 @@ Each required criterion must be PASS/FAIL with concrete evidence.
 
 ## Current Step Sequence
 
-ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–16, 17-a and 17-b as MERGED and labels Step 17-c as `THIS STEP` (a contextual marker, not an additional status value):
+ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–17 and 18-a as MERGED and labels Step 18-b as `THIS STEP` (a contextual marker, not an additional status value):
 
 ```text
 Step 11  authoritative security lifecycle history        MERGED
@@ -114,8 +114,9 @@ Step 15-c applying the evidence policy to adapters      MERGED
 Step 16  trading calendar + coverage validator          MERGED
 Step 17-a whole-market daily-price adapters             MERGED
 Step 17-b whole-market daily-price import path          MERGED
-Step 17-c whole-market history backfill                 THIS STEP
-Step 18  market indices + official valuation            PLANNED
+Step 17-c whole-market history backfill                 MERGED
+Step 18-a market-index adapters                         MERGED
+Step 18-b market-index import path and backfill         THIS STEP
 Step 19  exchange corporate-action result feeds         PLANNED
 Step 20  institutional flows/summary + foreign holding  PLANNED
 Step 21  margin trading + securities lending            PLANNED
