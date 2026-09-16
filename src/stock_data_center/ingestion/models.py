@@ -175,6 +175,119 @@ class ParsedTaiexHistory:
         return self.rows[-1].trade_date if self.rows else None
 
 
+# Exchange result feeds (Invariant G(2)). Each row records an event the exchange
+# executed and priced, so its locator is an identity. The announcement feeds are
+# named only so that asking one for a locator fails loudly (ROADMAP §21.3).
+RESULT_FEEDS = frozenset(
+    {"TWT49U", "TWTAUU", "TWTB8U", "exDailyQ", "revivt", "pvChgRslt"}
+)
+ANNOUNCEMENT_FEEDS = frozenset(
+    {"t187ap45_L", "mopsfin_t187ap39_O", "TWT48U", "t05st09sub"}
+)
+
+
+@dataclass(frozen=True, slots=True)
+class ExchangeLocator:
+    """The exchange's own address for one executed event.
+
+    TWSE publishes it (`詳細資料`, e.g. `1101,20240701`); TPEx publishes none,
+    so its executed date stands in. The key is the feed plus the locator's
+    dates and nothing else: no amount, ratio, type or name can reach it.
+    """
+
+    feed: str
+    security_code: str
+    dates: tuple[date, ...]
+
+    def __post_init__(self) -> None:
+        if self.feed in ANNOUNCEMENT_FEEDS:
+            raise SourceDataError(
+                "announcement_feed",
+                f"{self.feed} publishes plans, not executed events; it has no "
+                f"correction-stable event identity (ROADMAP Invariant G(1))",
+            )
+        if self.feed not in RESULT_FEEDS:
+            raise SourceDataError(
+                "unknown_feed", f"{self.feed!r} is not a verified result feed"
+            )
+        if not self.security_code or self.security_code.strip() != self.security_code:
+            raise ValueError("security_code must be nonempty and already trimmed")
+        if not self.dates:
+            raise ValueError("a locator names at least one date")
+
+    @property
+    def source_event_key(self) -> str:
+        return f"{self.feed}:" + ",".join(
+            value.strftime("%Y%m%d") for value in self.dates
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class CorporateActionRangeRequest:
+    """One result feed over a date range, as TWSE and TPEx both serve it.
+
+    `executed_through` is the last date whose rows count as executed. A
+    current-year file already lists results for coming dates — fetched
+    2026-09-16, TWT49U listed 2026-09-17 and TWTAUU 2026-10-19 — and those are
+    not yet market facts. It is decided when the job is issued, never from the
+    fetch clock, for the same reason the ingest purpose is (ROADMAP §3.1).
+    """
+
+    start: date
+    end: date
+    executed_through: date
+
+    def __post_init__(self) -> None:
+        if self.start > self.end:
+            raise ValueError("start must not follow end")
+
+
+@dataclass(frozen=True, slots=True)
+class CorporateActionRow:
+    """One executed event as its list row published it.
+
+    `fields` holds what the row publishes, already in canonical units; the
+    adapter's `observation` turns it into a storable version or refuses.
+    """
+
+    security_code: str
+    event_date: date
+    locator: ExchangeLocator
+    action_type: str
+    source_event_type: str
+    fields: Mapping[str, object]
+    source_terms: Mapping[str, str]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "fields", MappingProxyType(dict(self.fields)))
+        object.__setattr__(
+            self, "source_terms", MappingProxyType(dict(self.source_terms))
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedCorporateActionList:
+    """Every executed event one feed published for a range."""
+
+    feed: str
+    market: str
+    start: date
+    end: date
+    executed_through: date
+    rows: tuple[CorporateActionRow, ...]
+    not_yet_executed: int
+    source_fields: tuple[str, ...]
+
+    @property
+    def coverage_start(self) -> date:
+        return self.start
+
+    @property
+    def coverage_end(self) -> date:
+        """The range this file is complete for; a later row is not an event yet."""
+        return min(self.end, self.executed_through)
+
+
 @dataclass(frozen=True, slots=True)
 class SecurityMetadataRequest:
     """Request the source's current official security-metadata snapshot."""

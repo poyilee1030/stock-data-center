@@ -35,13 +35,33 @@ class AmountScale(str, Enum):
         }[self]
 
 
+# The widest TWD column is NUMERIC(24, 8): TPEx publishes cash dividends such as
+# 3.42936322 per share. PostgreSQL rounds a value to its column's scale without
+# complaint, so each observation also checks the scale of the column it lands in.
+TWD_SCALE = 8
+
+
 @dataclass(frozen=True, slots=True)
 class TwdAmount:
     """Canonical TWD amount in major units (dollars)."""
     value: Decimal
 
     def __post_init__(self) -> None:
-        _decimal("TWD amount", self.value, 4, positive=True)
+        _decimal("TWD amount", self.value, TWD_SCALE, positive=True)
+
+
+@dataclass(frozen=True, slots=True)
+class SignedTwdAmount:
+    """A published TWD difference, which the source signs itself.
+
+    `權值+息值` is 除權息前收盤價 − 除權息參考價. A rights issue priced above the
+    close raises the reference, so the exchanges publish it negative — 3563 on
+    2020-03-27 at −0.616165, TPEx 8444 on 2024-12-12 at −0.204602.
+    """
+    value: Decimal
+
+    def __post_init__(self) -> None:
+        _decimal("signed TWD amount", self.value, TWD_SCALE)
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,8 +116,10 @@ class MarketIndexObservation:
             _decimal(name, getattr(self, name), 8, positive=True)
         _decimal("change_points", self.change_points, 8)
         _decimal("change_percent", self.change_percent, 8)
-        if self.trade_value is not None and not isinstance(self.trade_value, TwdAmount):
-            raise ValueError("trade_value must be a canonical TwdAmount")
+        if self.trade_value is not None:
+            if not isinstance(self.trade_value, TwdAmount):
+                raise ValueError("trade_value must be a canonical TwdAmount")
+            _decimal("trade_value", self.trade_value.value, 4)
         if self.high_value is not None and self.high_value < max(
             value for value in (self.open_value, self.close_value, self.low_value) if value is not None
         ):
@@ -136,6 +158,30 @@ CapitalReductionKind = Literal[
 CAPITAL_REDUCTION_KINDS = frozenset(CapitalReductionKind.__args__)
 
 
+# Each term's column scale. Share ratios carry twelve places because the
+# exchanges publish them per thousand shares with eight: 202.11906001 per 1,000
+# is 0.20211906001 (ROADMAP Step 19).
+_MONEY_SCALES = {
+    "cash_dividend_per_share": 8,
+    "capital_reduction_cash_return_per_share": 8,
+    "subscription_price": 6,
+    "close_before": 6,
+    "official_reference_price": 6,
+    "official_rights_dividend_value": 6,
+}
+# The one term a source publishes as a signed difference.
+_SIGNED = frozenset({"official_rights_dividend_value"})
+_SIGNED_MONEY = (TwdAmount, SignedTwdAmount)
+_RATIO_SCALES = {
+    "earnings_stock_ratio": 12,
+    "capital_surplus_stock_ratio": 12,
+    "free_share_ratio": 12,
+    "rights_ratio": 12,
+    "old_shares": 8,
+    "new_shares": 8,
+}
+
+
 @dataclass(frozen=True, slots=True)
 class CorporateActionObservation:
     action_type: ActionType
@@ -155,7 +201,7 @@ class CorporateActionObservation:
     subscription_price: TwdAmount | None = None
     close_before: TwdAmount | None = None
     official_reference_price: TwdAmount | None = None
-    official_rights_dividend_value: TwdAmount | None = None
+    official_rights_dividend_value: TwdAmount | SignedTwdAmount | None = None
     source_event_type: str | None = None
     source_terms: dict[str, object] | None = None
 
@@ -171,21 +217,17 @@ class CorporateActionObservation:
         if (self.record_date is not None and self.payment_date is not None
                 and self.record_date > self.payment_date):
             raise ValueError("record_date must not follow payment_date")
-        money = (
-            "cash_dividend_per_share", "capital_reduction_cash_return_per_share",
-            "subscription_price", "close_before",
-            "official_reference_price", "official_rights_dividend_value",
-        )
-        for name in money:
+        money = tuple(_MONEY_SCALES)
+        for name, scale in _MONEY_SCALES.items():
             value = getattr(self, name)
-            if value is not None and not isinstance(value, TwdAmount):
-                raise ValueError(f"{name} must be a canonical TwdAmount")
-        ratios = (
-            "earnings_stock_ratio", "capital_surplus_stock_ratio",
-            "free_share_ratio", "rights_ratio", "old_shares", "new_shares",
-        )
-        for name in ratios:
-            _decimal(name, getattr(self, name), 8, positive=True)
+            if value is not None:
+                allowed = _SIGNED_MONEY if name in _SIGNED else TwdAmount
+                if not isinstance(value, allowed):
+                    raise ValueError(f"{name} must be a canonical TwdAmount")
+                _decimal(name, value.value, scale)
+        ratios = tuple(_RATIO_SCALES)
+        for name, scale in _RATIO_SCALES.items():
+            _decimal(name, getattr(self, name), scale, positive=True)
             if getattr(self, name) == 0:
                 raise ValueError(f"{name} must be positive")
         if (self.old_shares is None) != (self.new_shares is None):

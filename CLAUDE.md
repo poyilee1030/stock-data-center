@@ -101,7 +101,7 @@ Each required criterion must be PASS/FAIL with concrete evidence.
 
 ## Current Step Sequence
 
-ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–17 and 18-a as MERGED and labels Step 18-b as `THIS STEP` (a contextual marker, not an additional status value):
+ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–17, 18-a and 18-b as MERGED and labels Step 19-a as `THIS STEP` (a contextual marker, not an additional status value):
 
 ```text
 Step 11  authoritative security lifecycle history        MERGED
@@ -116,8 +116,13 @@ Step 17-a whole-market daily-price adapters             MERGED
 Step 17-b whole-market daily-price import path          MERGED
 Step 17-c whole-market history backfill                 MERGED
 Step 18-a market-index adapters                         MERGED
-Step 18-b market-index import path and backfill         THIS STEP
-Step 19  exchange corporate-action result feeds         PLANNED
+Step 18-b market-index import path and backfill         MERGED
+Step 18-c official valuation                            PLANNED
+Step 19-a result-feed contract + TPEx adapters          THIS STEP
+Step 19-b TWSE result-feed adapters + detail pages      PLANNED
+Step 19-c corporate-action import path                  PLANNED
+Step 19-d corporate-action backfill + reconciliation    PLANNED
+Step 19-e ETF split / reverse-split result feeds        PLANNED
 Step 20  institutional flows/summary + foreign holding  PLANNED
 Step 21  margin trading + securities lending            PLANNED
 Step 22  monthly revenue                               PLANNED
@@ -131,7 +136,7 @@ Step 29  Python SDK + downstream integration           PLANNED
 Step 30  operations + observability                    PLANNED
 Step 31  full correctness CI gate                      PLANNED
 Step 32  my_stock_project cutover + v1 release          PLANNED
-Step 33  issuer dividend declarations                  PLANNED (depends on #19)
+Step 33  issuer dividend declarations                  PLANNED (depends on 19)
 ```
 
 `ROADMAP.md` remains authoritative if this snapshot becomes stale.
@@ -897,14 +902,15 @@ The rest of this section distinguishes two kinds of feed.
 
 They may still be stored as their own domain when the feed has a workable key *within itself*. ROADMAP Step 33 uses MOPS `t05st09sub` as the primary historical and forward source for both markets, in `dividend_declaration_versions`; the two OpenAPI declaration feeds are cross-checks only. Storing declarations this way is not a claim about event identity, and it does not unblock any column in `corporate_action_versions`.
 
-**Exchange result feeds** record an event the exchange executed and priced on a trading date: `TWT49U`, `TWTAUU`, `TWTB8U`, TPEx `exDailyQ`, TPEx `revivt`.
+**Exchange result feeds** record an event the exchange executed and priced on a trading date: `TWT49U`, `TWTAUU`, `TWTB8U`, TPEx `exDailyQ`, TPEx `revivt`, TPEx `pvChgRslt`.
 
 - The executed event date is a completed market fact, not a mutable plan. TWSE's own detail locator for these feeds is `(code, date)`, for example `1101,20240701`.
 - For these feeds, `source_event_key = "<feed>:<locator date>"` is permitted.
+- A current-year file also lists results for dates still to come. Those rows are not executed events: a request declares `executed_through` when the job is issued, and later rows are counted, never stored (ADR-0019).
 - Changed terms under the same locator are revisions of the same event. A row removed from the feed is a retraction.
 - The adapter must still pass the full-history duplicate scan and the correction regressions (ROADMAP §27.7).
 
-TWSE result feeds must use `response=json`. CSV replaces the detail locator with a link label, so legacy CSV cannot prove event identity. Preserve detail responses and source-native units; Step 19 converts free-share and rights ratios by dividing by 1,000.
+TWSE result feeds must use `response=json`. CSV replaces the detail locator with a link label, so legacy CSV cannot prove event identity. Preserve detail responses and source-native units; Step 19 converts free-share and rights ratios by dividing by 1,000, which needs twelve-place ratio columns. `權值+息值` is a signed difference (close before − reference price) and may be negative.
 
 The ex_date entry in the forbidden list below refers to announced or planned dates. It does not refer to the executed-date locator of a result feed.
 

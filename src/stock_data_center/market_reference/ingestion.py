@@ -22,6 +22,7 @@ from stock_data_center.market_reference.models import (
     OfficialValuationObservation,
     Phase8LineageRef,
     Phase8Publication,
+    SignedTwdAmount,
     TwdAmount,
     WrittenPhase8Version,
 )
@@ -419,5 +420,6 @@ def _values(instance: object) -> dict[str, object]:
     result = {}
     for field in fields(instance):
         value = getattr(instance, field.name)
-        result[field.name] = value.value if isinstance(value, TwdAmount) else value
+        amount = isinstance(value, (TwdAmount, SignedTwdAmount))
+        result[field.name] = value.value if amount else value
     return result

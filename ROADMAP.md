@@ -71,7 +71,7 @@ Legacy technical indicators and backtests use raw, unadjusted prices. Nothing in
 4. **Official TDCC history is not available.** OpenData serves only the latest week, and the portal about one year (51 weeks on 2026-09-14). Weeks before 2025-09-19 exist only in the archive, 375 weeks back to 2019-06-28 (audit §4.9).
 5. **MOPS monthly revenue and iXBRL return the latest corrected or amended values.** First-published *values* survive only where some capture recorded them: the legacy first-seen records (monthly revenue from 2026M02, XBRL from 2025Q4), then Data Center forward capture. Publication *dates* are a separate matter: for monthly revenue, `revswarm` reconstructs them from dated news reports for 89.7% of 2020M01-2026M01 (audit §7.4), so most of that history is Market-PIT visible at its real announcement date rather than at a statutory deadline.
 6. **The issuer dividend declarations are announcement feeds with no link to an executed event.** They carry no ex-date, record date, payment date, or locator; the MOPS page footnote says so itself. Within a feed `(公司代號, 股利年度, 股利所屬期間, 期別)` is a workable key, so Step 33 stores them as their own domain; they never enter `corporate_action_versions`. MOPS `t05st09sub` serves the full history one market-year per request, but the legal-reserve / capital-surplus split only exists from 民國110; before that the two reserves are published as one figure (audit §4.13).
-7. **Exchange result feeds** (`TWT49U`, `TWTAUU`, `TWTB8U`, TPEx `exDailyQ`, TPEx `revivt`) carry one row per security per executed event date, and TWSE's own detail locator is `(code, date)`.
+7. **Exchange result feeds** (`TWT49U`, `TWTAUU`, `TWTB8U`, TPEx `exDailyQ`, TPEx `revivt`, TPEx `pvChgRslt`) carry one row per security per executed event date, and TWSE's own detail locator is `(code, date)`. A current-year file also lists results for dates still to come; those are not executed events yet (ADR-0019).
    - They provide: close-before and reference prices, cash dividend, combined free shares, rights terms, capital-reduction share exchange, and cash return.
    - They do not provide: announcement, record, or payment dates, or the earnings/capital-surplus stock-dividend split.
 8. **The whole-list market-index sources carry close, change points, and change percent only.** There is no index code, open, high, low, or trade value. Index OHLC exists for the TAIEX alone, in `MI_5MINS_HIST` (`發行量加權股價指數歷史資料`, one calendar month per request, verified live), which the legacy system never fetched. No TPEx equivalent was found (audit 4.2).
@@ -256,7 +256,7 @@ No announcement feed has a proven stable identity, so announcement feeds never e
 
 **2. Exchange result feeds**
 
-`TWT49U`, `TWTAUU`, `TWTB8U`, TPEx `exDailyQ`, and TPEx `revivt`. Each row records an event the exchange executed and priced on a trading date.
+`TWT49U`, `TWTAUU`, `TWTB8U`, TPEx `exDailyQ`, TPEx `revivt`, and TPEx `pvChgRslt`. Each row records an event the exchange executed and priced on a trading date. A row dated after the request's `executed_through` is a published calculation, not yet an executed event, and is not stored (ADR-0019).
 
 - The executed event date, or the exchange's own detail locator where one exists, is the event's identity, not revision content:
 
@@ -483,7 +483,7 @@ The MOPS iXBRL documents provide contexts with explicit dimensions, units, and d
 | Daily prices | Steps 17-a–c | TWSE `MI_INDEX`, TPEx `stk_wn1430` (§4.1) | bid/ask snapshots unsourced |
 | Market indices | Step 18 | `MI_INDEX` index sections, TPEx `indexSummary` (§4.2); `MI_5MINS_HIST` for TAIEX OHLC | close / change for all; OHLC for the TAIEX only |
 | Official valuation | Step 18 | `BWIBBU_d`, TPEx `pera` (§4.6) | |
-| Corporate actions (exchange results) | Step 19 | `TWT49U`, `TWTAUU`, `TWTB8U`, TPEx `exDailyQ`, `revivt` (§4.10) | no announcement/record/payment dates |
+| Corporate actions (exchange results) | Steps 19-a–e | `TWT49U`, `TWTAUU`, `TWTB8U`, TPEx `exDailyQ`, `revivt`, `pvChgRslt` (§4.10); ETF splits from `TWTCAU`, `etfSplitRslt`, `etfRvsRslt` | no announcement/record/payment dates; no TWSE par-value exchange ratio |
 | Institutional flows / summary, foreign holding | Step 20 | `T86`, `BFI82U`, `MI_QFIIS`, TPEx `3itrade_hedge`, `3itrdsum`, MOPS `t13sa150_otc` (§4.3–4.4) | |
 | Margin / SBL | Step 21 | `MI_MARGN`, `TWT93U`, TPEx `margin_bal`, `margin_sbl` (§4.5) | |
 | Monthly revenue | Step 22 | MOPS `t21sc03` `_0`/`_1` (§4.7) | adds KY issuers missing from legacy |
@@ -571,7 +571,7 @@ If a required correctness criterion fails, stop and keep the PR unmerged.
 
 # 20. Step Ledger
 
-Status date: 2026-09-15.
+Status date: 2026-09-16.
 
 | Step | Status | Delivery |
 |---|---|---|
@@ -597,9 +597,13 @@ Status date: 2026-09-15.
 | 17-b | MERGED | Whole-market daily-price import path |
 | 17-c | MERGED | Whole-market daily-price history backfill and reconciliation |
 | 18-a | MERGED | Market-index adapters |
-| 18-b | THIS STEP | Market-index import path and backfill |
+| 18-b | MERGED | Market-index import path and backfill |
 | 18-c | PLANNED | Official valuation |
-| 19 | PLANNED | Exchange corporate-action result feeds |
+| 19-a | THIS STEP | Result-feed contract, storage precision, and the TPEx adapters |
+| 19-b | PLANNED | TWSE result-feed adapters and their detail pages |
+| 19-c | PLANNED | Corporate-action import path, retraction included |
+| 19-d | PLANNED | Corporate-action history backfill and legacy reconciliation |
+| 19-e | PLANNED | ETF split and reverse-split result feeds |
 | 20 | PLANNED | Institutional flows, institutional summary, foreign holding |
 | 21 | PLANNED | Margin trading and securities lending |
 | 22 | PLANNED | Monthly revenue |
@@ -997,7 +1001,7 @@ Out of scope: storage, evidence, the CLI, the backfill.
 
 ### Step 18-b — Market-index import path and backfill
 
-Status: **THIS STEP**. Depends on: Step 18-a, Step 16.
+Status: **MERGED** (#23). Depends on: Step 18-a, Step 16.
 
 In scope: set-based writes for a whole index-date, the importers, the source
 policy and coverage declarations, the CLI, and the 2020-01-02 → 2026-09-11
@@ -1045,24 +1049,31 @@ derived data and belongs to Step 26.
 
 ## Step 19 — Exchange Corporate-Action Result Feeds
 
-Status: **PLANNED**. Depends on: Step 9, Step 12, Step 17-c.
+Split into 19-a through 19-e. Six feeds, two TWSE detail pages, a storage
+correction, an import path with retraction semantics and a backfill run well
+past what one pull request can be reviewed as (CLAUDE.md §1). The seams leave
+each part correct on its own: a contract and the adapters that fill it, the
+other exchange's adapters, the import, the history, and the ETF feeds found on
+the way.
+
+Depends on: Step 9, Step 12, Step 17-c.
 
 Supersedes: the abandoned dividend-summary pilot (§21.3), the former reference-price pilot, and the former corporate-action backfill.
 
-Source contract (audit §4.10):
+Source contract (audit §4.10, re-verified per year on 2026-09-16):
 
-- TWSE `TWT49U` + `TWT49UDetail`
+- TWSE `TWT49U` + `TWT49UDetail` (two header variants: common and preferred shares)
 - TWSE `TWTAUU` + `TWTAVUDetail`
-- TWSE `TWTB8U` (detail fields verified in this PR)
+- TWSE `TWTB8U`. `TWTB8UDetail` was verified in 19-a: it publishes no exchange ratio, so no detail is fetched.
 - TPEx `exDailyQ`
 - TPEx `revivt`
-- The TPEx par-value-change endpoint is verified in this PR. Otherwise that family stays unsupported for TPEx.
+- TPEx `pvChgRslt`, the par-value-change feed, verified in 19-a: it publishes the exchange ratio and both par values.
 
 All TWSE result feeds are requested with `response=json`, never `response=csv`. The CSV rendering flattens 詳細資料 to the link label `除權息資料`, which destroys the `"{code},{yyyymmdd}"` locator that Invariant G(2) depends on (audit §4.10). This is also why the legacy CSV archive is a value-reconciliation baseline only and can never establish event identity.
 
-History: the TWSE feeds accept a whole-year date range, so about 7 requests per feed for 2020-2026, plus one Detail request per event.
+History: every list feed accepts a whole-year date range, so 7 requests per feed for 2020-2026. TWT49U lists 7,827 events for 2020-2026 — ETFs, preferred shares and TDRs included, which legacy never kept — so about 7,800 `TWT49UDetail` requests, plus 157 `TWTAVUDetail`. TPEx rows are self-contained.
 
-Identity: Invariant G(2). ADR-0019 records the result-feed identity rule.
+Identity: Invariant G(2). ADR-0019 records the result-feed identity rule, the `executed_through` boundary, and the storage corrections below.
 
 Mapping:
 
@@ -1070,25 +1081,94 @@ Mapping:
 息 -> ex_dividend        權 -> ex_right        權息 -> ex_right_dividend
 capital reduction -> capital_reduction; kind from 減資原因;
                      old/new shares from 每壹仟股換發新股票; cash from 每股退還股款
-par-value change  -> stock_split / reverse_split when share exchange terms are
-                     published; otherwise other, with reference prices kept
+par-value change  -> TPEx: stock_split / reverse_split, 1 -> 變更股票面額換股率
+                     TWSE: other, with reference prices kept (no ratio published)
 cash_dividend_per_share, free_share_ratio (÷1,000), rights_ratio (÷1,000),
 subscription_price, close_before, official_reference_price,
-official_rights_dividend_value; remaining source columns -> source_terms
+official_rights_dividend_value (signed); remaining source columns -> source_terms
+a published 0 -> NULL (the item does not apply)
+security name, TWT49U 最近一次申報* -> not stored with the event
 ```
 
 The fields in §2.3 stay NULL.
 
-History: 2020 onward. There are about 6,200 TWSE detail requests. TPEx rows are self-contained.
+### Step 19-a — Result-feed contract, storage precision, TPEx adapters
+
+Status: **THIS STEP**.
+
+In scope: the locator, request and row contract types; the announcement-feed
+rejection; the `executed_through` boundary; the storage corrections the feeds
+forced — signed `official_rights_dividend_value`, twelve-place share ratios,
+eight-place per-share TWD — in migration `8e4b2c7d9a13`; the three TPEx
+adapters; ADR-0019; the audit rewrite.
 
 Acceptance:
 
-- zero duplicate `(feed, code, locator date)` over the full history of each feed
-- correction regression: same locator with changed terms produces a new revision of the same event; a removed row produces a retraction
-- legacy `dividend` (6,182 TWSE rows) reconciles on date, close before, reference price, rights+dividend value, and type
 - announcement-feed rejection test using the 1591/108/1 fixture
+- `source_event_key` is `"<feed>:<locator date>"` and no revision content reaches it; separate events have separate keys
+- zero duplicate `(code, locator)` over the full history of every TPEx feed
+- rows dated after `executed_through` are counted, not parsed into events
+- every TPEx row 2020-2026 maps, or is quarantined with a stated reason
+- a stored ratio or signed value round-trips exactly; the downgrade refuses history the old columns cannot hold; unchanged history still deduplicates after the migration
 
-Out of scope: MOPS summary normalization; adjustment factors (Step 25).
+Out of scope: TWSE adapters, storage writes, retraction, source policy, the CLI, the backfill.
+
+### Step 19-b — TWSE result-feed adapters
+
+Status: **PLANNED**. Depends on: Step 19-a.
+
+In scope: the `TWT49U`, `TWTAUU` and `TWTB8U` list adapters and the
+`TWT49UDetail` and `TWTAVUDetail` adapters, both detail header variants, and
+the row-plus-detail completion.
+
+Acceptance:
+
+- zero duplicate `(code, locator)` over the full history of each TWSE feed
+- the parsed list values equal legacy `dividend` (6,182 rows) on date, close before, reference price, rights+dividend value, and type — measured before 19-a: zero differences, and 1,602 official-only rows (1,402 ETFs, 170 preferred shares, 30 TDRs)
+- `最近一次申報*` and the security name never reach business content
+- a TWSE par-value change stores no share terms
+
+### Step 19-c — Corporate-action import path
+
+Status: **PLANNED**. Depends on: Step 19-b, Step 11, Step 16.
+
+In scope: set-based event registration and version writes for a range file,
+the detail fetches a TWSE range file needs, retraction of an event whose row
+disappeared inside the file's executed coverage, the six source policies and
+their evidence types, and the CLI.
+
+Acceptance:
+
+- correction regression: same locator with changed terms produces a new revision of the same event; a removed row produces a retraction, not a deletion
+- a row outside the executed coverage is never retracted by its absence
+- re-running a range creates no revision
+- a quarantined range keeps its raw artifacts and writes no business row
+
+### Step 19-d — Corporate-action history backfill and reconciliation
+
+Status: **PLANNED**. Depends on: Step 19-c.
+
+In scope: the 2020-01-01 → 2026-09-11 backfill for all six feeds and their
+details, and the reconciliation report.
+
+Acceptance:
+
+- zero duplicate `(feed, code, locator date)` over the stored history of each feed
+- legacy `dividend` reconciles on date, close before, reference price, rights+dividend value, and type, with every difference classified
+- quarantined events, if any, are listed with their reason
+
+### Step 19-e — ETF split and reverse-split result feeds
+
+Status: **PLANNED**. Depends on: Step 19-c. Required by Step 25.
+
+Found in 19-a: ETF splits and reverse splits have result feeds of their own —
+TWSE `rwd/zh/split/TWTCAU` (`ETF分割(反分割)恢復買賣參考價格`, which lists 0050's
+split on 2025-06-18), TPEx `bulletin/etfSplitRslt` and `bulletin/etfRvsRslt`.
+None of the six Step 19 feeds lists these events, so without them an adjusted
+0050 series is wrong. Their fields, units and history still need verifying
+before anything is promised (§2.4).
+
+Out of scope for all of Step 19: MOPS summary normalization; adjustment factors (Step 25).
 
 ## Step 20 — Institutional Flows, Institutional Summary, Foreign Holding
 
@@ -1220,7 +1300,7 @@ Acceptance:
 
 ## Step 25 — Adjusted Prices
 
-Status: **PLANNED**. Depends on: Step 16, Step 17-c, Step 19.
+Status: **PLANNED**. Depends on: Step 16, Step 17-c, Steps 19-a–e.
 
 Method: §18 reference-price ratio. Backward cumulative factors are computed per security. Raw OHLC is untouched.
 

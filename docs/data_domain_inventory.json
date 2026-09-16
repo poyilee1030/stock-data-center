@@ -183,36 +183,40 @@
           "free_share_ratio": {
             "coverage": "sourced",
             "source_fields": [
-              "A. 每千股無償配股",
+              "A. 按普通股股東持股比例每千股無償配股",
+              "F. 按特別股股東持股比例每千股無償配股",
               "每仟股無償配股"
             ],
             "audit_section": "4.10",
-            "note": "Free shares per 1,000 divided by 1,000."
+            "note": "Free shares per 1,000 divided by 1,000. The division needs up to eleven places, so the column is NUMERIC(28, 12) (Step 19-a)."
           },
           "old_shares": {
             "coverage": "partially_sourced",
             "source_fields": [
-              "每壹仟股換發新股票"
+              "每壹仟股換發新股票",
+              "變更股票面額換股率"
             ],
             "audit_section": "4.10",
-            "note": "Capital reduction only: the old side is the constant 1,000 of 每壹仟股. TWTB8U par-value-change detail fields are not yet verified and no TPEx par-value endpoint was found."
+            "note": "Capital reduction in both markets: the old side is the constant 1,000 of 每壹仟股. TPEx par-value change (pvChgRslt): the old side is 1 against 變更股票面額換股率. TWSE par-value change stays NULL: TWTB8UDetail, verified 2026-09-16, publishes no exchange ratio."
           },
           "new_shares": {
             "coverage": "partially_sourced",
             "source_fields": [
-              "每壹仟股換發新股票"
+              "每壹仟股換發新股票",
+              "變更股票面額換股率"
             ],
             "audit_section": "4.10",
-            "note": "Capital reduction only. TWTB8U par-value-change detail fields are not yet verified and no TPEx par-value endpoint was found."
+            "note": "Capital reduction in both markets (每壹仟股換發新股票); TPEx par-value change (變更股票面額換股率, checked against the two par values). TWSE par-value change stays NULL: TWTB8UDetail publishes no exchange ratio."
           },
           "rights_ratio": {
             "coverage": "sourced",
             "source_fields": [
               "按股東持股比例每千股認購",
+              "G. 按特別股股東持股比例每千股有償認股",
               "按持股比例仟股認購"
             ],
             "audit_section": "4.10",
-            "note": "TWT49UDetail/TWTAVUDetail for TWSE, exDailyQ for TPEx."
+            "note": "Shares per 1,000 divided by 1,000: TWT49UDetail/TWTAVUDetail for TWSE, exDailyQ for TPEx. 202.11906001 per 1,000 is 0.20211906001, so the column is NUMERIC(28, 12) (Step 19-a)."
           },
           "subscription_price": {
             "coverage": "sourced",
@@ -238,7 +242,8 @@
             "source_fields": [
               "除權息參考價",
               "恢復買賣參考價",
-              "減資恢復買賣開始日參考價格"
+              "減資恢復買賣開始日參考價格",
+              "恢復買賣開始參考價"
             ],
             "audit_section": "4.10",
             "note": "Published by every result feed."
@@ -249,7 +254,7 @@
               "權值+息值"
             ],
             "audit_section": "4.10",
-            "note": "TWT49U and exDailyQ."
+            "note": "TWT49U and exDailyQ. A signed difference, 除權息前收盤價 − 除權息參考價: a rights issue priced above the close publishes it negative (4 TWSE rows, 2 TPEx rows 2020-2026), so it is the one term without a non-negative check (Step 19-a)."
           },
           "source_event_type": {
             "coverage": "sourced",
@@ -258,7 +263,7 @@
               "減資原因"
             ],
             "audit_section": "4.10",
-            "note": "The source's own event wording, kept verbatim alongside the normalized action_type."
+            "note": "The source's own event wording, kept verbatim alongside the normalized action_type. The par-value feeds publish no per-row wording, so their rows carry the feed's own title term 變更股票面額."
           },
           "source_terms": {
             "coverage": "sourced",
