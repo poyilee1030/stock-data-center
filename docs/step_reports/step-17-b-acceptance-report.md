@@ -10,7 +10,7 @@ accepted evidence types, their release-rule mappings, and the two `daily_price`
 expected-coverage declarations.
 PIT impact: none new — both sources follow `exchange_daily_settled@1`, the rule
 Step 15-c already applies to `daily_price`.
-`src/` changed by +594/−4 lines.
+`src/` changed by +633/−10 lines.
 
 ## Baseline
 
@@ -106,18 +106,35 @@ disagreed, and the shipped one won.
 Database migrated from zero to `5e3b8d1a9c42`:
 
 ```text
-420 passed, 3 skipped, 1 warning
+421 passed, 3 skipped, 1 warning
 ```
 
-Baseline before this step: 409 (Step 17-a). The 11 integration tests added here
-are the difference, and each was seen to fail before the importer existed.
+Baseline before this step: 409 (Step 17-a). The 12 integration tests added here
+are the difference — 11 written before the importer existed, and one more from
+the review below.
 
-Migration round trip on a clean database: `upgrade head` seeds four rows,
+Migration round trip on a clean database: `upgrade head` seeds six rows — two
+`dataset_sources`, two `dataset_release_rules`, two `dataset_expected_coverage` —
 `downgrade 4d9f2a6c8b17` removes exactly those and leaves the two pilot sources'
 allowlists untouched, `upgrade head` re-seeds. With history imported the
 downgrade refuses first.
 
 `ruff check` reports nothing new against `main` for every file touched.
+
+## Code-review findings
+
+Four findings, all verified before anything changed; none was a false positive.
+
+| # | Finding | Verified by | Disposition |
+| --- | --- | --- | --- |
+| 1 | The multi-row observation insert binds ~21 parameters per row, so it exceeds PostgreSQL's 65,535-per-statement limit at roughly 3,100 rows | Compiled the real statement: exactly 21 parameters per row, so the ceiling is 3,120. A regression writing 4,000 observations failed with `number of parameters must be between 0 and 65535`. | **Fixed.** Every multi-row insert is now split by the parameters it actually binds, counted from the row itself, so adding a column cannot quietly move the cliff. The evidence insert had the same shape at 12 parameters per row — a ceiling of 5,461, which a `first_capture` run reaches at about 2,730 securities, since it plans two evidence rows per version. |
+| 2 | The manifest omits the `publication_time` key every other importer emits | Read: three importers emit it, nothing reads it — and for `daily_price` the constant `"unknown"` has been **false** since Step 15-c. | Fixed, but not by copying the constant. The manifest now reports the rule that actually decides availability time (`exchange_daily_settled@1`) plus the evidence types the run wrote. The same stale `"unknown"` in the Step 9 pilot importer is corrected with it: same dataset, same rule, and a manifest is an audit record. |
+| 3 | The coverage insert uses `ON CONFLICT DO NOTHING` while its sibling deliberately uses `DO UPDATE` to repair a pre-existing row | Read. No such row exists on `main`, but a declaration left pointing at a Step 9 pilot source would make the coverage report read the wrong history — silently. | Fixed. The upsert repairs the row. This migration is the authority for what `daily_price` coverage means. |
+| 4 | The migration docstring attributes the change to Step 17-a, which lists storage and evidence as out of scope, and the acceptance report says four rows where it seeds six | Counted: 2 + 2 + 2. | Fixed. Both were written while Step 17 was still one step. |
+
+Finding 1 is the one that matters. It is latent rather than live — today's largest
+market-date is 1,379 rows — but it fails the import outright when the listed
+universe crosses the line, and 17-c is the step that would walk into it.
 
 ## Scope exclusions confirmed
 

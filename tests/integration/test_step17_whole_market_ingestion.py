@@ -111,6 +111,14 @@ def test_one_twse_trade_date_imports_end_to_end(
         # bid/ask level is already shares and nothing converts it. TPEx is the
         # market that labels that column in lots.
         assert manifest.reconciliation["source_units"]["disclosed_volume"] == "share"
+        # The manifest says what availability time actually rests on. "unknown"
+        # stopped being true for daily_price at Step 15-c.
+        assert manifest.reconciliation["publication_time"] == (
+            "exchange_daily_settled@1"
+        )
+        assert manifest.reconciliation["availability_time_evidence"] == [
+            "release_rule"
+        ]
 
         with engine.connect() as connection:
             assert connection.scalar(
@@ -448,5 +456,87 @@ def test_downgrade_refuses_to_orphan_imported_whole_market_history(
             assert connection.scalar(
                 sa.text("SELECT count(*) FROM daily_price_versions")
             ) == TWSE_ROWS
+    finally:
+        engine.dispose()
+
+
+def test_a_market_date_larger_than_the_bind_parameter_ceiling_still_writes(
+    isolated_database_url: str,
+) -> None:
+    """PostgreSQL binds at most 65,535 parameters per statement.
+
+    The observation insert binds 21 per row, so one statement tops out at 3,120
+    securities — above today's 1,379 TWSE rows, but it is a hard failure at
+    import time rather than a slow path, and the listed universe only grows.
+    """
+    from decimal import Decimal
+
+    from stock_data_center.market_data import (
+        DailyPriceObservation,
+        LineageRef,
+        MarketDataWriter,
+    )
+
+    engine = sa.create_engine(isolated_database_url)
+    writer = MarketDataWriter()
+    codes = [f"T{index:05d}" for index in range(4000)]
+    try:
+        with engine.begin() as connection:
+            run_id = connection.scalar(
+                sa.text(
+                    "INSERT INTO ingest_runs "
+                    "(dataset_code, source, status, started_at, purpose) "
+                    "VALUES ('daily_price', 'twse_mi_index', 'running', now(), "
+                    "        'gap_fill') "
+                    "RETURNING id"
+                )
+            )
+            artifact_id = connection.scalar(
+                sa.text(
+                    "INSERT INTO raw_artifacts "
+                    "(raw_artifact_hash, storage_uri, byte_size, media_type) "
+                    "VALUES (:h, :uri, 1, 'application/json') RETURNING id"
+                ),
+                {"h": "c" * 64, "uri": f"file://{'c' * 64}"},
+            )
+            connection.execute(
+                sa.text(
+                    "INSERT INTO raw_artifact_observations "
+                    "(raw_artifact_id, ingest_run_id, source_uri, fetched_at, "
+                    " artifact_origin) "
+                    "VALUES (:a, :r, 'https://x', now(), 'official_fetch')"
+                ),
+                {"a": artifact_id, "r": run_id},
+            )
+            security_ids = writer.register_securities(
+                connection, security_codes=codes
+            )
+            assert len(security_ids) == 4000
+
+            written = writer.append_daily_prices(
+                connection,
+                source="twse_mi_index",
+                trade_date=TWSE_DATE,
+                observations=[
+                    (
+                        security_ids[code],
+                        DailyPriceObservation(
+                            trade_date=TWSE_DATE, close_price=Decimal("10.00")
+                        ),
+                    )
+                    for code in codes
+                ],
+                lineage=LineageRef(artifact_id, run_id),
+            )
+
+        assert len(written) == 4000
+        assert all(item.created for item in written)
+        with engine.connect() as connection:
+            assert connection.scalar(
+                sa.text(
+                    "SELECT count(*) FROM daily_price_versions "
+                    "WHERE source = 'twse_mi_index'"
+                )
+            ) == 4000
     finally:
         engine.dispose()

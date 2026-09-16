@@ -151,6 +151,10 @@ class WholeMarketDailyImporter(
         unknown = sum(
             1 for _, observation in planned if observation.published_at is None
         )
+        # Every importer reports how availability time was decided. Saying
+        # "unknown" here would be false since Step 15-c: these rows resolve by
+        # the rule their source declared, and a manifest is an audit record.
+        claimed = sorted({observation.evidence_type for _, observation in planned})
 
         return BusinessWriteResult(
             business_versions_created=created,
@@ -177,6 +181,10 @@ class WholeMarketDailyImporter(
                 # the coverage report rather than guessed here.
                 "coverage_validation": "not_evaluated",
                 "coverage_gaps": None,
+                "publication_time": (
+                    bound.rule.evidence_source if bound.rule else "unknown"
+                ),
+                "availability_time_evidence": claimed,
                 "source_units": {
                     "traded_quantity": (
                         adapter.semantics.traded_quantity_unit.value

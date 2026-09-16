@@ -201,6 +201,10 @@ class DailyMarketImporter(RawFirstImporter[DailyMarketRequest, ParsedDailyMarket
                     "volume": "share",
                     "trade_value": "twd",
                 },
-                "publication_time": "unknown",
+                # Step 15-c gave daily_price a release rule, so this manifest
+                # field stopped being true; it reports the rule that decides.
+                "publication_time": (
+                    bound.rule.evidence_source if bound.rule else "unknown"
+                ),
             },
         )

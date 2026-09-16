@@ -21,6 +21,24 @@ from stock_data_center.db.metadata import (
     security_metadata_versions,
 )
 
+# PostgreSQL sends the bind-parameter count as an int16, so one statement
+# carries at most 65,535 of them. A whole market-date is about 1,300 rows at 21
+# parameters each today, which fits, but the listed universe only grows and the
+# failure is a hard error at import time. Every multi-row insert here is split
+# by the parameters it actually binds rather than by a guessed row count, so
+# adding a column cannot quietly move the cliff.
+MAX_BIND_PARAMETERS = 65535
+
+
+def _batched(rows: Sequence[dict[str, object]]) -> list[Sequence[dict[str, object]]]:
+    if not rows:
+        return []
+    per_row = sum(
+        1 for value in rows[0].values() if not isinstance(value, sa.ClauseElement)
+    )
+    size = max(1, MAX_BIND_PARAMETERS // max(per_row, 1))
+    return [rows[start : start + size] for start in range(0, len(rows), size)]
+
 
 @dataclass(frozen=True, slots=True)
 class LineageRef:
@@ -275,11 +293,12 @@ class MarketDataWriter:
         codes = sorted(set(security_codes))
         if not codes:
             return {}
-        connection.execute(
-            insert(security)
-            .values([{"security_code": code} for code in codes])
-            .on_conflict_do_nothing(index_elements=[security.c.security_code])
-        )
+        for batch in _batched([{"security_code": code} for code in codes]):
+            connection.execute(
+                insert(security)
+                .values(list(batch))
+                .on_conflict_do_nothing(index_elements=[security.c.security_code])
+            )
         registered = {
             row["security_code"]: row["id"]
             for row in connection.execute(
@@ -323,22 +342,26 @@ class MarketDataWriter:
             }
             for security_id, observation in observations
         ]
-        created = {
-            row["security_id"]: row
-            for row in connection.execute(
-                insert(daily_price_versions)
-                .values(rows)
-                .on_conflict_do_nothing(
-                    constraint="uq_daily_price_business_revision"
-                )
-                .returning(
-                    daily_price_versions.c.id,
-                    daily_price_versions.c.security_id,
-                    daily_price_versions.c.business_content_hash,
-                    daily_price_versions.c.ingested_at,
-                )
-            ).mappings()
-        }
+        created = {}
+        for batch in _batched(rows):
+            created.update(
+                {
+                    row["security_id"]: row
+                    for row in connection.execute(
+                        insert(daily_price_versions)
+                        .values(list(batch))
+                        .on_conflict_do_nothing(
+                            constraint="uq_daily_price_business_revision"
+                        )
+                        .returning(
+                            daily_price_versions.c.id,
+                            daily_price_versions.c.security_id,
+                            daily_price_versions.c.business_content_hash,
+                            daily_price_versions.c.ingested_at,
+                        )
+                    ).mappings()
+                }
+            )
         pending = [
             (security_id, observation)
             for security_id, observation in observations
@@ -418,21 +441,27 @@ class MarketDataWriter:
             }
             for version_id, observation in planned
         ]
-        created = {
-            (row[target_column], row["evidence_type"]): row["id"]
-            for row in connection.execute(
-                insert(publication_evidence)
-                .values(rows)
-                .on_conflict_do_nothing(
-                    index_elements=[publication_evidence.c.publication_evidence_hash]
-                )
-                .returning(
-                    publication_evidence.c.id,
-                    publication_evidence.c[target_column],
-                    publication_evidence.c.evidence_type,
-                )
-            ).mappings()
-        }
+        created = {}
+        for batch in _batched(rows):
+            created.update(
+                {
+                    (row[target_column], row["evidence_type"]): row["id"]
+                    for row in connection.execute(
+                        insert(publication_evidence)
+                        .values(list(batch))
+                        .on_conflict_do_nothing(
+                            index_elements=[
+                                publication_evidence.c.publication_evidence_hash
+                            ]
+                        )
+                        .returning(
+                            publication_evidence.c.id,
+                            publication_evidence.c[target_column],
+                            publication_evidence.c.evidence_type,
+                        )
+                    ).mappings()
+                }
+            )
         pending = [
             (version_id, observation)
             for version_id, observation in planned
@@ -461,20 +490,20 @@ class MarketDataWriter:
                 evidence_id = match["id"]
                 deduplicated += 1
             evidence_ids.append(evidence_id)
-        connection.execute(
-            insert(publication_evidence_observations)
-            .values(
-                [
-                    {
-                        "publication_evidence_id": evidence_id,
-                        "raw_artifact_id": lineage.raw_artifact_id,
-                        "ingest_run_id": lineage.ingest_run_id,
-                    }
-                    for evidence_id in sorted(set(evidence_ids))
-                ]
+        observations = [
+            {
+                "publication_evidence_id": evidence_id,
+                "raw_artifact_id": lineage.raw_artifact_id,
+                "ingest_run_id": lineage.ingest_run_id,
+            }
+            for evidence_id in sorted(set(evidence_ids))
+        ]
+        for batch in _batched(observations):
+            connection.execute(
+                insert(publication_evidence_observations)
+                .values(list(batch))
+                .on_conflict_do_nothing()
             )
-            .on_conflict_do_nothing()
-        )
         return len(planned) - deduplicated, deduplicated
 
     @staticmethod

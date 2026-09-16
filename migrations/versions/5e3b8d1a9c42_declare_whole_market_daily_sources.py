@@ -4,14 +4,20 @@ Revision ID: 5e3b8d1a9c42
 Revises: 4d9f2a6c8b17
 Create Date: 2026-09-16
 
-Step 17-a. The two whole-market endpoints are their own sources, distinct from
+Step 17-b. The two whole-market endpoints are their own sources, distinct from
 the Step 9 per-security pilots, because they publish the disclosed bid/ask level
 the pilots do not: one logical key must not alternate revisions between two
 field sets (CLAUDE.md §30).
 
 Opting a source in is configuration, as Step 15-c established: the accepted
 evidence types and the release rule are rows, not code. The expected-coverage
-declaration lands here too, next to the adapter that fills it.
+declaration lands here too, next to the importer that fills it.
+
+Six rows in all: two `dataset_sources`, two `dataset_release_rules`, two
+`dataset_expected_coverage`. Each upsert repairs a pre-existing row rather than
+skipping it — this migration is the authority for what `daily_price` coverage
+means, and a row left pointing at a Step 9 pilot source would make the coverage
+report read the wrong history.
 """
 
 from __future__ import annotations
@@ -81,7 +87,13 @@ def upgrade() -> None:
                      period_column, window_start, note)
                 VALUES ('daily_price', :market, :source, 'TWSE', 'trading_day',
                         'trade_date', DATE '2020-01-02', :note)
-                ON CONFLICT (dataset_code, market) DO NOTHING
+                ON CONFLICT (dataset_code, market) DO UPDATE
+                   SET source = EXCLUDED.source,
+                       calendar_market = EXCLUDED.calendar_market,
+                       cadence = EXCLUDED.cadence,
+                       period_column = EXCLUDED.period_column,
+                       window_start = EXCLUDED.window_start,
+                       note = EXCLUDED.note
                 """
             ).bindparams(source=source, market=market, note=note)
         )
