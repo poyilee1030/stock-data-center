@@ -309,8 +309,13 @@ class ParsedCorporateActionDetail:
     `values` holds decimals in the source's own per-share or per-thousand units;
     a published zero is None, because TWSE writes `0` where an item does not
     apply (`如果無該項配股率則用'0'帶入`).
+
+    `locator` is the event the page was requested for. The page itself
+    publishes a security code but no date, so only the request says which of
+    that security's events it describes.
     """
 
+    locator: ExchangeLocator
     security_code: str
     variant: str
     values: Mapping[str, object]

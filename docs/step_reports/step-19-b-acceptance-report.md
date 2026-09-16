@@ -47,12 +47,12 @@ proves the mapping on the samples above.
 ## Verification
 
 ```text
-552 passed, 3 skipped
+555 passed, 3 skipped
 ```
 
 Baseline before this step: 513 collected. The 42 unit tests added here make up
 the difference, and all of them failed at collection before the adapters
-returned.
+returned. The review added three more (below).
 
 Most of the adapter code already existed in the draft, so failing at
 collection proves little on its own. The suite was therefore also run
@@ -77,3 +77,20 @@ One break first survived:
 - No backfill and no fetch of every detail page; that work is 19-d.
 - No ETF split feed; that work is 19-e.
 - No share ratio is inferred from prices for a TWSE par-value change.
+
+## Code-review findings
+
+Both findings held up, and both had one cause: a parsed detail page did not
+record the request it answered. The page publishes a security code but no
+date, so matching the code was the only check possible.
+
+| # | Finding | Checked by | Disposition |
+| --- | --- | --- | --- |
+| 1 (major) | A row could be completed by another event's detail for the same security, for example after a retry, a cache hit or a reordered queue. Its key would stay correct while its terms were wrong. CLAUDE.md §51.5 wants that to fail closed. | 2543 went ex twice in 2024. Its May page, parsed for the October request, completed the May row without complaint. | **Fixed.** `ParsedCorporateActionDetail.locator` records the requested event, and `observation` rejects any page whose locator is not the row's, with `invalid_identity`. |
+| 2 (minor) | A page from the other TWSE feed raised a bare `KeyError` (`halt_date`) instead of a quarantine reason. | A TWT49UDetail page passed to the reduction adapter. | **Fixed by the same check.** The feed is part of the locator, so the page is refused before any value is read. |
+
+Three regression tests were added: the page records its locator, a page for
+another event of the same security fails, and a page from another feed fails.
+The last two failed before the fix. Removing the locator comparison makes both
+fail again.
+

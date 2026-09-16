@@ -90,11 +90,14 @@ class CorporateActionListAdapter(ABC):
             )
         if row.detail_request is None and detail is not None:
             raise ValueError(f"{self.feed} rows take no detail")
-        if detail is not None and detail.security_code != row.security_code:
+        if detail is not None and (
+            detail.locator != row.locator or detail.security_code != row.security_code
+        ):
             raise SourceDataError(
                 "invalid_identity",
-                f"detail for {detail.security_code} cannot complete "
-                f"{row.security_code}",
+                f"detail fetched for {detail.locator.source_event_key} of "
+                f"{detail.security_code} cannot complete "
+                f"{row.locator.source_event_key} of {row.security_code}",
             )
         return self._observation(row, detail)
 
@@ -512,7 +515,7 @@ class _TWSEDetailAdapter(ABC):
                 f"{self.feed} detail is for {code}, not "
                 f"{request.locator.security_code}",
             )
-        return self._parse(variant, labels, values, code)
+        return self._parse(request.locator, variant, labels, values, code)
 
     def _variant(self, fields: object) -> tuple[str, tuple[str, ...]]:
         for variant, labels in self.variants.items():
@@ -526,7 +529,12 @@ class _TWSEDetailAdapter(ABC):
 
     @abstractmethod
     def _parse(
-        self, variant: str, labels: tuple[str, ...], values: tuple[str, ...], code: str
+        self,
+        locator: ExchangeLocator,
+        variant: str,
+        labels: tuple[str, ...],
+        values: tuple[str, ...],
+        code: str,
     ) -> ParsedCorporateActionDetail: ...
 
 
@@ -557,7 +565,7 @@ class TWSEDividendDetailAdapter(_TWSEDetailAdapter):
         ),
     })
 
-    def _parse(self, variant, labels, values, code):
+    def _parse(self, locator, variant, labels, values, code):
         cash = _unit(values[2], "元／股", labels[2])
         terms: dict[str, str] = {}
         if values[3].strip():
@@ -581,6 +589,7 @@ class TWSEDividendDetailAdapter(_TWSEDetailAdapter):
                 "subscription_price": _unit(values[6], "元／股", labels[6]),
             }
         return ParsedCorporateActionDetail(
+            locator=locator,
             security_code=code,
             variant=variant,
             values=detail,
@@ -606,13 +615,14 @@ class TWSEReductionDetailAdapter(_TWSEDetailAdapter):
         ),
     })
 
-    def _parse(self, variant, labels, values, code):
+    def _parse(self, locator, variant, labels, values, code):
         terms = {}
         for index in (8, 9, 10):
             amount = _unit(values[index], "股", labels[index])
             if amount is not None:
                 terms[labels[index].rstrip("：")] = str(amount)
         return ParsedCorporateActionDetail(
+            locator=locator,
             security_code=code,
             variant=variant,
             values={

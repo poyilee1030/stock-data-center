@@ -691,3 +691,40 @@ def test_a_twse_par_value_change_keeps_prices_and_claims_no_share_terms() -> Non
     assert observation.official_reference_price == twd("136.50")
     assert observation.old_shares is None and observation.new_shares is None
     assert observation.source_terms["停止買賣日期"] == "2025-08-14"
+
+
+# --- a detail belongs to one event (review findings) ------------------------
+
+
+def test_a_detail_records_the_event_it_was_fetched_for() -> None:
+    row = only(twt49u(), "2454", date(2024, 1, 4))
+    assert dividend_detail("49_2454_20240104", row).locator == row.locator
+
+
+def test_a_detail_for_another_event_of_the_same_security_fails_closed() -> None:
+    """TWT49UDetail publishes no date, so only the request says which event.
+
+    A retry, cache or reordered queue could otherwise store 2543's October
+    terms on its May row, under the right key.
+    """
+    rows = twt49u()
+    may = only(rows, "2543", date(2024, 5, 30))
+    october = only(rows, "2543", date(2024, 10, 22))
+    fetched_for_october = TWSEDividendDetailAdapter().parse(
+        load("twse_detail_49_2543_20240530.json"), october.detail_request
+    )
+    with pytest.raises(SourceDataError) as error:
+        TWSEExRightAdapter().observation(may, fetched_for_october)
+    assert error.value.reason_code == "invalid_identity"
+
+
+def test_a_detail_from_another_feed_is_quarantined_not_a_crash() -> None:
+    reduction = only(twtauu(), "3308", date(2024, 4, 1))
+    dividend_row = only(twt49u(), "2454", date(2024, 1, 4))
+    dividend = replace(
+        dividend_detail("49_2454_20240104", dividend_row), security_code="3308"
+    )
+    with pytest.raises(SourceDataError) as error:
+        TWSEReductionAdapter().observation(reduction, dividend)
+    assert error.value.reason_code == "invalid_identity"
+
