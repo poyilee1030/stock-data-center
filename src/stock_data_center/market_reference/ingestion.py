@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import fields
 
 import sqlalchemy as sa
@@ -9,10 +10,20 @@ from sqlalchemy import Connection, Table
 from sqlalchemy.dialects.postgresql import insert
 
 from stock_data_center.db import metadata
-from stock_data_center.db.metadata import publication_evidence, publication_evidence_observations
+from stock_data_center.db.batch import batched
+from stock_data_center.db.metadata import (
+    publication_evidence,
+    publication_evidence_observations,
+)
 from stock_data_center.market_reference.models import (
-    CorporateActionObservation, MarketIndexMetadataObservation, MarketIndexObservation, OfficialValuationObservation,
-    Phase8LineageRef, Phase8Publication, TwdAmount, WrittenPhase8Version,
+    CorporateActionObservation,
+    MarketIndexMetadataObservation,
+    MarketIndexObservation,
+    OfficialValuationObservation,
+    Phase8LineageRef,
+    Phase8Publication,
+    TwdAmount,
+    WrittenPhase8Version,
 )
 
 
@@ -118,6 +129,306 @@ class MarketReferenceWriter:
             publication_evidence_id=evidence_id, raw_artifact_id=lineage.raw_artifact_id,
             ingest_run_id=lineage.ingest_run_id).on_conflict_do_nothing())
         return evidence_id
+
+    def register_indices(
+        self, connection: Connection, *, index_codes: Sequence[str]
+    ) -> dict[str, int]:
+        """Register a whole index-date's codes in one statement."""
+        codes = sorted(set(index_codes))
+        if not codes:
+            return {}
+        table = metadata.tables["market_index"]
+        for batch in batched([{"index_code": code} for code in codes]):
+            connection.execute(
+                insert(table).values(list(batch)).on_conflict_do_nothing(
+                    index_elements=[table.c.index_code]
+                )
+            )
+        registered = {
+            row["index_code"]: row["id"]
+            for row in connection.execute(
+                sa.select(table.c.id, table.c.index_code).where(
+                    table.c.index_code.in_(codes)
+                )
+            ).mappings()
+        }
+        missing = [code for code in codes if code not in registered]
+        if missing:
+            raise RuntimeError(f"conflicting index identity disappeared: {missing}")
+        return registered
+
+    def append_indices(
+        self, connection: Connection, *, source: str,
+        observations: Sequence[tuple[int, MarketIndexObservation]],
+        lineage: Phase8LineageRef,
+    ) -> tuple[WrittenPhase8Version, ...]:
+        """Append a whole index-date, in the order given.
+
+        Set-based for the same reason the price writer is: a TWSE index file
+        carries 273 rows and the window is 1,627 dates. Identity, hashing and
+        `ingested_at` stay in the database, and an unchanged observation still
+        reuses its version instead of creating a revision.
+        """
+        return self._append_many(
+            connection, SPECS["market_index"], "market_index_id",
+            source, observations, lineage,
+            # One index carries many trade dates, so the link column alone does
+            # not identify a row. TAIEX history imports 21 dates for a single
+            # index; keying on the index would collapse them and attach each
+            # date's evidence to whichever version came back last.
+            identity_fields=("trade_date",),
+        )
+
+    def append_index_metadata_snapshot(
+        self, connection: Connection, *, source: str,
+        observations: Sequence[tuple[int, MarketIndexMetadataObservation]],
+        lineage: Phase8LineageRef,
+    ) -> tuple[WrittenPhase8Version, ...]:
+        """Record each index's name and market once, not once per trade date.
+
+        No feed publishes an index effective date (audit §5), so
+        `effective_from` holds the first date this Data Center observed the
+        name — a value of ours, never presented as the source's. A later date
+        observing the same state is provenance for that state, not a new
+        revision, so it deduplicates rather than walking `effective_from`
+        forward.
+        """
+        spec = SPECS["market_index_metadata"]
+        index_ids = [index_id for index_id, _ in observations]
+        existing = self._existing_rows(
+            connection, spec, "market_index_id", source, index_ids
+        )
+        pending: list[tuple[int, MarketIndexMetadataObservation]] = []
+        written: dict[int, dict] = {}
+        for index_id, observation in observations:
+            match = next(
+                (
+                    row
+                    for row in existing.get(index_id, ())
+                    if row["market"] == observation.market
+                    and row["name"] == observation.name
+                    and row["effective_to"] is None
+                ),
+                None,
+            )
+            if match is None:
+                pending.append((index_id, observation))
+            else:
+                written[index_id] = dict(match)
+        created = self._append_many(
+            connection, spec, "market_index_id", source, pending, lineage,
+            identity_fields=("effective_from",),
+        )
+        return (
+            *created,
+            *(
+                WrittenPhase8Version(
+                    spec.code, row["id"], row["business_content_hash"],
+                    row["ingested_at"], False,
+                )
+                for row in written.values()
+            ),
+        )
+
+    def append_publication_evidence_batch(
+        self, connection: Connection, *, dataset_code: str, source: str,
+        planned: Sequence[tuple[int, Phase8Publication]], lineage: Phase8LineageRef,
+    ) -> tuple[int, int]:
+        """Append one date's evidence; returns (created, deduplicated)."""
+        if not planned:
+            return 0, 0
+        spec = SPECS[dataset_code]
+        rows = [
+            {
+                **_values(publication), "dataset_code": dataset_code,
+                "source": source, spec.target: version_id,
+                "publication_evidence_hash": "0" * 64,
+                "recorded_at": sa.func.statement_timestamp(),
+                "raw_artifact_id": lineage.raw_artifact_id,
+                "ingest_run_id": lineage.ingest_run_id,
+            }
+            for version_id, publication in planned
+        ]
+        created: dict[tuple[int, str], int] = {}
+        for batch in batched(rows):
+            created.update({
+                (row[spec.target], row["evidence_type"]): row["id"]
+                for row in connection.execute(
+                    insert(publication_evidence).values(list(batch))
+                    .on_conflict_do_nothing(
+                        index_elements=[publication_evidence.c.publication_evidence_hash]
+                    ).returning(
+                        publication_evidence.c.id,
+                        publication_evidence.c[spec.target],
+                        publication_evidence.c.evidence_type,
+                    )
+                ).mappings()
+            })
+        pending_ids = [
+            version_id for version_id, publication in planned
+            if (version_id, publication.evidence_type) not in created
+        ]
+        stored = self._existing_evidence(
+            connection, dataset_code, source, spec.target, pending_ids
+        )
+        evidence_ids: list[int] = []
+        deduplicated = 0
+        for version_id, publication in planned:
+            evidence_id = created.get((version_id, publication.evidence_type))
+            if evidence_id is None:
+                wanted = _values(publication)
+                match = next(
+                    (
+                        row for row in stored.get(version_id, ())
+                        if all(row[k] == v for k, v in wanted.items())
+                    ),
+                    None,
+                )
+                if match is None:
+                    raise RuntimeError(
+                        "a conflicting publication evidence row is not readable "
+                        f"back for version {version_id}"
+                    )
+                evidence_id = match["id"]
+                deduplicated += 1
+            evidence_ids.append(evidence_id)
+        observations = [
+            {
+                "publication_evidence_id": evidence_id,
+                "raw_artifact_id": lineage.raw_artifact_id,
+                "ingest_run_id": lineage.ingest_run_id,
+            }
+            for evidence_id in sorted(set(evidence_ids))
+        ]
+        for batch in batched(observations):
+            connection.execute(
+                insert(publication_evidence_observations)
+                .values(list(batch)).on_conflict_do_nothing()
+            )
+        return len(planned) - deduplicated, deduplicated
+
+    @staticmethod
+    def _existing_rows(
+        connection: Connection, spec: _Spec, link_column: str, source: str,
+        identifiers: Sequence[int],
+    ) -> dict[int, tuple[dict, ...]]:
+        if not identifiers:
+            return {}
+        rows = connection.execute(
+            sa.select(spec.table).where(
+                spec.table.c.source == source,
+                spec.table.c[link_column].in_(sorted(set(identifiers))),
+            )
+        ).mappings()
+        grouped: dict[int, list[dict]] = {}
+        for row in rows:
+            grouped.setdefault(row[link_column], []).append(dict(row))
+        return {key: tuple(value) for key, value in grouped.items()}
+
+    @staticmethod
+    def _existing_evidence(
+        connection: Connection, dataset_code: str, source: str, target: str,
+        version_ids: Sequence[int],
+    ) -> dict[int, tuple[dict, ...]]:
+        if not version_ids:
+            return {}
+        rows = connection.execute(
+            sa.select(publication_evidence).where(
+                publication_evidence.c.dataset_code == dataset_code,
+                publication_evidence.c.source == source,
+                publication_evidence.c[target].in_(sorted(set(version_ids))),
+            )
+        ).mappings()
+        grouped: dict[int, list[dict]] = {}
+        for row in rows:
+            grouped.setdefault(row[target], []).append(dict(row))
+        return {key: tuple(value) for key, value in grouped.items()}
+
+    def _append_many(
+        self, connection: Connection, spec: _Spec, link_column: str, source: str,
+        observations: Sequence[tuple[int, object]], lineage: Phase8LineageRef,
+        *, identity_fields: Sequence[str] = (),
+    ) -> tuple[WrittenPhase8Version, ...]:
+        """`identity_fields` are the observation fields that, with the link
+        column, identify a row. Without them a batch holding several periods of
+        one entity would collapse onto a single key."""
+        if not observations:
+            return ()
+
+        def key(identifier: int, observation: object) -> tuple:
+            values = _values(observation)
+            return (identifier, *(values[name] for name in identity_fields))
+        rows = [
+            {
+                link_column: identifier, **_values(observation), "source": source,
+                "business_content_hash": "0" * 64,
+                "ingested_at": sa.func.statement_timestamp(),
+                "raw_artifact_id": lineage.raw_artifact_id,
+                "ingest_run_id": lineage.ingest_run_id,
+            }
+            for identifier, observation in observations
+        ]
+        created: dict[tuple, dict] = {}
+        for batch in batched(rows):
+            created.update({
+                tuple(
+                    [row[link_column], *(row[name] for name in identity_fields)]
+                ): dict(row)
+                for row in connection.execute(
+                    insert(spec.table).values(list(batch))
+                    .on_conflict_do_nothing(constraint=spec.constraint)
+                    .returning(
+                        spec.table.c.id, spec.table.c[link_column],
+                        *(spec.table.c[name] for name in identity_fields),
+                        spec.table.c.business_content_hash,
+                        spec.table.c.ingested_at,
+                    )
+                ).mappings()
+            })
+        pending = [
+            (identifier, observation)
+            for identifier, observation in observations
+            if key(identifier, observation) not in created
+        ]
+        existing = self._existing_rows(
+            connection, spec, link_column, source,
+            [identifier for identifier, _ in pending],
+        )
+        written: list[WrittenPhase8Version] = []
+        links: list[dict] = []
+        for identifier, observation in observations:
+            row = created.get(key(identifier, observation))
+            is_created = row is not None
+            if row is None:
+                wanted = _values(observation)
+                row = next(
+                    (
+                        candidate for candidate in existing.get(identifier, ())
+                        if all(
+                            candidate[name] == value for name, value in wanted.items()
+                        )
+                    ),
+                    None,
+                )
+                if row is None:
+                    raise RuntimeError(
+                        f"a conflicting {spec.code} version is not readable back "
+                        f"for {link_column} {identifier}"
+                    )
+            written.append(WrittenPhase8Version(
+                spec.code, row["id"], row["business_content_hash"],
+                row["ingested_at"], is_created,
+            ))
+            links.append({
+                spec.target: row["id"],
+                "raw_artifact_id": lineage.raw_artifact_id,
+                "ingest_run_id": lineage.ingest_run_id,
+            })
+        for batch in batched(links):
+            connection.execute(
+                insert(spec.link).values(list(batch)).on_conflict_do_nothing()
+            )
+        return tuple(written)
 
     @staticmethod
     def _append(connection: Connection, spec: _Spec, identity: dict[str, object], source: str,

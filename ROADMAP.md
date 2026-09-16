@@ -596,8 +596,8 @@ Status date: 2026-09-15.
 | 17-a | MERGED | Whole-market daily-price adapters |
 | 17-b | MERGED | Whole-market daily-price import path |
 | 17-c | MERGED | Whole-market daily-price history backfill and reconciliation |
-| 18-a | THIS STEP | Market-index adapters |
-| 18-b | PLANNED | Market-index import path and backfill |
+| 18-a | MERGED | Market-index adapters |
+| 18-b | THIS STEP | Market-index import path and backfill |
 | 18-c | PLANNED | Official valuation |
 | 19 | PLANNED | Exchange corporate-action result feeds |
 | 20 | PLANNED | Institutional flows, institutional summary, foreign holding |
@@ -974,7 +974,7 @@ publishes.
 
 ### Step 18-a — Market-index adapters
 
-Status: **THIS STEP**. Depends on: Step 9 lifecycle, Step 17-c.
+Status: **MERGED** (#22). Depends on: Step 9 lifecycle, Step 17-c.
 
 In scope: the TWSE index-section adapter, the TPEx `indexSummary` adapter and
 the `MI_5MINS_HIST` TAIEX adapter, with the contract types they parse into.
@@ -997,7 +997,7 @@ Out of scope: storage, evidence, the CLI, the backfill.
 
 ### Step 18-b — Market-index import path and backfill
 
-Status: **PLANNED**. Depends on: Step 18-a, Step 16.
+Status: **THIS STEP**. Depends on: Step 18-a, Step 16.
 
 In scope: set-based writes for a whole index-date, the importers, the source
 policy and coverage declarations, the CLI, and the 2020-01-02 → 2026-09-11

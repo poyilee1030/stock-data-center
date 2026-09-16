@@ -33,6 +33,9 @@ DATASET_TARGETS = {
     "financial_filing": "financial_filing_version_id",
     "tdcc_snapshot": "tdcc_snapshot_version_id",
     "trading_calendar": "trading_calendar_version_id",
+    "market_index": "market_index_version_id",
+    "market_index_metadata": "market_index_metadata_version_id",
+    "official_valuation": "official_valuation_version_id",
 }
 from stock_data_center.evidence.plan import PlannedEvidence, evidence_plan
 from stock_data_center.evidence.release_rules import ReleaseRuleService

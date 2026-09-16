@@ -122,11 +122,15 @@ class WholeMarketDailyBackfill:
         calendar: TradingCalendarService | None = None,
         expected: ExpectedCoverageService | None = None,
         sleep: Callable[[float], None] = time.sleep,
+        request_factory: Callable[[date], object] = WholeMarketDailyRequest,
     ) -> None:
         self._importer = importer
         self._calendar = calendar or TradingCalendarService()
         self._expected = expected or ExpectedCoverageService(self._calendar)
         self._sleep = sleep
+        # Every trading-date dataset walks the same range the same way; only
+        # the request type differs. Step 18-b reuses this for market indices.
+        self._request_factory = request_factory
 
     def run(
         self,
@@ -226,7 +230,7 @@ class WholeMarketDailyBackfill:
         try:
             result = self._importer.run(
                 adapter=adapter,
-                request=WholeMarketDailyRequest(trade_date),
+                request=self._request_factory(trade_date),
                 import_id=import_id,
                 purpose=purpose,
                 git_commit=git_commit,
@@ -280,6 +284,15 @@ def default_base_import_id(source: str, start: date, end: date) -> UUID:
 
 def date_import_id(base: UUID, source: str, trade_date: date) -> UUID:
     return uuid5(base, f"{source}:{trade_date.isoformat()}")
+
+
+def month_import_id(base: UUID, month: date) -> UUID:
+    """The per-month equivalent, for the loops that fetch a month at a time.
+
+    Same reason as `date_import_id`: a run that dies at month 56 of 81 has to
+    resume by being run again, which it cannot do if its base id was minted.
+    """
+    return uuid5(base, month.isoformat())
 
 
 def _reason_code(error: ResourceQuarantinedError) -> str | None:
