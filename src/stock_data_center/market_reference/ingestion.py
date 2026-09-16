@@ -12,6 +12,7 @@ from sqlalchemy.dialects.postgresql import insert
 from stock_data_center.db import metadata
 from stock_data_center.db.batch import batched
 from stock_data_center.db.metadata import (
+    corporate_action_retractions,
     publication_evidence,
     publication_evidence_observations,
 )
@@ -179,6 +180,104 @@ class MarketReferenceWriter:
             # date's evidence to whichever version came back last.
             identity_fields=("trade_date",),
         )
+
+    def register_corporate_action_events(
+        self, connection: Connection, *,
+        events: Sequence[tuple[int, str, str]],
+    ) -> dict[tuple[int, str, str], int]:
+        """Register a whole range file's events in one statement.
+
+        `events` are `(security_id, source, source_event_key)` triples. A
+        TWSE year file can list over a thousand, one insert each would be for
+        the same reason a whole-market daily-price file is."""
+        keys = sorted(set(events))
+        if not keys:
+            return {}
+        table = metadata.tables["corporate_action_events"]
+        rows_by_key = [
+            {"security_id": security_id, "source": source, "source_event_key": key}
+            for security_id, source, key in keys
+        ]
+        for batch in batched(rows_by_key):
+            connection.execute(
+                insert(table).values(list(batch)).on_conflict_do_nothing(
+                    constraint="uq_corporate_action_event_source_key"
+                )
+            )
+        registered: dict[tuple[int, str, str], int] = {}
+        for batch in batched(rows_by_key):
+            chunk = [
+                (row["security_id"], row["source"], row["source_event_key"])
+                for row in batch
+            ]
+            rows = connection.execute(
+                sa.select(
+                    table.c.security_id, table.c.source,
+                    table.c.source_event_key, table.c.id,
+                ).where(
+                    sa.tuple_(
+                        table.c.security_id, table.c.source, table.c.source_event_key
+                    ).in_(chunk)
+                )
+            ).all()
+            registered.update(
+                {(security_id, source, key): event_id
+                 for security_id, source, key, event_id in rows}
+            )
+        missing = [key for key in keys if key not in registered]
+        if missing:
+            raise RuntimeError(f"conflicting corporate-action event identity disappeared: {missing}")
+        return registered
+
+    def append_corporate_actions(
+        self, connection: Connection, *, source: str,
+        observations: Sequence[tuple[int, CorporateActionObservation]],
+        lineage: Phase8LineageRef,
+    ) -> tuple[WrittenPhase8Version, ...]:
+        """Append a whole range file's events, in the order given.
+
+        One event carries at most one observation per call — a range file
+        lists each locator once (Invariant G(2)) — so no `identity_fields`
+        are needed to tell rows sharing an `event_id` apart."""
+        return self._append_many(
+            connection, SPECS["corporate_action"], "event_id",
+            source, observations, lineage,
+        )
+
+    def retract_corporate_actions(
+        self, connection: Connection, *, events: Sequence[int], reason: str,
+        lineage: Phase8LineageRef,
+    ) -> tuple[int, ...]:
+        """Record that this run's covered range no longer lists these events.
+
+        One retraction fact per `(event_id, raw_artifact_id)`: a rerun of the
+        same range over the same bytes must not pile up duplicate facts, but a
+        later run that proves the same absence again is its own provenance
+        (CLAUDE.md §26) rather than a state this call could collapse away."""
+        ids = sorted(set(events))
+        if not ids:
+            return ()
+        rows = [
+            {
+                "event_id": event_id, "reason": reason,
+                "ingested_at": sa.func.statement_timestamp(),
+                "raw_artifact_id": lineage.raw_artifact_id,
+                "ingest_run_id": lineage.ingest_run_id,
+            }
+            for event_id in ids
+        ]
+        retraction_ids: list[int] = []
+        for batch in batched(rows):
+            retraction_ids.extend(
+                connection.scalars(
+                    insert(corporate_action_retractions).values(list(batch))
+                    .on_conflict_do_nothing(
+                        constraint="uq_corporate_action_retraction_artifact"
+                    )
+                    .returning(corporate_action_retractions.c.id)
+                ).all()
+            )
+        return tuple(retraction_ids)
 
     def append_publication_evidence_batch(
         self, connection: Connection, *, dataset_code: str, source: str,

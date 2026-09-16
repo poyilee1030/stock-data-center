@@ -600,8 +600,8 @@ Status date: 2026-09-16.
 | 18-b | MERGED | Market-index import path and backfill |
 | 18-c | PLANNED | Official valuation |
 | 19-a | MERGED | Result-feed contract, storage precision, and the TPEx adapters |
-| 19-b | THIS STEP | TWSE result-feed adapters and their detail pages |
-| 19-c | PLANNED | Corporate-action import path, retraction included |
+| 19-b | MERGED | TWSE result-feed adapters and their detail pages |
+| 19-c | THIS STEP | Corporate-action import path, retraction included |
 | 19-d | PLANNED | Corporate-action history backfill and legacy reconciliation |
 | 19-e | PLANNED | ETF split and reverse-split result feeds |
 | 20 | PLANNED | Institutional flows, institutional summary, foreign holding |
@@ -1115,7 +1115,7 @@ Out of scope: TWSE adapters, storage writes, retraction, source policy, the CLI,
 
 ### Step 19-b — TWSE result-feed adapters
 
-Status: **THIS STEP**. Depends on: Step 19-a.
+Status: **MERGED**. Depends on: Step 19-a.
 
 In scope: the `TWT49U`, `TWTAUU` and `TWTB8U` list adapters and the
 `TWT49UDetail` and `TWTAVUDetail` adapters, both detail header variants, and
@@ -1133,7 +1133,7 @@ sampled details across 2020-2026, both header variants and both reduction kinds.
 
 ### Step 19-c — Corporate-action import path
 
-Status: **PLANNED**. Depends on: Step 19-b, Step 11, Step 16.
+Status: **THIS STEP**. Depends on: Step 19-b, Step 11, Step 16.
 
 In scope: set-based event registration and version writes for a range file,
 the detail fetches a TWSE range file needs, retraction of an event whose row
@@ -1142,10 +1142,18 @@ their evidence types, and the CLI.
 
 Acceptance:
 
-- correction regression: same locator with changed terms produces a new revision of the same event; a removed row produces a retraction, not a deletion
-- a row outside the executed coverage is never retracted by its absence
-- re-running a range creates no revision
-- a quarantined range keeps its raw artifacts and writes no business row
+- [x] correction regression: same locator with changed terms produces a new revision of the same event; a removed row produces a retraction, not a deletion
+- [x] a row outside the executed coverage is never retracted by its absence
+- [x] re-running a range creates no revision
+- [x] a quarantined range keeps its raw artifacts and writes no business row
+
+Fetching a TWSE range file's per-row detail pages happens before the write
+transaction opens (`RawFirstImporter._capture_dependencies`, ADR-0022), so a
+detail that cannot complete a row quarantines the whole range exactly like a
+list-parse failure. Retraction is its own append-only
+`corporate_action_retractions` table, one fact per `(event_id,
+raw_artifact_id)`; resolving whether a later reappearance un-retracts an
+event is deferred until a reader needs the answer (ADR-0022 §1).
 
 ### Step 19-d — Corporate-action history backfill and reconciliation
 

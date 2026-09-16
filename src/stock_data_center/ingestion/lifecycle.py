@@ -267,6 +267,42 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
             raise
 
         try:
+            dependencies = self._capture_dependencies(
+                adapter=adapter,
+                request=request,
+                parsed=parsed,
+                import_id=import_id,
+                purpose=purpose,
+                artifact_origin=artifact_origin,
+            )
+        except SourceDataError as error:
+            with self._engine.begin() as connection:
+                self._quarantine(
+                    connection,
+                    import_id=import_id,
+                    resource_key=resource.resource_key,
+                    run_id=run_id,
+                    artifact_id=artifact_id,
+                    reason_code=error.reason_code,
+                    detail=str(error),
+                )
+            raise ResourceQuarantinedError(
+                f"{resource.resource_key} quarantined as {error.reason_code}: {error}"
+            ) from error
+        except Exception as error:
+            with self._engine.begin() as connection:
+                self._record_operational_failure(
+                    connection,
+                    import_id=import_id,
+                    resource_key=resource.resource_key,
+                    run_id=run_id,
+                    artifact_id=artifact_id,
+                    reason_code="dependency_operational_error",
+                    detail=str(error),
+                )
+            raise
+
+        try:
             with self._engine.begin() as connection:
                 outcome = self._write_business(
                     connection,
@@ -277,6 +313,7 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
                     context=self._evidence_context(
                         connection, artifact_id, run_id
                     ),
+                    dependencies=dependencies,
                 )
                 return self._complete_resource(
                     connection,
@@ -323,6 +360,77 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
         self, adapter: RawFirstAdapter[RequestT, ParsedT]
     ) -> str: ...
 
+    def _capture_dependencies(
+        self,
+        *,
+        adapter: RawFirstAdapter[RequestT, ParsedT],
+        request: RequestT,
+        parsed: ParsedT,
+        import_id: UUID,
+        purpose: IngestPurpose,
+        artifact_origin: ArtifactOrigin,
+    ) -> object | None:
+        """Fetch and parse whatever else `_write_business` needs beyond the
+        primary resource — a TWSE range file's rows that publish their terms
+        only on a per-event detail page, for instance — before the write
+        transaction opens rather than during it.
+
+        Default: none. A subclass that overrides this may call
+        `self._capture_and_parse` per auxiliary resource, which shares the
+        primary resource's raw-first capture, checkpoint/resume and
+        quarantine handling under the same `import_id`.
+        """
+        return None
+
+    def _capture_and_parse(
+        self,
+        adapter: RawFirstAdapter,
+        request: object,
+        *,
+        import_id: UUID,
+        purpose: IngestPurpose,
+        artifact_origin: ArtifactOrigin,
+    ) -> object:
+        """Capture and parse one resource under `import_id`, resuming a prior
+        checkpoint when one exists. For use from `_capture_dependencies` only:
+        it opens its own connections and must not be called from inside an
+        already-open write transaction.
+
+        A dependency resource has no business write of its own to mark a
+        checkpoint `succeeded` — only the primary resource's checkpoint
+        reaches that status — so this only ever looks for `captured`.
+        """
+        resource = adapter.resource(request)
+        with self._engine.begin() as connection:
+            captured = self._captured_checkpoint(
+                connection, import_id, resource.resource_key
+            )
+        if captured is not None:
+            content = self._raw_store.read(
+                storage_uri=captured.storage_uri,
+                expected_digest=captured.artifact_hash,
+                expected_byte_size=captured.byte_size,
+            )
+        else:
+            fetched = self._fetcher.fetch(resource)
+            stored = self._raw_store.put(fetched.content)
+            with self._engine.begin() as connection:
+                self._capture_raw(
+                    connection,
+                    import_id=import_id,
+                    adapter=adapter,
+                    resource_key=resource.resource_key,
+                    stored=stored,
+                    source_uri=fetched.source_uri,
+                    fetched_at=fetched.fetched_at,
+                    media_type=fetched.media_type,
+                    purpose=purpose,
+                    artifact_origin=artifact_origin,
+                )
+            content = fetched.content
+
+        return adapter.parse(content, request)
+
     @abstractmethod
     def _write_business(
         self,
@@ -333,6 +441,7 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
         parsed: ParsedT,
         lineage: LineageRef,
         context: EvidenceContext,
+        dependencies: object | None = None,
     ) -> BusinessWriteResult: ...
 
     @staticmethod

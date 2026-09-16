@@ -16,14 +16,20 @@ import sqlalchemy as sa
 from stock_data_center.ingestion.adapters import (
     TPExDailyMarketAdapter,
     TPExDelistingHistoryAdapter,
+    TPExExRightDailyAdapter,
     TPExListingHistoryAdapter,
     TPExMarketIndexAdapter,
+    TPExParValueChangeAdapter,
+    TPExReductionAdapter,
     TPExSecurityMetadataAdapter,
     TPExWholeMarketDailyAdapter,
     TWSEDailyMarketAdapter,
     TWSEDelistingHistoryAdapter,
+    TWSEExRightAdapter,
     TWSEListingHistoryAdapter,
     TWSEMarketIndexAdapter,
+    TWSEParValueChangeAdapter,
+    TWSEReductionAdapter,
     TWSESecurityMetadataAdapter,
     TWSETaiexHistoryAdapter,
     TWSETradingCalendarAdapter,
@@ -34,12 +40,14 @@ from stock_data_center.ingestion.backfill import (
     default_base_import_id,
     month_import_id,
 )
+from stock_data_center.ingestion.corporate_action import CorporateActionImporter
 from stock_data_center.ingestion.daily_market import DailyMarketImporter
 from stock_data_center.ingestion.market_index import (
     MarketIndexImporter,
     TaiexHistoryImporter,
 )
 from stock_data_center.ingestion.models import (
+    CorporateActionRangeRequest,
     DailyMarketRequest,
     IngestPurpose,
     MarketIndexRequest,
@@ -174,6 +182,27 @@ def main(argv: list[str] | None = None) -> int:
     )
     calendar.add_argument("--import-id", type=UUID)
     calendar.add_argument("--raw-root", type=Path, default=Path("data/raw"))
+    corporate_action = subparsers.add_parser(
+        "corporate-action",
+        help="import one result feed's executed events over a date range",
+    )
+    corporate_action.add_argument(
+        "--feed",
+        choices=("TWT49U", "TWTAUU", "TWTB8U", "exDailyQ", "revivt", "pvChgRslt"),
+        required=True,
+    )
+    corporate_action.add_argument(
+        "--start", required=True, help="Gregorian YYYY-MM-DD"
+    )
+    corporate_action.add_argument("--end", required=True, help="Gregorian YYYY-MM-DD")
+    corporate_action.add_argument(
+        "--executed-through",
+        help="optional Gregorian YYYY-MM-DD; rows dated after it are counted, "
+        "not turned into events (ADR-0019). Decided when the job is issued, "
+        "never from the fetch clock. Defaults to --end.",
+    )
+    corporate_action.add_argument("--import-id", type=UUID)
+    corporate_action.add_argument("--raw-root", type=Path, default=Path("data/raw"))
     subparsers.add_parser(
         "security-transfer-reconciliation",
         help="recompute final transfer matching from canonical TWSE/TPEx histories",
@@ -377,6 +406,33 @@ def main(argv: list[str] | None = None) -> int:
             result = importer.run(
                 adapter=adapter,
                 request=SecurityMetadataRequest(args.expected_report_date),
+                import_id=import_id,
+                purpose=IngestPurpose(args.purpose),
+            )
+        elif args.command == "corporate-action":
+            feed_adapters = {
+                "TWT49U": TWSEExRightAdapter,
+                "TWTAUU": TWSEReductionAdapter,
+                "TWTB8U": TWSEParValueChangeAdapter,
+                "exDailyQ": TPExExRightDailyAdapter,
+                "revivt": TPExReductionAdapter,
+                "pvChgRslt": TPExParValueChangeAdapter,
+            }
+            importer = CorporateActionImporter(
+                engine, raw_store=LocalRawArtifactStore(args.raw_root)
+            )
+            start = date.fromisoformat(args.start)
+            end = date.fromisoformat(args.end)
+            if end < start:
+                parser.error("--end must not be before --start")
+            executed_through = (
+                date.fromisoformat(args.executed_through)
+                if args.executed_through
+                else end
+            )
+            result = importer.run(
+                adapter=feed_adapters[args.feed](),
+                request=CorporateActionRangeRequest(start, end, executed_through),
                 import_id=import_id,
                 purpose=IngestPurpose(args.purpose),
             )

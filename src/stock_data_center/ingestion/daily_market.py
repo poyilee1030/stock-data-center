@@ -87,6 +87,7 @@ class DailyMarketImporter(RawFirstImporter[DailyMarketRequest, ParsedDailyMarket
         parsed: ParsedDailyMarket,
         lineage: LineageRef,
         context: EvidenceContext,
+        dependencies: object | None = None,
     ) -> BusinessWriteResult:
         security_id = self._writer.register_security(
             connection, security_code=parsed.security_code

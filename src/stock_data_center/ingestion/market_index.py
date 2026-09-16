@@ -155,6 +155,7 @@ class MarketIndexImporter(_IndexImporterBase):
         parsed: ParsedMarketIndex,
         lineage,
         context: EvidenceContext,
+        dependencies: object | None = None,
     ) -> BusinessWriteResult:
         reference_lineage = Phase8LineageRef(
             lineage.raw_artifact_id, lineage.ingest_run_id
@@ -242,6 +243,7 @@ class TaiexHistoryImporter(_IndexImporterBase):
         parsed: ParsedTaiexHistory,
         lineage,
         context: EvidenceContext,
+        dependencies: object | None = None,
     ) -> BusinessWriteResult:
         reference_lineage = Phase8LineageRef(
             lineage.raw_artifact_id, lineage.ingest_run_id
