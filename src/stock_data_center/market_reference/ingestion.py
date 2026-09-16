@@ -10,7 +10,7 @@ from sqlalchemy import Connection, Table
 from sqlalchemy.dialects.postgresql import insert
 
 from stock_data_center.db import metadata
-from stock_data_center.db.batch import MAX_BIND_PARAMETERS, batched
+from stock_data_center.db.batch import batched
 from stock_data_center.db.metadata import (
     corporate_action_retractions,
     publication_evidence,
@@ -194,21 +194,22 @@ class MarketReferenceWriter:
         if not keys:
             return {}
         table = metadata.tables["corporate_action_events"]
-        for batch in batched(
-            [
-                {"security_id": security_id, "source": source, "source_event_key": key}
-                for security_id, source, key in keys
-            ]
-        ):
+        rows_by_key = [
+            {"security_id": security_id, "source": source, "source_event_key": key}
+            for security_id, source, key in keys
+        ]
+        for batch in batched(rows_by_key):
             connection.execute(
                 insert(table).values(list(batch)).on_conflict_do_nothing(
                     constraint="uq_corporate_action_event_source_key"
                 )
             )
         registered: dict[tuple[int, str, str], int] = {}
-        chunk_size = max(1, MAX_BIND_PARAMETERS // 3)
-        for start in range(0, len(keys), chunk_size):
-            chunk = keys[start : start + chunk_size]
+        for batch in batched(rows_by_key):
+            chunk = [
+                (row["security_id"], row["source"], row["source_event_key"])
+                for row in batch
+            ]
             rows = connection.execute(
                 sa.select(
                     table.c.security_id, table.c.source,
