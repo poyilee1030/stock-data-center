@@ -179,57 +179,6 @@ class MarketReferenceWriter:
             identity_fields=("trade_date",),
         )
 
-    def append_index_metadata_snapshot(
-        self, connection: Connection, *, source: str,
-        observations: Sequence[tuple[int, MarketIndexMetadataObservation]],
-        lineage: Phase8LineageRef,
-    ) -> tuple[WrittenPhase8Version, ...]:
-        """Record each index's name and market once, not once per trade date.
-
-        No feed publishes an index effective date (audit §5), so
-        `effective_from` holds the first date this Data Center observed the
-        name — a value of ours, never presented as the source's. A later date
-        observing the same state is provenance for that state, not a new
-        revision, so it deduplicates rather than walking `effective_from`
-        forward.
-        """
-        spec = SPECS["market_index_metadata"]
-        index_ids = [index_id for index_id, _ in observations]
-        existing = self._existing_rows(
-            connection, spec, "market_index_id", source, index_ids
-        )
-        pending: list[tuple[int, MarketIndexMetadataObservation]] = []
-        written: dict[int, dict] = {}
-        for index_id, observation in observations:
-            match = next(
-                (
-                    row
-                    for row in existing.get(index_id, ())
-                    if row["market"] == observation.market
-                    and row["name"] == observation.name
-                    and row["effective_to"] is None
-                ),
-                None,
-            )
-            if match is None:
-                pending.append((index_id, observation))
-            else:
-                written[index_id] = dict(match)
-        created = self._append_many(
-            connection, spec, "market_index_id", source, pending, lineage,
-            identity_fields=("effective_from",),
-        )
-        return (
-            *created,
-            *(
-                WrittenPhase8Version(
-                    spec.code, row["id"], row["business_content_hash"],
-                    row["ingested_at"], False,
-                )
-                for row in written.values()
-            ),
-        )
-
     def append_publication_evidence_batch(
         self, connection: Connection, *, dataset_code: str, source: str,
         planned: Sequence[tuple[int, Phase8Publication]], lineage: Phase8LineageRef,
@@ -311,15 +260,25 @@ class MarketReferenceWriter:
     def _existing_rows(
         connection: Connection, spec: _Spec, link_column: str, source: str,
         identifiers: Sequence[int],
+        *, period_column: str | None = None, periods: Sequence[object] = (),
     ) -> dict[int, tuple[dict, ...]]:
+        """Read back the rows a conflicting insert could have hit.
+
+        Scoped by period as well as by entity. Without it a re-run over the
+        window would load every stored row for each index — 365,775 of them —
+        and scan them linearly per observation.
+        """
         if not identifiers:
             return {}
-        rows = connection.execute(
-            sa.select(spec.table).where(
-                spec.table.c.source == source,
-                spec.table.c[link_column].in_(sorted(set(identifiers))),
+        predicates = [
+            spec.table.c.source == source,
+            spec.table.c[link_column].in_(sorted(set(identifiers))),
+        ]
+        if period_column and periods:
+            predicates.append(
+                spec.table.c[period_column].in_(sorted(set(periods)))
             )
-        ).mappings()
+        rows = connection.execute(sa.select(spec.table).where(*predicates)).mappings()
         grouped: dict[int, list[dict]] = {}
         for row in rows:
             grouped.setdefault(row[link_column], []).append(dict(row))
@@ -371,9 +330,7 @@ class MarketReferenceWriter:
         created: dict[tuple, dict] = {}
         for batch in batched(rows):
             created.update({
-                tuple(
-                    [row[link_column], *(row[name] for name in identity_fields)]
-                ): dict(row)
+                (row[link_column], *(row[name] for name in identity_fields)): dict(row)
                 for row in connection.execute(
                     insert(spec.table).values(list(batch))
                     .on_conflict_do_nothing(constraint=spec.constraint)
@@ -390,9 +347,15 @@ class MarketReferenceWriter:
             for identifier, observation in observations
             if key(identifier, observation) not in created
         ]
+        period_column = identity_fields[0] if identity_fields else None
         existing = self._existing_rows(
             connection, spec, link_column, source,
             [identifier for identifier, _ in pending],
+            period_column=period_column,
+            periods=[
+                _values(observation)[period_column]
+                for _, observation in pending
+            ] if period_column else (),
         )
         written: list[WrittenPhase8Version] = []
         links: list[dict] = []

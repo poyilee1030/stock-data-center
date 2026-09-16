@@ -420,6 +420,18 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0 if backfill_report.is_complete else 1
 
+        if month_failures and not calendar_runs:
+            # Every month failed, so there is no manifest to read and no
+            # resource to describe — but this is precisely the run whose report
+            # matters. Name the failures and stop.
+            print(
+                json.dumps(
+                    {"month_failures": month_failures},
+                    ensure_ascii=False, indent=2, default=str,
+                )
+            )
+            return 1
+
         with engine.connect() as connection:
             manifest = importer.manifest(connection, import_id)
             months_report = [

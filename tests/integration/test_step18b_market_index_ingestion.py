@@ -345,3 +345,89 @@ def test_a_month_run_derives_its_base_id_from_the_scope() -> None:
     assert month_import_id(base, date(2024, 8, 1)) != month_import_id(
         base, date(2024, 9, 1)
     )
+
+
+def test_a_month_run_whose_every_month_fails_still_reports(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """The failure path this step added must survive its own worst case.
+
+    `result` and the trailing `import_id` are only assigned on a successful
+    month, so an all-failed run reached the reporting block with an unrelated
+    id: `manifest(...).one()` raised `NoResultFound` and `asdict(result)` would
+    have raised `UnboundLocalError`. The run that fails completely is exactly
+    the one whose report matters.
+    """
+    from stock_data_center.ingestion.cli import main
+
+    class AlwaysFails:
+        def fetch(self, resource):
+            raise TimeoutError("the source did not answer")
+
+    # Patch the fetcher the CLI builds, without changing its signature.
+    import stock_data_center.ingestion.market_index as module
+
+    original = module.TaiexHistoryImporter.__init__
+
+    def failing_init(self, engine, **kwargs):
+        kwargs["fetcher"] = AlwaysFails()
+        original(self, engine, **kwargs)
+
+    module.TaiexHistoryImporter.__init__ = failing_init
+    try:
+        code = main(
+            [
+                "--database-url", isolated_database_url,
+                "--purpose", "gap_fill",
+                "taiex-history", "--month", "2026-01", "--through", "2026-02",
+                "--min-interval-seconds", "0",
+                "--raw-root", str(tmp_path / "raw"),
+            ]
+        )
+    finally:
+        module.TaiexHistoryImporter.__init__ = original
+    assert code == 1
+
+
+def test_the_downgrade_guard_sees_a_quarantined_run_with_no_versions(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """A quarantined date leaves an ingest run and no version at all.
+
+    The blocking foreign key is `ingest_runs(dataset_code, source)` with
+    ON DELETE RESTRICT, so counting versions lets the guard pass and the DELETE
+    then fails partway — §81 wants the refusal before any mutation.
+    """
+    from alembic import command
+    from sqlalchemy.exc import DBAPIError
+
+    from conftest import alembic_config, alembic_head
+
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        with pytest.raises(ResourceQuarantinedError):
+            run_index(
+                engine, tmp_path, adapter=TWSEMarketIndexAdapter(),
+                content=TWSE_CLOSED, day=date(2024, 7, 24),
+            )
+        with engine.connect() as connection:
+            assert connection.scalar(
+                sa.text("SELECT count(*) FROM market_index_versions")
+            ) == 0
+            assert connection.scalar(
+                sa.text(
+                    "SELECT count(*) FROM ingest_runs "
+                    "WHERE dataset_code = 'market_index'"
+                )
+            ) == 1
+
+        with pytest.raises(DBAPIError) as blocked:
+            command.downgrade(alembic_config(isolated_database_url), "5e3b8d1a9c42")
+        assert blocked.value.orig.sqlstate == "P0001"
+
+        with engine.connect() as connection:
+            assert connection.scalar(
+                sa.text("SELECT version_num FROM alembic_version")
+            ) == alembic_head()
+    finally:
+        engine.dispose()

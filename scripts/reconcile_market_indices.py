@@ -44,7 +44,7 @@ MARKETS = {"twse_mi_index": ("TWSE", "sii"), "tpex_index_summary": ("TPEx", "otc
 TAIEX_SOURCE = "twse_mi_5mins_hist"
 TAIEX_NAME = "發行量加權股價指數"
 
-# Legacy stores floats; one hundredth of an index point is far below any
+# Legacy stores floats; one ten-thousandth of an index point is far below any
 # published increment and far above float noise at these magnitudes.
 TOLERANCE = Decimal("0.0001")
 

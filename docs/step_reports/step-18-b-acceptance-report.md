@@ -8,7 +8,7 @@ Schema impact: none. Migration `7a2c9e4d1b58` adds rows only: three
 `dataset_sources`, their release-rule mappings, and two `daily_price`-style
 expected-coverage declarations.
 PIT impact: none new — all three sources follow `exchange_daily_settled@1`.
-`src/` changed by +653/−22 lines, plus one committed script.
+`src/` changed by +600/−22 lines, plus one committed script.
 
 ## Baseline
 
@@ -127,13 +127,35 @@ is where identity reads it from anyway.
 Database migrated from zero:
 
 ```text
-467 passed, 3 skipped, 1 warning
+469 passed, 3 skipped, 1 warning
 ```
 
-Baseline before this step: 457. The 10 integration tests added here are the
-difference, and each was seen to fail first.
+Baseline before this step: 457. The 12 integration tests added here are the
+difference, and each was seen to fail first — 10 before the importers existed
+and 2 from the review, against the code as it was pushed.
+
+Migration round trip on a clean database: `upgrade head` seeds the catalog row,
+three sources, three rule mappings and two coverage declarations; `downgrade`
+removes exactly those, catalog row included; `upgrade head` re-seeds.
 
 `ruff check` reports nothing new against `main`.
+
+## Code-review findings
+
+Six findings, all verified before anything changed; none was a false positive.
+
+| # | Finding | Verified by | Disposition |
+| --- | --- | --- | --- |
+| 1 | `taiex-history` crashes when **every** month fails: `result` and the trailing `import_id` are only assigned on success, so the reporting block reads a manifest that does not exist | A regression driving the CLI with a fetcher that always raises: `NoResultFound`, before `asdict(result)` could raise `UnboundLocalError`. | **Fixed.** An all-failed run prints its failures and exits 1. The failure path this step added did not survive its own worst case — the run that fails completely is exactly the one whose report matters. |
+| 2 | `append_index_metadata_snapshot` is dead code, and wrong if called: it collapses two observations of one index and returns a tuple whose length diverges from its input, which would break the `zip(..., strict=True)` evidence pattern | No caller anywhere in `src` or `tests`. | **Deleted.** ~60 untested lines for a dataset this step explicitly does not own (§67). The step that owns index metadata writes it, with tests. |
+| 3 | `_existing_rows` filters on source and entity but not period, unlike its daily-price twin | Read both. A `correction_check` re-run would load all 365,775 stored rows per date and scan ~1,340 candidates per observation. | Fixed. Scoped by the identity's period column. |
+| 4 | The downgrade guard counts versions, but the blocking foreign key is `ingest_runs → dataset_sources`; a quarantined date leaves a run with no version, so the guard passes and the DELETE fails partway | A regression quarantining a closed date then downgrading: sqlstate `23001`, a raw FK violation mid-mutation, where §81 wants a deliberate pre-mutation refusal. | Fixed. The guard counts ingest runs, manifests and versions, and now raises `P0001` before touching anything. |
+| 5 | Asymmetric downgrade: the upgrade creates the `dataset_catalog` row and the downgrade never removes it | Read. | Fixed. The downgrade removes it, but only once no source declares the dataset. |
+| 6 | The tolerance comment says "one hundredth" for `0.0001` | Read. | Fixed. |
+
+Finding 1 is the one that matters, and it is pointed: this step *added* the
+per-month failure path in response to a live `ReadTimeout`, and the path was
+untested against the case where nothing succeeds.
 
 ## Scope exclusions confirmed
 

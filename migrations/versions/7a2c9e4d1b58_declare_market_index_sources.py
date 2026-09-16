@@ -104,16 +104,30 @@ def upgrade() -> None:
 
 GUARD = """
 DO $$
-DECLARE imported bigint;
+DECLARE blocking bigint;
 BEGIN
-    SELECT count(*) INTO imported
-      FROM market_index_versions
-     WHERE source IN ('twse_mi_index', 'tpex_index_summary', 'twse_mi_5mins_hist');
-    IF imported > 0 THEN
+    -- Count what actually blocks the delete. The foreign key is from
+    -- ingest_runs, and a quarantined date leaves a run with no version at all,
+    -- so counting versions alone would let the guard pass and the DELETE fail
+    -- partway. §81 wants the refusal before any mutation.
+    SELECT (SELECT count(*) FROM ingest_runs
+             WHERE dataset_code = 'market_index'
+               AND source IN ('twse_mi_index', 'tpex_index_summary',
+                              'twse_mi_5mins_hist'))
+         + (SELECT count(*) FROM import_manifests
+             WHERE dataset_code = 'market_index'
+               AND source IN ('twse_mi_index', 'tpex_index_summary',
+                              'twse_mi_5mins_hist'))
+         + (SELECT count(*) FROM market_index_versions
+             WHERE source IN ('twse_mi_index', 'tpex_index_summary',
+                              'twse_mi_5mins_hist'))
+      INTO blocking;
+    IF blocking > 0 THEN
         RAISE EXCEPTION USING
             ERRCODE = 'P0001',
             MESSAGE = 'cannot downgrade away declared market-index sources',
-            DETAIL = format('%s imported versions reference them', imported),
+            DETAIL = format('%s ingest runs, manifests or versions reference them',
+                            blocking),
             HINT = 'history is append-only; remove the history deliberately first';
     END IF;
 END $$;
@@ -146,5 +160,20 @@ def downgrade() -> None:
             "WHERE dataset_code = 'market_index' AND source IN :sources"
         ).bindparams(
             sa.bindparam("sources", value=SOURCES, expanding=True)
+        )
+    )
+    # Symmetric with the upgrade: it creates the catalog row, so the downgrade
+    # removes it — but only once nothing declares the dataset any more, since
+    # another migration may share it.
+    op.execute(
+        sa.text(
+            """
+            DELETE FROM dataset_catalog
+             WHERE dataset_code = 'market_index'
+               AND NOT EXISTS (
+                     SELECT 1 FROM dataset_sources
+                      WHERE dataset_code = 'market_index'
+                   )
+            """
         )
     )
