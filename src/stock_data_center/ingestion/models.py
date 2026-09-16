@@ -240,6 +240,10 @@ class CorporateActionRangeRequest:
     def __post_init__(self) -> None:
         if self.start > self.end:
             raise ValueError("start must not follow end")
+        # A range with nothing executed yet would claim coverage ending before
+        # it starts, and could only count rows; the issuer skips it instead.
+        if self.executed_through < self.start:
+            raise ValueError("executed_through must not precede start")
 
 
 @dataclass(frozen=True, slots=True)

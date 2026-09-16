@@ -104,10 +104,10 @@ Each has a test, and each test was checked by removing its guard:
 ## Verification
 
 ```text
-509 passed, 3 skipped
+510 passed, 3 skipped
 ```
 
-Baseline before this step: 472 collected. The 40 tests added here (35 unit, 5
+Baseline before this step: 472 collected. The 41 tests added here (36 unit, 5
 integration) are the difference. The first unit suite and all five integration
 tests were run red before their code existed. The unit suite was then rewritten
 for the split, against adapters that already existed, so a red run proved
@@ -142,3 +142,16 @@ break made at least one test fail.
 - `announcement_date`, `record_date`, `payment_date`,
   `earnings_stock_ratio` and `capital_surplus_stock_ratio` stay NULL.
 - No ratio is inferred from prices, for TWSE par-value changes or anywhere else.
+
+## Code-review findings
+
+One `/code-review` finding held up after checking. Three other claims in that
+review did not.
+
+| # | Finding | Checked by | Disposition |
+| --- | --- | --- | --- |
+| 1 | `CorporateActionRangeRequest` accepted `executed_through` earlier than `start`. The 2027 file requested on 2027-01-01 would report coverage from 2027-01-01 to 2026-12-31 | Reading `coverage_end` | **Fixed.** The request now refuses it: such a job can only count rows, so the issuer skips it. A regression test failed before the fix. |
+| — | `money` and `ratios` in `CorporateActionObservation.__post_init__` are unused | `models.py:290` still reads both in the "at least one term" check | Not a defect. |
+| — | revivt 2026: nobody confirmed that the three dropped rows are future-dated | `test_rows_dated_after_executed_through_are_not_events_yet` asserts exactly three rows after 2026-09-15 and `not_yet_executed == 3` | Already covered. |
+| — | Ruff: I001 and an unused `ArtifactOrigin` in `ingestion/models.py`, TRY004 in `market_reference/models.py` | Running ruff on `main` | All three already exist on `main`, so they are out of scope. |
+

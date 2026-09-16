@@ -251,6 +251,20 @@ def test_a_range_request_is_ordered() -> None:
         CorporateActionRangeRequest(date(2024, 2, 1), date(2024, 1, 1), date(2026, 1, 1))
 
 
+def test_a_range_with_nothing_executed_is_not_a_request() -> None:
+    """Review finding: on 2027-01-01 nothing in the 2027 file has happened yet.
+
+    Such a job would report coverage ending before it starts, and could only
+    ever count rows. The issuer skips it instead; the request refuses it.
+    """
+    with pytest.raises(ValueError, match="executed_through"):
+        CorporateActionRangeRequest(date(2027, 1, 1), date(2027, 12, 31), date(2026, 12, 31))
+    first_day = CorporateActionRangeRequest(
+        date(2027, 1, 1), date(2027, 12, 31), date(2027, 1, 1)
+    )
+    assert first_day.executed_through == first_day.start
+
+
 # --- request and failure modes -------------------------------------------------
 
 
