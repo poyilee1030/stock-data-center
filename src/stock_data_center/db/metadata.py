@@ -1496,6 +1496,28 @@ corporate_action_versions = sa.Table(
     ),
 )
 
+corporate_action_retractions = sa.Table(
+    "corporate_action_retractions",
+    metadata,
+    sa.Column("id", sa.BigInteger(), sa.Identity(), primary_key=True),
+    sa.Column("event_id", sa.BigInteger(), nullable=False),
+    sa.Column("reason", sa.Text(), nullable=False),
+    sa.Column("ingested_at", aware_timestamp, nullable=False),
+    sa.Column("raw_artifact_id", uuid_type, nullable=False),
+    sa.Column("ingest_run_id", uuid_type, nullable=False),
+    sa.ForeignKeyConstraint(
+        ["event_id"], ["corporate_action_events.id"], ondelete="RESTRICT"
+    ),
+    *lineage_constraints(),
+    sa.UniqueConstraint(
+        "event_id", "raw_artifact_id",
+        name="uq_corporate_action_retraction_artifact",
+    ),
+    sa.CheckConstraint(
+        "reason <> ''", name="corporate_action_retraction_reason_nonempty"
+    ),
+)
+
 official_valuation_versions = sa.Table(
     "official_valuation_versions",
     metadata,

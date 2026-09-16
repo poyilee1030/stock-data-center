@@ -36,6 +36,7 @@
       "source"
     ],
     "excluded_tables": {
+      "corporate_action_retractions": "Append-only record that a range file's covered window no longer lists a locator it once did (ROADMAP Step 19-c). `reason` is our own classification, not source content, and the table has no business-content columns to audit.",
       "corporate_action_version_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field.",
       "dataset_catalog": "Dataset policy registry, declared by us.",
       "dataset_expected_coverage": "Declared expectation of what each dataset should hold, per market and cadence (ROADMAP 22, step 16). It is our own declaration, not source content.",

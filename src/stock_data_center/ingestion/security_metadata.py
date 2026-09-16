@@ -96,6 +96,7 @@ class SecurityMetadataImporter(
         parsed: ParsedSecurityMetadata,
         lineage: LineageRef,
         context: EvidenceContext,
+        dependencies: object | None = None,
     ) -> BusinessWriteResult:
         created = 0
         deduplicated = 0

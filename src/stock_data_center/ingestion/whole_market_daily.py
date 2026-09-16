@@ -91,6 +91,7 @@ class WholeMarketDailyImporter(
         parsed: ParsedWholeMarketDaily,
         lineage: LineageRef,
         context: EvidenceContext,
+        dependencies: object | None = None,
     ) -> BusinessWriteResult:
         if not isinstance(adapter, WholeMarketDailyAdapter):
             raise TypeError(

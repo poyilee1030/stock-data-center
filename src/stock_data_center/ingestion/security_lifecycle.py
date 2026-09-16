@@ -220,6 +220,7 @@ class SecurityLifecycleImporter(
         parsed: ParsedSecurityLifecycle,
         lineage: LineageRef,
         context: EvidenceContext,
+        dependencies: object | None = None,
     ) -> BusinessWriteResult:
         if not isinstance(adapter, SecurityLifecycleAdapter):
             raise TypeError(

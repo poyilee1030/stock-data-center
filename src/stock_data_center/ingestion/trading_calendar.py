@@ -95,6 +95,7 @@ class TradingCalendarImporter(
         parsed: ParsedTradingCalendar,
         lineage,
         context: EvidenceContext,
+        dependencies: object | None = None,
     ) -> BusinessWriteResult:
         calendar_lineage = CalendarLineageRef(
             lineage.raw_artifact_id, lineage.ingest_run_id

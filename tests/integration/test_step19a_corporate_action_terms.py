@@ -13,7 +13,7 @@ from decimal import Decimal
 import pytest
 import sqlalchemy as sa
 from alembic import command
-from conftest import alembic_config, alembic_head
+from conftest import alembic_config
 from sqlalchemy import Connection
 from sqlalchemy.exc import DBAPIError
 from test_phase8_market_reference import add_security, configure, lineage
@@ -28,6 +28,12 @@ from stock_data_center.market_reference import (
 pytestmark = pytest.mark.integration
 WRITER = MarketReferenceWriter()
 BEFORE = "7a2c9e4d1b58"
+# Step 19-c declares these sources on top of this migration and its downgrade
+# cannot run once an ingest run references one (a real foreign key, not just
+# its own guard) — which every `write()` call in this file does. These tests
+# are about this migration's own up/down, so they pin the schema here rather
+# than at whatever is head today.
+AT_STEP_19A = "8e4b2c7d9a13"
 
 
 def rights_issue(**overrides) -> CorporateActionObservation:
@@ -105,6 +111,7 @@ def test_history_written_before_the_widening_keeps_deduplicating(
     column's scale changes that text: 0.14000000 becomes 0.140000000000. Without
     rehashing, re-importing an unchanged event would create a fake revision."""
     config = alembic_config(isolated_database_url)
+    command.downgrade(config, AT_STEP_19A)
     command.downgrade(config, BEFORE)
     engine = sa.create_engine(isolated_database_url)
     unchanged = CorporateActionObservation(
@@ -117,7 +124,7 @@ def test_history_written_before_the_widening_keeps_deduplicating(
     try:
         with engine.begin() as connection:
             event_id, before = write(connection, "6712-step19a", unchanged)
-        command.upgrade(config, "head")
+        command.upgrade(config, AT_STEP_19A)
         with engine.begin() as connection:
             widened = connection.scalar(
                 sa.text(
@@ -148,7 +155,7 @@ def test_history_written_before_the_widening_keeps_deduplicating(
                 ),
                 {"id": before.version_id},
             ) == before.business_content_hash
-        command.upgrade(config, "head")
+        command.upgrade(config, AT_STEP_19A)
     finally:
         engine.dispose()
 
@@ -164,19 +171,21 @@ def test_history_written_before_the_widening_keeps_deduplicating(
 def test_the_downgrade_refuses_history_the_old_columns_cannot_hold(
     isolated_database_url: str, observation: CorporateActionObservation
 ) -> None:
+    config = alembic_config(isolated_database_url)
+    command.downgrade(config, AT_STEP_19A)
     engine = sa.create_engine(isolated_database_url)
     try:
         with engine.begin() as connection:
             write(connection, "8444-step19a-down", observation)
         engine.dispose()
         with pytest.raises(DBAPIError) as blocked:
-            command.downgrade(alembic_config(isolated_database_url), BEFORE)
+            command.downgrade(config, BEFORE)
         assert blocked.value.orig.sqlstate == "P0001"
         assert "cannot downgrade corporate-action terms" in str(blocked.value)
         with engine.connect() as connection:
             assert connection.scalar(
                 sa.text("SELECT version_num FROM alembic_version")
-            ) == alembic_head(isolated_database_url)
+            ) == AT_STEP_19A
             assert connection.scalar(
                 sa.text(
                     "SELECT numeric_scale FROM information_schema.columns "
