@@ -168,6 +168,24 @@ against 1,627 official ones, zero corrupted names in 2,133 code/name pairs, and
 the row-level comparison above. The archive is a sound reconciliation baseline.
 It is not an official artifact, and the difference is what this section records.
 
+## Source capability recorded
+
+Audit §4.1 now records how far back each endpoint serves, probed at the
+boundary: TWSE **2004-02-11** (the endpoint says so itself —
+`查詢日期小於93年2月11日，請重新查詢!`) and TPEx **2007-07-02** (it says nothing;
+2007-06-29, the previous trading day, simply returns zero rows).
+
+This is recorded because the window starting on 2020-01-02 is a ROADMAP scope
+decision, and nothing until now said so — "the endpoints still serve 2020
+onward" read like a limit. It also documents what extending the window would
+actually take: the Step 16 calendar covers only 2020-01 onward and the runner
+fails closed outside it, and the two markets would need different
+`window_start` values, since TWSE reaches three years further back than TPEx.
+
+TPEx's out-of-range answer is `stat` `ok` with zero rows — identical to a
+closure. That is the reason Step 17-a's reason code is `no_data_for_date` and
+not `market_closed`, and it is now written down next to the evidence.
+
 ## Verification
 
 Database migrated from zero:

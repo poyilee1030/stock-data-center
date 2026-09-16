@@ -137,6 +137,28 @@ direction column; where TWSE writes `X`, TPEx writes the reason — `除息`,
 `除權`, `除權息` — in the same cell, which is the same 不比價 statement and
 leaves no number to store. A closed date answers `stat` `ok` with zero rows.
 
+**How far back each endpoint serves**, probed 2026-09-16. The v1 window starting
+on 2020-01-02 is a ROADMAP scope decision, not an endpoint limit — both feeds
+reach considerably further:
+
+| | Earliest date with rows | How the endpoint answers before it |
+| --- | --- | --- |
+| TWSE `MI_INDEX` | **2004-02-11** | `stat` = `查詢日期小於93年2月11日，請重新查詢!`. Verified at the boundary: 02-10 refused, 02-11 returns 711 rows. |
+| TPEx `otc` | **2007-07-02** | `stat` = `ok` with zero rows, and no explanation. Verified at the boundary: 2007-06-29, the previous trading day, returns zero rows; 07-02 returns 826. |
+
+TPEx's silence matters for anything that walks a date range: an out-of-range
+date and a market closure are the same response, which is why Step 17-a names
+that reason code `no_data_for_date` rather than `market_closed`. Only the
+trading calendar can call a date a closure. The empty responses also carry a
+17-column header regardless of era, while 2007-07-02 itself carries the
+15-column first variant, so the header does not indicate the range either.
+
+Extending the window past 2020 would need two things beyond changing a date:
+the Step 16 calendar covers only 2020-01 onward and the range runner fails
+closed outside it, and the two markets would need different
+`dataset_expected_coverage.window_start` values, because TWSE reaches three
+years further back than TPEx.
+
 | `daily_price_versions` column | TWSE | TPEx |
 | --- | --- | --- |
 | open/high/low/close, volume, trade_value, trade_count | ✓ | ✓ |
