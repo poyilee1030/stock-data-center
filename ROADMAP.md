@@ -1299,14 +1299,38 @@ Four things this needs beyond the loop:
    and a last-attempt time, an hourly loop against a mis-declared window becomes
    an hourly pounding of the source. `import_checkpoints` holds part of this; a
    record of when a period was first observed missing is still needed.
-4. **Scheduled and gap-fill capture claim different evidence, and earlier is
-   stronger.** A scheduled run on D is a genuine first sighting and may claim
-   `capture_bound`; a backfill three years later may not. A capture at 20:00 on
-   D also outranks the rule instant at 03:00 on D+1, so the evidence improves
-   the sooner the loop runs. This is why every day without forward capture
-   permanently costs that day its first-seen evidence — an argument for bringing
-   forward capture up on `daily_price` before the remaining domains are ready,
-   rather than only after them.
+4. **Scheduled and gap-fill capture claim different evidence, but how much that
+   is worth depends on the domain.** A scheduled run on D is a genuine first
+   sighting and may claim `capture_bound`; a backfill three years later may not.
+   That matters where the publication instant varies per row, and barely at all
+   where it does not:
+
+   - **Exchange-published data — daily prices, indices, institutional flows,
+     margin — is published by the exchange on a fixed schedule**, the same
+     instant for every row in the file. A capture bound would only tighten
+     03:00 on D+1 to about 14:30 on D, identically for every row, so the right
+     investment is a new version of the release rule citing the actual
+     publication time, not a race to observe it. Every historical row benefits
+     at once and nothing has to be fetched.
+   - **Issuer-filed data — monthly revenue and financial statements — is
+     published by each issuer on its own schedule** inside a statutory deadline.
+     One company files on the 3rd and another on the 10th; a rule can only say
+     "by the 10th", and the actual date is unknowable without having observed
+     it. This is the domain where first-seen evidence is irreplaceable, and it
+     is why §32 records real first-seen data for exactly these two — monthly
+     revenue from 2026M02 and XBRL from 2025Q4 — and for nothing else.
+
+   The legacy scraper is still running for both issuer-filed domains, so those
+   first-seen records keep accruing while Steps 22 and 23 are built. Nothing is
+   being lost in the meantime, and there is no reason to bring any domain
+   forward out of the planned order. The dependency is worth naming: those
+   archives remain the only source of first-seen evidence until this repository
+   captures those domains itself.
+
+   For `daily_price`, the reasons to run forward capture are freshness and
+   correction detection, not evidence quality — and correction detection is
+   served by re-fetching, not by fetching early. Fetching early is how the
+   legacy system froze a partial 2026-03-27.
 
 Acceptance:
 
