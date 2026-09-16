@@ -216,21 +216,42 @@ pilots' rows.
   漲跌百分比(%), 特殊處理註記).
 - TPEx: `afterTrading/indexSummary` (指數, 收市指數, 漲跌, 漲跌幅度(%), 大盤資訊連結).
 
-Neither source has an index code, so identity is `(source, published index
-name)`. In these whole-list sources `close_value`, `change_points`, and
+Neither source publishes an index code, so identity has to be built — and the
+published name alone is not enough. **TPEx repeats one name across its two
+sections**: on 2026-09-11 `櫃買指數` appears in the price section at 395.52 and
+in the return section at 735.15, and 32 of its 34 names are in both. TWSE
+happens to name its return indices distinctly (`發行量加權股價指數` versus
+`發行量加權股價報酬指數`), but the identity has to hold for both feeds, so it is
+`(source, section, published name)`. The section is structural rather than a
+business value: a price index does not become a return index.
+
+Legacy `market_indices` kept only one TPEx section — 43 OTC names in total, with
+`櫃買指數` appearing exactly once per trade date — so the whole TPEx return
+series is absent from it and is new data here, not a reconciliation difference.
+
+In these whole-list sources `close_value`, `change_points`, and
 `change_percent` are sourced; `open_value`, `high_value`, `low_value`, and
 `trade_value` are not.
 `market_index_metadata_versions.effective_from/effective_to` can only record
 first and last observation dates.
 
-Index OHLC exists for the TAIEX alone, in a separate endpoint the legacy system
-never fetched: `rwd/zh/TAIEX/MI_5MINS_HIST?date=YYYYMM01&response=json`
+Index OHLC exists for one index per market, in endpoints the legacy system never
+fetched. TWSE: `rwd/zh/TAIEX/MI_5MINS_HIST?date=YYYYMM01&response=json`
 (`發行量加權股價指數歷史資料`) returns 日期, 開盤指數, 最高指數, 最低指數, 收盤指數 for one
 calendar month per request, verified live for 2026-01. It covers only
 `發行量加權股價指數`, not the other ~270 published indices, and carries no trade
-value. No TPEx equivalent was found in this audit; `4.2` probes of
-`indexes/histIndex` and `openapi/v1/tpex_otc_index_history` both 404. Step 18
-must spike TPEx before promising OTC index OHLC.
+value.
+
+**TPEx does publish the equivalent, and it is still not backfillable.** An
+earlier revision of this audit recorded a negative result after `indexes/histIndex`
+and `openapi/v1/tpex_otc_index_history` both 404'd. Step 18-a's spike found
+`openapi/v1/tpex_index` (`櫃買指數歷史資料`), which serves
+`Open/High/Low/Close/Change` for `櫃買指數`. It accepts **no parameters** —
+`d=`, `date=` and `yr=/mn=` are all ignored — and always returns the current
+calendar month, 12 rows on 2026-09-16, despite its name. So OTC index OHLC
+cannot be obtained for past dates and stays NULL for 2020–2026; Step 27's
+forward capture can accumulate it from the day it starts. Like `MI_5MINS_HIST`,
+it covers the one headline index and not the other 33.
 
 ### 4.3 Institutional flows and summary
 

@@ -112,6 +112,33 @@ The TWSE `X` marker and the TPEx `除息` / `除權` / `除權息` markers are t
 price change: TWSE fills the magnitude cell with `0.00` on those rows, and TPEx
 prints the word where the number would be.
 
+## Market-index adapters
+
+Step 18-a adds three, and the first fetches nothing.
+
+| Source code | Endpoint | Grain |
+| --- | --- | --- |
+| `twse_mi_index` | the `MI_INDEX` index sections | 6 sections of one trade date |
+| `tpex_index_summary` | `www/zh-tw/afterTrading/indexSummary` | 2 sections of one trade date |
+| `twse_mi_5mins_hist` | `rwd/zh/TAIEX/MI_5MINS_HIST` | one calendar month of TAIEX OHLC |
+
+TWSE publishes its index sections in the same file as its stock section, which
+Step 17-c stored for every trade date in the window. The index adapter's
+resource key is therefore the price import's, so the lifecycle reuses that
+artifact rather than asking TWSE for the file a second time.
+
+**Index identity is `(source, section, published name)`.** No feed publishes an
+index code, and the name alone collides: TPEx repeats 32 of its 34 names across
+its price and return sections, with `櫃買指數` at 395.52 in one and 735.15 in
+the other. The section is structural — a price index does not become a return
+index — so it is safe in a key where a business value would not be.
+
+OHLC exists for one index per market and only TWSE's is backfillable.
+`MI_5MINS_HIST` serves `發行量加權股價指數` a month at a time; TPEx's
+`openapi/v1/tpex_index` serves the same shape for `櫃買指數` but takes no
+parameters and always answers the current month, so OTC index OHLC stays NULL
+for past dates (audit §4.2).
+
 ## Current security-metadata adapters
 
 The second milestone supports official whole-market company snapshots:

@@ -596,7 +596,9 @@ Status date: 2026-09-15.
 | 17-a | MERGED | Whole-market daily-price adapters |
 | 17-b | MERGED | Whole-market daily-price import path |
 | 17-c | MERGED | Whole-market daily-price history backfill and reconciliation |
-| 18 | PLANNED | Market indices and official valuation |
+| 18-a | THIS STEP | Market-index adapters |
+| 18-b | PLANNED | Market-index import path and backfill |
+| 18-c | PLANNED | Official valuation |
 | 19 | PLANNED | Exchange corporate-action result feeds |
 | 20 | PLANNED | Institutional flows, institutional summary, foreign holding |
 | 21 | PLANNED | Margin trading and securities lending |
@@ -929,26 +931,114 @@ Out of scope: adjusted prices; per-security pilots in production.
 
 ## Step 18 — Market Indices and Official Valuation
 
-Status: **PLANNED**. Depends on: Step 16, Step 17-c.
+Split into 18-a, 18-b and 18-c, along the seams Step 17 proved: a verified parse,
+then an import path and its backfill, then the second dataset. Five adapters and
+two importers run well past what one pull request can be reviewed as
+(CLAUDE.md §1), and indices and valuation are separate datasets in separate
+tables.
 
-Source contract (audit §4.2, §4.6):
+Source contract, verified live on 2026-09-16 (audit §4.2, §4.6):
 
-- `MI_INDEX` index sections and TPEx `indexSummary`. Index identity is `(source, published index name)`: close, change points, and change percent only.
-- TWSE `MI_5MINS_HIST` (`發行量加權股價指數歷史資料`), one calendar month per request, for TAIEX `open_value`/`high_value`/`low_value`. This is a source the legacy system never fetched, so it is new data, not a legacy port.
-- TWSE `BWIBBU_d` and TPEx `pera`.
+- TWSE indices: the `MI_INDEX` index sections. **Step 17-c already stored these
+  artifacts**; 18-a parses a different section of the same 1,627 files and
+  fetches nothing.
+- TPEx indices: `www/zh-tw/afterTrading/indexSummary`, one file per trade date.
+- TAIEX OHLC: `rwd/zh/TAIEX/MI_5MINS_HIST?date=YYYYMM01`, one calendar month per
+  request.
+- TWSE valuation: `BWIBBU_d`. TPEx valuation: the legacy
+  `web/stock/aftertrading/peratio_analysis/pera_result.php` CSV, which is still
+  served and still reaches 2020; no JSON equivalent exists on the new site.
 
-History: about 4,900 requests (TWSE indices reuse the `MI_INDEX` artifacts), plus about 80 `MI_5MINS_HIST` month requests.
+Index identity is `(source, section, published index name)`. No official index
+code exists in any of these feeds, and the published name alone collides: TPEx
+repeats 32 of its 34 names across its price and return sections (audit §4.2).
+The section is structural, not a business value — a price index does not become
+a return index.
 
-The PR first spikes TPEx for an OTC index-OHLC endpoint. If none exists, OTC index OHLC stays NULL and the audit records the negative result.
+### The TPEx index-OHLC spike, resolved
+
+ROADMAP required a spike before promising OTC index OHLC. Result: audit §4.2's
+negative finding is **wrong, but the data is still not backfillable**.
+
+`openapi/v1/tpex_index` (`櫃買指數歷史資料`) does publish
+`Open/High/Low/Close/Change` for `櫃買指數`, the OTC counterpart of the TAIEX.
+It accepts **no parameters** — `d=`, `date=`, `yr=/mn=` are all ignored — and
+always returns the current calendar month, 12 rows on 2026-09-16, despite its
+name. So OTC index OHLC cannot be backfilled for 2020–2026, and stays NULL for
+those dates. Step 27's forward capture can accumulate it from the day it starts.
+
+Like `MI_5MINS_HIST`, it covers the one headline index, not the other 33 TPEx
+publishes.
+
+### Step 18-a — Market-index adapters
+
+Status: **THIS STEP**. Depends on: Step 9 lifecycle, Step 17-c.
+
+In scope: the TWSE index-section adapter, the TPEx `indexSummary` adapter and
+the `MI_5MINS_HIST` TAIEX adapter, with the contract types they parse into.
+Nothing is written.
 
 Acceptance:
 
-- legacy `market_indices` (close, change points) and `pe_ratio` reconcile
-- TAIEX close from `MI_5MINS_HIST` equals the `MI_INDEX` close on every trade date, or the row is quarantined
-- the 5-column TWSE `BWIBBU_d` file of 2025-06-24 is parsed by an explicit variant or quarantined
-- TPEx `財報年/季` before 2025-01-02 becomes NULL, not an error
+- every TWSE index section is read, not only the first — price and return, for
+  TWSE, cross-market and TIP alike
+- index identity survives TPEx publishing one name in two sections
+- the TWSE adapter's resource key is the price import's, so the lifecycle can
+  reuse the artifact Step 17-c already stored instead of fetching it again
+- the unsigned `漲跌點數` is signed by its own column, and an unrecognised sign
+  fails closed
+- `open/high/low` are parsed for the TAIEX alone and stay NULL elsewhere
+- a closed date, a date mismatch, a changed header and a repeated name within
+  one section each fail closed with their own reason code
 
-Out of scope: index trade value; OHLC for any index other than the TAIEX; index-rename linking beyond explicit official evidence.
+Out of scope: storage, evidence, the CLI, the backfill.
+
+### Step 18-b — Market-index import path and backfill
+
+Status: **PLANNED**. Depends on: Step 18-a, Step 16.
+
+In scope: set-based writes for a whole index-date, the importers, the source
+policy and coverage declarations, the CLI, and the 2020-01-02 → 2026-09-11
+backfill for both markets plus the TAIEX months.
+
+Acceptance:
+
+- legacy `market_indices` (`index_close`, `index_change_points`) reconciles for
+  both markets, with every difference classified
+- TAIEX close from `MI_5MINS_HIST` equals the `MI_INDEX` close on every trade
+  date, or the row is quarantined
+- TWSE indices are imported from the artifacts Step 17-c already stored, with no
+  new fetch for that market
+- TPEx return indices, which legacy never collected, are reported as new data
+  rather than as a reconciliation difference
+
+Out of scope: official valuation; index trade value; OTC index OHLC, which no
+endpoint serves for past dates; index-rename linking beyond explicit official
+evidence.
+
+### Step 18-c — Official valuation
+
+Status: **PLANNED**. Depends on: Step 18-b.
+
+In scope: the `BWIBBU_d` and TPEx `pera` adapters, their importer, source policy
+and coverage declarations, and the backfill.
+
+The TPEx feed is big5 CSV with no JSON alternative, so it carries no self-declared
+report date and no unit statement. Recorded as a known weakness of that source:
+the requested date is the only thing that says which date a response is for.
+
+Acceptance:
+
+- legacy `pe_ratio` reconciles for both markets; `dividend_yield`, `pb_ratio`,
+  `dividend_year` and `report_period` have no legacy counterpart and are new data
+- the 5-column TWSE `BWIBBU_d` file of 2025-06-24 is parsed by an explicit
+  variant or quarantined
+- TPEx `財報年/季` before 2025-01-02 becomes NULL, not an error, and the two
+  markets' differing formats (`115/2` versus `115Q2`) are each parsed explicitly
+- `dividend_per_share` is populated for TPEx only
+
+Out of scope: any valuation the Data Center computes itself, which is canonical
+derived data and belongs to Step 26.
 
 ## Step 19 — Exchange Corporate-Action Result Feeds
 
