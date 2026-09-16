@@ -1,6 +1,6 @@
 # Step 19-a Acceptance Report
 
-Status: IN REVIEW
+Status: IN REVIEW (#24)
 
 Scope: Result-feed contract, storage precision, and the TPEx adapters
 
