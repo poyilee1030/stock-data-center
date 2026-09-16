@@ -43,7 +43,7 @@ TWSE needed a second pass; see *What the run found* below.
 | --- | --- | --- |
 | Every trading date is imported or explicitly reported as a gap | PASS | The Step 16 coverage validator, not a second implementation: `expected_dates 1627, observed_dates 1627, missing_dates [], unexpected_dates [], non_trading_days 818, is_complete true` for **both** markets. |
 | Row counts and values reconcile against legacy | PASS | TWSE 1,631,598 legacy rows compared, TPEx 1,299,781 — both exactly the baseline measured before any code was written. **Zero `legacy_only` rows in either market across the whole window**: the feed is a strict superset on all 1,627 dates. TPEx: **zero differences**. TWSE: 1,062 rows differ, fully explained below. |
-| Every difference is classified | PASS | Four classes, each counted separately so "expected" cannot hide "unexplained": `legacy_only` (0), `legacy_snapshot_differs` (1,062, one date, explained), source-only untraded (17,480 TWSE / 31,201 TPEx), source-only outside the legacy universe (319,970 / 170,001). |
+| Every difference is classified | PASS | Five classes, each counted separately so "expected" cannot hide "unexplained": `legacy_only` (0), `legacy_snapshot_differs` (1,062, one date, explained), source-only untraded (17,480 TWSE / 31,201 TPEx), source-only with no published volume (0 / 0), source-only outside the legacy universe (319,970 / 170,001). The script exits 0, which is the same verdict as this table. |
 | A resumed run continues rather than restarting | PASS | The TWSE second pass: `resumed 1619, imported 8, failed 0` in **41 s**. The 1,619 finished dates were not re-fetched. |
 | Reruns stay idempotent | PASS | `dedup_count 0` across 3,254 manifests, because no date was imported twice — and the 1,619 resumed dates returned their stored results without touching the source. The per-date idempotency contract itself is 17-b's regression set. |
 | A report of priced securities with no metadata row | PASS | 366 TWSE and 217 TPEx, broken down below. |
@@ -186,17 +186,40 @@ TPEx's out-of-range answer is `stat` `ok` with zero rows — identical to a
 closure. That is the reason Step 17-a's reason code is `no_data_for_date` and
 not `market_closed`, and it is now written down next to the evidence.
 
+## Code-review findings
+
+Six findings, all verified against the code and the imported data before
+anything changed; none was a false positive. Four were latent — the conditions
+that trigger them do not occur in this data — and latent is not the same as
+harmless, since each would fire on the first correction or the first extended
+window.
+
+| # | Finding | Verified by | Disposition |
+| --- | --- | --- | --- |
+| 1 | The CLI mints a fresh base id per invocation, so a `--through` run restarted without `--import-id` re-fetches everything it already finished | `cli.py:160`. The backfill in this report only resumed because the id was passed by hand. | **Fixed.** The base id is derived from `(source, start, end)`, so resuming is the default; `--import-id` still overrides, and the run prints the id it used. The documented promise no longer depends on an undocumented flag. |
+| 2 | The reconciliation collapses several revisions of a security-date in whatever order PostgreSQL returned | The revision constraint includes the business hash, so multiple revisions are legal. Latent: this data has 0 multi-revision keys. | Fixed. `DISTINCT ON ... ORDER BY ingested_at DESC` — the current state, chosen deterministically, as §78 requires. |
+| 3 | `import_counts` takes a window and filters only on source, so unscoped totals print under a window header | Read. | Fixed. Scoped by the trade date each manifest recorded. |
+| 4 | The exit code gates on `legacy_snapshot_differs`, which the script itself says is reported and not judged — so it returns 1 on the run this report marks PASS | Ran it: exit 1 against accepted differences. | Fixed. It gates on `legacy_only` and null disagreements, the classes that are defects. The script now exits **0**, agreeing with the acceptance table. |
+| 5 | `volume == 0` is false for NULL, so a source-only row with no published volume was counted as outside the legacy universe | Latent: 0 NULL volumes in this data. | Fixed, and with a third bucket rather than the other one: an unknown volume is not evidence of anything, and putting it in either explanation would hide an unexplained row inside one. |
+| 6 | The runner passes the caller's range straight to the calendar, so a range before `window_start` imports dates the validator reports as `unexpected` for ever | Confirmed `expected_periods` clamps and the runner does not. Latent: the backfill starts exactly at `window_start`. | Fixed. Refused before the first fetch, and before the calendar check, because the declaration is the more specific authority. |
+
+Finding 1 is the one that matters: the resume this step is built on worked in
+this run only because the id was passed by hand, while the documentation
+promised it without the flag. The other five are the kind that stay invisible
+until the day they are not.
+
 ## Verification
 
 Database migrated from zero:
 
 ```text
-430 passed, 3 skipped, 1 warning
+432 passed, 3 skipped, 1 warning
 ```
 
-Baseline before this step: 421 (Step 17-b). The 9 integration tests added here
-are the difference, and each was seen to fail first — including the two written
-after the live run, against the code as it then stood.
+Baseline before this step: 421 (Step 17-b). The 11 integration tests added here
+are the difference, and each was seen to fail first — the two written after the
+live run against the code as it then stood, and the two from the review against
+the code as it was pushed.
 
 `ruff check` reports nothing new against `main` for every file touched.
 

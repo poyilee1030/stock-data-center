@@ -26,7 +26,10 @@ from stock_data_center.ingestion.adapters import (
     TWSETradingCalendarAdapter,
     TWSEWholeMarketDailyAdapter,
 )
-from stock_data_center.ingestion.backfill import WholeMarketDailyBackfill
+from stock_data_center.ingestion.backfill import (
+    WholeMarketDailyBackfill,
+    default_base_import_id,
+)
 from stock_data_center.ingestion.daily_market import DailyMarketImporter
 from stock_data_center.ingestion.models import (
     DailyMarketRequest,
@@ -193,11 +196,17 @@ def main(argv: list[str] | None = None) -> int:
                 last = date.fromisoformat(args.through)
                 if last < first:
                     parser.error("--through must not be before --trade-date")
+                # Derived from the scope unless the caller named one, so a run
+                # that dies partway resumes by being run again — without the
+                # operator having had to keep a UUID from the first attempt.
+                base_import_id = args.import_id or default_base_import_id(
+                    args.source, first, last
+                )
                 backfill_report = WholeMarketDailyBackfill(importer).run(
                     adapter=adapter,
                     start=first,
                     end=last,
-                    base_import_id=import_id,
+                    base_import_id=base_import_id,
                     purpose=IngestPurpose(args.purpose),
                     min_interval_seconds=args.min_interval_seconds,
                 )
@@ -283,7 +292,12 @@ def main(argv: list[str] | None = None) -> int:
             # every failure is named, and the exit code follows.
             print(
                 json.dumps(
-                    {"backfill": backfill_report.as_dict()},
+                    {
+                        "backfill": {
+                            **backfill_report.as_dict(),
+                            "base_import_id": str(base_import_id),
+                        }
+                    },
                     ensure_ascii=False,
                     indent=2,
                     default=str,

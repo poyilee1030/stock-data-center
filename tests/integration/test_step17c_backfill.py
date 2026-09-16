@@ -403,3 +403,69 @@ def test_a_resumed_date_is_not_throttled(
         assert sleep.calls == []
     finally:
         engine.dispose()
+
+
+def test_the_default_base_import_id_is_derived_from_the_run_scope() -> None:
+    """Resume must not depend on the caller remembering a random UUID.
+
+    A minted base id makes every invocation a different run, so a 1,627-date
+    backfill killed at date 900 and restarted plainly would re-fetch all 900
+    finished dates and write a second full set of runs, checkpoints and
+    manifests. Deriving it from the scope makes resuming the default.
+    """
+    from stock_data_center.ingestion.backfill import (
+        date_import_id,
+        default_base_import_id,
+    )
+
+    scope = ("twse_mi_index", date(2020, 1, 2), date(2026, 9, 11))
+    assert default_base_import_id(*scope) == default_base_import_id(*scope)
+    # A different scope, or a different market, is a different run.
+    assert default_base_import_id(*scope) != default_base_import_id(
+        "tpex_otc_quotes", date(2020, 1, 2), date(2026, 9, 11)
+    )
+    assert default_base_import_id(*scope) != default_base_import_id(
+        "twse_mi_index", date(2020, 1, 2), date(2026, 9, 10)
+    )
+    # And the per-date ids follow from it, so the checkpoints line up.
+    base = default_base_import_id(*scope)
+    assert date_import_id(base, "twse_mi_index", date(2021, 5, 4)) == date_import_id(
+        default_base_import_id(*scope), "twse_mi_index", date(2021, 5, 4)
+    )
+
+
+def test_a_range_reaching_before_the_declared_window_is_refused(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """The declaration is the authority on what this dataset covers.
+
+    Importing before `window_start` writes dates the coverage validator
+    permanently reports as `unexpected`, so `is_complete` could never become
+    true again. Refused before the first request rather than silently narrowed,
+    because a caller who wants more history should widen the declaration.
+    """
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        with engine.begin() as connection:
+            store_calendar(connection)
+            # Narrow the declared window so it, and not the calendar, is the
+            # thing the range reaches past.
+            connection.execute(
+                sa.text(
+                    "UPDATE dataset_expected_coverage SET window_start = :d "
+                    "WHERE dataset_code = 'daily_price' AND market = 'TWSE'"
+                ),
+                {"d": date(2026, 9, 10)},
+            )
+        fetcher = DateFetcher()
+        with pytest.raises(ValueError, match="declared coverage window"):
+            backfill(engine, tmp_path, fetcher=fetcher).run(
+                adapter=TWSEWholeMarketDailyAdapter(),
+                start=date(2026, 9, 9),
+                end=date(2026, 9, 11),
+                base_import_id=uuid4(),
+                purpose=IngestPurpose.GAP_FILL,
+            )
+        assert fetcher.fetched == []
+    finally:
+        engine.dispose()

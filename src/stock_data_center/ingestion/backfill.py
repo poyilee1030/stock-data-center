@@ -150,6 +150,23 @@ class WholeMarketDailyBackfill:
                 dataset_code=adapter.dataset_code,
                 market=adapter.market,
             )
+            # Checked before the calendar, because the declaration is the more
+            # specific authority on what this dataset covers. Importing outside
+            # it writes dates the coverage validator permanently reports as
+            # `unexpected`, so `is_complete` could never become true again.
+            # Refused rather than silently narrowed: a caller who wants more
+            # history should widen the declaration, which is the same change
+            # that makes the coverage report agree.
+            if start < declaration.window_start or (
+                declaration.window_end is not None and end > declaration.window_end
+            ):
+                raise ValueError(
+                    f"{start.isoformat()}..{end.isoformat()} reaches outside the "
+                    f"declared coverage window for {adapter.dataset_code}/"
+                    f"{adapter.market} "
+                    f"({declaration.window_start.isoformat()}.."
+                    f"{declaration.window_end.isoformat() if declaration.window_end else 'open'})"
+                )
             # Raises rather than answering if the calendar has not imported the
             # range: an unimported month and a month of closures are
             # indistinguishable in the data, and finding that out after 3,300
@@ -241,6 +258,24 @@ class WholeMarketDailyBackfill:
             created=result.business_versions_created,
             deduplicated=result.business_versions_deduplicated,
         )
+
+
+# A fixed namespace, so a run's identity is a function of what it covers rather
+# than of when it was launched.
+_BACKFILL_NAMESPACE = UUID("6f9f4e2c-77a1-4b3e-9d51-0c2a8f3b6e41")
+
+
+def default_base_import_id(source: str, start: date, end: date) -> UUID:
+    """The run identity for one (source, range), derived rather than minted.
+
+    Resume must not depend on the caller having kept a random UUID. A minted id
+    makes every invocation a different run, so a 1,627-date backfill killed
+    partway and restarted plainly would re-fetch everything it had already
+    finished and write a second full set of runs, checkpoints and manifests.
+    Deriving it from the scope makes resuming what happens by default; a caller
+    who genuinely wants a separate run passes its own id.
+    """
+    return uuid5(_BACKFILL_NAMESPACE, f"{source}:{start.isoformat()}:{end.isoformat()}")
 
 
 def date_import_id(base: UUID, source: str, trade_date: date) -> UUID:

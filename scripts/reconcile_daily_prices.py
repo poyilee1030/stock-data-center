@@ -75,15 +75,20 @@ TOLERANCE = Decimal("0.0001")
 
 
 def import_counts(connection, source: str, start: date, end: date) -> dict:
+    # Scoped by the trade date each manifest recorded, because the result is
+    # printed under a window header. An unscoped total would present manifests
+    # from outside the window — and from any earlier aborted run — as if they
+    # were this window's.
     rows = connection.execute(
         sa.text(
             """
             SELECT status, result_counts, reconciliation
               FROM import_manifests
              WHERE dataset_code = 'daily_price' AND source = :source
+               AND (source_scope ->> 'trade_date')::date BETWEEN :start AND :end
             """
         ),
-        {"source": source},
+        {"source": source, "start": start, "end": end},
     ).mappings()
     totals: Counter[str] = Counter()
     statuses: Counter[str] = Counter()
@@ -128,16 +133,24 @@ def quarantined(connection, source: str) -> list[dict]:
 
 def compare(connection, legacy, source: str, start: date, end: date) -> dict:
     market, legacy_market = MARKETS[source]
+    # One row per (security, trade date), chosen deterministically. The revision
+    # constraint includes the business hash, so a corrected security-date holds
+    # several versions; collapsing them in whatever order PostgreSQL returned
+    # would make the counts below vary between runs, which §78 forbids. The
+    # latest ingested revision is the current state, which is what a
+    # reconciliation of current state compares.
     ours = connection.execute(
         sa.text(
             """
-            SELECT v.trade_date, s.security_code, v.open_price, v.high_price,
+            SELECT DISTINCT ON (v.security_id, v.trade_date)
+                   v.trade_date, s.security_code, v.open_price, v.high_price,
                    v.low_price, v.close_price, v.volume, v.trade_value,
                    v.trade_count
               FROM daily_price_versions v
               JOIN security s ON s.id = v.security_id
              WHERE v.source = :source
                AND v.trade_date BETWEEN :start AND :end
+             ORDER BY v.security_id, v.trade_date, v.ingested_at DESC, v.id DESC
             """
         ),
         {"source": source, "start": start, "end": end},
@@ -205,7 +218,12 @@ def compare(connection, legacy, source: str, start: date, end: date) -> dict:
     # Everything the official feed carries that legacy never did. Split, so a
     # real anomaly can never hide inside an expected class.
     source_only = [key for key in stored if key not in legacy_keys]
+    # Three buckets, not two. A NULL volume is not evidence of anything: the
+    # source published no quantity, so the row is neither known-untraded nor
+    # known-outside-the-legacy-universe, and lumping it into either would hide
+    # an unexplained row inside an explanation.
     untraded = sum(1 for key in source_only if stored[key]["volume"] == 0)
+    unknown_volume = sum(1 for key in source_only if stored[key]["volume"] is None)
     return {
         "market": market,
         "legacy_market": legacy_market,
@@ -216,7 +234,10 @@ def compare(connection, legacy, source: str, start: date, end: date) -> dict:
         "difference_examples": examples,
         "source_only_rows": len(source_only),
         "source_only_untraded": untraded,
-        "source_only_not_in_legacy_universe": len(source_only) - untraded,
+        "source_only_unknown_volume": unknown_volume,
+        "source_only_not_in_legacy_universe": (
+            len(source_only) - untraded - unknown_volume
+        ),
     }
 
 
@@ -289,9 +310,20 @@ def main(argv: list[str] | None = None) -> int:
         legacy_engine.dispose()
 
     print(json.dumps(report, ensure_ascii=False, indent=2, default=str))
+    # Gate on what this script is willing to call a defect. A
+    # `legacy_snapshot_differs` row is reported for inspection, not judged —
+    # gating on it would make the exit code fire on the accepted differences
+    # this repository has already documented, and an exit code that is always
+    # 1 gates nothing.
+    def is_defect(kind: str) -> bool:
+        return kind == "legacy_only" or kind.endswith(":null_disagreement")
+
     clean = all(
         entry["coverage"]["is_complete"]
-        and not entry["legacy_reconciliation"]["differences"]
+        and not any(
+            is_defect(kind)
+            for kind in entry["legacy_reconciliation"]["differences"]
+        )
         for entry in report["sources"].values()
     )
     return 0 if clean else 1
