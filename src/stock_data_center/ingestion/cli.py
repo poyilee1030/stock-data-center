@@ -18,11 +18,13 @@ from stock_data_center.ingestion.adapters import (
     TPExDelistingHistoryAdapter,
     TPExListingHistoryAdapter,
     TPExSecurityMetadataAdapter,
+    TPExWholeMarketDailyAdapter,
     TWSEDailyMarketAdapter,
     TWSEDelistingHistoryAdapter,
     TWSEListingHistoryAdapter,
     TWSESecurityMetadataAdapter,
     TWSETradingCalendarAdapter,
+    TWSEWholeMarketDailyAdapter,
 )
 from stock_data_center.ingestion.daily_market import DailyMarketImporter
 from stock_data_center.ingestion.models import (
@@ -31,6 +33,7 @@ from stock_data_center.ingestion.models import (
     SecurityLifecycleRequest,
     SecurityMetadataRequest,
     TradingCalendarRequest,
+    WholeMarketDailyRequest,
 )
 from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
 from stock_data_center.ingestion.security_lifecycle import (
@@ -39,6 +42,7 @@ from stock_data_center.ingestion.security_lifecycle import (
 )
 from stock_data_center.ingestion.security_metadata import SecurityMetadataImporter
 from stock_data_center.ingestion.trading_calendar import TradingCalendarImporter
+from stock_data_center.ingestion.whole_market_daily import WholeMarketDailyImporter
 
 
 def _months(first: date, last: date):
@@ -67,6 +71,18 @@ def main(argv: list[str] | None = None) -> int:
     daily.add_argument("--month", required=True, help="Gregorian YYYY-MM")
     daily.add_argument("--import-id", type=UUID)
     daily.add_argument("--raw-root", type=Path, default=Path("data/raw"))
+    whole_market = subparsers.add_parser(
+        "whole-market-daily",
+        help="import one market's published quotes for one trade date",
+    )
+    whole_market.add_argument(
+        "--source", choices=("twse_mi_index", "tpex_otc_quotes"), required=True
+    )
+    whole_market.add_argument(
+        "--trade-date", required=True, help="Gregorian YYYY-MM-DD"
+    )
+    whole_market.add_argument("--import-id", type=UUID)
+    whole_market.add_argument("--raw-root", type=Path, default=Path("data/raw"))
     security_metadata = subparsers.add_parser("security-metadata")
     security_metadata.add_argument("--source", choices=("twse", "tpex"), required=True)
     security_metadata.add_argument(
@@ -145,6 +161,23 @@ def main(argv: list[str] | None = None) -> int:
                 adapter=adapter,
                 request=DailyMarketRequest(
                     args.security_code, date.fromisoformat(f"{args.month}-01")
+                ),
+                import_id=import_id,
+                purpose=IngestPurpose(args.purpose),
+            )
+        elif args.command == "whole-market-daily":
+            importer = WholeMarketDailyImporter(
+                engine,
+                raw_store=LocalRawArtifactStore(args.raw_root),
+            )
+            result = importer.run(
+                adapter=(
+                    TWSEWholeMarketDailyAdapter()
+                    if args.source == "twse_mi_index"
+                    else TPExWholeMarketDailyAdapter()
+                ),
+                request=WholeMarketDailyRequest(
+                    date.fromisoformat(args.trade_date)
                 ),
                 import_id=import_id,
                 purpose=IngestPurpose(args.purpose),

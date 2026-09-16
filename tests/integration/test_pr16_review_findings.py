@@ -235,9 +235,9 @@ def test_one_markets_rows_do_not_count_as_another_markets_coverage(
 ) -> None:
     """Finding 3. The observed query had no source predicate."""
     store(db, date(2024, 7, 1), (date(2024, 7, 1), date(2024, 7, 2)), date(2024, 7, 31))
-    declare_daily_price(db, "TWSE", "twse")
-    declare_daily_price(db, "TPEx", "tpex")
-    store_price(db, "2330", date(2024, 7, 1), "twse")
+    declare_daily_price(db, "TWSE", "twse_mi_index")
+    declare_daily_price(db, "TPEx", "tpex_otc_quotes")
+    store_price(db, "2330", date(2024, 7, 1), "twse_mi_index")
 
     twse = VALIDATOR.report(
         db, dataset_code="daily_price", market="TWSE",
@@ -263,10 +263,10 @@ def test_a_row_the_calendar_does_not_expect_is_surfaced_not_hidden(
         (date(2024, 7, 1), date(2024, 7, 2), date(2024, 7, 31)),
         date(2024, 7, 31),
     )
-    declare_daily_price(db, "TWSE", "twse")
-    store_price(db, "2330", date(2024, 7, 1), "twse")
+    declare_daily_price(db, "TWSE", "twse_mi_index")
+    store_price(db, "2330", date(2024, 7, 1), "twse_mi_index")
     # 07-03 is not in the calendar: a price row on it is an anomaly.
-    store_price(db, "2317", date(2024, 7, 3), "twse")
+    store_price(db, "2317", date(2024, 7, 3), "twse_mi_index")
 
     report = VALIDATOR.report(
         db, dataset_code="daily_price", market="TWSE",
@@ -283,7 +283,7 @@ def test_non_trading_days_respect_the_declared_window(db: Connection) -> None:
     """Finding 6. The closure list used the caller's unclipped range."""
     store(db, date(2019, 12, 1), (date(2019, 12, 2),), date(2019, 12, 31))
     store(db, date(2020, 1, 1), (date(2020, 1, 2), date(2020, 1, 3)), date(2020, 1, 31))
-    declare_daily_price(db, "TWSE", "twse")
+    declare_daily_price(db, "TWSE", "twse_mi_index")
 
     report = VALIDATOR.report(
         db, dataset_code="daily_price", market="TWSE",
