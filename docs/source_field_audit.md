@@ -57,13 +57,38 @@ Nothing in the legacy stack consumes dividend or corporate-action data.
 
 | Archive area | How it was written | Usable as an official source-byte artifact? |
 | --- | --- | --- |
-| TWSE/TPEx daily CSVs (quotes, institutional, foreign holding, margin, SBL, PE, summary, TPEx indices) | Decoded as big5 with `errors="ignore"`, `="…"` wrappers stripped, single-cell title and footnote rows dropped, then rewritten as quoted UTF-8-BOM CSV. The report date survives only in the directory name. | **No.** The bytes are not the official response. |
+| TWSE/TPEx daily CSVs (quotes, institutional, foreign holding, margin, SBL, PE, summary, TPEx indices) | Requested with `response=csv`, so the JSON the endpoints also serve — and its `hints`, `notes`, `date` and per-table `fields` — never existed in the archive. Decoded as big5 with `errors="ignore"`, `="…"` wrappers stripped, single-cell rows dropped (`len(row) > 1`), rewritten as quoted UTF-8-BOM CSV, and skipped entirely when the response was under a size floor. The report date survives only in the directory name. | **No.** The bytes are not the official response, and the file cannot say which date it is. |
 | TPEx foreign holding | MOPS `t13sa150_otc` POST, rewritten through pandas | No |
 | Monthly revenue | Parsed CSV, not the MOPS HTML. Only `_0` (domestic-issuer) pages were fetched. Each month's `market.csv` appends only new `(market, symbol)` keys, so later corrections were never recorded. `publish_time` has two regimes (§7.1). | Not source bytes, but the 2026M02 onward rows are first-seen capture evidence |
 | XBRL | iXBRL HTML decoded and rewritten as UTF-8 text. The filename date suffix has two regimes (§7.1). Files for 2020Q1–2025Q3 have February 2026 mtimes. | Not source bytes. 2020Q1–2025Q3 are no older than a fresh re-fetch; 2025Q4 onward are first-seen versions |
 | TDCC weekly, the consolidated `shareholding` archive (§4.9) | OpenData bytes written unchanged, `.csv`/`.zip`/`.7z` | **Yes**, for all 375 weeks. |
 | Corporate-action year-to-date files (`TWT49U`, `TWTAUU`, `TWTB8U`) | One `all.csv` per year, overwritten daily. Only 2026 keeps the cp950 original. TWSE only. | Partially (2026 only) |
 | `stock_info`, `stock_tags` | Parsed current snapshots | No |
+
+The daily archive is also a **re-fetch snapshot, not a daily capture**, which
+matters wherever it is used as a reconciliation baseline. `fetch_daily_sii.py`
+and `fetch_daily_otc.py` skip any date whose file already exists unless
+`FORCE_REPROCESS=1`, and the file modification times say when each one was
+actually written:
+
+| When written | `daily_quotes/*/sii.csv` files |
+| --- | ---: |
+| 2026-01 | 941 |
+| 2026-02 | 551 |
+| 2026-03 onward | about 21 per month |
+
+So roughly 92% of the window was fetched in one campaign in January and February
+2026. For those dates the archive holds the values the exchange served *then*,
+already including any correction made between the trade date and that campaign —
+it is not first-published data, and it carries no first-seen evidence for daily
+prices (CLAUDE.md §32). For dates captured since, skip-if-exists means the
+opposite gap: a correction published after the capture day was never recorded.
+
+A row-level difference against this baseline is therefore not automatically a
+defect on our side. It can equally be the official value having changed since
+the archive was written. Step 17-c's reconciliation classifies such a row as
+`legacy_snapshot_differs` and reports it for inspection rather than calling it
+either way.
 
 Because the official endpoints still serve 2020 onward for every domain except
 TDCC, re-fetching gives byte-faithful artifacts through the existing Step 9

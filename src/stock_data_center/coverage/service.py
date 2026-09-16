@@ -7,8 +7,17 @@ from datetime import date, timedelta
 import sqlalchemy as sa
 from sqlalchemy import Connection
 
-from stock_data_center.coverage.models import CoverageReport, ExpectedCoverage
-from stock_data_center.db.metadata import dataset_expected_coverage
+from stock_data_center.coverage.models import (
+    CoverageReport,
+    ExpectedCoverage,
+    UnknownPricedSecurity,
+)
+from stock_data_center.db.metadata import (
+    daily_price_versions,
+    dataset_expected_coverage,
+    security,
+    security_metadata_versions,
+)
 from stock_data_center.market_calendar import TradingCalendarService
 from stock_data_center.pit.contracts import get_contract
 
@@ -186,3 +195,54 @@ def _months_between(start: date, end: date):
     while month <= last:
         yield month
         month = (month.replace(day=28) + timedelta(days=7)).replace(day=1)
+
+
+def securities_without_metadata(
+    connection: Connection,
+    *,
+    source: str,
+    start: date | None = None,
+    end: date | None = None,
+) -> tuple[UnknownPricedSecurity, ...]:
+    """Securities this price source carries that no metadata version describes.
+
+    Metadata is checked across every source: a security described by any of
+    them is known, and the question here is whether anything describes it at
+    all. Deliberately not PIT-resolved — this is an operational report about
+    what the Data Center holds, not a claim about what was knowable on a date.
+    """
+    priced = (
+        sa.select(
+            daily_price_versions.c.security_id,
+            sa.func.min(daily_price_versions.c.trade_date).label("first_priced_on"),
+            sa.func.max(daily_price_versions.c.trade_date).label("last_priced_on"),
+            sa.func.count(sa.distinct(daily_price_versions.c.trade_date)).label(
+                "priced_days"
+            ),
+        )
+        .where(daily_price_versions.c.source == source)
+        .group_by(daily_price_versions.c.security_id)
+    )
+    if start is not None:
+        priced = priced.where(daily_price_versions.c.trade_date >= start)
+    if end is not None:
+        priced = priced.where(daily_price_versions.c.trade_date <= end)
+    priced = priced.subquery()
+
+    described = sa.select(security_metadata_versions.c.security_id).distinct().subquery()
+    rows = connection.execute(
+        sa.select(
+            priced.c.security_id,
+            security.c.security_code,
+            priced.c.first_priced_on,
+            priced.c.last_priced_on,
+            priced.c.priced_days,
+        )
+        .select_from(
+            priced.join(security, security.c.id == priced.c.security_id)
+            .outerjoin(described, described.c.security_id == priced.c.security_id)
+        )
+        .where(described.c.security_id.is_(None))
+        .order_by(security.c.security_code)
+    ).mappings()
+    return tuple(UnknownPricedSecurity(**dict(row)) for row in rows)

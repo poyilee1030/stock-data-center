@@ -594,8 +594,8 @@ Status date: 2026-09-15.
 | 15-c | MERGED | Applying the evidence policy to the adapters |
 | 16 | MERGED | Trading calendar and coverage validator |
 | 17-a | MERGED | Whole-market daily-price adapters |
-| 17-b | THIS STEP | Whole-market daily-price import path |
-| 17-c | PLANNED | Whole-market daily-price history backfill and reconciliation |
+| 17-b | MERGED | Whole-market daily-price import path |
+| 17-c | THIS STEP | Whole-market daily-price history backfill and reconciliation |
 | 18 | PLANNED | Market indices and official valuation |
 | 19 | PLANNED | Exchange corporate-action result feeds |
 | 20 | PLANNED | Institutional flows, institutional summary, foreign holding |
@@ -890,7 +890,7 @@ Out of scope: storage, evidence, the CLI, the backfill.
 
 ### Step 17-b — Import path
 
-Status: **THIS STEP**. Depends on: Step 17-a, Step 11, Step 16.
+Status: **MERGED** (#20). Depends on: Step 17-a, Step 11, Step 16.
 
 In scope: set-based writes for a whole market-date, the importer on the Step 9
 raw-first lifecycle, its CLI, the two source codes opted into
@@ -910,7 +910,7 @@ Out of scope: the backfill.
 
 ### Step 17-c — History backfill and reconciliation
 
-Status: **PLANNED**. Depends on: Step 17-b.
+Status: **THIS STEP**. Depends on: Step 17-b.
 
 In scope: the throttled, resumable date-range runner; the 2020-01-02 →
 2026-09-11 backfill for both markets; the legacy reconciliation report and the

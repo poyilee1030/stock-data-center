@@ -26,6 +26,7 @@ from stock_data_center.ingestion.adapters import (
     TWSETradingCalendarAdapter,
     TWSEWholeMarketDailyAdapter,
 )
+from stock_data_center.ingestion.backfill import WholeMarketDailyBackfill
 from stock_data_center.ingestion.daily_market import DailyMarketImporter
 from stock_data_center.ingestion.models import (
     DailyMarketRequest,
@@ -80,6 +81,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     whole_market.add_argument(
         "--trade-date", required=True, help="Gregorian YYYY-MM-DD"
+    )
+    whole_market.add_argument(
+        "--through",
+        help="optional Gregorian YYYY-MM-DD; import every published trading "
+        "date from --trade-date to it, driven by the Step 16 calendar",
+    )
+    whole_market.add_argument(
+        "--min-interval-seconds",
+        type=float,
+        default=1.5,
+        help="throttle between dates of a history run",
     )
     whole_market.add_argument("--import-id", type=UUID)
     whole_market.add_argument("--raw-root", type=Path, default=Path("data/raw"))
@@ -147,6 +159,7 @@ def main(argv: list[str] | None = None) -> int:
 
         import_id = args.import_id or uuid4()
         calendar_runs: list = []
+        backfill_report = None
         if args.command == "daily-market":
             adapter = (
                 TWSEDailyMarketAdapter()
@@ -170,18 +183,31 @@ def main(argv: list[str] | None = None) -> int:
                 engine,
                 raw_store=LocalRawArtifactStore(args.raw_root),
             )
-            result = importer.run(
-                adapter=(
-                    TWSEWholeMarketDailyAdapter()
-                    if args.source == "twse_mi_index"
-                    else TPExWholeMarketDailyAdapter()
-                ),
-                request=WholeMarketDailyRequest(
-                    date.fromisoformat(args.trade_date)
-                ),
-                import_id=import_id,
-                purpose=IngestPurpose(args.purpose),
+            adapter = (
+                TWSEWholeMarketDailyAdapter()
+                if args.source == "twse_mi_index"
+                else TPExWholeMarketDailyAdapter()
             )
+            first = date.fromisoformat(args.trade_date)
+            if args.through:
+                last = date.fromisoformat(args.through)
+                if last < first:
+                    parser.error("--through must not be before --trade-date")
+                backfill_report = WholeMarketDailyBackfill(importer).run(
+                    adapter=adapter,
+                    start=first,
+                    end=last,
+                    base_import_id=import_id,
+                    purpose=IngestPurpose(args.purpose),
+                    min_interval_seconds=args.min_interval_seconds,
+                )
+            else:
+                result = importer.run(
+                    adapter=adapter,
+                    request=WholeMarketDailyRequest(first),
+                    import_id=import_id,
+                    purpose=IngestPurpose(args.purpose),
+                )
         elif args.command == "trading-calendar":
             importer = TradingCalendarImporter(
                 engine,
@@ -252,6 +278,19 @@ def main(argv: list[str] | None = None) -> int:
                 import_id=import_id,
                 purpose=IngestPurpose(args.purpose),
             )
+        if backfill_report is not None:
+            # A range run has one manifest per date, so the run reports itself:
+            # every failure is named, and the exit code follows.
+            print(
+                json.dumps(
+                    {"backfill": backfill_report.as_dict()},
+                    ensure_ascii=False,
+                    indent=2,
+                    default=str,
+                )
+            )
+            return 0 if backfill_report.is_complete else 1
+
         with engine.connect() as connection:
             manifest = importer.manifest(connection, import_id)
             months_report = [
