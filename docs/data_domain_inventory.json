@@ -279,7 +279,7 @@
         "dataset_code": "daily_price",
         "v1": true,
         "roadmap_pr": 17,
-        "reason": "TWSE MI_INDEX?type=ALLBUT0999 stock section and TPEx stk_wn1430, three header variants (audit 4.1).",
+        "reason": "TWSE MI_INDEX?type=ALLBUT0999 stock section (source twse_mi_index) and TPEx afterTrading/otc, the feed the audit calls stk_wn1430, three header variants (source tpex_otc_quotes) (audit 4.1).",
         "columns": {
           "security_id": {
             "coverage": "internal",
@@ -370,7 +370,7 @@
               "漲跌(+/-)"
             ],
             "audit_section": "4.1",
-            "note": "TWSE only. stk_wn1430 carries a signed 漲跌 and no direction column."
+            "note": "TWSE publishes +/-/X in its own column. stk_wn1430 signs the number instead and has no direction column, so a TPEx row claims a direction only where the feed prints its 不比價 marker (除息 / 除權 / 除權息), stored as X."
           },
           "bid_snapshot": {
             "coverage": "unsourced",

@@ -25,6 +25,39 @@ The endpoints do not establish the original release time of each historical
 row. Imports record `published_at = NULL`; they do not use the trade date,
 fetch time, or current time as invented publication evidence.
 
+## Whole-market daily-price adapters
+
+Step 17-a adds one request per (market, trade date), which is what production
+will use. They are separate sources from the pilots above, not a faster route to
+the same rows: they publish the disclosed bid/ask level the pilots do not, and
+one logical key must not alternate revisions between two field sets
+(CLAUDE.md §30). Step 17-b gives them their importer, their CLI and their source
+policy; this section describes what they parse.
+
+| Source code | Endpoint | Grain |
+| --- | --- | --- |
+| `twse_mi_index` | `rwd/zh/afterTrading/MI_INDEX?type=ALLBUT0999` | stock section of one trade date |
+| `tpex_otc_quotes` | `www/zh-tw/afterTrading/otc?type=EW` | one trade date |
+
+Both feeds publish shares and whole TWD. Only the one disclosed bid/ask level is
+counted in lots, and it is multiplied by 1,000 into shares before a
+`DailyPriceObservation` is built. The TWSE file states its own units
+(`hints: 單位：元、股`); the TPEx response states its own disclosed-volume label
+in `flagField`, which is checked against the header variant rather than trusted
+on its own.
+
+TPEx has three header variants (audit §4.1). Each is mapped explicitly by its
+exact field tuple; an unrecognised header raises `schema_mismatch` so the
+lifecycle quarantines the resource with its raw artifact retained, rather than
+being read positionally. The TWSE stock section is likewise found by its own
+header, not by its position among the ten tables — the index sections of the
+same artifact belong to Step 18.
+
+The TWSE `X` marker and the TPEx `除息` / `除權` / `除權息` markers are the same
+不比價 statement in two spellings, parsed as `price_direction = "X"` with no
+price change: TWSE fills the magnitude cell with `0.00` on those rows, and TPEx
+prints the word where the number would be.
+
 ## Current security-metadata adapters
 
 The second milestone supports official whole-market company snapshots:

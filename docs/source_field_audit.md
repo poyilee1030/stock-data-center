@@ -78,28 +78,45 @@ dates or markets.
 
 ### 4.1 Daily quotes
 
-TWSE `exchangeReport/MI_INDEX?type=ALLBUT0999` returns one file per trade date
-with index sections followed by the stock section. The stock-section header is
-the same for all 1,627 files from 2020-01-02 to 2026-09-11:
+TWSE `rwd/zh/afterTrading/MI_INDEX?date=YYYYMMDD&type=ALLBUT0999&response=json`
+returns one file per trade date: six index sections, two market-summary
+sections, then the stock section. The stock-section header is the same for all
+1,627 files from 2020-01-02 to 2026-09-11, and the section is identified by that
+header rather than by its position among the tables:
 
 ```text
 證券代號, 證券名稱, 成交股數, 成交筆數, 成交金額, 開盤價, 最高價, 最低價, 收盤價,
 漲跌(+/-), 漲跌價差, 最後揭示買價, 最後揭示買量, 最後揭示賣價, 最後揭示賣量, 本益比
 ```
 
-TPEx `stk_wn1430` (one file per trade date) has three header variants:
+The section states its own units in `hints`: `單位：元、股`. The `漲跌(+/-)`
+cell arrives as coloured markup — `<p style= color:red>+</p>`, `<p> </p>`,
+`<p>X</p>` — and the table's own note reads `+/-/X表示漲/跌/不比價`. On every
+`X` row and every blank row of every file inspected, `漲跌價差` is `0.00`, so
+the magnitude under an `X` is filler rather than a published change. A date the
+market never opened answers `stat` `很抱歉，沒有符合條件的資料!` with no tables.
 
-| Dates | Header |
-| --- | --- |
-| 2020-01-02 → 2020-04-29 (75 files) | 代號, 名稱, 收盤, 漲跌, 開盤, 最高, 最低, 成交股數, 成交金額(元), 成交筆數, 最後買價, 最後賣價, 發行股數, 次日漲停價, 次日跌停價 |
-| 2020-04-30 → 2025-01-09 (1,147) | adds 最後買量(千股), 最後賣量(千股) |
-| 2025-01-10 → 2026-09-11 (405) | relabelled 最後買量(張數), 最後賣量(張數) (1 張 = 1,000 shares) |
+TPEx `www/zh-tw/afterTrading/otc?date=YYYY/MM/DD&type=EW&response=json` (the
+feed this audit calls `stk_wn1430`, one file per trade date) has three header
+variants, re-verified live on 2026-09-16 at their own boundary dates:
+
+| Dates | Header | `flagField` |
+| --- | --- | --- |
+| 2020-01-02 → 2020-04-29 (75 files) | 代號, 名稱, 收盤, 漲跌, 開盤, 最高, 最低, 成交股數, 成交金額(元), 成交筆數, 最後買價, 最後賣價, 發行股數, 次日漲停價, 次日跌停價 | 千股 |
+| 2020-04-30 → 2025-01-09 (1,147) | adds 最後買量(千股), 最後賣量(千股) | 千股 |
+| 2025-01-10 → 2026-09-11 (405) | relabelled 最後買量(張數), 最後賣量(張數) (1 張 = 1,000 shares) | 張數 |
+
+The response carries `flagField` naming its own disclosed-volume label, which
+cross-checks the header variant. TPEx signs `漲跌` itself and publishes no
+direction column; where TWSE writes `X`, TPEx writes the reason — `除息`,
+`除權`, `除權息` — in the same cell, which is the same 不比價 statement and
+leaves no number to store. A closed date answers `stat` `ok` with zero rows.
 
 | `daily_price_versions` column | TWSE | TPEx |
 | --- | --- | --- |
 | open/high/low/close, volume, trade_value, trade_count | ✓ | ✓ |
 | price_change | ✓ (unsigned 漲跌價差 + sign column) | ✓ (signed) |
-| price_direction | ✓ | ✗ |
+| price_direction | ✓ | 不比價 marker only |
 | last_bid_price / last_ask_price | ✓ | ✓ |
 | last_bid_volume / last_ask_volume | ✓ (lots) | partial (from 2020-04-30) |
 | bid_snapshot / ask_snapshot | ✗ | ✗ |
@@ -107,10 +124,25 @@ TPEx `stk_wn1430` (one file per trade date) has three header variants:
 Source fields not stored: TPEx 發行股數 and next-day limit prices; TWSE 本益比
 (duplicated by `BWIBBU_d`).
 
+Both feeds publish shares and whole TWD for traded quantity and value; only the
+disclosed bid/ask level is counted in lots, in both markets. Step 17-a's
+adapters normalize that level ×1,000 to shares and declare every unit rather
+than inferring it.
+
+Legacy `daily_quotes` is a subset of both feeds. On every date checked it holds
+no row the feed lacks, and the feed holds rows it does not: securities that did
+not trade that day (legacy's minimum volume over the whole window is 1), and
+instrument classes the legacy scraper never collected — ETFs, preferred shares,
+TDRs and similar. On 2026-09-11 that is 287 extra TWSE rows (9 untraded) and 150
+extra TPEx rows (29 untraded).
+
 The Step 9 pilot adapters (`STOCK_DAY`, `tradingStock`) take one request per
 security per month. Daily capture for about 2,200 securities would need about
 2,200 requests per trade date, so these adapters suit pilots and spot checks,
-not production.
+not production. They are also a different field set — no disclosed bid/ask
+level — which is why Step 17-a gives the whole-market feeds their own source
+codes, `twse_mi_index` and `tpex_otc_quotes`, rather than more revisions of the
+pilots' rows.
 
 ### 4.2 Market indices
 
@@ -569,7 +601,7 @@ marked *stays NULL* is in fact nullable in the live schema.
 | `corporate_action_versions.capital_surplus_stock_ratio` | unsourced | stays NULL | The exchange feeds publish only the combined free-share figure. The split exists only in the MOPS issuer declaration feed (Step 33), and before ROC 110 the two reserves arrive as one number (audit 4.13). |
 | `corporate_action_versions.old_shares` | partially sourced | holds the values that exist | Capital reduction only: the old side is the constant 1,000 of 每壹仟股. TWTB8U par-value-change detail fields are not yet verified and no TPEx par-value endpoint was found. |
 | `corporate_action_versions.new_shares` | partially sourced | holds the values that exist | Capital reduction only. TWTB8U par-value-change detail fields are not yet verified and no TPEx par-value endpoint was found. |
-| `daily_price_versions.price_direction` | partially sourced | holds the values that exist | TWSE only. stk_wn1430 carries a signed 漲跌 and no direction column. |
+| `daily_price_versions.price_direction` | partially sourced | holds the values that exist | TWSE publishes `+`/`-`/`X` in its own column. stk_wn1430 signs the number instead and has no direction column, so a TPEx row claims a direction only where the feed prints its 不比價 marker (除息 / 除權 / 除權息), which is stored as `X`. |
 | `daily_price_versions.bid_snapshot` | unsourced | stays NULL | Multi-level order-book depth blob. No daily whole-market endpoint publishes depth; the one published level is stored in last_bid_price/last_bid_volume. |
 | `daily_price_versions.ask_snapshot` | unsourced | stays NULL | Multi-level order-book depth blob. No daily whole-market endpoint publishes depth; the one published level is stored in last_ask_price/last_ask_volume. |
 | `daily_price_versions.last_bid_volume` | partially sourced | holds the values that exist | TWSE on all dates, in lots. TPEx only from 2020-04-30; the label changes 千股 to 張數 on 2025-01-10, both meaning 1,000 shares. |

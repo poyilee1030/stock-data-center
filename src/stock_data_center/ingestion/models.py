@@ -41,6 +41,9 @@ class SourceMoneyUnit(str, Enum):
 class DailyMarketSourceSemantics:
     traded_quantity_unit: SourceQuantityUnit
     trade_value_unit: SourceMoneyUnit
+    # Only the whole-market feeds publish a disclosed bid/ask level, so the
+    # per-security pilots leave this undeclared rather than assuming one.
+    disclosed_volume_unit: SourceQuantityUnit | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,6 +56,41 @@ class DailyMarketRequest:
             raise ValueError("security_code must be nonempty and already trimmed")
         if self.month.day != 1:
             raise ValueError("month must be the first day of the requested month")
+
+
+@dataclass(frozen=True, slots=True)
+class WholeMarketDailyRequest:
+    """Request one market's published closing quotes for one trade date."""
+
+    trade_date: date
+
+
+@dataclass(frozen=True, slots=True)
+class WholeMarketDailyRow:
+    """One security's quote inside a whole-market file."""
+
+    security_code: str
+    security_name: str
+    observation: DailyPriceObservation
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedWholeMarketDaily:
+    """Every quote one market published for one trade date."""
+
+    market: str
+    trade_date: date
+    rows: tuple[WholeMarketDailyRow, ...]
+    source_fields: tuple[str, ...]
+    header_variant: str
+
+    @property
+    def coverage_start(self) -> date | None:
+        return self.trade_date if self.rows else None
+
+    @property
+    def coverage_end(self) -> date | None:
+        return self.trade_date if self.rows else None
 
 
 @dataclass(frozen=True, slots=True)
