@@ -118,16 +118,35 @@ leaves no number to store. A closed date answers `stat` `ok` with zero rows.
 | price_change | ✓ (unsigned 漲跌價差 + sign column) | ✓ (signed) |
 | price_direction | ✓ | 不比價 marker only |
 | last_bid_price / last_ask_price | ✓ | ✓ |
-| last_bid_volume / last_ask_volume | ✓ (lots) | partial (from 2020-04-30) |
+| last_bid_volume / last_ask_volume | ✓ (shares) | partial (from 2020-04-30, lots) |
 | bid_snapshot / ask_snapshot | ✗ | ✗ |
 
 Source fields not stored: TPEx 發行股數 and next-day limit prices; TWSE 本益比
 (duplicated by `BWIBBU_d`).
 
-Both feeds publish shares and whole TWD for traded quantity and value; only the
-disclosed bid/ask level is counted in lots, in both markets. Step 17-a's
-adapters normalize that level ×1,000 to shares and declare every unit rather
-than inferring it.
+Both feeds publish shares and whole TWD for traded quantity and value. The
+disclosed bid/ask level is **not** the same unit in the two markets, and each
+side says so itself:
+
+- TWSE declares `單位：元、股` for the whole table and makes no other unit
+  statement about it, so that column is shares. Corroborated by `TWT53U`, the
+  odd-lot report, which carries the same column labels under the same hint and
+  shows `最後揭示買量 = 200,937` for 2330 on 2026-09-11 — a quantity that can
+  only be shares. Reading it as lots would multiply every TWSE bid/ask level by
+  1,000; on 2026-09-11 that would have put 4,171,000 shares at 00648R's best
+  bid against a whole-day volume of 604,430.
+- TPEx labels the column itself, `最後買量(千股)` then `最後買量(張數)`, both
+  meaning 1,000 shares, so only TPEx converts.
+
+An earlier revision of this audit recorded the TWSE column as lots. That was
+never sourced; it is corrected here. Note 3 of the TWSE table,
+`除境外指數股票型基金及外國股票第二上市外，餘交易單位皆為千股`, is about the
+**trading unit** (board lot) of each security, not about the unit this column
+is expressed in, and no stored column depends on it.
+
+Step 17-a's adapters take each unit from the feed that declares it, and the
+TWSE adapter re-checks `hints` on every parse: a restatement to `仟股` is a
+contract change, not something to discover later in the numbers.
 
 Legacy `daily_quotes` is a subset of both feeds. On every date checked it holds
 no row the feed lacks, and the feed holds rows it does not: securities that did
@@ -604,8 +623,8 @@ marked *stays NULL* is in fact nullable in the live schema.
 | `daily_price_versions.price_direction` | partially sourced | holds the values that exist | TWSE publishes `+`/`-`/`X` in its own column. stk_wn1430 signs the number instead and has no direction column, so a TPEx row claims a direction only where the feed prints its 不比價 marker (除息 / 除權 / 除權息), which is stored as `X`. |
 | `daily_price_versions.bid_snapshot` | unsourced | stays NULL | Multi-level order-book depth blob. No daily whole-market endpoint publishes depth; the one published level is stored in last_bid_price/last_bid_volume. |
 | `daily_price_versions.ask_snapshot` | unsourced | stays NULL | Multi-level order-book depth blob. No daily whole-market endpoint publishes depth; the one published level is stored in last_ask_price/last_ask_volume. |
-| `daily_price_versions.last_bid_volume` | partially sourced | holds the values that exist | TWSE on all dates, in lots. TPEx only from 2020-04-30; the label changes 千股 to 張數 on 2025-01-10, both meaning 1,000 shares. |
-| `daily_price_versions.last_ask_volume` | partially sourced | holds the values that exist | TWSE on all dates, in lots. TPEx only from 2020-04-30; the label changes 千股 to 張數 on 2025-01-10, both meaning 1,000 shares. |
+| `daily_price_versions.last_bid_volume` | partially sourced | holds the values that exist | TWSE on all dates, in shares (`hints: 單位：元、股`, corroborated by `TWT53U`). TPEx only from 2020-04-30, in lots; the label changes 千股 to 張數 on 2025-01-10, both meaning 1,000 shares, and only TPEx is converted. |
+| `daily_price_versions.last_ask_volume` | partially sourced | holds the values that exist | TWSE on all dates, in shares (`hints: 單位：元、股`, corroborated by `TWT53U`). TPEx only from 2020-04-30, in lots; the label changes 千股 to 張數 on 2025-01-10, both meaning 1,000 shares, and only TPEx is converted. |
 | `margin_trading_versions.margin_utilization_ratio` | partially sourced | holds the values that exist | TPEx margin_bal only; MI_MARGN publishes no utilization ratio, so the TWSE values stay NULL. |
 | `margin_trading_versions.short_utilization_ratio` | partially sourced | holds the values that exist | TPEx margin_bal only; MI_MARGN publishes no utilization ratio, so the TWSE values stay NULL. |
 | `market_index_metadata_versions.effective_from` | unsourced | stores a derived value | No official effective date. The column is NOT NULL and holds the first observation date of the published name, which is ours, not the source's. |

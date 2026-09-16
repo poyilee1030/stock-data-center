@@ -101,10 +101,43 @@ def test_both_whole_market_feeds_publish_shares_and_whole_twd(adapter) -> None:
     """Audit §4.1: TWSE hints 單位：元、股 and TPEx labels 成交金額(元)."""
     assert adapter.semantics.traded_quantity_unit is SourceQuantityUnit.SHARE
     assert adapter.semantics.trade_value_unit is SourceMoneyUnit.TWD
-    # The one disclosed bid/ask level is counted in lots in both markets.
-    assert adapter.semantics.disclosed_volume_unit is (
+    # The disclosed bid/ask level is NOT the same unit in both markets, and
+    # each adapter takes its own from its own feed's statement.
+    assert adapter.semantics.disclosed_volume_unit is not None
+
+
+def test_twse_publishes_its_disclosed_bid_ask_level_in_shares() -> None:
+    """The table states `單位：元、股`, and that is the only unit TWSE declares.
+
+    Corroborated by `TWT53U`, the odd-lot report: same column labels, same
+    `單位：元、股` hint, and 2330 shows `最後揭示買量 = 200,937` on the same
+    date — a quantity that can only be shares. Treating the regular-session
+    column as lots would multiply every TWSE bid/ask level by 1,000.
+    """
+    assert TWSEWholeMarketDailyAdapter.semantics.disclosed_volume_unit is (
+        SourceQuantityUnit.SHARE
+    )
+    observation = row(twse(), "2330").observation
+    assert observation.last_bid_volume == Decimal("1078")
+    assert observation.last_ask_volume == Decimal("91")
+
+
+def test_tpex_publishes_its_disclosed_bid_ask_level_in_lots() -> None:
+    """TPEx says so in the column label itself: 最後買量(千股) / (張數)."""
+    assert TPExWholeMarketDailyAdapter.semantics.disclosed_volume_unit is (
         SourceQuantityUnit.LOT_1000_SHARES
     )
+
+
+def test_twse_fails_closed_if_it_restates_its_units() -> None:
+    """The hint is the unit statement, so a change to it is a contract change."""
+
+    def restate(payload):
+        stock_table(payload)["hints"] = "單位：仟元、仟股"
+
+    with pytest.raises(SourceDataError) as error:
+        twse(mutate_twse(restate))
+    assert error.value.reason_code == "unit_declaration_changed"
 
 
 def test_each_market_requests_one_trade_date() -> None:
@@ -157,9 +190,8 @@ def test_twse_values_are_stored_exactly_as_published() -> None:
     assert observation.price_direction == "-"
     assert observation.last_bid_price == Decimal("14.79")
     assert observation.last_ask_price == Decimal("14.80")
-    # 45 lots and 17 lots, normalized to shares.
-    assert observation.last_bid_volume == Decimal("45000")
-    assert observation.last_ask_volume == Decimal("17000")
+    assert observation.last_bid_volume == Decimal("45")
+    assert observation.last_ask_volume == Decimal("17")
 
 
 def test_twse_signs_the_change_with_its_own_direction_column() -> None:
@@ -197,8 +229,18 @@ def test_twse_2020_parses_through_the_same_contract() -> None:
 
 
 def test_a_closed_trade_date_fails_closed_on_twse() -> None:
+    """TWSE answers an apology with no tables at all."""
     with pytest.raises(SourceDataError) as error:
         twse(TWSE_CLOSED, date(2024, 7, 24))
+    assert error.value.reason_code == "no_data_for_date"
+
+
+def test_a_twse_status_that_is_not_an_empty_answer_stays_a_status_error() -> None:
+    def break_it(payload):
+        payload["stat"] = "系統忙碌中"
+
+    with pytest.raises(SourceDataError) as error:
+        twse(mutate_twse(break_it))
     assert error.value.reason_code == "source_status"
 
 
@@ -322,10 +364,16 @@ def test_tpex_untraded_rows_keep_null_prices() -> None:
 
 
 def test_a_closed_trade_date_fails_closed_on_tpex() -> None:
-    """TPEx answers ok with an empty table rather than an error status."""
+    """TPEx answers ok with an empty table rather than an error status.
+
+    Both markets reach the same reason code, so a caller walking a date range
+    can tell "the source has nothing for this date" from a parse failure
+    without re-deriving the calendar. It is not called `market_closed`: only
+    the Step 16 calendar can say a date was a closure.
+    """
     with pytest.raises(SourceDataError) as error:
         tpex(TPEX_CLOSED, date(2024, 7, 24))
-    assert error.value.reason_code == "empty_coverage"
+    assert error.value.reason_code == "no_data_for_date"
 
 
 def test_tpex_rejects_a_response_for_another_date() -> None:

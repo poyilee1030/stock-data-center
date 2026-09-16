@@ -39,17 +39,25 @@ policy; this section describes what they parse.
 | `twse_mi_index` | `rwd/zh/afterTrading/MI_INDEX?type=ALLBUT0999` | stock section of one trade date |
 | `tpex_otc_quotes` | `www/zh-tw/afterTrading/otc?type=EW` | one trade date |
 
-Both feeds publish shares and whole TWD. Only the one disclosed bid/ask level is
-counted in lots, and it is multiplied by 1,000 into shares before a
-`DailyPriceObservation` is built. The TWSE file states its own units
-(`hints: 單位：元、股`); the TPEx response states its own disclosed-volume label
-in `flagField`, which is checked against the header variant rather than trusted
-on its own.
+Both feeds publish shares and whole TWD for traded quantity and value. The
+disclosed bid/ask level is where they differ, and each feed declares its own
+unit: TWSE states `單位：元、股` for the whole table, so that column is already
+shares, while TPEx labels the column `最後買量(千股)` / `(張數)` and is
+multiplied by 1,000. The TWSE adapter re-checks `hints` on every parse and
+fails closed on a restatement; the TPEx response also carries `flagField`
+naming its own label, checked against the header variant rather than trusted on
+its own.
 
 TPEx has three header variants (audit §4.1). Each is mapped explicitly by its
 exact field tuple; an unrecognised header raises `schema_mismatch` so the
 lifecycle quarantines the resource with its raw artifact retained, rather than
-being read positionally. The TWSE stock section is likewise found by its own
+being read positionally.
+
+A date the source has nothing for raises `no_data_for_date` in both markets —
+TWSE answers an apology with no tables, TPEx an empty table — so a caller
+walking a date range can tell it from a parse failure. It is deliberately not
+called `market_closed`: only the Step 16 calendar can say a date was a
+closure. The TWSE stock section is likewise found by its own
 header, not by its position among the ten tables — the index sections of the
 same artifact belong to Step 18.
 

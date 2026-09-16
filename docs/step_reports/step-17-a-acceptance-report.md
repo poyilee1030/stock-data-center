@@ -6,7 +6,7 @@ Scope: Whole-market daily-price adapters
 
 Schema impact: none. Migration impact: none. PIT impact: none — this step writes
 nothing; it turns official bytes into `DailyPriceObservation` values.
-`src/` changed by +625/−0 lines.
+`src/` changed by +658/−0 lines.
 
 ## Why Step 17 is split three ways
 
@@ -54,8 +54,8 @@ a 不比價 marker the audit's CSV-era header table did not record.
 | --- | --- | --- |
 | Each TPEx header variant parses | PASS | All three parse from the real response bytes captured at their own boundary dates — 2020-01-02 (`prices_only`), 2020-04-30 (`volume_in_thousand_shares`), 2026-09-11 (`volume_in_lots`) — and each file is a permanent fixture. Variant one exposes no disclosed bid/ask volume, so those columns stay NULL rather than defaulting to zero. |
 | An unknown header fails closed | PASS | The variant table is keyed on the exact field tuple; an added column raises `schema_mismatch`. A `flagField` that contradicts its header is rejected the same way, and a TWSE header change or a missing stock section is `schema_mismatch` too. |
-| Units are declared, not inferred | PASS | Both feeds publish shares and whole TWD, from the TWSE `hints: 單位：元、股` and the TPEx `成交金額(元)` label. The one disclosed bid/ask level is lots in both markets and is normalized ×1,000 to shares. The unit lives in `semantics`, and a quantity that is not a whole source unit raises `ambiguous_unit`. |
-| A closed date fails closed in both markets | PASS | TWSE raises `source_status`, TPEx `empty_coverage`. Both regressions use the real closed-date responses. |
+| Units are declared, not inferred | PASS | Each unit comes from the feed that declares it: TWSE `hints: 單位：元、股` for its whole table, TPEx from its `成交金額(元)` and `最後買量(千股)` / `(張數)` labels. Only TPEx's disclosed bid/ask level is in lots, so only it is converted ×1,000. The TWSE adapter re-checks `hints` on every parse and raises `unit_declaration_changed` on a restatement. A quantity that is not a whole source unit raises `ambiguous_unit`. |
+| A closed date fails closed in both markets | PASS | Both raise `no_data_for_date` — TWSE answers an apology with no tables, TPEx an empty table — so 17-b can skip such a date without re-deriving the calendar. A TWSE status this adapter cannot interpret stays `source_status`. Both regressions use the real closed-date responses. |
 | Values equal legacy `daily_quotes` | PASS | 4,423 legacy rows across five market-dates covering all three variants: open/high/low/close, volume, trade value and trade count compared, **zero differences**, and no legacy-only row on any date. |
 | Extra rows are explained, not silent | PASS | The feeds carry 287 more TWSE and 150 more TPEx rows on 2026-09-11. Classified: untraded securities (9 and 29 — legacy's minimum volume over the whole window is 1) and instrument classes legacy never collected (ETFs, preferred shares, TDRs). The per-security no-metadata report is Step 17-c's. |
 | `price_direction` claims only what is published | PASS | TWSE's own column, as `+`/`-`/`flat`/`X`. TPEx publishes no direction column, so an ordinary TPEx row claims none; its `除息` / `除權` / `除權息` marker is the same 不比價 statement as TWSE's `X` and parses to `X`. |
@@ -101,25 +101,49 @@ not the source's observation, so `price_direction` stays NULL except for the
 不比價 marker. The audit is updated in the same step, as the source-field rule
 requires.
 
+**The disclosed bid/ask level is a different unit in each market.** TWSE
+declares `單位：元、股` for its whole table and makes no other unit statement
+about it, so that column is already shares; TPEx labels the column itself,
+`最後買量(千股)` / `(張數)`, so only TPEx is converted. This corrects an earlier
+audit line that recorded the TWSE column as lots — see the review section
+below.
+
 **A blank TWSE sign must accompany a zero.** Every blank-sign row publishes
 `0.00`, so a blank sign next to a non-zero magnitude is a change whose direction
 would have to be guessed: it raises `ambiguous_direction`. A row that did not
 trade has no close, and therefore no change and no direction.
+
+## Code-review findings
+
+Three findings, all verified before anything changed; none was a false positive,
+and the first was larger than reported.
+
+| # | Finding | Verified by | Disposition |
+| --- | --- | --- | --- |
+| 1 | The blanket ×1,000 on TWSE disclosed bid/ask volume is wrong for the classes note 3 excludes — 00636K traded 200 shares all day yet stored a 11,000-share best bid | The rows are real, but the diagnosis is not the whole story, and both the finding's argument and my original one were inferences from magnitude, which §72 forbids. `TWT53U`, the odd-lot report, settles it structurally: same column labels, same `單位：元、股` hint, and 2330 shows `最後揭示買量 = 200,937` — only shares can be that. | **Fixed, wider than reported.** The column is shares for *every* TWSE row, not just the excluded classes: the conversion is removed entirely. The audit line claiming lots was never sourced and is corrected. Note 3 turns out to be about each security's trading unit, not this column's unit, and no stored column depends on it. |
+| 2 | TWSE units were asserted in a comment and never checked at runtime, so a switch to 仟股 under an unchanged header would mis-scale everything by 1,000 | Read: the TPEx path checked `flagField`, the TWSE path checked nothing. | Fixed, and now load-bearing: `hints` is the statement the unit is taken *from*, so a restatement raises `unit_declaration_changed`. |
+| 3 | A TPEx closed date and a genuine empty result share `empty_coverage`, so 17-b cannot tell a benign holiday skip from a coverage failure | Read, and confirmed against the real closed-date response. | Fixed. Both markets raise `no_data_for_date`, detected structurally (TWSE returns no `tables` key at all). Not named `market_closed`: only the Step 16 calendar can call a date a closure, and the same answer covers a date the source simply has nothing for. |
+
+Finding 1 is the one that matters, and it is the reason the seam was worth
+having: the reconciliation that passes 4,423 rows with zero differences could
+never have caught it, because legacy `daily_quotes` has no bid/ask columns at
+all. It would have shipped as 1,000×-inflated order-book data behind a green
+acceptance table.
 
 ## Verification
 
 Database migrated from zero:
 
 ```text
-405 passed, 3 skipped, 1 warning
+409 passed, 3 skipped, 1 warning
 ```
 
-Baseline before this step: 378 (Step 15-c). The 27 adapter tests added here are
-the difference. They run against captured response bytes with no database, which
+Baseline before this step: 378 (Step 15-c). The 31 adapter tests added here are
+the difference — 27 in the original push, 4 more for the review findings. They run against captured response bytes with no database, which
 is the whole point of the seam: this step writes nothing, so it needs no
 integration test.
 
-Every one of the 27 was seen to fail before the adapter existed. `ruff check` reports
+Every one of the 31 was seen to fail first: the original 27 before the adapter existed, and the review's 4 (plus 2 changed assertions) against the adapter as pushed. `ruff check` reports
 nothing new: the files this step touches match their state on `main` (the two
 pre-existing findings in `ingestion/models.py` are unchanged).
 

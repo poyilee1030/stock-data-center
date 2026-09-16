@@ -109,12 +109,18 @@ class TWSEWholeMarketDailyAdapter(WholeMarketDailyAdapter):
     market = "TWSE"
     version = "twse-mi-index-allbut0999:v1"
     endpoint = "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX"
-    # The table states its own units: hints 單位：元、股. The disclosed bid/ask
-    # level is counted in lots, as audit §4.1 records.
+    # The table states its own units and this is the only unit statement TWSE
+    # makes about it, so every column here is TWD or shares — including the
+    # disclosed bid/ask level, unlike TPEx, which labels that column in lots.
+    # Corroborated by TWT53U, the odd-lot report: same column labels, same
+    # hint, and 2330 shows 最後揭示買量 = 200,937 on the same date, which can
+    # only be shares. `hints` is checked on every parse rather than trusted to
+    # a comment: a restatement to 仟股 would silently mis-scale everything.
+    unit_declaration = "單位：元、股"
     semantics = DailyMarketSourceSemantics(
         traded_quantity_unit=SourceQuantityUnit.SHARE,
         trade_value_unit=SourceMoneyUnit.TWD,
-        disclosed_volume_unit=SourceQuantityUnit.LOT_1000_SHARES,
+        disclosed_volume_unit=SourceQuantityUnit.SHARE,
     )
     fields = (
         "證券代號",
@@ -147,7 +153,18 @@ class TWSEWholeMarketDailyAdapter(WholeMarketDailyAdapter):
     ) -> ParsedWholeMarketDaily:
         payload = _json_object(content)
         if payload.get("stat") != "OK":
-            # A date the market never opened answers with an apology, not rows.
+            # A date TWSE has nothing for answers with an apology and no
+            # tables at all. That is structurally distinguishable from a
+            # status this adapter cannot interpret, and worth its own reason
+            # code: a caller walking a date range can skip it without
+            # re-deriving the calendar. It is not called `market_closed`,
+            # because only the Step 16 calendar can say a date was a closure.
+            if "tables" not in payload:
+                raise SourceDataError(
+                    "no_data_for_date",
+                    f"TWSE has no data for {request.trade_date.isoformat()}: "
+                    f"{payload.get('stat')!r}",
+                )
             raise SourceDataError(
                 "source_status", f"TWSE response status: {payload.get('stat')!r}"
             )
@@ -160,6 +177,13 @@ class TWSEWholeMarketDailyAdapter(WholeMarketDailyAdapter):
         table = _one_table_with_header(
             payload.get("tables"), self.fields, self.source
         )
+        if table.get("hints") != self.unit_declaration:
+            raise SourceDataError(
+                "unit_declaration_changed",
+                f"TWSE restated its units as {table.get('hints')!r}, not "
+                f"{self.unit_declaration!r}; the scale of every quantity in "
+                "this table follows from that statement",
+            )
 
         rows = []
         for number, raw in enumerate(_data_rows(table.get("data"), self.source), 1):
@@ -488,7 +512,7 @@ def _data_rows(value: object, source: str) -> list[object]:
         raise SourceDataError("schema_mismatch", f"{source} data is not a list")
     if not value:
         raise SourceDataError(
-            "empty_coverage",
+            "no_data_for_date",
             f"{source} published no quote for the requested trade date",
         )
     return value
