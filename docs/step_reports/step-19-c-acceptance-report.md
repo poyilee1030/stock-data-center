@@ -1,6 +1,6 @@
 # Step 19-c Acceptance Report
 
-Status: IN REVIEW
+Status: IN REVIEW (#26)
 
 Scope: the corporate-action import path — set-based event registration and
 version writes for a range file, the per-row detail fetches a TWSE range file
