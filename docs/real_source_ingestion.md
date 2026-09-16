@@ -32,7 +32,7 @@ will use. They are separate sources from the pilots above, not a faster route to
 the same rows: they publish the disclosed bid/ask level the pilots do not, and
 one logical key must not alternate revisions between two field sets
 (CLAUDE.md §30). Step 17-b gives them their importer, their CLI and their source
-policy; this section describes what they parse.
+policy.
 
 | Source code | Endpoint | Grain |
 | --- | --- | --- |
@@ -57,7 +57,22 @@ A date the source has nothing for raises `no_data_for_date` in both markets —
 TWSE answers an apology with no tables, TPEx an empty table — so a caller
 walking a date range can tell it from a parse failure. It is deliberately not
 called `market_closed`: only the Step 16 calendar can say a date was a
-closure. The TWSE stock section is likewise found by its own
+closure. The lifecycle quarantines the resource either way, keeping the raw
+artifact, and the reason code reaches `import_quarantine.reason_code`, which is
+how a date-range run tells a benign skip from a real failure.
+
+A whole-market file is about 1,300 securities, so registration, version writes,
+evidence planning and evidence writes are all set-based. The identity, revision
+and evidence rules are the per-row ones, unchanged: the database still generates
+`business_content_hash` and `ingested_at`, an unchanged observation still reuses
+its version rather than creating a revision, and the match back to an existing
+row is made on the business values the database hashes rather than on a hash
+recomputed in Python. One trade date imports in about 1.9 s end to end.
+
+Availability time follows the source's declared release rule
+(`exchange_daily_settled@1`, ADR-0020): trade date D resolves at 03:00 on D+1,
+Asia/Taipei. A `first_capture` run additionally claims a capture bound for the
+versions it creates; a `gap_fill` of old history claims only the rule. The TWSE stock section is likewise found by its own
 header, not by its position among the ten tables — the index sections of the
 same artifact belong to Step 18.
 
@@ -135,6 +150,14 @@ python -m stock_data_center.ingestion.cli daily-market \
 python -m stock_data_center.ingestion.cli daily-market \
   --source tpex --security-code 6488 --month 2025-09 \
   --import-id 22222222-2222-4222-8222-222222222222
+
+python -m stock_data_center.ingestion.cli --purpose gap_fill whole-market-daily \
+  --source twse_mi_index --trade-date 2026-09-11 \
+  --import-id 99999999-9999-4999-8999-999999999999
+
+python -m stock_data_center.ingestion.cli --purpose gap_fill whole-market-daily \
+  --source tpex_otc_quotes --trade-date 2026-09-11 \
+  --import-id aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa
 
 python -m stock_data_center.ingestion.cli security-metadata \
   --source twse --expected-report-date 2026-09-11 \

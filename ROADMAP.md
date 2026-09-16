@@ -593,8 +593,8 @@ Status date: 2026-09-15.
 | 15-b | MERGED | Release-rule registry and evaluation |
 | 15-c | MERGED | Applying the evidence policy to the adapters |
 | 16 | MERGED | Trading calendar and coverage validator |
-| 17-a | THIS STEP | Whole-market daily-price adapters |
-| 17-b | PLANNED | Whole-market daily-price import path |
+| 17-a | MERGED | Whole-market daily-price adapters |
+| 17-b | THIS STEP | Whole-market daily-price import path |
 | 17-c | PLANNED | Whole-market daily-price history backfill and reconciliation |
 | 18 | PLANNED | Market indices and official valuation |
 | 19 | PLANNED | Exchange corporate-action result feeds |
@@ -869,7 +869,7 @@ bid/ask snapshots stay NULL.
 
 ### Step 17-a — Adapters
 
-Status: **THIS STEP**. Depends on: Step 9 lifecycle.
+Status: **MERGED** (#19). Depends on: Step 9 lifecycle.
 
 In scope: the two adapters and their request/parse contract, every TPEx header
 variant, the unit declarations, and the audit rewrite that records what the live
@@ -890,7 +890,7 @@ Out of scope: storage, evidence, the CLI, the backfill.
 
 ### Step 17-b — Import path
 
-Status: **PLANNED**. Depends on: Step 17-a, Step 11, Step 16.
+Status: **THIS STEP**. Depends on: Step 17-a, Step 11, Step 16.
 
 In scope: set-based writes for a whole market-date, the importer on the Step 9
 raw-first lifecycle, its CLI, the two source codes opted into

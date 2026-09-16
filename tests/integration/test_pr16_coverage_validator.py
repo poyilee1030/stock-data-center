@@ -67,7 +67,7 @@ def lineage(db: Connection, dataset: str = "trading_calendar", source: str = "tw
 
 
 def declare_daily_price(db: Connection) -> None:
-    """Step 17 will ship this declaration with its adapter; here it is a fixture."""
+    """Step 17-a ships the real declaration; this keeps the rows it needs."""
     db.execute(
         sa.text(
             "INSERT INTO dataset_catalog (dataset_code, description, schema_version) "
@@ -82,7 +82,7 @@ def declare_daily_price(db: Connection) -> None:
                 (dataset_code, source, supports_market_pit, supports_system_pit,
                  publication_time_quality, evidence_status, accepted_evidence_types,
                  is_canonical)
-            VALUES ('daily_price', 'twse', true, true, 100, 'verified',
+            VALUES ('daily_price', 'twse_mi_index', true, true, 100, 'verified',
                     ARRAY['official'], true)
             ON CONFLICT (dataset_code, source) DO NOTHING
             """
@@ -94,7 +94,7 @@ def declare_daily_price(db: Connection) -> None:
             INSERT INTO dataset_expected_coverage
                 (dataset_code, market, source, calendar_market, cadence,
                  period_column, window_start, note)
-            VALUES ('daily_price', 'TWSE', 'twse', 'TWSE', 'trading_day',
+            VALUES ('daily_price', 'TWSE', 'twse_mi_index', 'TWSE', 'trading_day',
                     'trade_date', DATE '2020-01-02',
                     'one whole-market file per trade date')
             ON CONFLICT (dataset_code, market) DO NOTHING
@@ -125,14 +125,14 @@ def add_security(db: Connection, code: str) -> int:
 
 
 def store_price(db: Connection, security_id: int, trade_date: date) -> None:
-    refs = lineage(db, dataset="daily_price", source="twse")
+    refs = lineage(db, dataset="daily_price", source="twse_mi_index")
     db.execute(
         sa.text(
             """
             INSERT INTO daily_price_versions
                 (security_id, source, trade_date, open_price, high_price,
                  low_price, close_price, volume, raw_artifact_id, ingest_run_id)
-            VALUES (:security, 'twse', :day, :p, :p, :p, :p, 1000,
+            VALUES (:security, 'twse_mi_index', :day, :p, :p, :p, :p, 1000,
                     CAST(:artifact AS uuid), CAST(:run AS uuid))
             """
         ),

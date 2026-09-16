@@ -88,7 +88,7 @@ separate histories (CLAUDE.md §30):
 | `twse_mi_index`, `tpex_otc_quotes` | whole-market, one file per (market, trade date) | OHLC, volume, trade value, trade count, change, and the one disclosed bid/ask price and volume |
 | `twse`, `tpex` | Step 9 per-security monthly pilots | the same, without any bid/ask level |
 
-Production will read the whole-market sources (Step 17-b onward). The pilots
+Production reads the whole-market sources. The pilots
 remain for spot checks on a single security, and because they are a different
 source they never turn one security-date into an alternating pair of revisions.
 Callers name the source they want; nothing merges the two.

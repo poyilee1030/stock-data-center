@@ -9,6 +9,7 @@ own policy would then ignore.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
@@ -163,6 +164,72 @@ class BoundEvidencePolicy:
             proven_capture_at=self._stored_capture(connection, version_id),
         )
         return self._filter(planned)
+
+    def plan_many(
+        self,
+        connection: Connection,
+        *,
+        period: date,
+        purpose: IngestPurpose,
+        captured_at: datetime,
+        versions: Sequence[tuple[int, bool]],
+    ) -> dict[int, tuple[PlannedEvidence, ...]]:
+        """Plan a whole trade date's versions against one resolved rule.
+
+        Same decision as `plan`, once per version: the rule resolves once for
+        the shared period, and every version's already-proven capture is read
+        in one query. A whole-market date carries about 1,300 versions, and
+        resolving the rule for each of them is the same answer 1,300 times.
+        """
+        if not versions:
+            return {}
+        rule_instant = None
+        rule_source = None
+        if self.rule is not None:
+            resolved = self.rules.resolve(
+                connection,
+                rule_id=self.rule.rule_id,
+                version=self.rule.version,
+                period=period,
+            )
+            rule_instant = resolved.published_at
+            rule_source = resolved.evidence_source
+        proven = self._stored_captures(
+            connection, [version_id for version_id, _ in versions]
+        )
+        return {
+            version_id: self._filter(
+                evidence_plan(
+                    purpose=purpose,
+                    version_created=version_created,
+                    captured_at=captured_at,
+                    rule_instant=rule_instant,
+                    rule_source=rule_source,
+                    proven_capture_at=proven.get(version_id),
+                )
+            )
+            for version_id, version_created in versions
+        }
+
+    def _stored_captures(
+        self, connection: Connection, version_ids: Sequence[int]
+    ) -> dict[int, datetime]:
+        """The earliest proven capture for each version, in one query."""
+        target = DATASET_TARGETS.get(self.dataset_code)
+        if target is None or not version_ids:
+            return {}
+        column = publication_evidence.c[target]
+        rows = connection.execute(
+            sa.select(column, sa.func.min(publication_evidence.c.published_at))
+            .where(
+                publication_evidence.c.dataset_code == self.dataset_code,
+                publication_evidence.c.source == self.source,
+                column.in_(sorted(set(version_ids))),
+                publication_evidence.c.evidence_type == "capture_bound",
+            )
+            .group_by(column)
+        ).all()
+        return {version_id: captured for version_id, captured in rows if captured}
 
     def _stored_capture(
         self, connection: Connection, version_id: int | None
