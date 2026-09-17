@@ -403,6 +403,24 @@ lists domestic issuers; `_1` lists foreign/KY issuers (for example, 5871
 | published comparatives (上月營收, 去年當月營收, three percentages, cumulative values, 備註) | ✓ in the source and read by legacy consumers, but not stored by the current schema |
 | KY issuers | missing from legacy, which never fetched `_1`; 140 KY securities appear in legacy `daily_quotes` |
 
+The new MOPS site does not change this. Checked 2026-09-17: the SPA
+(`mops.twse.com.tw/mops/`, bundle `assets/index.js`) routes 每月營業收入彙總表
+(`t21sc04_ifrs`) through its `redirectToOld` API. That call returns only a
+`mopsov.twse.com.tw/mops/web/ajax_t21sc04_ifrs?parameters=…` URL, which is an
+old-site HTML page. The site offers no JSON rendering of the monthly table.
+`nas/t21` stays the source, and it is a plain GET.
+
+Summary of the new MOPS site's request types, read from the dispatcher in
+`assets/index.js`. Every call goes to `mops.twse.com.tw/mops/api/`, and the
+`type` field decides how:
+
+| `type` | What the API does |
+| --- | --- |
+| `base` | POSTs JSON to `api/<name>` and returns JSON data |
+| `twse` | POSTs to `api/redirectToOld`, which returns an old-site `mopsov` URL |
+| `sii` | POSTs to `api/redirectToSiis` |
+| `url` | builds an old-site URL in the browser and makes no API call |
+
 ### 4.8 Financial statements (iXBRL)
 
 MOPS `server-java/t164sb01`, one iXBRL HTML per `(CO_ID, SYEAR, SSEASON,
@@ -416,6 +434,17 @@ sequence, and it returns the currently effective, possibly amended, report. A
 synthetic `filing_key` of `(security, year, quarter, report type)` matches the
 endpoint's own request key. Full history is about 45,000 requests (the legacy
 archive has 45,324 files).
+
+Checked 2026-09-17: the new MOPS site has a JSON API for financial statements,
+for example `POST mops.twse.com.tw/mops/api/t164sb04` with
+`{"companyId","dataType":"2","subsidiaryCompanyId","year"(ROC),"season"}`.
+It is **not a substitute** for the iXBRL documents. It returns a rendered
+statement: Chinese line-item labels, formatted amounts, and percentages. It has
+no concept QName, no context, no dimensions, no `unitRef`, and no `decimals`, so
+it cannot meet CLAUDE.md §33. Its own `urlList` points back to
+`mopsov.twse.com.tw/server-java/t164sb01?step=1&CO_ID=…&SYEAR=…&SSEASON=…&REPORT_ID=C`,
+which legacy fetched with a plain GET. At most, the JSON could serve Step 23 as
+a cross-check.
 
 ### 4.9 TDCC shareholding distribution
 
@@ -750,7 +779,9 @@ POST https://mopsov.twse.com.tw/server-java/t05st09sub
 
 One request returns the whole market for one year as a big5 HTML table. The
 endpoint is discoverable from the MOPS SPA route `t05st09_new`
-(`assets/t05st09_new.js`). Parameter names are case-sensitive: `YEAR` works,
+(`assets/t05st09_new.js`). Re-checked 2026-09-17: that route's search action is
+of type `url` and points straight at `mopsov…/server-java/t05st09sub` with
+method POST. The new site has no JSON rendering for it. Parameter names are case-sensitive: `YEAR` works,
 `year` returns the big5 error page `參數傳入錯誤`.
 
 Observed row counts (qryType=1):

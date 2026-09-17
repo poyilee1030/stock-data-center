@@ -1236,8 +1236,12 @@ Source finding, 2026-09-17 (audit §4.3–4.4, "TPEx new-site JSON endpoints"):
 TPEx serves `3itrade_hedge`, `3itrdsum`, and its own foreign-holding table as
 GET JSON, as `insti/dailyTrade`, `insti/summary` and `insti/qfii`, back to 2020.
 If `insti/qfii` proves equivalent to MOPS `t13sa150_otc`, this step needs no
-POST resource and no MOPS call. The POST resource and the per-host governor
-would then move to the first step that needs them: Step 22, 23 or 33.
+POST resource and no MOPS call. The new MOPS site was checked for the remaining
+MOPS domains on the same day (audit §4.7, §4.8, §4.13), and none has a usable
+JSON rendering. Monthly revenue (`nas/t21`, Step 22) and iXBRL (`t164sb01`,
+Step 23) are plain GETs. Only `t05st09sub` (Step 33) is a POST. Moving the POST
+resource would therefore land it in Step 33. The per-host governor would land
+in Step 22, the first remaining step that calls `mopsov.twse.com.tw`.
 This step settles that before it builds either.
 
 ## Step 21 — Margin Trading and Securities Lending
