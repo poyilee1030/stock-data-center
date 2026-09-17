@@ -1,6 +1,6 @@
 # Step 19-e Acceptance Report
 
-Status: IN REVIEW
+Status: IN REVIEW (#27)
 
 Scope: verify TWSE `TWTCAU` and TPEx `etfSplitRslt`/`etfRvsRslt` (found in
 19-a, never in Step 19's original six-feed contract) against a live fetch,
