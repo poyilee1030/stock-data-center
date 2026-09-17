@@ -179,7 +179,10 @@ class ParsedTaiexHistory:
 # executed and priced, so its locator is an identity. The announcement feeds are
 # named only so that asking one for a locator fails loudly (ROADMAP §21.3).
 RESULT_FEEDS = frozenset(
-    {"TWT49U", "TWTAUU", "TWTB8U", "exDailyQ", "revivt", "pvChgRslt"}
+    {
+        "TWT49U", "TWTAUU", "TWTB8U", "exDailyQ", "revivt", "pvChgRslt",
+        "TWTCAU", "etfSplitRslt", "etfRvsRslt",
+    }
 )
 ANNOUNCEMENT_FEEDS = frozenset(
     {"t187ap45_L", "mopsfin_t187ap39_O", "TWT48U", "t05st09sub"}
