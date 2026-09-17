@@ -1309,7 +1309,7 @@
               "本益比"
             ],
             "audit_section": "4.6",
-            "note": "Published by both markets, as a multiple. TWSE `-`, TPEx `N/A` and `null`, and a printed zero mean not computed and store NULL; a negative value quarantines its row."
+            "note": "Published by both markets, as a multiple. TWSE `-`, TPEx `N/A` (and, for the two ratios only, `null`), and a printed zero mean not computed and store NULL; a negative value quarantines its row."
           },
           "pb_ratio": {
             "coverage": "sourced",

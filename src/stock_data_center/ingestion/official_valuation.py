@@ -79,6 +79,7 @@ class OfficialValuationImporter(
         return {
             "market": adapter.market,
             "not_computed_markers": sorted(adapter.not_computed),
+            "ratio_not_computed_markers": sorted(adapter.ratio_not_computed),
             "zero_ratio_not_computed": adapter.zero_ratio_not_computed,
             "ratio_unit": "multiple",
             "dividend_yield_unit": "percentage_points",

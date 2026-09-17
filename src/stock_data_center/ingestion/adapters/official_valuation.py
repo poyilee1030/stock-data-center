@@ -70,8 +70,10 @@ class OfficialValuationAdapter(ABC):
     endpoint: str
     # Header variant name -> exact published fields.
     variants: Mapping[str, tuple[str, ...]]
-    # This source's own "not computed" markers.
+    # This source's documented "not computed" marker, valid in any value.
     not_computed: frozenset[str]
+    # Markers accepted for 本益比 and 股價淨值比 only (owner decision).
+    ratio_not_computed: frozenset[str] = frozenset()
     # A ratio printed as exactly zero means not computed (owner decision).
     zero_ratio_not_computed: bool = True
     report_period_pattern: re.Pattern[str]
@@ -188,7 +190,8 @@ class OfficialValuationAdapter(ABC):
                 raise _RowRejected(
                     "nonpositive_ratio",
                     f"{name} is {value}, which is neither a ratio nor one of "
-                    f"the source's not-computed markers {sorted(self.not_computed)!r}",
+                    f"the source's not-computed markers "
+                    f"{sorted(self.not_computed | self.ratio_not_computed)!r}",
                 )
         for name, value in (("殖利率(%)", dividend_yield), ("每股股利", dividend_per_share)):
             if value is not None and value < 0:
@@ -218,9 +221,12 @@ class OfficialValuationAdapter(ABC):
             )
         return value
 
-    def _number(self, value: object, number: int, field: str) -> Decimal | None:
+    def _number(
+        self, value: object, number: int, field: str,
+        markers: frozenset[str] = frozenset(),
+    ) -> Decimal | None:
         text = self._cell_text(value, number, field).strip()
-        if text in self.not_computed:
+        if text in self.not_computed or text in markers:
             return None
         normalized = text.replace(",", "")
         if not re.fullmatch(r"-?\d+(\.\d+)?", normalized):
@@ -234,7 +240,7 @@ class OfficialValuationAdapter(ABC):
             raise SourceDataError("unrecognised_value", str(error)) from error
 
     def _ratio(self, value: object, number: int, field: str) -> Decimal | None:
-        result = self._number(value, number, field)
+        result = self._number(value, number, field, self.ratio_not_computed)
         if self.zero_ratio_not_computed and result == 0:
             return None
         return result
@@ -339,7 +345,7 @@ class TPExOfficialValuationAdapter(OfficialValuationAdapter):
 
     source = "tpex_pe_qry_date"
     market = "TPEx"
-    version = "tpex-pe-qry-date:v2"
+    version = "tpex-pe-qry-date:v3"
     endpoint = "https://www.tpex.org.tw/www/zh-tw/afterTrading/peQryDate"
     _fields = (
         "股票代號", "公司名稱", "本益比", "每股股利", "股利年度", "殖利率(%)",
@@ -350,7 +356,9 @@ class TPExOfficialValuationAdapter(OfficialValuationAdapter):
         # Before 2025-01-02 the file has no report period at all.
         "pe_qry_date_7": _fields,
     })
-    not_computed = frozenset({"N/A", "null"})
+    not_computed = frozenset({"N/A"})
+    # First listed day, 2021-07-26 → 2022-11-02 (audit §4.6).
+    ratio_not_computed = frozenset({"null"})
     report_period_pattern = re.compile(r"(?P<year>\d{2,3})Q(?P<quarter>[1-4])")
 
     def resource(self, request: OfficialValuationRequest) -> SourceResource:

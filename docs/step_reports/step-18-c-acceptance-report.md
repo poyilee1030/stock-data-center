@@ -152,11 +152,11 @@ v2 imported them under new ids.
 Database migrated from zero:
 
 ```text
-632 passed, 3 skipped, 1 warning
+633 passed, 3 skipped, 1 warning
 ```
 
-The baseline on `main` was 595 collected (592 passed, 3 skipped). The 40 new
-tests (29 unit, 11 integration) are the difference.
+The baseline on `main` was 595 collected (592 passed, 3 skipped). The 41 new
+tests (30 unit, 11 integration) are the difference.
 
 How each test was seen to fail first:
 
@@ -181,6 +181,17 @@ python scripts/reconcile_official_valuation.py \
     --database-url postgresql+psycopg://stockdc:stockdc@localhost:5432/stockdc_backfill \
     --legacy-database-url postgresql+psycopg://user:password@127.0.0.1:5419/stock_db
 ```
+
+## Code-review findings
+
+A medium-level review of #29 found no bug at medium severity or above. It
+raised two low-severity findings, both checked against the code before
+anything changed.
+
+| # | Finding | Verified by | Disposition |
+| --- | --- | --- | --- |
+| 1 | A value with more than eight decimals fails the whole date (`invalid_numeric`) instead of only its row | Read `_build`. The observation's scale check raises `ValueError`, which becomes a file-level `SourceDataError`. | **Kept as is.** The owner decision makes negative values and the not-computed markers row-level; it says nothing about precision. A precision change is a format change, and a format change fails its file. If a feed widened a column for every row, rejecting row by row would record 830 row quarantines under a `succeeded` manifest and hide the change. Neither feed has ever printed more than eight decimals. The TPEx dividend uses exactly eight. |
+| 2 | `"null"` is accepted in every numeric field, but the decision covers only the two first-day ratios | Read `_number`. A new test with `"null"` in `每股股利` and in `殖利率(%)` expected `unrecognised_value` and failed. | **Fixed.** `"null"` is now a ratio-only marker (`ratio_not_computed`), and TPEx's documented `N/A` still applies to every value. The TPEx adapter is now **v3**. The backfill needs no re-run: the raw-artifact scan in audit §4.6 found `"null"` only in the two ratios, so v3 produces the same rows as v2 on every stored file. The manifests keep the v1 and v2 labels they ran under. |
 
 ## Scope exclusions confirmed
 

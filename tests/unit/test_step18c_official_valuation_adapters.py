@@ -241,6 +241,16 @@ def test_tpex_null_string_means_not_computed() -> None:
     assert first_day.dividend_yield == Decimal("0.00")
 
 
+def test_tpex_null_is_a_marker_for_the_two_ratios_only() -> None:
+    """The owner decision covers the first-day ratios. `null` in the yield or
+    the dividend has never been seen and is a format change."""
+    for column, field in ((3, "每股股利"), (5, "殖利率(%)")):
+        odd = mutate(
+            TPEX, lambda p, c=column: p["tables"][0]["data"][0].__setitem__(c, "null")
+        )
+        assert reason(lambda content=odd: tpex(content)) == "unrecognised_value", field
+
+
 def test_tpex_negative_ratio_rejects_only_that_row() -> None:
     negative = mutate(TPEX, lambda p: p["tables"][0]["data"][0].__setitem__(2, "-1.00"))
     parsed = tpex(negative)
