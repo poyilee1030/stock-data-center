@@ -1,6 +1,6 @@
 # Step 18-c Acceptance Report
 
-Status: IN REVIEW
+Status: IN REVIEW (#29)
 
 Scope: Official valuation. This step adds the TWSE `BWIBBU_d` and TPEx
 `afterTrading/peQryDate` adapters, their importer, the source policy and

@@ -1027,7 +1027,7 @@ evidence.
 
 ### Step 18-c — Official valuation
 
-Status: **IN REVIEW**. Depends on: Step 18-b.
+Status: **IN REVIEW** (#29). Depends on: Step 18-b.
 
 In scope: the `BWIBBU_d` and TPEx `pera` adapters, their importer, source policy
 and coverage declarations, and the backfill.
