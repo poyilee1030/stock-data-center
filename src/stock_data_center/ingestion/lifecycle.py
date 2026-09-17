@@ -436,7 +436,23 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
             content = fetched.content
             fetched_now = True
 
-        return adapter.parse(content, request), fetched_now
+        try:
+            return adapter.parse(content, request), fetched_now
+        except SourceDataError as error:
+            if error.reason_code == "invalid_json":
+                # Content that is not even JSON is not a source answer to
+                # cache and replay — TWSE has served an HTML "網站維護中"
+                # maintenance page here live (Step 19-d, 2026-09-17). A
+                # domain fact like `no_data_for_date` stays captured
+                # forever on purpose; this is the one shape that means the
+                # capture itself was never a real response, so undo it and
+                # let the next attempt fetch again instead of replaying the
+                # same garbage bytes indefinitely.
+                with self._engine.begin() as connection:
+                    self._discard_unusable_capture(
+                        connection, import_id=import_id, resource_key=resource.resource_key
+                    )
+            raise
 
     @abstractmethod
     def _write_business(
@@ -816,6 +832,27 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
             )
         )
         return run_id, artifact_id, artifact_created
+
+    @staticmethod
+    def _discard_unusable_capture(
+        connection: Connection, *, import_id: UUID, resource_key: str
+    ) -> None:
+        """Drop a dependency's checkpoint so the next attempt fetches again.
+
+        The raw artifact itself is left alone — untouched, content-addressed
+        evidence that this response was seen (CLAUDE.md §28) — only the
+        pointer that says "this resource is done, do not re-fetch" is
+        removed. Scoped to `_capture_and_parse`'s dependency resources only:
+        a primary resource's own quarantine already lets a rerun fetch fresh
+        (its checkpoint moves to `quarantined`, which neither
+        `_captured_checkpoint` nor `_completed_checkpoint` matches).
+        """
+        connection.execute(
+            import_checkpoints.delete().where(
+                import_checkpoints.c.import_id == import_id,
+                import_checkpoints.c.resource_key == resource_key,
+            )
+        )
 
     @staticmethod
     def _complete_resource(

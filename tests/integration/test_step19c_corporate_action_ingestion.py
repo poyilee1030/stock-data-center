@@ -414,3 +414,102 @@ def test_a_fully_resumed_run_makes_no_detail_fetches_or_waits(
         assert sleeps == []
     finally:
         engine.dispose()
+
+
+def test_a_garbled_detail_page_is_refetched_on_the_next_attempt(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """TWSE served an HTML maintenance page for one detail request live
+    (Step 19-d, 2026-09-17): `<!DOCTYPE html>...網站維護中...`, not JSON at
+    all. That is not a source answer worth caching forever the way a real
+    `no_data_for_date` is — the next attempt must fetch it again, not
+    replay the same garbage bytes."""
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        import_id = uuid4()
+        garbled = b"<!DOCTYPE html><html><body>\xe7\xb6\xb2\xe7\xb6\xad\xe8\xad\xb7\xe4\xb8\xad</body></html>"
+        with pytest.raises(ResourceQuarantinedError) as error:
+            run_range(
+                engine, tmp_path,
+                content=FULL_YEAR,
+                details={**DETAILS_2024, _detail_key("2454", "20240104"): garbled},
+                start=date(2024, 1, 1), end=date(2024, 12, 31),
+                executed_through=date(2024, 12, 31), import_id=import_id,
+            )
+        assert "invalid_json" in str(error.value)
+        with engine.connect() as connection:
+            assert connection.scalar(
+                sa.text("SELECT count(*) FROM raw_artifacts")
+            ) >= 2
+            assert connection.scalar(
+                sa.text("SELECT count(*) FROM corporate_action_versions")
+            ) == 0
+
+        result, manifest, fetcher = run_range(
+            engine, tmp_path, content=FULL_YEAR, details=DETAILS_2024,
+            start=date(2024, 1, 1), end=date(2024, 12, 31),
+            executed_through=date(2024, 12, 31), import_id=import_id,
+        )
+        # The list is fetched again too (its checkpoint moved to
+        # `quarantined` the same way); 2454's cleared checkpoint means its
+        # detail is fetched fresh rather than replayed, and 6442/2543 were
+        # never reached in the first attempt so they are fetched for the
+        # first time here.
+        assert fetcher.calls == [
+            "twse_twt49u:2024-01-01:2024-12-31",
+            _detail_key("2454", "20240104"),
+            _detail_key("6442", "20240110"),
+            _detail_key("2543", "20240530"),
+        ]
+        assert manifest.status == "succeeded"
+        with engine.connect() as connection:
+            assert connection.scalar(
+                sa.text("SELECT count(*) FROM corporate_action_versions")
+            ) == 3
+    finally:
+        engine.dispose()
+
+
+def test_a_genuine_no_data_detail_stays_quarantined_on_the_next_attempt(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """The opposite of the garbled-page case: TWSE's own `無相關資料` is a
+    real, stable domain fact (verified live for TWT49U's 2887-series
+    preferred shares, Step 19-d), and must keep being replayed from cache —
+    not silently retried into a different answer merely because the next
+    attempt's fetcher would have returned something else."""
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        import_id = uuid4()
+        with pytest.raises(ResourceQuarantinedError) as error:
+            run_range(
+                engine, tmp_path, content=FULL_YEAR,
+                details={**DETAILS_2024, _detail_key("2454", "20240104"): DETAIL_EMPTY},
+                start=date(2024, 1, 1), end=date(2024, 12, 31),
+                executed_through=date(2024, 12, 31), import_id=import_id,
+            )
+        assert "no_data_for_date" in str(error.value)
+
+        list_key = "twse_twt49u:2024-01-01:2024-12-31"
+        fetcher = DispatchFetcher({list_key: FULL_YEAR, **DETAILS_2024})
+        importer = CorporateActionImporter(
+            engine, raw_store=LocalRawArtifactStore(tmp_path / "raw"),
+            fetcher=fetcher, sleep=lambda _seconds: None,
+        )
+        with pytest.raises(ResourceQuarantinedError):
+            importer.run(
+                adapter=TWSEExRightAdapter(),
+                request=CorporateActionRangeRequest(
+                    date(2024, 1, 1), date(2024, 12, 31), date(2024, 12, 31)
+                ),
+                import_id=import_id,
+                git_commit="test-commit",
+                purpose=IngestPurpose.FIRST_CAPTURE,
+            )
+        # The main list is fetched again — its own checkpoint moved to
+        # `quarantined`, which is resumable by design — but 2454's cached
+        # `no_data_for_date` detail aborts the row loop before 6442 or 2543
+        # are ever reached, so neither of their details is fetched either.
+        assert fetcher.calls == [list_key]
+    finally:
+        engine.dispose()
