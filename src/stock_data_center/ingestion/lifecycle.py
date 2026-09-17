@@ -390,7 +390,7 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
         import_id: UUID,
         purpose: IngestPurpose,
         artifact_origin: ArtifactOrigin,
-    ) -> tuple[object, bool]:
+    ) -> tuple[object, bool, UUID, UUID, str]:
         """Capture and parse one resource under `import_id`, resuming a prior
         checkpoint when one exists. For use from `_capture_dependencies` only:
         it opens its own connections and must not be called from inside an
@@ -400,10 +400,16 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
         checkpoint `succeeded` — only the primary resource's checkpoint
         reaches that status — so this only ever looks for `captured`.
 
-        Returns `(parsed, fetched)`: `fetched` is true only when this call
-        made a real request, so a caller throttling many of these — a
-        backfill's per-row detail pages — waits between requests the source
-        actually felt, not between resumed checkpoint reads.
+        Returns `(parsed, fetched, run_id, artifact_id, resource_key)`:
+        `fetched` is true only when this call made a real request, so a
+        caller throttling many of these — a backfill's per-row detail pages
+        — waits between requests the source actually felt, not between
+        resumed checkpoint reads. `run_id`/`artifact_id`/`resource_key` let a
+        caller that tolerates one failed dependency (ADR-0022 §8) record its
+        own quarantine row referencing this resource's real provenance
+        instead of the primary resource's. On failure the same three are
+        attached to the raised `SourceDataError` as `run_id`/`artifact_id`/
+        `dependency_resource_key`.
         """
         resource = adapter.resource(request)
         with self._engine.begin() as connection:
@@ -417,11 +423,13 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
                 expected_byte_size=captured.byte_size,
             )
             fetched_now = False
+            run_id = captured.run_id
+            artifact_id = captured.artifact_id
         else:
             fetched = self._fetcher.fetch(resource)
             stored = self._raw_store.put(fetched.content)
             with self._engine.begin() as connection:
-                self._capture_raw(
+                run_id, artifact_id, _ = self._capture_raw(
                     connection,
                     import_id=import_id,
                     adapter=adapter,
@@ -437,8 +445,11 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
             fetched_now = True
 
         try:
-            return adapter.parse(content, request), fetched_now
+            parsed = adapter.parse(content, request)
         except SourceDataError as error:
+            error.run_id = run_id  # type: ignore[attr-defined]
+            error.artifact_id = artifact_id  # type: ignore[attr-defined]
+            error.dependency_resource_key = resource.resource_key  # type: ignore[attr-defined]
             if error.reason_code == "invalid_json":
                 # Content that is not even JSON is not a source answer to
                 # cache and replay — TWSE has served an HTML "網站維護中"
@@ -453,6 +464,7 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
                         connection, import_id=import_id, resource_key=resource.resource_key
                     )
             raise
+        return parsed, fetched_now, run_id, artifact_id, resource.resource_key
 
     @abstractmethod
     def _write_business(

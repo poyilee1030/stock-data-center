@@ -99,16 +99,20 @@ def import_counts(connection, source: str, start: date, end: date) -> dict:
 
 def duplicate_check(connection, source: str) -> dict:
     """Zero duplicate (feed, code, locator date) over the feed's full stored
-    history (ROADMAP §19-d). The locator is `event_id`'s own key, so a
-    duplicate here would mean two events share one identity."""
+    history (ROADMAP §19-d). `source_event_key` alone is `"<feed>:<locator
+    date>"` (ADR-0019/CLAUDE.md §51.5) — it never includes the security, so
+    two different securities sharing one executed date is expected, not a
+    collision (e.g. TWT49U: two different ETFs both resuming on the same
+    day). The real identity a duplicate would violate is `(security_id,
+    source, source_event_key)`."""
     feed = FEED_BY_SOURCE[source]
     rows = connection.execute(
         sa.text(
             """
-            SELECT source_event_key, count(*) AS n
+            SELECT security_id, source_event_key, count(*) AS n
               FROM corporate_action_events
              WHERE source = :source
-             GROUP BY source_event_key
+             GROUP BY security_id, source_event_key
             HAVING count(*) > 1
             """
         ),
@@ -123,7 +127,9 @@ def duplicate_check(connection, source: str) -> dict:
             {"source": source},
         ),
         "duplicate_locators": len(rows),
-        "duplicate_examples": [row.source_event_key for row in rows[:10]],
+        "duplicate_examples": [
+            f"security_id={row.security_id} {row.source_event_key}" for row in rows[:10]
+        ],
     }
 
 
