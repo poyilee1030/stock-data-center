@@ -105,6 +105,147 @@ what actually blocks the delete」）。guard 因此照抄那個既有模式，�
   事件現在算不算撤回」是留給下一個需要它的 reader（19-d 回補對帳，或未來的
   corporate-action 查詢服務）的工作，不是本步驟的範圍。
 
+## Step 19-d 追加：年度回補與一個活來源才會暴露的暫時性失敗
+
+### 6. `CorporateActionBackfill`：以年為單位走 2020–2026，不是一次整個範圍
+
+來源可以一次接受整個 2020-2026 的範圍（實測：TWT49U 七年一次請求回傳 OK,
+1.5 MB），但回補仍照 ADR-0019「每個 feed 約 7 個請求」以年為單位走,原因與
+一次請求能不能成功無關：TWT49U 一年常有上千個事件,每個都要各自的明細頁,
+一次七年份、近八千筆明細全部抓完才進第一筆寫入,會讓一次當機的可視進度是
+零、也讓單一交易背上七年份的寫入。以年分段,每年有自己的 checkpoint 與
+import id（`year_import_id`,仿 `month_import_id`),一年當掉,重跑只補那一年。
+
+### 7. `RetryingFetcher`：一個只有活網路才會暴露的暫時性失敗
+
+2026-09-16 對 TWT49U/TWTAUU 的完整回補實測，TWSE 的 CDN
+（`server: HiNetCDN`）偶爾對明細頁請求回應 `307`，內容是
+「因為安全性考量，您所執行的頁面無法呈現」的 HTML 安全頁，不是我們的
+`SourceDataError`（沒有 `Location`，`httpx` 的 `follow_redirects=True`
+因此無從跟隨）。同一個 URL 在幾秒到幾分鐘後重試多半成功；極少數
+（實測一筆，TWTAUU 2025 年的一個 `TWTAVUDetail`）在多次重試視窗內持續
+擋下，之後才通過——沒有 `Retry-After`，也不是固定的每 N 次請求就觸發。
+
+`RetryingFetcher` 包一層在 `HttpSourceFetcher` 外，對 307/429/5xx 與
+timeout 類例外以退避重試（預設 5 次，CLI 用 8 次、封頂 30 秒),用不到就是
+把例外原樣丟出，語意不變。只在 `corporate-action` CLI 接上,不是
+`RawFirstImporter` 的預設——這是活來源在真正的多千請求量級下才暴露的失敗,
+其他資料集的既有回補（17-c、18-b）遇到的是逾時與斷線,不是這種類型;沒有
+證據以前，不替它們也換掉預設 fetcher。
+
+`CorporateActionBackfill`/`_capture_dependencies` 兩者當時都保持「一個年度、
+一個 range 要嘛全部完成、要嘛整個失敗」的既有顆粒——沒有為了這一個暫時性
+失敗新增「單筆事件隔離、其餘照常寫入」的機制。§19-c 已經定的邊界
+（一個 range 是一個寫入交易，`SourceDataError` 才隔離)保持不變；一個
+retry budget 內解不掉的請求，就是那一年回補失敗、重跑即可，與 17-c/18-b
+「一個壞日期回報而不致命」同一個顆粒,不是本步驟該开的新洞。
+
+**這個決定後來被 §8 推翻**——不是因為顆粒選錯，是因為當時沒有實證顯示
+「一個壞日期」在 TWT49U 真實資料裡代表什麼：一天可能有二三十家公司同時
+除權息，整年失敗、重跑，重跑再失敗在同一個日期，跟整年失敗、只隔離那一天
+單筆事件，兩者付出的成本完全不同。
+
+### 8. 真的跑過全歷史才知道：一個壞的明細頁會拖垮同一天其他幾十筆好資料
+
+2026-09-17 對 TWT49U 完整 2020-2026 回補實測（前一版 §7 寫完不到一天）：
+`TWT49U` 的「台新戊特二」（2887F，各年不同代碼：2887F/2887Z1/2887G）明細頁
+從來沒有資料——不是暫時性,連續數次即時查詢、清掉 checkpoint 逼真的重新
+發請求都是同一個回應。§7 原本的判斷（「一個壞日期就是那一年失敗、重跑即
+可」）建立在還沒真的撞到這件事的前提上；真的撞到後,對帳腳本抓出 121 筆
+legacy `dividend` 有、我們沒有的列，全部落在六個「壞日期」上——因為
+TWT49U 的除權息日常常同一天二三十家公司一起除息，整年失敗、只隔離那一天
+還是等於那一天全部二三十家的資料都沒進資料庫，不是只有 2887F 那一筆。
+
+這筆資料本身沒有價值（2887F 從來沒有可用的股利明細），但同一天其他公司
+的資料是真實、legacy 也收得到的。用手動分段（跳過整個缺口日）繞過的做法
+會連帶損失這些資料——這是可以避免的損失，不是無法避免的來源缺口，因此
+違反 CLAUDE.md §84 的優先順序（PIT correctness、historical auditability
+排在 convenience 之前）。
+
+修法：`_capture_dependencies` 改成逐列處理——一筆明細頁失敗只把**那一列**
+標成 `_RowQuarantine`（帶著它自己明細頁的 `run_id`/`raw_artifact_id`，不是
+整個 range 主資源的),其餘列正常送進 `_write_business`。`_write_business`
+的因應：
+
+- **事件身分照樣為每一列註冊**（`register_corporate_action_events` 吃
+  `parsed.rows` 全部,不只成功的列)——一列的明細解不出來,不代表這個事件
+  從來源列表裡消失了,§2 的撤回候選邏輯必須繼續把它算作「這次回應仍然
+  點名」，否則下一次回補會把它誤判成「來源不再列出」而錯誤撤回。
+- **只有解出觀測值的列才寫 `corporate_action_versions`**；解不出來的列
+  改成一筆 `import_quarantine`，`resource_key` 指向那一列自己的明細頁
+  （不是整個 range），`reason_code` 照舊（`no_data_for_date` 等)。
+
+兩種失敗原因的 checkpoint 處理不同：`invalid_json`（內容根本不是 JSON,
+例如網站維護頁)清掉那一列的 checkpoint,下一次用新 import id 的回補
+（例如未來的 correction check）會真的重新發請求；`no_data_for_date`
+（合法的「查無資料」回應)保留 checkpoint——它是穩定的事實，沒有理由
+為了同一個答案再打一次來源。
+
+### 9. PR #28 code review：checkpoint 清掉不等於會被重跑
+
+`/code-review medium` 對 §8 這次改動抓到 4 個問題，3 個是真的：
+
+- **清 checkpoint 沒有用。** §8 原本設計：`invalid_json` 清掉那一列的
+  checkpoint,靠「下一次重跑」重新發請求。但逐列容錯之後,主資源多半以
+  `succeeded` 收尾,而 `_completed_checkpoint` 只認 `succeeded`
+  ——同一個 import_id 的下一次 `run()` 會在最外層直接短路,連
+  `_capture_dependencies` 都不會進去,更不會碰到那個被清掉 checkpoint 的
+  列。清掉 checkpoint 因此只是理論上「以後可以重來」，實際上除非手動換一
+  個新 import_id,不會有任何後續動作去真的重新發請求。修法：
+  `_capture_and_parse` 現在在偵測到 `invalid_json` 時**當場**重新發一次
+  請求（僅一次)，把原本寄望「以後某次重跑」的自我修復,搬到同一次
+  `run()` 裡面真的發生。
+- **`_write_business` 的彙總看不到逐列隔離。** `BackfillYearResult`/
+  `CorporateActionBackfillReport` 原本沒有 `row_quarantined` 欄位,
+  `is_complete` 只看 `failed`——一年裡面有列被隔離,CLI 的彙總跟離開碼
+  完全看不出來,只有鑽進那一年自己的 manifest 才查得到,違反 CLAUDE.md
+  §78/§79「quarantined records reported」。修法：`_one_year` 讀回
+  `manifest.reconciliation["row_quarantined_count"]`,`BackfillYearResult`
+  多一個 `row_quarantined` 欄位,`CorporateActionBackfillReport.as_dict()`
+  同時輸出彙總數字跟逐年清單——不影響 `is_complete`（隔離是已知、可接受
+  的分類,不是失敗),但確保「有隔離」這件事在報告最上層看得到。
+- **`RetryingFetcher` 的註解自己說了會接住、其實沒接住。** 模組頂端註解
+  一直寫「no usable `Location`, or a loop back to the same URL」兩種情境
+  都會重試,但第二種（`Location` 指回同一個網址造成的重導向迴圈）會讓
+  httpx 自己先丟出 `httpx.TooManyRedirects`——這個例外繼承自
+  `RequestError`,跟 `TimeoutException`/`TransportError` 是平行的類別,
+  不會被目前的 `except` 接住。加進重試名單即可,實測沒有改變任何既有
+  行為。
+
+第四個（`_capture_dependencies` 第一個 `except SourceDataError` 假設
+`error.run_id`/`error.artifact_id`/`error.dependency_resource_key` 一定
+存在)追過程式碼後不成立——`_capture_and_parse` 目前只有 `adapter.parse()`
+會拋 `SourceDataError`,而那一行正是附加這三個屬性的地方；`_captured_
+checkpoint`/`_raw_store.read`/`put`/`fetcher.fetch` 都拋別的例外類別,
+不會經過這個分支。但這是共用框架方法,換一個 adapter 或以後改了
+`resource()` 的例外型別就會在例外處理器裡面再拋一個 `AttributeError`,
+把真正的錯誤原因蓋掉——用 `getattr` 讀、缺任何一個就直接重新拋出（等於
+整個 range 那個既有的「不知道怎麼分類就不要猜」邊界),便宜且不改變今天
+的行為。
+
+### 10. 重抓一次仍是亂碼：整個 range 失敗，但可續跑
+
+§9 的當場重抓只擋得住瞬間錯誤。TWSE 維護通常持續好幾分鐘，立刻重抓多半
+還是同一個維護頁；此時若仍逐列隔離，range 照樣以 `succeeded` 收尾，同一個
+import_id 之後的重跑全被 `_completed_checkpoint` 短路，那一列永久沒有
+version,backfill 還是 `is_complete: true`、離開碼 0。
+
+修法：重抓後仍是 `invalid_json`,`_capture_and_parse` 改丟
+`UnusableSourceResponseError`(不是 `SourceDataError`)。它不會被
+`_capture_dependencies` 當成逐列隔離，而是走 `_run_locked` 既有的
+`dependency_operational_error` 路徑：
+
+- 不寫 quarantine、不寫任何 version;主資源 checkpoint 維持 `captured`,
+  manifest 為 `failed`。
+- 亂碼那一頁的 checkpoint 已刪除；其他已抓到的明細 checkpoint 保留。
+- backfill 該年回報 `failed`/`operational_error`,`is_complete` 為 false,
+  CLI 離開碼 1。
+- 用同一個 import_id 重跑：清單與已抓明細直接重放，只重新請求沒成功抓到的
+  明細，然後正常完成。
+
+`no_data_for_date` 不受影響：它是穩定的來源答案，仍逐列隔離、保留
+checkpoint,不影響 `is_complete`。
+
 ## 已否決的替代方案
 
 **在 `corporate_action_versions` 上加一個 `retracted_at` 欄位。** 該表是
@@ -123,3 +264,14 @@ append-only 且有 `immutable` trigger 擋 UPDATE；撤回本質上是後來才�
 `SourceDataError` 會被寫入交易的例外處理器當成 `writer_operational_error`，
 而不是 `_quarantine`——语意上這仍是「來源內容對不上契約」，應該隔離而非
 記一筆操作失敗。
+
+**擴大 `RetryingFetcher` 去重試 HTTP 200 但內容是忙碌訊息的回應。**
+2026-09-17 對 TWT49U 的完整回補實測，`TWT49UDetail`（僅此一個端點,同網域
+的 `TWTAVUDetail`、`TWT49U` 列表當時都正常)持續回 `HTTP 200
+{"stat":"系統忙碌中，請稍後再試！"}`——不是 `RetryingFetcher` 認得的任何
+可重試 HTTP 狀態碼，等了約 20 分鐘後才自行恢復。沒有加成「200 但
+`stat` != OK 也重試」這條規則,原因是目前只有一次真實觀測,無法分辨這是
+「這個端點偶爾如此,固定重試幾次會過」還是「這個端點掉線了,重試多少次
+都一樣」——貿然加重試會讓一次真正的端點故障看起來像是程式掛住,而不是
+明確回報並停手。留給下一次真的復現時,用兩次觀測決定退避曲線,而不是
+現在猜一個沒有第二個樣本驗證得了的行為。

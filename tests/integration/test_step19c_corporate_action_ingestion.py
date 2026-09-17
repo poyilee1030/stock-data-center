@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, date, datetime
 from pathlib import Path
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -18,7 +19,9 @@ from stock_data_center.ingestion.models import (
     CorporateActionRangeRequest,
     FetchedArtifact,
     ResourceQuarantinedError,
+    SourceDataError,
     SourceResource,
+    UnusableSourceResponseError,
 )
 from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
 from stock_data_center.provenance import IngestPurpose
@@ -88,6 +91,31 @@ class DispatchFetcher:
         )
 
 
+class _FlakyOnceFetcher(DispatchFetcher):
+    """Answers `flaky_key`'s first request with `first_answer`, then falls
+    back to the normal per-key content for every later request."""
+
+    def __init__(
+        self, content_by_key: dict[str, bytes], *, flaky_key: str, first_answer: bytes,
+    ) -> None:
+        super().__init__(content_by_key)
+        self._flaky_key = flaky_key
+        self._first_answer = first_answer
+        self._served_flaky = False
+
+    def fetch(self, resource: SourceResource) -> FetchedArtifact:
+        if resource.resource_key == self._flaky_key and not self._served_flaky:
+            self._served_flaky = True
+            self.calls.append(resource.resource_key)
+            return FetchedArtifact(
+                content=self._first_answer,
+                source_uri=resource.source_uri,
+                fetched_at=datetime.now(UTC),
+                media_type="application/json",
+            )
+        return super().fetch(resource)
+
+
 def _detail_key(code: str, locator_date: str) -> str:
     return f"twse_twt49u:detail:{code}:TWT49U:{locator_date}"
 
@@ -107,7 +135,8 @@ def run_range(
     list_key = f"twse_twt49u:{start.isoformat()}:{end.isoformat()}"
     fetcher = DispatchFetcher({list_key: content, **details})
     importer = CorporateActionImporter(
-        engine, raw_store=LocalRawArtifactStore(tmp_path / "raw"), fetcher=fetcher
+        engine, raw_store=LocalRawArtifactStore(tmp_path / "raw"), fetcher=fetcher,
+        sleep=lambda _seconds: None,
     )
     used_id = import_id or uuid4()
     result = importer.run(
@@ -320,30 +349,301 @@ def test_a_row_outside_the_covered_window_is_never_retracted(
         engine.dispose()
 
 
-def test_a_failing_detail_quarantines_the_range_and_keeps_raw_artifacts(
+def test_a_failing_detail_quarantines_only_its_own_row(
     isolated_database_url: str, tmp_path: Path
 ) -> None:
+    """A real 2020-2026 TWT49U backfill found a shared ex-dividend date
+    commonly lists dozens of securities, and TWT49U's 2887-series preferred
+    shares consistently have no detail page at all (Step 19-d, 2026-09-17).
+    Failing the whole range over one such row would cost every other row on
+    the same date real, retrievable data (ADR-0022 §8) — so only 2454's own
+    row quarantines; 6442 and 2543 still register and complete normally."""
     engine = sa.create_engine(isolated_database_url)
     try:
         details = {**DETAILS_2024, _detail_key("2454", "20240104"): DETAIL_EMPTY}
-        with pytest.raises(ResourceQuarantinedError, match="no_data_for_date"):
+        _, manifest, _ = run_range(
+            engine, tmp_path, content=FULL_YEAR, details=details,
+            start=date(2024, 1, 1), end=date(2024, 12, 31),
+            executed_through=date(2024, 12, 31),
+        )
+        assert manifest.status == "succeeded"
+        assert manifest.reconciliation["row_quarantined_count"] == 1
+        with engine.connect() as connection:
+            # 2454's event identity still registers (it is still a row this
+            # response named — a future retraction pass must not treat a
+            # merely-unresolved row as absent, ADR-0022 §2) but gets no
+            # version; 6442 and 2543 complete fully.
+            assert connection.scalar(
+                sa.text("SELECT count(*) FROM corporate_action_events")
+            ) == 3
+            assert connection.scalar(
+                sa.text("SELECT count(*) FROM corporate_action_versions")
+            ) == 2
+            assert connection.scalar(
+                sa.text("SELECT count(*) FROM raw_artifacts")
+            ) >= 2
+            reason, resource_key = connection.execute(
+                sa.text(
+                    "SELECT reason_code, resource_key FROM import_quarantine"
+                )
+            ).one()
+            assert reason == "no_data_for_date"
+            assert resource_key == _detail_key("2454", "20240104")
+    finally:
+        engine.dispose()
+
+
+def test_detail_fetches_are_throttled_but_not_before_the_first(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """TWT49U alone can need thousands of these for one range (ADR-0019)."""
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        list_key = "twse_twt49u:2024-01-01:2024-12-31"
+        fetcher = DispatchFetcher({list_key: FULL_YEAR, **DETAILS_2024})
+        sleeps: list[float] = []
+        importer = CorporateActionImporter(
+            engine, raw_store=LocalRawArtifactStore(tmp_path / "raw"),
+            fetcher=fetcher, min_detail_interval_seconds=2.5,
+            sleep=sleeps.append,
+        )
+        importer.run(
+            adapter=TWSEExRightAdapter(),
+            request=CorporateActionRangeRequest(
+                date(2024, 1, 1), date(2024, 12, 31), date(2024, 12, 31)
+            ),
+            import_id=uuid4(),
+            git_commit="test-commit",
+            purpose=IngestPurpose.FIRST_CAPTURE,
+        )
+        # Three distinct detail locators, so two waits between three fetches.
+        assert sleeps == [2.5, 2.5]
+    finally:
+        engine.dispose()
+
+
+def test_a_fully_resumed_run_makes_no_detail_fetches_or_waits(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """Politeness is owed to the source, not to the checkpoint table: a run
+    resumed under its original import id must not wait for requests it never
+    makes."""
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        import_id = uuid4()
+        run_range(
+            engine, tmp_path, content=FULL_YEAR, details=DETAILS_2024,
+            start=date(2024, 1, 1), end=date(2024, 12, 31),
+            executed_through=date(2024, 12, 31), import_id=import_id,
+        )
+        list_key = "twse_twt49u:2024-01-01:2024-12-31"
+        fetcher = DispatchFetcher({list_key: FULL_YEAR, **DETAILS_2024})
+        sleeps: list[float] = []
+        importer = CorporateActionImporter(
+            engine, raw_store=LocalRawArtifactStore(tmp_path / "raw"),
+            fetcher=fetcher, min_detail_interval_seconds=2.5, sleep=sleeps.append,
+        )
+        result = importer.run(
+            adapter=TWSEExRightAdapter(),
+            request=CorporateActionRangeRequest(
+                date(2024, 1, 1), date(2024, 12, 31), date(2024, 12, 31)
+            ),
+            import_id=import_id,
+            git_commit="test-commit",
+            purpose=IngestPurpose.FIRST_CAPTURE,
+        )
+        assert result.resumed_from_checkpoint is True
+        assert fetcher.calls == []
+        assert sleeps == []
+    finally:
+        engine.dispose()
+
+
+def test_a_persistently_garbled_detail_page_fails_the_range_resumably(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """TWSE served an HTML maintenance page for one detail request live
+    (Step 19-d, 2026-09-17): `<!DOCTYPE html>...網站維護中...`, not JSON at
+    all. A maintenance window outlasts one inline retry, and quarantining
+    just that row would let the range finish `succeeded`, whose completed
+    checkpoint then short-circuits every rerun: the row would be lost for
+    good under this import_id (ADR-0022 §10). Garbled content that survives
+    the retry therefore fails the range operationally — no quarantine row,
+    the range's own checkpoint stays `captured`, the garbled detail's
+    checkpoint is dropped — and a rerun under the same import_id replays the
+    list, fetches that page again, and completes."""
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        garbled = b"<!DOCTYPE html><html><body>\xe7\xb6\xb2\xe7\xb6\xad\xe8\xad\xb7\xe4\xb8\xad</body></html>"
+        import_id = uuid4()
+        detail_key = _detail_key("2454", "20240104")
+        with pytest.raises(UnusableSourceResponseError):
             run_range(
-                engine, tmp_path, content=FULL_YEAR, details=details,
+                engine, tmp_path,
+                content=FULL_YEAR,
+                details={**DETAILS_2024, detail_key: garbled},
                 start=date(2024, 1, 1), end=date(2024, 12, 31),
-                executed_through=date(2024, 12, 31),
+                executed_through=date(2024, 12, 31), import_id=import_id,
+            )
+        with engine.connect() as connection:
+            assert CorporateActionImporter.manifest(
+                connection, import_id
+            ).status == "failed"
+            assert connection.scalar(
+                sa.text("SELECT count(*) FROM import_quarantine")
+            ) == 0
+            assert connection.scalar(
+                sa.text("SELECT count(*) FROM corporate_action_versions")
+            ) == 0
+            assert connection.scalar(
+                sa.text("SELECT status FROM import_checkpoints WHERE resource_key = :k"),
+                {"k": detail_key},
+            ) is None
+            assert connection.scalar(
+                sa.text("SELECT status FROM import_checkpoints WHERE resource_key = :k"),
+                {"k": "twse_twt49u:2024-01-01:2024-12-31"},
+            ) == "captured"
+
+        # The maintenance window is over: the same import_id resumes.
+        result, manifest, fetcher = run_range(
+            engine, tmp_path, content=FULL_YEAR, details=DETAILS_2024,
+            start=date(2024, 1, 1), end=date(2024, 12, 31),
+            executed_through=date(2024, 12, 31), import_id=import_id,
+        )
+        assert manifest.status == "succeeded"
+        assert manifest.reconciliation["row_quarantined_count"] == 0
+        assert result.business_versions_created == 3
+        # The captured list replays; only details never successfully
+        # captured are requested again, the garbled one among them.
+        assert "twse_twt49u:2024-01-01:2024-12-31" not in fetcher.calls
+        assert fetcher.calls.count(detail_key) == 1
+    finally:
+        engine.dispose()
+
+
+def test_a_garbled_detail_page_is_retried_once_in_place(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """A code-review finding on PR #28: discarding a garbled page's
+    checkpoint only helps a later attempt under the same import_id — but
+    per-row tolerance (ADR-0022 §8) usually lets the primary resource
+    finish `succeeded`, whose completed checkpoint then short-circuits any
+    later run before it looks at this row again, so the discard alone could
+    never self-heal in practice. `_capture_and_parse` now retries once,
+    live, right where it discovers the garbled page — recovering within the
+    same run rather than requiring an operator to notice and start a fresh
+    import_id by hand."""
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        garbled = b"<!DOCTYPE html><html><body>\xe7\xb6\xb2\xe7\xb6\xad\xe8\xad\xb7\xe4\xb8\xad</body></html>"
+        list_key = "twse_twt49u:2024-01-01:2024-12-31"
+        detail_key = _detail_key("2454", "20240104")
+        fetcher = _FlakyOnceFetcher(
+            {list_key: FULL_YEAR, **DETAILS_2024}, flaky_key=detail_key, first_answer=garbled,
+        )
+        importer = CorporateActionImporter(
+            engine, raw_store=LocalRawArtifactStore(tmp_path / "raw"),
+            fetcher=fetcher, sleep=lambda _seconds: None,
+        )
+        result = importer.run(
+            adapter=TWSEExRightAdapter(),
+            request=CorporateActionRangeRequest(
+                date(2024, 1, 1), date(2024, 12, 31), date(2024, 12, 31)
+            ),
+            import_id=uuid4(),
+            git_commit="test-commit",
+            purpose=IngestPurpose.FIRST_CAPTURE,
+        )
+        assert result.business_versions_created == 3
+        with engine.connect() as connection:
+            assert connection.scalar(
+                sa.text("SELECT count(*) FROM import_quarantine")
+            ) == 0
+            assert connection.scalar(
+                sa.text("SELECT status FROM import_checkpoints WHERE resource_key = :k"),
+                {"k": detail_key},
+            ) == "captured"
+        # Once for the garbled answer, once for the real retry.
+        assert fetcher.calls.count(detail_key) == 2
+    finally:
+        engine.dispose()
+
+
+def test_a_genuine_no_data_detail_quarantines_its_row_and_keeps_its_checkpoint(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """The opposite of the garbled-page case: TWSE's own `無相關資料` is a
+    real, stable domain fact (verified live for TWT49U's 2887-series
+    preferred shares, Step 19-d). It quarantines its own row the same way,
+    but — unlike garbled content — its checkpoint is left alone: a repeat
+    fetch would answer exactly the same, so there is nothing to gain by
+    forcing a live re-request for it later."""
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        _, manifest, _ = run_range(
+            engine, tmp_path, content=FULL_YEAR,
+            details={**DETAILS_2024, _detail_key("2454", "20240104"): DETAIL_EMPTY},
+            start=date(2024, 1, 1), end=date(2024, 12, 31),
+            executed_through=date(2024, 12, 31),
+        )
+        assert manifest.status == "succeeded"
+        assert manifest.reconciliation["row_quarantined_count"] == 1
+        with engine.connect() as connection:
+            assert connection.scalar(
+                sa.text("SELECT count(*) FROM corporate_action_versions")
+            ) == 2
+            reason = connection.scalar(
+                sa.text("SELECT reason_code FROM import_quarantine")
+            )
+            assert reason == "no_data_for_date"
+            checkpoint_status = connection.scalar(
+                sa.text(
+                    "SELECT status FROM import_checkpoints WHERE resource_key = :k"
+                ),
+                {"k": _detail_key("2454", "20240104")},
+            )
+            assert checkpoint_status == "captured"
+    finally:
+        engine.dispose()
+
+
+def test_a_dependency_failure_with_no_real_provenance_still_aborts_the_range(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """A code-review finding on PR #28: the per-row handler assumed every
+    `SourceDataError` from `_capture_and_parse` carries `run_id`/
+    `artifact_id`/`dependency_resource_key` — true today (its only source is
+    `adapter.parse`, which does attach them), but nothing enforces it for a
+    future adapter or a future `_capture_and_parse` change. A `SourceDataError`
+    missing them has no real per-resource provenance to quarantine against,
+    so it must still abort the whole range rather than fabricate identity —
+    proven here by making `_capture_and_parse` raise a bare one directly."""
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        importer = CorporateActionImporter(
+            engine, raw_store=LocalRawArtifactStore(tmp_path / "raw"),
+            fetcher=DispatchFetcher({"twse_twt49u:2024-01-01:2024-12-31": FULL_YEAR}),
+            sleep=lambda _seconds: None,
+        )
+        with (
+            patch.object(
+                importer, "_capture_and_parse",
+                side_effect=SourceDataError("no_provenance", "no attributes attached"),
+            ),
+            pytest.raises(ResourceQuarantinedError, match="no_provenance"),
+        ):
+            importer.run(
+                adapter=TWSEExRightAdapter(),
+                request=CorporateActionRangeRequest(
+                    date(2024, 1, 1), date(2024, 12, 31), date(2024, 12, 31)
+                ),
+                import_id=uuid4(),
+                git_commit="test-commit",
+                purpose=IngestPurpose.FIRST_CAPTURE,
             )
         with engine.connect() as connection:
             assert connection.scalar(
                 sa.text("SELECT count(*) FROM corporate_action_versions")
             ) == 0
-            assert connection.scalar(
-                sa.text("SELECT count(*) FROM corporate_action_events")
-            ) == 0
-            assert connection.scalar(
-                sa.text("SELECT count(*) FROM raw_artifacts")
-            ) >= 2
-            assert connection.scalar(
-                sa.text("SELECT reason_code FROM import_quarantine")
-            ) == "no_data_for_date"
     finally:
         engine.dispose()

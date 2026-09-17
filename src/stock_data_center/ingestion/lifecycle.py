@@ -36,6 +36,7 @@ from stock_data_center.ingestion.models import (
     ResourceImportResult,
     ResourceQuarantinedError,
     SourceDataError,
+    UnusableSourceResponseError,
     SourceResource,
 )
 from stock_data_center.ingestion.raw_storage import (
@@ -390,7 +391,7 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
         import_id: UUID,
         purpose: IngestPurpose,
         artifact_origin: ArtifactOrigin,
-    ) -> object:
+    ) -> tuple[object, bool, UUID, UUID, str]:
         """Capture and parse one resource under `import_id`, resuming a prior
         checkpoint when one exists. For use from `_capture_dependencies` only:
         it opens its own connections and must not be called from inside an
@@ -399,37 +400,101 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
         A dependency resource has no business write of its own to mark a
         checkpoint `succeeded` — only the primary resource's checkpoint
         reaches that status — so this only ever looks for `captured`.
+
+        Returns `(parsed, fetched, run_id, artifact_id, resource_key)`:
+        `fetched` is true only when this call made a real request, so a
+        caller throttling many of these — a backfill's per-row detail pages
+        — waits between requests the source actually felt, not between
+        resumed checkpoint reads. `run_id`/`artifact_id`/`resource_key` let a
+        caller that tolerates one failed dependency (ADR-0022 §8) record its
+        own quarantine row referencing this resource's real provenance
+        instead of the primary resource's. On failure the same three are
+        attached to the raised `SourceDataError` as `run_id`/`artifact_id`/
+        `dependency_resource_key`. Content that is not a source answer at all
+        (`invalid_json`) is retried once live; if it still is not, this raises
+        `UnusableSourceResponseError` instead, which fails the whole range
+        resumably rather than quarantining one row.
         """
         resource = adapter.resource(request)
-        with self._engine.begin() as connection:
-            captured = self._captured_checkpoint(
-                connection, import_id, resource.resource_key
-            )
-        if captured is not None:
-            content = self._raw_store.read(
-                storage_uri=captured.storage_uri,
-                expected_digest=captured.artifact_hash,
-                expected_byte_size=captured.byte_size,
-            )
-        else:
-            fetched = self._fetcher.fetch(resource)
-            stored = self._raw_store.put(fetched.content)
+        retried_once = False
+        while True:
             with self._engine.begin() as connection:
-                self._capture_raw(
-                    connection,
-                    import_id=import_id,
-                    adapter=adapter,
-                    resource_key=resource.resource_key,
-                    stored=stored,
-                    source_uri=fetched.source_uri,
-                    fetched_at=fetched.fetched_at,
-                    media_type=fetched.media_type,
-                    purpose=purpose,
-                    artifact_origin=artifact_origin,
+                captured = self._captured_checkpoint(
+                    connection, import_id, resource.resource_key
                 )
-            content = fetched.content
+            if captured is not None:
+                content = self._raw_store.read(
+                    storage_uri=captured.storage_uri,
+                    expected_digest=captured.artifact_hash,
+                    expected_byte_size=captured.byte_size,
+                )
+                fetched_now = False
+                run_id = captured.run_id
+                artifact_id = captured.artifact_id
+            else:
+                fetched = self._fetcher.fetch(resource)
+                stored = self._raw_store.put(fetched.content)
+                with self._engine.begin() as connection:
+                    run_id, artifact_id, _ = self._capture_raw(
+                        connection,
+                        import_id=import_id,
+                        adapter=adapter,
+                        resource_key=resource.resource_key,
+                        stored=stored,
+                        source_uri=fetched.source_uri,
+                        fetched_at=fetched.fetched_at,
+                        media_type=fetched.media_type,
+                        purpose=purpose,
+                        artifact_origin=artifact_origin,
+                    )
+                content = fetched.content
+                fetched_now = True
 
-        return adapter.parse(content, request)
+            try:
+                parsed = adapter.parse(content, request)
+            except SourceDataError as error:
+                error.run_id = run_id  # type: ignore[attr-defined]
+                error.artifact_id = artifact_id  # type: ignore[attr-defined]
+                error.dependency_resource_key = resource.resource_key  # type: ignore[attr-defined]
+                if error.reason_code == "invalid_json":
+                    # Content that is not even JSON is not a source answer
+                    # to cache and replay — TWSE has served an HTML
+                    # "網站維護中" maintenance page here live (Step 19-d,
+                    # 2026-09-17). A domain fact like `no_data_for_date`
+                    # stays captured forever on purpose; this is the one
+                    # shape that means the capture itself was never a real
+                    # response, so undo it.
+                    with self._engine.begin() as connection:
+                        self._discard_unusable_capture(
+                            connection, import_id=import_id,
+                            resource_key=resource.resource_key,
+                        )
+                    if not retried_once:
+                        # Discarding the checkpoint alone only helps a
+                        # later attempt under this same import_id — and a
+                        # dependency failure this tolerant of (ADR-0022 §8)
+                        # lets the primary resource finish `succeeded`,
+                        # whose completed checkpoint then short-circuits
+                        # every later run before it ever looks at this row
+                        # again. One immediate live retry actually gets the
+                        # self-healing the checkpoint discard was meant to
+                        # provide, instead of requiring an operator to
+                        # notice and start a fresh import_id by hand.
+                        retried_once = True
+                        continue
+                    # Still not a real answer. Quarantining just this row
+                    # would let the range finish `succeeded` and lose the
+                    # row for good under this import_id (the completed
+                    # checkpoint short-circuits every rerun). Fail the range
+                    # operationally instead: its own checkpoint stays
+                    # `captured`, the other rows' detail checkpoints replay,
+                    # and a rerun under the same import_id fetches this one
+                    # again (ADR-0022 §10).
+                    raise UnusableSourceResponseError(
+                        error.reason_code, resource.resource_key, str(error)
+                    ) from error
+                raise
+            return parsed, fetched_now, run_id, artifact_id, resource.resource_key
 
     @abstractmethod
     def _write_business(
@@ -809,6 +874,27 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
             )
         )
         return run_id, artifact_id, artifact_created
+
+    @staticmethod
+    def _discard_unusable_capture(
+        connection: Connection, *, import_id: UUID, resource_key: str
+    ) -> None:
+        """Drop a dependency's checkpoint so the next attempt fetches again.
+
+        The raw artifact itself is left alone — untouched, content-addressed
+        evidence that this response was seen (CLAUDE.md §28) — only the
+        pointer that says "this resource is done, do not re-fetch" is
+        removed. Scoped to `_capture_and_parse`'s dependency resources only:
+        a primary resource's own quarantine already lets a rerun fetch fresh
+        (its checkpoint moves to `quarantined`, which neither
+        `_captured_checkpoint` nor `_completed_checkpoint` matches).
+        """
+        connection.execute(
+            import_checkpoints.delete().where(
+                import_checkpoints.c.import_id == import_id,
+                import_checkpoints.c.resource_key == resource_key,
+            )
+        )
 
     @staticmethod
     def _complete_resource(

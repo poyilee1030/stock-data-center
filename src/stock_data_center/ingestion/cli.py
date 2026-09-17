@@ -39,12 +39,14 @@ from stock_data_center.ingestion.adapters import (
     TWSEWholeMarketDailyAdapter,
 )
 from stock_data_center.ingestion.backfill import (
+    CorporateActionBackfill,
     WholeMarketDailyBackfill,
     default_base_import_id,
     month_import_id,
 )
 from stock_data_center.ingestion.corporate_action import CorporateActionImporter
 from stock_data_center.ingestion.daily_market import DailyMarketImporter
+from stock_data_center.ingestion.http import RetryingFetcher
 from stock_data_center.ingestion.market_index import (
     MarketIndexImporter,
     TaiexHistoryImporter,
@@ -205,7 +207,28 @@ def main(argv: list[str] | None = None) -> int:
         "--executed-through",
         help="optional Gregorian YYYY-MM-DD; rows dated after it are counted, "
         "not turned into events (ADR-0019). Decided when the job is issued, "
-        "never from the fetch clock. Defaults to --end.",
+        "never from the fetch clock. Defaults to --end. Ignored with "
+        "--backfill, where each year's own end is its executed_through.",
+    )
+    corporate_action.add_argument(
+        "--backfill",
+        action="store_true",
+        help="walk --start..--end one calendar year at a time (ADR-0019: "
+        "about 7 requests per feed for 2020-2026), each year its own "
+        "checkpoint and import id",
+    )
+    corporate_action.add_argument(
+        "--min-interval-seconds",
+        type=float,
+        default=1.5,
+        help="throttle between years of a --backfill run",
+    )
+    corporate_action.add_argument(
+        "--min-detail-interval-seconds",
+        type=float,
+        default=1.5,
+        help="throttle between a range's per-row detail-page fetches "
+        "(TWT49U/TWTAUU); a full-history TWT49U range needs about 7,800",
     )
     corporate_action.add_argument("--import-id", type=UUID)
     corporate_action.add_argument("--raw-root", type=Path, default=Path("data/raw"))
@@ -428,23 +451,43 @@ def main(argv: list[str] | None = None) -> int:
                 "etfRvsRslt": TPExETFReverseSplitAdapter,
             }
             importer = CorporateActionImporter(
-                engine, raw_store=LocalRawArtifactStore(args.raw_root)
+                engine, raw_store=LocalRawArtifactStore(args.raw_root),
+                # A full-history run makes thousands of requests; capped so
+                # one transient response costs seconds, not a rerun.
+                fetcher=RetryingFetcher(
+                    attempts=8, backoff_seconds=lambda attempt: min(2.0 * 2**attempt, 30.0)
+                ),
+                min_detail_interval_seconds=args.min_detail_interval_seconds,
             )
             start = date.fromisoformat(args.start)
             end = date.fromisoformat(args.end)
             if end < start:
                 parser.error("--end must not be before --start")
-            executed_through = (
-                date.fromisoformat(args.executed_through)
-                if args.executed_through
-                else end
-            )
-            result = importer.run(
-                adapter=feed_adapters[args.feed](),
-                request=CorporateActionRangeRequest(start, end, executed_through),
-                import_id=import_id,
-                purpose=IngestPurpose(args.purpose),
-            )
+            if args.backfill:
+                adapter = feed_adapters[args.feed]()
+                base_import_id = args.import_id or default_base_import_id(
+                    adapter.source, start, end
+                )
+                backfill_report = CorporateActionBackfill(importer).run(
+                    adapter=adapter,
+                    start=start,
+                    end=end,
+                    base_import_id=base_import_id,
+                    purpose=IngestPurpose(args.purpose),
+                    min_interval_seconds=args.min_interval_seconds,
+                )
+            else:
+                executed_through = (
+                    date.fromisoformat(args.executed_through)
+                    if args.executed_through
+                    else end
+                )
+                result = importer.run(
+                    adapter=feed_adapters[args.feed](),
+                    request=CorporateActionRangeRequest(start, end, executed_through),
+                    import_id=import_id,
+                    purpose=IngestPurpose(args.purpose),
+                )
         else:
             adapters = {
                 ("twse", "listing"): TWSEListingHistoryAdapter,
