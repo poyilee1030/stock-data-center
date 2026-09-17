@@ -1309,7 +1309,7 @@
               "本益比"
             ],
             "audit_section": "4.6",
-            "note": "Published by both markets, as a multiple. TWSE `-` and TPEx `N/A` mean not computed and store NULL; a non-positive value quarantines its row."
+            "note": "Published by both markets, as a multiple. TWSE `-`, TPEx `N/A` and `null`, and a printed zero mean not computed and store NULL; a negative value quarantines its row."
           },
           "pb_ratio": {
             "coverage": "sourced",
@@ -1317,7 +1317,7 @@
               "股價淨值比"
             ],
             "audit_section": "4.6",
-            "note": "Published by both markets, as a multiple. A non-positive value quarantines its row."
+            "note": "Published by both markets, as a multiple, with the same not-computed markers as pe_ratio; a negative value quarantines its row."
           },
           "dividend_yield": {
             "coverage": "sourced",

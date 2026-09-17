@@ -368,11 +368,45 @@ Re-verified live 2026-09-17:
   earnings stock dividend for the prior year. 每股股利 is not adjusted for later
   capital changes. 股價淨值比 = 收盤價 / 每股淨值.
 - TPEx `財報年/季` is written `115Q2`, against TWSE's `115/2`.
-- A non-positive ratio that the notes do not explain: TPEx 2024-12-04 prints
+- Two first-day markers that the notes do not explain. TPEx 2024-12-04 prints
   `"0"` for both 本益比 and 股價淨值比 of 6720 久昌. That date is 6720's first
   row in the feed, in legacy `pe_ratio`, and in our daily prices. On 2024-12-05
-  the same feed prints 28.23 and 8.69. `0` is therefore neither the documented
-  `N/A` nor a real ratio, and its meaning is unproven.
+  the same feed prints 28.23 and 8.69. From 2021-07-26 to 2022-11-02, TPEx
+  prints the same first-day case as the string `"null"`, for example 6840 東研信超
+  on its first day, 2021-07-26. The legacy CSV has `"null"` there too.
+  By owner decision (ROADMAP 18-c), both mean not computed and store NULL. A
+  ratio of exactly zero is treated the same way on TWSE.
+
+Marker counts over the whole 2020-01-02 → 2026-09-11 backfill, each trade date
+counted once:
+
+| Source | Field | Value | Rows | Dates | First → last |
+| --- | --- | --- | ---: | ---: | --- |
+| TWSE | 本益比 | `-` | 309,579 | 1,627 | 2020-01-02 → 2026-09-11 |
+| TWSE | 股價淨值比 | `-` | 262 | 261 | 2021-01-06 → 2026-07-24 |
+| TWSE | either ratio | zero | 0 | 0 | — |
+| TPEx | 本益比 | `N/A` | 361,936 | 1,627 | 2020-01-02 → 2026-09-11 |
+| TPEx | 股價淨值比 | `N/A` | 178 | 157 | 2020-03-24 → 2025-06-20 |
+| TPEx | 本益比, 股價淨值比 | `"null"` | 379 each | 205 | 2021-07-26 → 2022-11-02 |
+| TPEx | 本益比, 股價淨值比 | `"0"` | 1 each | 1 | 2024-12-04 |
+
+Every TWSE file in the window has the 8-field header. Every TPEx file up to
+2024-12-31 has the 7-field header (1,216 dates), and every file from
+2025-01-02 has the 8-field one (411 dates).
+
+The legacy `pe_ratio` table disagrees with the official feed on 15 TWSE dates
+only, and on each of them the legacy file is a different date's file. Legacy
+checked neither the date nor the header of what it saved (section 3):
+
+- On 10 dates the legacy file is an exact copy of another official date,
+  sometimes earlier and sometimes later. For example, 2020-12-07 is the
+  2020-12-18 file, 2022-01-24 is the 2022-01-18 file, and both 2025-06-04 and
+  2025-06-05 are the 2025-06-18 file.
+- On 4 dates (2022-02-17, 2023-03-22, 2024-01-08, 2025-08-20) the archived
+  `sii.csv` files are byte-identical to one another. They hold data from
+  late 2017: 股利年度 105, 財報年/季 106/3.
+- On 2025-06-24 the legacy file is the 5-field header, which TWSE serves only
+  for older dates.
 
 PE, PB, yield, and dividend year are sourced for both markets.
 `dividend_per_share` exists for TPEx only. `report_period` exists for TWSE on

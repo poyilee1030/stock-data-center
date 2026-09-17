@@ -123,11 +123,56 @@ def stored_rows(connection, source: str, start: date, end: date) -> dict:
     return {(row["security_code"], row["trade_date"]): row for row in rows}
 
 
+def _agrees(ours: Decimal | None, theirs: float | None) -> bool:
+    if ours is None or theirs is None:
+        return ours is None and theirs is None
+    return abs(ours - Decimal(str(theirs))) <= TOLERANCE
+
+
+def _row_kind(ours: Decimal | None, theirs: float | None) -> str | None:
+    if _agrees(ours, theirs):
+        return None
+    if ours is None:
+        return "pe_ratio:ours_not_computed_legacy_value"
+    if theirs is None:
+        return "pe_ratio:ours_value_legacy_null"
+    return "pe_ratio:value_differs"
+
+
+def _best_matching_date(stored: dict, legacy_day: dict) -> tuple[str, float] | None:
+    """The stored trade date whose PE values the legacy file reproduces best."""
+    by_date: dict[date, dict[str, Decimal]] = {}
+    for (code, day), row in stored.items():
+        if row["pe_ratio"] is not None:
+            by_date.setdefault(day, {})[code] = row["pe_ratio"]
+    best = None
+    for day, values in by_date.items():
+        common = [
+            code for code, value in legacy_day.items()
+            if value is not None and code in values
+        ]
+        if not common:
+            continue
+        rate = sum(_agrees(values[code], legacy_day[code]) for code in common) / len(common)
+        if best is None or rate > best[1]:
+            best = (day.isoformat(), round(rate, 4))
+    return best
+
+
 def compare(connection, legacy, source: str, start: date, end: date) -> dict:
+    """Classify every legacy row, then every stored row legacy lacks.
+
+    A legacy date whose values mostly disagree is not a set of independent
+    differences. Legacy validated neither the date nor the header of the file
+    it saved (audit §3), and on those dates it saved another date's file. Such
+    a date is classified as a whole, with the official date its file actually
+    reproduces, so an ordinary disagreement cannot hide inside it.
+    """
     market, legacy_market = MARKETS[source]
     stored = stored_rows(connection, source, start, end)
     quarantined = quarantined_rows(connection, source)
-    legacy_rows = legacy.execute(
+    legacy_by_date: dict[date, dict[str, float | None]] = {}
+    for row in legacy.execute(
         sa.text(
             """
             SELECT date, symbol, pe_ratio
@@ -136,58 +181,76 @@ def compare(connection, legacy, source: str, start: date, end: date) -> dict:
             """
         ),
         {"market": legacy_market, "start": start.isoformat(), "end": end.isoformat()},
-    ).mappings()
+    ).mappings():
+        legacy_by_date.setdefault(date.fromisoformat(row["date"]), {})[
+            row["symbol"]
+        ] = row["pe_ratio"]
 
     differences: Counter[str] = Counter()
     by_date: dict[str, Counter[str]] = {}
     examples: dict[str, list[dict]] = {}
+    wrong_dates: dict[str, dict] = {}
     compared = 0
+    legacy_total = 0
     matched = set()
 
-    def note(kind: str, day: str, sample: dict) -> None:
+    def note(kind: str, day: date, sample: dict) -> None:
         differences[kind] += 1
-        by_date.setdefault(kind, Counter())[day] += 1
+        by_date.setdefault(kind, Counter())[day.isoformat()] += 1
         bucket = examples.setdefault(kind, [])
         if len(bucket) < 10:
             bucket.append(sample)
 
-    for row in legacy_rows:
-        day = date.fromisoformat(row["date"])
-        key = (row["symbol"], day)
-        mine = stored.get(key)
-        if mine is None:
-            if key in quarantined:
-                note(f"legacy_only:we_quarantined_{quarantined[key]}", row["date"],
-                     {"date": row["date"], "symbol": row["symbol"],
-                      "legacy": row["pe_ratio"]})
-            else:
-                note("legacy_only", row["date"],
-                     {"date": row["date"], "symbol": row["symbol"]})
+    for day in sorted(legacy_by_date):
+        rows = legacy_by_date[day]
+        legacy_total += len(rows)
+        present = [code for code in rows if (code, day) in stored]
+        agreeing = sum(
+            _agrees(stored[(code, day)]["pe_ratio"], rows[code]) for code in present
+        )
+        if present and agreeing / len(present) < 0.5:
+            wrong_dates[day.isoformat()] = {
+                "legacy_rows": len(rows),
+                "agreement": round(agreeing / len(present), 4),
+                "legacy_file_matches": _best_matching_date(stored, rows),
+            }
+            differences["legacy_captured_another_date:legacy_rows"] += len(rows)
+            matched.update((code, day) for code in present)
             continue
-        matched.add(key)
-        compared += 1
-        ours, theirs = mine["pe_ratio"], row["pe_ratio"]
-        if ours is None and theirs is None:
-            continue
-        sample = {"date": row["date"], "symbol": row["symbol"],
-                  "ours": None if ours is None else str(ours), "legacy": theirs}
-        if ours is None:
-            note("pe_ratio:ours_not_computed_legacy_value", row["date"], sample)
-        elif theirs is None:
-            note("pe_ratio:ours_value_legacy_null", row["date"], sample)
-        elif abs(ours - Decimal(str(theirs))) > TOLERANCE:
-            note("pe_ratio:value_differs", row["date"], sample)
+        for code, theirs in rows.items():
+            key = (code, day)
+            sample = {"date": day.isoformat(), "symbol": code, "legacy": theirs}
+            if key not in stored:
+                if key in quarantined:
+                    note(f"legacy_only:we_quarantined_{quarantined[key]}", day, sample)
+                else:
+                    note("legacy_only", day, sample)
+                continue
+            matched.add(key)
+            compared += 1
+            ours = stored[key]["pe_ratio"]
+            kind = _row_kind(ours, theirs)
+            if kind:
+                sample["ours"] = None if ours is None else str(ours)
+                note(kind, day, sample)
 
     source_only = [key for key in stored if key not in matched]
-    source_only_dates = Counter(key[1].isoformat() for key in source_only)
+    on_wrong_dates = sum(1 for key in source_only if key[1].isoformat() in wrong_dates)
+    if on_wrong_dates:
+        differences["legacy_captured_another_date:source_only_rows"] += on_wrong_dates
+    source_only_dates = Counter(
+        key[1].isoformat() for key in source_only
+        if key[1].isoformat() not in wrong_dates
+    )
+    # A quarantined row that a later adapter version stored is superseded.
+    open_quarantine = Counter(
+        reason for key, reason in quarantined.items() if key not in stored
+    )
     values = list(stored.values())
     return {
         "market": market,
         "stored_rows": len(stored),
-        "legacy_rows": compared + sum(
-            count for kind, count in differences.items()
-            if kind.startswith("legacy_only")
-        ),
+        "legacy_rows": legacy_total,
         "compared_rows": compared,
         "differences": dict(differences),
         "difference_dates": {
@@ -196,9 +259,11 @@ def compare(connection, legacy, source: str, start: date, end: date) -> dict:
             for kind, counter in by_date.items()
         },
         "difference_examples": examples,
-        "source_only_rows": len(source_only),
-        "source_only_top_dates": dict(source_only_dates.most_common(10)),
-        "quarantined_rows": dict(Counter(quarantined.values())),
+        "legacy_captured_another_date": wrong_dates,
+        "source_only_rows": len(source_only) - on_wrong_dates,
+        "source_only_dates": dict(sorted(source_only_dates.items())),
+        "quarantined_rows_open": dict(open_quarantine),
+        "quarantined_rows_superseded": len(quarantined) - sum(open_quarantine.values()),
         "new_data_non_null": {
             name: sum(1 for row in values if row[name] is not None)
             for name in ("pb_ratio", "dividend_yield", "dividend_year",
