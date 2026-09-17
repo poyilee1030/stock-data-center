@@ -78,6 +78,21 @@ def test_a_timeout_is_retried_too() -> None:
     assert fetcher.calls == 2
 
 
+def test_a_same_url_redirect_loop_is_retried_too() -> None:
+    """A 307 that does carry a `Location` but loops back to the same URL
+    exhausts httpx's own redirect limit before any status code reaches
+    `raise_for_status()` — a code-review finding on PR #28 caught that this
+    shape (already named in this module's own top comment) was not actually
+    among the retried exceptions."""
+    loop = httpx.TooManyRedirects(
+        "redirect loop", request=httpx.Request("GET", RESOURCE.source_uri)
+    )
+    fetcher = ScriptedFetcher([loop, _artifact()])
+    result = RetryingFetcher(fetcher, sleep=lambda _s: None).fetch(RESOURCE)
+    assert result.content == b"{}"
+    assert fetcher.calls == 2
+
+
 def test_the_first_attempt_is_not_delayed() -> None:
     sleeps: list[float] = []
     fetcher = ScriptedFetcher([_artifact()])

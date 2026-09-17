@@ -181,6 +181,48 @@ TWT49U 的除權息日常常同一天二三十家公司一起除息，整年失�
 （合法的「查無資料」回應)保留 checkpoint——它是穩定的事實，沒有理由
 為了同一個答案再打一次來源。
 
+### 9. PR #28 code review：checkpoint 清掉不等於會被重跑
+
+`/code-review medium` 對 §8 這次改動抓到 4 個問題，3 個是真的：
+
+- **清 checkpoint 沒有用。** §8 原本設計：`invalid_json` 清掉那一列的
+  checkpoint,靠「下一次重跑」重新發請求。但逐列容錯之後,主資源多半以
+  `succeeded` 收尾,而 `_completed_checkpoint` 只認 `succeeded`
+  ——同一個 import_id 的下一次 `run()` 會在最外層直接短路,連
+  `_capture_dependencies` 都不會進去,更不會碰到那個被清掉 checkpoint 的
+  列。清掉 checkpoint 因此只是理論上「以後可以重來」，實際上除非手動換一
+  個新 import_id,不會有任何後續動作去真的重新發請求。修法：
+  `_capture_and_parse` 現在在偵測到 `invalid_json` 時**當場**重新發一次
+  請求（僅一次)，把原本寄望「以後某次重跑」的自我修復,搬到同一次
+  `run()` 裡面真的發生。
+- **`_write_business` 的彙總看不到逐列隔離。** `BackfillYearResult`/
+  `CorporateActionBackfillReport` 原本沒有 `row_quarantined` 欄位,
+  `is_complete` 只看 `failed`——一年裡面有列被隔離,CLI 的彙總跟離開碼
+  完全看不出來,只有鑽進那一年自己的 manifest 才查得到,違反 CLAUDE.md
+  §78/§79「quarantined records reported」。修法：`_one_year` 讀回
+  `manifest.reconciliation["row_quarantined_count"]`,`BackfillYearResult`
+  多一個 `row_quarantined` 欄位,`CorporateActionBackfillReport.as_dict()`
+  同時輸出彙總數字跟逐年清單——不影響 `is_complete`（隔離是已知、可接受
+  的分類,不是失敗),但確保「有隔離」這件事在報告最上層看得到。
+- **`RetryingFetcher` 的註解自己說了會接住、其實沒接住。** 模組頂端註解
+  一直寫「no usable `Location`, or a loop back to the same URL」兩種情境
+  都會重試,但第二種（`Location` 指回同一個網址造成的重導向迴圈）會讓
+  httpx 自己先丟出 `httpx.TooManyRedirects`——這個例外繼承自
+  `RequestError`,跟 `TimeoutException`/`TransportError` 是平行的類別,
+  不會被目前的 `except` 接住。加進重試名單即可,實測沒有改變任何既有
+  行為。
+
+第四個（`_capture_dependencies` 第一個 `except SourceDataError` 假設
+`error.run_id`/`error.artifact_id`/`error.dependency_resource_key` 一定
+存在)追過程式碼後不成立——`_capture_and_parse` 目前只有 `adapter.parse()`
+會拋 `SourceDataError`,而那一行正是附加這三個屬性的地方；`_captured_
+checkpoint`/`_raw_store.read`/`put`/`fetcher.fetch` 都拋別的例外類別,
+不會經過這個分支。但這是共用框架方法,換一個 adapter 或以後改了
+`resource()` 的例外型別就會在例外處理器裡面再拋一個 `AttributeError`,
+把真正的錯誤原因蓋掉——用 `getattr` 讀、缺任何一個就直接重新拋出（等於
+整個 range 那個既有的「不知道怎麼分類就不要猜」邊界),便宜且不改變今天
+的行為。
+
 ## 已否決的替代方案
 
 **在 `corporate_action_versions` 上加一個 `retracted_at` 欄位。** 該表是

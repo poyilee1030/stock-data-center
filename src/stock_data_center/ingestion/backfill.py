@@ -318,6 +318,7 @@ class BackfillYearResult:
     rows: int = 0
     created: int = 0
     deduplicated: int = 0
+    row_quarantined: int = 0
     reason_code: str | None = None
     detail: str | None = None
 
@@ -355,6 +356,10 @@ class CorporateActionBackfillReport:
         return sum(item.deduplicated for item in self.results)
 
     @property
+    def row_quarantined(self) -> int:
+        return sum(item.row_quarantined for item in self.results)
+
+    @property
     def is_complete(self) -> bool:
         return self.failed == 0
 
@@ -371,6 +376,13 @@ class CorporateActionBackfillReport:
             "rows": self.rows,
             "business_versions_created": self.created,
             "business_versions_deduplicated": self.deduplicated,
+            # A quarantined row is not a range failure (ADR-0022 §8) — it
+            # can be a stable, expected domain fact (`no_data_for_date`) —
+            # so it does not affect `is_complete`. It is still surfaced
+            # here, per year, so CLAUDE.md §78/§79's "quarantined records
+            # reported" is satisfied at this report's own top level, not
+            # only inside each year's own manifest.
+            "row_quarantined_count": self.row_quarantined,
             "is_complete": self.is_complete,
             "failures": [
                 {
@@ -381,6 +393,11 @@ class CorporateActionBackfillReport:
                 }
                 for item in self.results
                 if item.status == "failed"
+            ],
+            "row_quarantines": [
+                {"year": item.year, "row_quarantined_count": item.row_quarantined}
+                for item in self.results
+                if item.row_quarantined
             ],
         }
 
@@ -474,12 +491,18 @@ class CorporateActionBackfill:
                 status="failed", reason_code="operational_error",
                 detail=f"{type(error).__name__}: {error}",
             )
+        # `ResourceImportResult` carries no reconciliation detail of its
+        # own; the per-row quarantine count (ADR-0022 §8) only exists on
+        # the manifest `_write_business` wrote it into.
+        with self._importer._engine.connect() as connection:
+            manifest = self._importer.manifest(connection, import_id)
         return BackfillYearResult(
             year=year, start=year_start, end=year_end, import_id=import_id,
             status="resumed" if result.resumed_from_checkpoint else "imported",
             rows=result.normalized_rows,
             created=result.business_versions_created,
             deduplicated=result.business_versions_deduplicated,
+            row_quarantined=manifest.reconciliation.get("row_quarantined_count", 0),
         )
 
 

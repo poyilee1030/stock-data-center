@@ -412,59 +412,74 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
         `dependency_resource_key`.
         """
         resource = adapter.resource(request)
-        with self._engine.begin() as connection:
-            captured = self._captured_checkpoint(
-                connection, import_id, resource.resource_key
-            )
-        if captured is not None:
-            content = self._raw_store.read(
-                storage_uri=captured.storage_uri,
-                expected_digest=captured.artifact_hash,
-                expected_byte_size=captured.byte_size,
-            )
-            fetched_now = False
-            run_id = captured.run_id
-            artifact_id = captured.artifact_id
-        else:
-            fetched = self._fetcher.fetch(resource)
-            stored = self._raw_store.put(fetched.content)
+        retried_once = False
+        while True:
             with self._engine.begin() as connection:
-                run_id, artifact_id, _ = self._capture_raw(
-                    connection,
-                    import_id=import_id,
-                    adapter=adapter,
-                    resource_key=resource.resource_key,
-                    stored=stored,
-                    source_uri=fetched.source_uri,
-                    fetched_at=fetched.fetched_at,
-                    media_type=fetched.media_type,
-                    purpose=purpose,
-                    artifact_origin=artifact_origin,
+                captured = self._captured_checkpoint(
+                    connection, import_id, resource.resource_key
                 )
-            content = fetched.content
-            fetched_now = True
-
-        try:
-            parsed = adapter.parse(content, request)
-        except SourceDataError as error:
-            error.run_id = run_id  # type: ignore[attr-defined]
-            error.artifact_id = artifact_id  # type: ignore[attr-defined]
-            error.dependency_resource_key = resource.resource_key  # type: ignore[attr-defined]
-            if error.reason_code == "invalid_json":
-                # Content that is not even JSON is not a source answer to
-                # cache and replay — TWSE has served an HTML "網站維護中"
-                # maintenance page here live (Step 19-d, 2026-09-17). A
-                # domain fact like `no_data_for_date` stays captured
-                # forever on purpose; this is the one shape that means the
-                # capture itself was never a real response, so undo it and
-                # let the next attempt fetch again instead of replaying the
-                # same garbage bytes indefinitely.
+            if captured is not None:
+                content = self._raw_store.read(
+                    storage_uri=captured.storage_uri,
+                    expected_digest=captured.artifact_hash,
+                    expected_byte_size=captured.byte_size,
+                )
+                fetched_now = False
+                run_id = captured.run_id
+                artifact_id = captured.artifact_id
+            else:
+                fetched = self._fetcher.fetch(resource)
+                stored = self._raw_store.put(fetched.content)
                 with self._engine.begin() as connection:
-                    self._discard_unusable_capture(
-                        connection, import_id=import_id, resource_key=resource.resource_key
+                    run_id, artifact_id, _ = self._capture_raw(
+                        connection,
+                        import_id=import_id,
+                        adapter=adapter,
+                        resource_key=resource.resource_key,
+                        stored=stored,
+                        source_uri=fetched.source_uri,
+                        fetched_at=fetched.fetched_at,
+                        media_type=fetched.media_type,
+                        purpose=purpose,
+                        artifact_origin=artifact_origin,
                     )
-            raise
-        return parsed, fetched_now, run_id, artifact_id, resource.resource_key
+                content = fetched.content
+                fetched_now = True
+
+            try:
+                parsed = adapter.parse(content, request)
+            except SourceDataError as error:
+                error.run_id = run_id  # type: ignore[attr-defined]
+                error.artifact_id = artifact_id  # type: ignore[attr-defined]
+                error.dependency_resource_key = resource.resource_key  # type: ignore[attr-defined]
+                if error.reason_code == "invalid_json":
+                    # Content that is not even JSON is not a source answer
+                    # to cache and replay — TWSE has served an HTML
+                    # "網站維護中" maintenance page here live (Step 19-d,
+                    # 2026-09-17). A domain fact like `no_data_for_date`
+                    # stays captured forever on purpose; this is the one
+                    # shape that means the capture itself was never a real
+                    # response, so undo it.
+                    with self._engine.begin() as connection:
+                        self._discard_unusable_capture(
+                            connection, import_id=import_id,
+                            resource_key=resource.resource_key,
+                        )
+                    if not retried_once:
+                        # Discarding the checkpoint alone only helps a
+                        # later attempt under this same import_id — and a
+                        # dependency failure this tolerant of (ADR-0022 §8)
+                        # lets the primary resource finish `succeeded`,
+                        # whose completed checkpoint then short-circuits
+                        # every later run before it ever looks at this row
+                        # again. One immediate live retry actually gets the
+                        # self-healing the checkpoint discard was meant to
+                        # provide, instead of requiring an operator to
+                        # notice and start a fresh import_id by hand.
+                        retried_once = True
+                        continue
+                raise
+            return parsed, fetched_now, run_id, artifact_id, resource.resource_key
 
     @abstractmethod
     def _write_business(

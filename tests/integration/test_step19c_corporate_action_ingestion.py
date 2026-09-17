@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, date, datetime
 from pathlib import Path
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -17,6 +18,8 @@ from stock_data_center.ingestion.corporate_action import CorporateActionImporter
 from stock_data_center.ingestion.models import (
     CorporateActionRangeRequest,
     FetchedArtifact,
+    ResourceQuarantinedError,
+    SourceDataError,
     SourceResource,
 )
 from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
@@ -85,6 +88,31 @@ class DispatchFetcher:
             fetched_at=datetime.now(UTC),
             media_type="application/json",
         )
+
+
+class _FlakyOnceFetcher(DispatchFetcher):
+    """Answers `flaky_key`'s first request with `first_answer`, then falls
+    back to the normal per-key content for every later request."""
+
+    def __init__(
+        self, content_by_key: dict[str, bytes], *, flaky_key: str, first_answer: bytes,
+    ) -> None:
+        super().__init__(content_by_key)
+        self._flaky_key = flaky_key
+        self._first_answer = first_answer
+        self._served_flaky = False
+
+    def fetch(self, resource: SourceResource) -> FetchedArtifact:
+        if resource.resource_key == self._flaky_key and not self._served_flaky:
+            self._served_flaky = True
+            self.calls.append(resource.resource_key)
+            return FetchedArtifact(
+                content=self._first_answer,
+                source_uri=resource.source_uri,
+                fetched_at=datetime.now(UTC),
+                media_type="application/json",
+            )
+        return super().fetch(resource)
 
 
 def _detail_key(code: str, locator_date: str) -> str:
@@ -471,6 +499,54 @@ def test_a_garbled_detail_page_quarantines_its_row_and_clears_its_checkpoint(
         engine.dispose()
 
 
+def test_a_garbled_detail_page_is_retried_once_in_place(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """A code-review finding on PR #28: discarding a garbled page's
+    checkpoint only helps a later attempt under the same import_id — but
+    per-row tolerance (ADR-0022 §8) usually lets the primary resource
+    finish `succeeded`, whose completed checkpoint then short-circuits any
+    later run before it looks at this row again, so the discard alone could
+    never self-heal in practice. `_capture_and_parse` now retries once,
+    live, right where it discovers the garbled page — recovering within the
+    same run rather than requiring an operator to notice and start a fresh
+    import_id by hand."""
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        garbled = b"<!DOCTYPE html><html><body>\xe7\xb6\xb2\xe7\xb6\xad\xe8\xad\xb7\xe4\xb8\xad</body></html>"
+        list_key = "twse_twt49u:2024-01-01:2024-12-31"
+        detail_key = _detail_key("2454", "20240104")
+        fetcher = _FlakyOnceFetcher(
+            {list_key: FULL_YEAR, **DETAILS_2024}, flaky_key=detail_key, first_answer=garbled,
+        )
+        importer = CorporateActionImporter(
+            engine, raw_store=LocalRawArtifactStore(tmp_path / "raw"),
+            fetcher=fetcher, sleep=lambda _seconds: None,
+        )
+        result = importer.run(
+            adapter=TWSEExRightAdapter(),
+            request=CorporateActionRangeRequest(
+                date(2024, 1, 1), date(2024, 12, 31), date(2024, 12, 31)
+            ),
+            import_id=uuid4(),
+            git_commit="test-commit",
+            purpose=IngestPurpose.FIRST_CAPTURE,
+        )
+        assert result.business_versions_created == 3
+        with engine.connect() as connection:
+            assert connection.scalar(
+                sa.text("SELECT count(*) FROM import_quarantine")
+            ) == 0
+            assert connection.scalar(
+                sa.text("SELECT status FROM import_checkpoints WHERE resource_key = :k"),
+                {"k": detail_key},
+            ) == "captured"
+        # Once for the garbled answer, once for the real retry.
+        assert fetcher.calls.count(detail_key) == 2
+    finally:
+        engine.dispose()
+
+
 def test_a_genuine_no_data_detail_quarantines_its_row_and_keeps_its_checkpoint(
     isolated_database_url: str, tmp_path: Path
 ) -> None:
@@ -505,5 +581,47 @@ def test_a_genuine_no_data_detail_quarantines_its_row_and_keeps_its_checkpoint(
                 {"k": _detail_key("2454", "20240104")},
             )
             assert checkpoint_status == "captured"
+    finally:
+        engine.dispose()
+
+
+def test_a_dependency_failure_with_no_real_provenance_still_aborts_the_range(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """A code-review finding on PR #28: the per-row handler assumed every
+    `SourceDataError` from `_capture_and_parse` carries `run_id`/
+    `artifact_id`/`dependency_resource_key` — true today (its only source is
+    `adapter.parse`, which does attach them), but nothing enforces it for a
+    future adapter or a future `_capture_and_parse` change. A `SourceDataError`
+    missing them has no real per-resource provenance to quarantine against,
+    so it must still abort the whole range rather than fabricate identity —
+    proven here by making `_capture_and_parse` raise a bare one directly."""
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        importer = CorporateActionImporter(
+            engine, raw_store=LocalRawArtifactStore(tmp_path / "raw"),
+            fetcher=DispatchFetcher({"twse_twt49u:2024-01-01:2024-12-31": FULL_YEAR}),
+            sleep=lambda _seconds: None,
+        )
+        with (
+            patch.object(
+                importer, "_capture_and_parse",
+                side_effect=SourceDataError("no_provenance", "no attributes attached"),
+            ),
+            pytest.raises(ResourceQuarantinedError, match="no_provenance"),
+        ):
+            importer.run(
+                adapter=TWSEExRightAdapter(),
+                request=CorporateActionRangeRequest(
+                    date(2024, 1, 1), date(2024, 12, 31), date(2024, 12, 31)
+                ),
+                import_id=uuid4(),
+                git_commit="test-commit",
+                purpose=IngestPurpose.FIRST_CAPTURE,
+            )
+        with engine.connect() as connection:
+            assert connection.scalar(
+                sa.text("SELECT count(*) FROM corporate_action_versions")
+            ) == 0
     finally:
         engine.dispose()

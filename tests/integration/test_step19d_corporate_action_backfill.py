@@ -10,7 +10,10 @@ from uuid import uuid4
 import pytest
 import sqlalchemy as sa
 
-from stock_data_center.ingestion.adapters import TWSEParValueChangeAdapter
+from stock_data_center.ingestion.adapters import (
+    TWSEExRightAdapter,
+    TWSEParValueChangeAdapter,
+)
 from stock_data_center.ingestion.backfill import (
     CorporateActionBackfill,
     default_base_import_id,
@@ -216,6 +219,68 @@ def test_a_bad_year_is_reported_not_fatal(
             assert connection.scalar(
                 sa.text("SELECT count(*) FROM raw_artifacts")
             ) == 2
+    finally:
+        engine.dispose()
+
+
+TWT49U_2024 = json.loads((FIXTURES / "twse_twt49u_2024.json").read_bytes())
+_ALL_TWT49U_2024_ROWS = TWT49U_2024["data"]
+
+
+def _twt49u_row(code: str, event_date: str) -> list[str]:
+    return next(
+        r for r in _ALL_TWT49U_2024_ROWS if r[1].strip() == code and r[0] == event_date
+    )
+
+
+def _twt49u_year_payload(rows: list[list[str]]) -> bytes:
+    payload = dict(TWT49U_2024)
+    payload["data"] = rows
+    payload["strDate"] = "20240101"
+    payload["endDate"] = "20241231"
+    return json.dumps(payload, ensure_ascii=False).encode("utf-8")
+
+
+def test_a_row_quarantined_within_a_year_is_surfaced_in_the_report(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """A code-review finding on PR #28: `BackfillYearResult` had no
+    `row_quarantined` field, so `is_complete`/the CLI's own summary could
+    not tell a year with a real per-row quarantine (ADR-0022 §8) from one
+    with none — CLAUDE.md §78/§79 need quarantined records reported at this
+    report's own top level, not only inside each year's manifest."""
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        row_2454 = _twt49u_row("2454", "113年01月04日")  # detail will be empty
+        row_6442 = _twt49u_row("6442", "113年01月10日")  # detail resolves fine
+        detail_empty = (FIXTURES / "twse_detail_empty.json").read_bytes()
+        detail_6442 = (FIXTURES / "twse_detail_49_6442_20240110.json").read_bytes()
+        fetcher = DispatchFetcher({
+            "twse_twt49u:2024-01-01:2024-12-31": _twt49u_year_payload(
+                [row_2454, row_6442]
+            ),
+            "twse_twt49u:detail:2454:TWT49U:20240104": detail_empty,
+            "twse_twt49u:detail:6442:TWT49U:20240110": detail_6442,
+        })
+        importer = CorporateActionImporter(
+            engine, raw_store=LocalRawArtifactStore(tmp_path / "raw"),
+            fetcher=fetcher, sleep=lambda _seconds: None,
+        )
+        backfill = CorporateActionBackfill(importer, sleep=lambda _s: None)
+        report = backfill.run(
+            adapter=TWSEExRightAdapter(),
+            start=date(2024, 1, 1), end=date(2024, 12, 31),
+            base_import_id=uuid4(),
+            purpose=IngestPurpose.FIRST_CAPTURE,
+        )
+        assert report.failed == 0
+        assert report.is_complete is True
+        assert report.row_quarantined == 1
+        as_dict = report.as_dict()
+        assert as_dict["row_quarantined_count"] == 1
+        assert as_dict["row_quarantines"] == [
+            {"year": 2024, "row_quarantined_count": 1}
+        ]
     finally:
         engine.dispose()
 

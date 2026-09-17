@@ -85,6 +85,16 @@ class RetryingFetcher:
                 if error.response.status_code not in _RETRYABLE_STATUSES:
                     raise
                 last_error = error
-            except (httpx.TimeoutException, httpx.TransportError) as error:
+            except (
+                httpx.TimeoutException,
+                httpx.TransportError,
+                # A 307 that does carry a `Location` but loops back to the
+                # same URL — the other shape this class's own module
+                # comment already claims to cover — surfaces here, not as
+                # an `HTTPStatusError`: `follow_redirects=True` exhausts
+                # httpx's own redirect limit before any status code
+                # reaches `raise_for_status()`.
+                httpx.TooManyRedirects,
+            ) as error:
                 last_error = error
         raise last_error  # type: ignore[misc]

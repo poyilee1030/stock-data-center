@@ -209,13 +209,31 @@ class CorporateActionImporter(
                             )
                         )
                     except SourceDataError as error:
+                        row_run_id = getattr(error, "run_id", None)
+                        row_artifact_id = getattr(error, "artifact_id", None)
+                        row_resource_key = getattr(
+                            error, "dependency_resource_key", None
+                        )
+                        if (
+                            row_run_id is None
+                            or row_artifact_id is None
+                            or row_resource_key is None
+                        ):
+                            # Not one of `_capture_and_parse`'s own
+                            # failures — there is no real per-resource
+                            # provenance to quarantine against, so this is
+                            # the same "the range doesn't match its own
+                            # contract" failure a list-level parse error
+                            # would be, and it still aborts the whole
+                            # range rather than fabricate identity for it.
+                            raise
                         failed[key] = _RowQuarantine(
                             import_id=import_id,
                             reason_code=error.reason_code,
                             detail=str(error),
-                            run_id=error.run_id,  # type: ignore[attr-defined]
-                            artifact_id=error.artifact_id,  # type: ignore[attr-defined]
-                            resource_key=error.dependency_resource_key,  # type: ignore[attr-defined]
+                            run_id=row_run_id,
+                            artifact_id=row_artifact_id,
+                            resource_key=row_resource_key,
                         )
                         requested_source = True
                     else:
