@@ -4,7 +4,8 @@ Every fixture is a live response from 2026-09-17, fetched with the URL the
 adapter builds. `twse_bwibbu_d_20170103.json` is the real 5-field variant: TWSE
 still serves it for older dates, and it is the header the legacy archive holds
 for 2025-06-24 (audit §4.6). `tpex_peqrydate_20241204.json` carries 6720's
-first-day `"0"` ratios.
+first-day `"0"` ratios, and `tpex_peqrydate_20210726.json` 6840's first-day
+`"null"` ones — the raw artifact the 2020-2026 backfill stored.
 """
 
 from __future__ import annotations
@@ -33,6 +34,7 @@ TWSE_CLOSED = (FIXTURES / "twse_bwibbu_d_20260913_closed.json").read_bytes()
 TPEX = (FIXTURES / "tpex_peqrydate_20260911.json").read_bytes()
 TPEX_2020 = (FIXTURES / "tpex_peqrydate_20200102.json").read_bytes()
 TPEX_ZERO = (FIXTURES / "tpex_peqrydate_20241204.json").read_bytes()
+TPEX_NULL = (FIXTURES / "tpex_peqrydate_20210726.json").read_bytes()
 TPEX_CLOSED = (FIXTURES / "tpex_peqrydate_20260913_closed.json").read_bytes()
 
 DAY = date(2026, 9, 11)
@@ -215,14 +217,45 @@ def test_tpex_na_means_not_computed() -> None:
     assert ky.pb_ratio == Decimal("1.02")
 
 
-def test_tpex_first_day_zero_ratios_reject_only_that_row() -> None:
-    """6720 久昌, 2024-12-04: `"0"` is neither the documented `N/A` nor a ratio."""
+def test_tpex_first_day_zero_ratios_mean_not_computed() -> None:
+    """6720 久昌, 2024-12-04: TPEx prints `"0"` for both ratios on a first
+    listed day. Stored as not computed, by owner decision (ROADMAP 18-c)."""
     parsed = tpex(TPEX_ZERO, date(2024, 12, 4))
-    assert len(parsed.rows) == 830
+    assert len(parsed.rows) == 831
+    assert parsed.rejected == ()
+    first_day = one(parsed, "6720")
+    assert first_day.pe_ratio is None
+    assert first_day.pb_ratio is None
+    assert first_day.dividend_yield == Decimal("1.03")
+    assert first_day.dividend_per_share == TwdAmount(Decimal("1.68000000"))
+
+
+def test_tpex_null_string_means_not_computed() -> None:
+    """6840 東研信超, 2021-07-26: the same first-day case, printed `"null"`
+    (TPEx did this from 2021-07-26 to 2022-11-02; the legacy CSV has it too)."""
+    parsed = tpex(TPEX_NULL, date(2021, 7, 26))
+    assert len(parsed.rows) == 787
+    first_day = one(parsed, "6840")
+    assert first_day.pe_ratio is None
+    assert first_day.pb_ratio is None
+    assert first_day.dividend_yield == Decimal("0.00")
+
+
+def test_tpex_negative_ratio_rejects_only_that_row() -> None:
+    negative = mutate(TPEX, lambda p: p["tables"][0]["data"][0].__setitem__(2, "-1.00"))
+    parsed = tpex(negative)
+    assert len(parsed.rows) == 884
     assert [(r.security_code, r.reason_code) for r in parsed.rejected] == [
-        ("6720", "nonpositive_ratio")
+        ("1240", "nonpositive_ratio")
     ]
-    assert "6720" not in {row.security_code for row in parsed.rows}
+
+
+def test_twse_zero_ratio_is_not_a_tpex_marker() -> None:
+    """The zero rule is TPEx's; TWSE documents only `-`."""
+    zero = mutate(TWSE, lambda p: p["data"][1].__setitem__(6, "0"))
+    assert [r.reason_code for r in twse(zero).rejected] == ["nonpositive_ratio"]
+    null = mutate(TWSE, lambda p: p["data"][1].__setitem__(6, "null"))
+    assert reason(lambda: twse(null)) == "unrecognised_value"
 
 
 def test_tpex_rejects_the_twse_report_period_format() -> None:

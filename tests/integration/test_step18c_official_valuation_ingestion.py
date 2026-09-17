@@ -107,13 +107,40 @@ def test_one_twse_valuation_date_imports_and_resolves(
         engine.dispose()
 
 
-def test_a_zero_ratio_row_is_quarantined_and_the_date_still_imports(
+def test_a_first_day_zero_ratio_is_stored_as_not_computed(
     isolated_database_url: str, tmp_path: Path
 ) -> None:
     engine = sa.create_engine(isolated_database_url)
     try:
         result, manifest = run(engine, tmp_path, adapter=TPExOfficialValuationAdapter(),
                                content=TPEX_ZERO, day=date(2024, 12, 4))
+        assert manifest.status == "succeeded"
+        assert result.business_versions_created == 831
+        assert manifest.result_counts["rejected_quarantined_count"] == 0
+        with engine.connect() as connection:
+            record = MarketReferenceService().official_valuation(
+                connection, security_code="6720", trade_date=date(2024, 12, 4),
+                context=later(), source="tpex_pe_qry_date",
+            )
+        assert record is not None
+        assert record.data["pe_ratio"] is None
+        assert record.data["pb_ratio"] is None
+        assert float(record.data["dividend_yield"]) == 1.03
+    finally:
+        engine.dispose()
+
+
+def test_a_negative_ratio_row_is_quarantined_and_the_date_still_imports(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        payload = json.loads(TPEX_ZERO)
+        row = next(r for r in payload["tables"][0]["data"] if r[0] == "6720")
+        row[2] = "-3.00"
+        negative = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        result, manifest = run(engine, tmp_path, adapter=TPExOfficialValuationAdapter(),
+                               content=negative, day=date(2024, 12, 4))
         assert manifest.status == "succeeded"
         assert result.business_versions_created == 830
         assert manifest.result_counts["rejected_quarantined_count"] == 1
@@ -128,7 +155,8 @@ def test_a_zero_ratio_row_is_quarantined_and_the_date_still_imports(
                 "WHERE s.security_code = '6720'"
             ))
         assert quarantined[0] == "nonpositive_ratio"
-        assert "6720" in quarantined[1]
+        assert "(6720)" in quarantined[1]
+        assert "2024-12-04" in quarantined[1]
         assert quarantined[2]
         assert stored == 0
     finally:

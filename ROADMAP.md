@@ -598,7 +598,7 @@ Status date: 2026-09-16.
 | 17-c | MERGED | Whole-market daily-price history backfill and reconciliation |
 | 18-a | MERGED | Market-index adapters |
 | 18-b | MERGED | Market-index import path and backfill |
-| 18-c | PLANNED | Official valuation |
+| 18-c | THIS STEP | Official valuation |
 | 19-a | MERGED | Result-feed contract, storage precision, and the TPEx adapters |
 | 19-b | MERGED | TWSE result-feed adapters and their detail pages |
 | 19-c | MERGED | Corporate-action import path, retraction included |
@@ -1027,10 +1027,23 @@ evidence.
 
 ### Step 18-c — Official valuation
 
-Status: **PLANNED**. Depends on: Step 18-b.
+Status: **IN REVIEW**. Depends on: Step 18-b.
 
 In scope: the `BWIBBU_d` and TPEx `pera` adapters, their importer, source policy
 and coverage declarations, and the backfill.
+
+Decided 2026-09-17, by owner decision on the evidence below:
+
+- TPEx is read from `www/zh-tw/afterTrading/peQryDate` JSON (source code
+  `tpex_pe_qry_date`), not the legacy CSV. The legacy `pera.php` page redirects
+  to the page that loads this JSON, and the two are identical row for row.
+  TWSE is `twse_bwibbu_d`.
+- A published ratio of zero or below quarantines its own row. TPEx prints `"0"`
+  for both ratios of 6720 on its first listed day (2024-12-04), and no official
+  note explains it. The other rows of the file still import. `-` and `N/A` are
+  each source's documented not-computed marker and store NULL.
+- `財報年/季` is stored as Gregorian `YYYYQn` from each exchange's own format,
+  and `股利年度` as ROC + 1911.
 
 *Corrected 2026-09-17 (audit §4.6).* The earlier text said the TPEx feed is
 big5 CSV with no JSON alternative and no self-declared report date. Both

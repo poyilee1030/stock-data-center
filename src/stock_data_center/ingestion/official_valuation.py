@@ -78,7 +78,8 @@ class OfficialValuationImporter(
             raise TypeError("OfficialValuationImporter requires an OfficialValuationAdapter")
         return {
             "market": adapter.market,
-            "not_computed_marker": adapter.not_computed,
+            "not_computed_markers": sorted(adapter.not_computed),
+            "zero_ratio_not_computed": adapter.zero_ratio_not_computed,
             "ratio_unit": "multiple",
             "dividend_yield_unit": "percentage_points",
             "dividend_per_share_unit": (
@@ -86,7 +87,7 @@ class OfficialValuationImporter(
             ),
             "dividend_year": "ROC year + 1911",
             "report_period": "Gregorian YYYYQn",
-            "nonpositive_ratio": "row quarantined",
+            "other_nonpositive_ratio": "row quarantined",
         }
 
     def _dataset_description(self, adapter) -> str:

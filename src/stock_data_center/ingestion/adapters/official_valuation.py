@@ -15,10 +15,12 @@ The two exchanges write the report period differently — TWSE `115/2`, TPEx
 in the other exchange's format is a format change, not a synonym.
 
 `-` (TWSE) and `N/A` (TPEx) are each source's own "not computed" marker and
-store as NULL. A ratio of zero or below is something else: TPEx prints `"0"`
-for both ratios of 6720 on its first listed day, and no official note explains
-it. That row is rejected on its own rather than guessed at, and the rest of the
-file imports.
+store as NULL. TPEx also prints its first listed day's ratios as `"null"`
+(2021-07-26 → 2022-11-02, 6840 and others) and later as `"0"` (6720,
+2024-12-04). No official note explains either, and both store as NULL by owner
+decision (ROADMAP 18-c). That rule is TPEx's alone. Any other ratio at or below
+zero, and any negative yield or dividend, rejects its own row rather than being
+guessed at, and the rest of the file imports.
 
 Neither feed states a unit. The ratios are multiples, `殖利率(%)` is
 percentage points, and TPEx `每股股利` is TWD per share by the formula its notes
@@ -67,8 +69,10 @@ class OfficialValuationAdapter(ABC):
     endpoint: str
     # Header variant name -> exact published fields.
     variants: Mapping[str, tuple[str, ...]]
-    # This source's own "not computed" marker.
-    not_computed: str
+    # This source's own "not computed" markers.
+    not_computed: frozenset[str]
+    # Whether a ratio printed as exactly zero also means not computed.
+    zero_ratio_not_computed: bool = False
     report_period_pattern: re.Pattern[str]
 
     @abstractmethod
@@ -182,8 +186,8 @@ class OfficialValuationAdapter(ABC):
             if value is not None and value <= 0:
                 raise _RowRejected(
                     "nonpositive_ratio",
-                    f"{name} is {value}, which is neither a ratio nor the "
-                    f"source's not-computed marker {self.not_computed!r}",
+                    f"{name} is {value}, which is neither a ratio nor one of "
+                    f"the source's not-computed markers {sorted(self.not_computed)!r}",
                 )
         for name, value in (("殖利率(%)", dividend_yield), ("每股股利", dividend_per_share)):
             if value is not None and value < 0:
@@ -215,7 +219,7 @@ class OfficialValuationAdapter(ABC):
 
     def _number(self, value: object, number: int, field: str) -> Decimal | None:
         text = self._cell_text(value, number, field).strip()
-        if text == self.not_computed:
+        if text in self.not_computed:
             return None
         normalized = text.replace(",", "")
         if not re.fullmatch(r"-?\d+(\.\d+)?", normalized):
@@ -227,6 +231,12 @@ class OfficialValuationAdapter(ABC):
             return Decimal(normalized)
         except InvalidOperation as error:  # pragma: no cover - guarded above
             raise SourceDataError("unrecognised_value", str(error)) from error
+
+    def _ratio(self, value: object, number: int, field: str) -> Decimal | None:
+        result = self._number(value, number, field)
+        if self.zero_ratio_not_computed and result == 0:
+            return None
+        return result
 
     def _dividend_year(self, value: object, number: int) -> int:
         if isinstance(value, bool) or not (
@@ -268,7 +278,7 @@ class TWSEOfficialValuationAdapter(OfficialValuationAdapter):
         ),
         "bwibbu_5": ("證券代號", "證券名稱", "本益比", "殖利率(%)", "股價淨值比"),
     })
-    not_computed = "-"
+    not_computed = frozenset({"-"})
     report_period_pattern = re.compile(r"(?P<year>\d{2,3})/(?P<quarter>[1-4])")
 
     def resource(self, request: OfficialValuationRequest) -> SourceResource:
@@ -312,8 +322,8 @@ class TWSEOfficialValuationAdapter(OfficialValuationAdapter):
         full = "財報年/季" in cells
         return self._build(
             request,
-            pe=self._number(cells["本益比"], number, "本益比"),
-            pb=self._number(cells["股價淨值比"], number, "股價淨值比"),
+            pe=self._ratio(cells["本益比"], number, "本益比"),
+            pb=self._ratio(cells["股價淨值比"], number, "股價淨值比"),
             dividend_yield=self._number(cells["殖利率(%)"], number, "殖利率(%)"),
             dividend_year=(
                 self._dividend_year(cells["股利年度"], number) if full else None
@@ -328,7 +338,7 @@ class TPExOfficialValuationAdapter(OfficialValuationAdapter):
 
     source = "tpex_pe_qry_date"
     market = "TPEx"
-    version = "tpex-pe-qry-date:v1"
+    version = "tpex-pe-qry-date:v2"
     endpoint = "https://www.tpex.org.tw/www/zh-tw/afterTrading/peQryDate"
     _fields = (
         "股票代號", "公司名稱", "本益比", "每股股利", "股利年度", "殖利率(%)",
@@ -339,7 +349,8 @@ class TPExOfficialValuationAdapter(OfficialValuationAdapter):
         # Before 2025-01-02 the file has no report period at all.
         "pe_qry_date_7": _fields,
     })
-    not_computed = "N/A"
+    not_computed = frozenset({"N/A", "null"})
+    zero_ratio_not_computed = True
     report_period_pattern = re.compile(r"(?P<year>\d{2,3})Q(?P<quarter>[1-4])")
 
     def resource(self, request: OfficialValuationRequest) -> SourceResource:
@@ -386,8 +397,8 @@ class TPExOfficialValuationAdapter(OfficialValuationAdapter):
     def _observation(self, request, cells, number):
         return self._build(
             request,
-            pe=self._number(cells["本益比"], number, "本益比"),
-            pb=self._number(cells["股價淨值比"], number, "股價淨值比"),
+            pe=self._ratio(cells["本益比"], number, "本益比"),
+            pb=self._ratio(cells["股價淨值比"], number, "股價淨值比"),
             dividend_yield=self._number(cells["殖利率(%)"], number, "殖利率(%)"),
             dividend_year=self._dividend_year(cells["股利年度"], number),
             dividend_per_share=self._number(cells["每股股利"], number, "每股股利"),
