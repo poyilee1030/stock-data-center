@@ -93,6 +93,14 @@ the final dataset (only whole-range ones from before §8 existed, already
 superseded by a later successful attempt), so this PR's own acceptance
 numbers above were never affected by the gap.
 
+A second pass found the inline retry insufficient on its own: a maintenance
+window outlasts one immediate retry, and a row quarantined on the second
+garbled answer was still lost for good behind a `succeeded` range while the
+backfill reported complete. Garbled content that survives the retry now fails
+the range resumably (`UnusableSourceResponseError`, ADR-0022 §10): no
+quarantine, the year reports `failed`, the CLI exits 1, and a rerun under the
+same import id refetches only the details it never captured.
+
 ## Known limitations / deferred work
 
 - TWT49U's 2887-series gap is permanent and will keep appearing every year

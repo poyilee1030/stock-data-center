@@ -21,6 +21,7 @@ from stock_data_center.ingestion.models import (
     ResourceQuarantinedError,
     SourceDataError,
     SourceResource,
+    UnusableSourceResponseError,
 )
 from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
 from stock_data_center.provenance import IngestPurpose
@@ -458,43 +459,64 @@ def test_a_fully_resumed_run_makes_no_detail_fetches_or_waits(
         engine.dispose()
 
 
-def test_a_garbled_detail_page_quarantines_its_row_and_clears_its_checkpoint(
+def test_a_persistently_garbled_detail_page_fails_the_range_resumably(
     isolated_database_url: str, tmp_path: Path
 ) -> None:
     """TWSE served an HTML maintenance page for one detail request live
     (Step 19-d, 2026-09-17): `<!DOCTYPE html>...網站維護中...`, not JSON at
-    all. Per-row tolerance (ADR-0022 §8) means 2454 quarantines on its own
-    and 6442/2543 still complete — but unlike a real `no_data_for_date`,
-    garbled content is not a source answer worth caching forever, so its
-    checkpoint clears too (a later pass under a fresh import id, e.g. a
-    correction check, gets a real fetch instead of replaying garbage)."""
+    all. A maintenance window outlasts one inline retry, and quarantining
+    just that row would let the range finish `succeeded`, whose completed
+    checkpoint then short-circuits every rerun: the row would be lost for
+    good under this import_id (ADR-0022 §10). Garbled content that survives
+    the retry therefore fails the range operationally — no quarantine row,
+    the range's own checkpoint stays `captured`, the garbled detail's
+    checkpoint is dropped — and a rerun under the same import_id replays the
+    list, fetches that page again, and completes."""
     engine = sa.create_engine(isolated_database_url)
     try:
         garbled = b"<!DOCTYPE html><html><body>\xe7\xb6\xb2\xe7\xb6\xad\xe8\xad\xb7\xe4\xb8\xad</body></html>"
-        _, manifest, _ = run_range(
-            engine, tmp_path,
-            content=FULL_YEAR,
-            details={**DETAILS_2024, _detail_key("2454", "20240104"): garbled},
-            start=date(2024, 1, 1), end=date(2024, 12, 31),
-            executed_through=date(2024, 12, 31),
-        )
-        assert manifest.status == "succeeded"
-        assert manifest.reconciliation["row_quarantined_count"] == 1
+        import_id = uuid4()
+        detail_key = _detail_key("2454", "20240104")
+        with pytest.raises(UnusableSourceResponseError):
+            run_range(
+                engine, tmp_path,
+                content=FULL_YEAR,
+                details={**DETAILS_2024, detail_key: garbled},
+                start=date(2024, 1, 1), end=date(2024, 12, 31),
+                executed_through=date(2024, 12, 31), import_id=import_id,
+            )
         with engine.connect() as connection:
+            assert CorporateActionImporter.manifest(
+                connection, import_id
+            ).status == "failed"
+            assert connection.scalar(
+                sa.text("SELECT count(*) FROM import_quarantine")
+            ) == 0
             assert connection.scalar(
                 sa.text("SELECT count(*) FROM corporate_action_versions")
-            ) == 2
-            reason = connection.scalar(
-                sa.text("SELECT reason_code FROM import_quarantine")
-            )
-            assert reason == "invalid_json"
-            checkpoint_status = connection.scalar(
-                sa.text(
-                    "SELECT status FROM import_checkpoints WHERE resource_key = :k"
-                ),
-                {"k": _detail_key("2454", "20240104")},
-            )
-            assert checkpoint_status is None
+            ) == 0
+            assert connection.scalar(
+                sa.text("SELECT status FROM import_checkpoints WHERE resource_key = :k"),
+                {"k": detail_key},
+            ) is None
+            assert connection.scalar(
+                sa.text("SELECT status FROM import_checkpoints WHERE resource_key = :k"),
+                {"k": "twse_twt49u:2024-01-01:2024-12-31"},
+            ) == "captured"
+
+        # The maintenance window is over: the same import_id resumes.
+        result, manifest, fetcher = run_range(
+            engine, tmp_path, content=FULL_YEAR, details=DETAILS_2024,
+            start=date(2024, 1, 1), end=date(2024, 12, 31),
+            executed_through=date(2024, 12, 31), import_id=import_id,
+        )
+        assert manifest.status == "succeeded"
+        assert manifest.reconciliation["row_quarantined_count"] == 0
+        assert result.business_versions_created == 3
+        # The captured list replays; only details never successfully
+        # captured are requested again, the garbled one among them.
+        assert "twse_twt49u:2024-01-01:2024-12-31" not in fetcher.calls
+        assert fetcher.calls.count(detail_key) == 1
     finally:
         engine.dispose()
 

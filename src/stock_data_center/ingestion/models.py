@@ -494,3 +494,17 @@ class SourceDataError(ValueError):
 
 class ResourceQuarantinedError(RuntimeError):
     """The raw artifact was retained but its normalized writes were rejected."""
+
+
+class UnusableSourceResponseError(RuntimeError):
+    """A dependency answered with content that is not a source answer at all
+    (for example an HTML maintenance page), even after a live retry.
+
+    Deliberately not a `SourceDataError`: it is an operational failure, not a
+    row that cannot map to the contract, so it must leave the range resumable
+    rather than quarantine one row and let the range finish `succeeded`."""
+
+    def __init__(self, reason_code: str, resource_key: str, detail: str) -> None:
+        super().__init__(f"{resource_key} unusable after retry ({reason_code}): {detail}")
+        self.reason_code = reason_code
+        self.resource_key = resource_key

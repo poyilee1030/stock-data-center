@@ -285,6 +285,59 @@ def test_a_row_quarantined_within_a_year_is_surfaced_in_the_report(
         engine.dispose()
 
 
+def test_a_year_with_a_persistently_garbled_detail_is_not_complete(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """A maintenance page that outlasts the inline retry must not be absorbed
+    as a row quarantine inside an `imported` year: the year fails, the report
+    is incomplete (the CLI exits 1), and rerunning with the same base import
+    id refetches only the garbled page (ADR-0022 §10)."""
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        row_2454 = _twt49u_row("2454", "113年01月04日")
+        row_6442 = _twt49u_row("6442", "113年01月10日")
+        list_key = "twse_twt49u:2024-01-01:2024-12-31"
+        key_2454 = "twse_twt49u:detail:2454:TWT49U:20240104"
+        key_6442 = "twse_twt49u:detail:6442:TWT49U:20240110"
+        detail_2454 = (FIXTURES / "twse_detail_49_2454_20240104.json").read_bytes()
+        detail_6442 = (FIXTURES / "twse_detail_49_6442_20240110.json").read_bytes()
+        content = {
+            list_key: _twt49u_year_payload([row_2454, row_6442]),
+            key_2454: detail_2454,
+            key_6442: b"<!DOCTYPE html><html>maintenance</html>",
+        }
+        base_import_id = uuid4()
+
+        def backfill_with(fetcher):
+            importer = CorporateActionImporter(
+                engine, raw_store=LocalRawArtifactStore(tmp_path / "raw"),
+                fetcher=fetcher, sleep=lambda _seconds: None,
+            )
+            return CorporateActionBackfill(importer, sleep=lambda _s: None).run(
+                adapter=TWSEExRightAdapter(),
+                start=date(2024, 1, 1), end=date(2024, 12, 31),
+                base_import_id=base_import_id,
+                purpose=IngestPurpose.FIRST_CAPTURE,
+            )
+
+        report = backfill_with(DispatchFetcher(content))
+        assert report.is_complete is False
+        assert report.row_quarantined == 0
+        (failure,) = report.results
+        assert failure.status == "failed"
+        assert failure.reason_code == "operational_error"
+        assert "UnusableSourceResponseError" in failure.detail
+
+        fetcher = DispatchFetcher({**content, key_6442: detail_6442})
+        report = backfill_with(fetcher)
+        assert report.is_complete is True
+        assert report.created == 2
+        # 2454's detail was captured before the failure and replays.
+        assert fetcher.calls == [key_6442]
+    finally:
+        engine.dispose()
+
+
 def test_year_import_id_is_derived_and_stable() -> None:
     base = default_base_import_id("twse_twtb8u", date(2020, 1, 1), date(2026, 9, 11))
     assert year_import_id(base, "twse_twtb8u", 2024) == year_import_id(

@@ -223,6 +223,29 @@ checkpoint`/`_raw_store.read`/`put`/`fetcher.fetch` 都拋別的例外類別,
 整個 range 那個既有的「不知道怎麼分類就不要猜」邊界),便宜且不改變今天
 的行為。
 
+### 10. 重抓一次仍是亂碼：整個 range 失敗，但可續跑
+
+§9 的當場重抓只擋得住瞬間錯誤。TWSE 維護通常持續好幾分鐘，立刻重抓多半
+還是同一個維護頁；此時若仍逐列隔離，range 照樣以 `succeeded` 收尾，同一個
+import_id 之後的重跑全被 `_completed_checkpoint` 短路，那一列永久沒有
+version,backfill 還是 `is_complete: true`、離開碼 0。
+
+修法：重抓後仍是 `invalid_json`,`_capture_and_parse` 改丟
+`UnusableSourceResponseError`(不是 `SourceDataError`)。它不會被
+`_capture_dependencies` 當成逐列隔離，而是走 `_run_locked` 既有的
+`dependency_operational_error` 路徑：
+
+- 不寫 quarantine、不寫任何 version;主資源 checkpoint 維持 `captured`,
+  manifest 為 `failed`。
+- 亂碼那一頁的 checkpoint 已刪除；其他已抓到的明細 checkpoint 保留。
+- backfill 該年回報 `failed`/`operational_error`,`is_complete` 為 false,
+  CLI 離開碼 1。
+- 用同一個 import_id 重跑：清單與已抓明細直接重放，只重新請求沒成功抓到的
+  明細，然後正常完成。
+
+`no_data_for_date` 不受影響：它是穩定的來源答案，仍逐列隔離、保留
+checkpoint,不影響 `is_complete`。
+
 ## 已否決的替代方案
 
 **在 `corporate_action_versions` 上加一個 `retracted_at` 欄位。** 該表是

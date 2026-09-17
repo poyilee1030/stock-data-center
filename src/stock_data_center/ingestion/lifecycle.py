@@ -36,6 +36,7 @@ from stock_data_center.ingestion.models import (
     ResourceImportResult,
     ResourceQuarantinedError,
     SourceDataError,
+    UnusableSourceResponseError,
     SourceResource,
 )
 from stock_data_center.ingestion.raw_storage import (
@@ -409,7 +410,10 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
         own quarantine row referencing this resource's real provenance
         instead of the primary resource's. On failure the same three are
         attached to the raised `SourceDataError` as `run_id`/`artifact_id`/
-        `dependency_resource_key`.
+        `dependency_resource_key`. Content that is not a source answer at all
+        (`invalid_json`) is retried once live; if it still is not, this raises
+        `UnusableSourceResponseError` instead, which fails the whole range
+        resumably rather than quarantining one row.
         """
         resource = adapter.resource(request)
         retried_once = False
@@ -478,6 +482,17 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
                         # notice and start a fresh import_id by hand.
                         retried_once = True
                         continue
+                    # Still not a real answer. Quarantining just this row
+                    # would let the range finish `succeeded` and lose the
+                    # row for good under this import_id (the completed
+                    # checkpoint short-circuits every rerun). Fail the range
+                    # operationally instead: its own checkpoint stays
+                    # `captured`, the other rows' detail checkpoints replay,
+                    # and a rerun under the same import_id fetches this one
+                    # again (ADR-0022 §10).
+                    raise UnusableSourceResponseError(
+                        error.reason_code, resource.resource_key, str(error)
+                    ) from error
                 raise
             return parsed, fetched_now, run_id, artifact_id, resource.resource_key
 
