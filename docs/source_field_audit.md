@@ -265,6 +265,11 @@ Summary sources: TWSE `fund/BFI82U` (單位名稱, 買進金額, 賣出金額, �
 TPEx `3itrdsum` (單位名稱, 買進金額(元), 賣出金額(元), 買賣超(元)). The TPEx file
 for 2026-07-10 in the archive is broken.
 
+TPEx new-site JSON, found 2026-09-17 (see "TPEx new-site JSON endpoints" below):
+`3itrade_hedge` is also served as `www/zh-tw/insti/dailyTrade`, with the same
+24 fields, and `3itrdsum` as `www/zh-tw/insti/summary`, with the same 4 fields.
+Both answer 2020-01-02 and 2026-09-11. Step 20 decides which endpoint to use.
+
 ### 4.4 Foreign holding
 
 - TWSE `fund/MI_QFIIS`: 12 columns, including the ISIN.
@@ -273,6 +278,16 @@ for 2026-07-10 in the archive is broken.
 Every `foreign_holding_versions` column is sourced. Its `issued_shares` is the
 only whole-market issued-share series for both markets, and legacy consumers
 read it.
+
+TPEx foreign holding is also served by TPEx itself, found 2026-09-17:
+`www/zh-tw/insti/qfii?date=YYYY/MM/DD&response=json`, a GET request. It has 10
+fields: 排行, 代號, 名稱, 發行股數(A), 僑外資及陸資尚可投資股數B=A*F-C,
+僑外資及陸資持有股數(C), 僑外資及陸資尚可投資比率(D=B/A),
+僑外資及陸資持股比率(E=C/A), 法令投資上限比率(F), 備註. It answers 2020-01-02
+(778 rows) and 2026-09-11 (892 rows). Legacy's MOPS-derived table holds 728 and
+891 rows on those dates. Nobody has yet checked that the two feeds cover the
+same securities or publish the same values; Step 20 must check that before it
+replaces MOPS.
 
 ### 4.5 Margin and securities lending
 
@@ -287,12 +302,77 @@ ratios exist for TPEx only; TWSE values are NULL.
 - SBL: TWSE `TWT93U` (15 columns, two header rows) and TPEx `margin_sbl`
   (15 columns). Every `securities_lending_versions` column is sourced.
 
+TPEx new-site JSON, found 2026-09-17: `margin_bal` is also served as
+`www/zh-tw/margin/balance`, with the same 20 fields, and `margin_sbl` as
+`www/zh-tw/margin/sbl`, with the same 15 fields. Both answer 2020-01-02 and
+2026-09-11. Step 21 decides which endpoint to use.
+
+#### TPEx new-site JSON endpoints
+
+Verified 2026-09-17. Each legacy `web/stock/.../*.php` page now answers with a
+302 redirect to a page on the new site, `www.tpex.org.tw/zh-tw/mainboard/...`.
+That page's own script loads its table from
+`www/zh-tw/<action>?date=YYYY/MM/DD&response=json`, read from its
+`tables.init({action: ...})` call. These are the official site's data calls,
+from the same family as `afterTrading/otc` and `afterTrading/indexSummary`,
+which Steps 17 and 18 already use.
+
+| Legacy page | New page | `action` | 2020-01-02 rows (legacy table) |
+| --- | --- | --- | --- |
+| `3insti/3insti_summary/3itrdsum.php` | `major-institutional/summary/day.html` | `insti/summary` | 8 |
+| `3insti/daily_trade/3itrade_hedge.php` | `major-institutional/detail/day.html` | `insti/dailyTrade` | 561 (459) |
+| `3insti/qfii/qfii.php` | `major-institutional/stock-ocfi.html` | `insti/qfii` | 778 (728, from MOPS) |
+| `margin_trading/margin_balance/margin_bal.php` | `margin-trading/transactions.html` | `margin/balance` | 743 (647) |
+| `margin_trading/margin_sbl/margin_sbl.php` | `margin-trading/sbl.html` | `margin/sbl` | 756 (660) |
+| `aftertrading/peratio_analysis/pera.php` | `trading/info/daily-pe.html` | `afterTrading/peQryDate` | 772 (see 4.6) |
+
+Every response carries `stat`, a top-level `date` in `YYYYMMDD`, and a table
+with its own ROC `date` and `fields`. The probe sent `type=Daily` to every
+action; which parameters each action actually reads is not yet established.
+Legacy holds fewer rows than every JSON table, and its archive is known to drop
+rows (section 3). These row counts are a first observation, not a
+reconciliation.
+
 ### 4.6 Official valuation
 
 - TWSE `BWIBBU_d`: 證券代號, 證券名稱, 收盤價, 殖利率(%), 股利年度, 本益比, 股價淨值比,
   財報年/季. One anomalous 5-column file on 2025-06-24.
 - TPEx `pera`: 股票代號, 公司名稱, 本益比, 每股股利(註), 股利年度, 殖利率(%), 股價淨值比.
   財報年/季 is added from 2025-01-02.
+
+Re-verified live 2026-09-17:
+
+- TWSE `rwd/zh/afterTrading/BWIBBU_d?date=YYYYMMDD&selectType=ALL&response=json`
+  serves the 8-field header on 2020-01-02, 2025-06-23, **2025-06-24** and
+  2026-09-11. `股利年度` is an ROC integer (`114`). `財報年/季` is written
+  `115/2`. `本益比` uses `-` when it is not computed. A closed date answers
+  `stat` `很抱歉，沒有符合條件的資料!`. The 5-field header (證券代號, 證券名稱,
+  本益比, 殖利率(%), 股價淨值比) is real, but it is what TWSE serves for older
+  dates such as 2017-01-03. The legacy archive's 2025-06-24 `sii.csv` has this
+  5-field header and different values: 1101 has PE 12.55, against 20.28 today
+  and 19.76 / 20.24 on the neighbouring dates. It also has 676 rows, against
+  1,044. That legacy file is a bad capture, not the official answer for that
+  date.
+- TPEx `pera_result.php?o=csv` is MS950 (the response says
+  `charset=MS950`; plain big5 fails to decode it). Contrary to the earlier note,
+  it **does** state its date (`資料日期:115/09/11`) and ends with a row count
+  (`共885筆`). A closed date answers with the header and `共0筆`.
+- TPEx also serves the same table as JSON: `www/zh-tw/afterTrading/peQryDate?
+  date=YYYY/MM/DD&response=json`. The legacy page redirects to the page that
+  loads it. It is identical to the CSV row for row on 2020-01-02 (772 rows) and
+  2026-09-11 (885 rows). It adds a table `date`, a `totalCount`, an integer
+  `股利年度`, and the page's `notes`. Its field label is `每股股利`, without `(註)`.
+- TPEx `notes` state the formulas. 本益比 = 收盤價 / 最近四季每股稅後純益, and it
+  is not computed when EPS is zero or negative; the file then prints `N/A`.
+  殖利率 = 每股股利 / 收盤價 × 100%, where 每股股利 is cash dividend plus
+  earnings stock dividend for the prior year. 每股股利 is not adjusted for later
+  capital changes. 股價淨值比 = 收盤價 / 每股淨值.
+- TPEx `財報年/季` is written `115Q2`, against TWSE's `115/2`.
+- A non-positive ratio that the notes do not explain: TPEx 2024-12-04 prints
+  `"0"` for both 本益比 and 股價淨值比 of 6720 久昌. That date is 6720's first
+  row in the feed, in legacy `pe_ratio`, and in our daily prices. On 2024-12-05
+  the same feed prints 28.23 and 8.69. `0` is therefore neither the documented
+  `N/A` nor a real ratio, and its meaning is unproven.
 
 PE, PB, yield, and dividend year are sourced for both markets.
 `dividend_per_share` exists for TPEx only. `report_period` exists for TWSE on
