@@ -16,6 +16,8 @@ import sqlalchemy as sa
 from stock_data_center.ingestion.adapters import (
     TPExDailyMarketAdapter,
     TPExDelistingHistoryAdapter,
+    TPExETFReverseSplitAdapter,
+    TPExETFSplitAdapter,
     TPExExRightDailyAdapter,
     TPExListingHistoryAdapter,
     TPExMarketIndexAdapter,
@@ -25,6 +27,7 @@ from stock_data_center.ingestion.adapters import (
     TPExWholeMarketDailyAdapter,
     TWSEDailyMarketAdapter,
     TWSEDelistingHistoryAdapter,
+    TWSEETFSplitAdapter,
     TWSEExRightAdapter,
     TWSEListingHistoryAdapter,
     TWSEMarketIndexAdapter,
@@ -188,7 +191,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     corporate_action.add_argument(
         "--feed",
-        choices=("TWT49U", "TWTAUU", "TWTB8U", "exDailyQ", "revivt", "pvChgRslt"),
+        choices=(
+            "TWT49U", "TWTAUU", "TWTB8U", "exDailyQ", "revivt", "pvChgRslt",
+            "TWTCAU", "etfSplitRslt", "etfRvsRslt",
+        ),
         required=True,
     )
     corporate_action.add_argument(
@@ -417,6 +423,9 @@ def main(argv: list[str] | None = None) -> int:
                 "exDailyQ": TPExExRightDailyAdapter,
                 "revivt": TPExReductionAdapter,
                 "pvChgRslt": TPExParValueChangeAdapter,
+                "TWTCAU": TWSEETFSplitAdapter,
+                "etfSplitRslt": TPExETFSplitAdapter,
+                "etfRvsRslt": TPExETFReverseSplitAdapter,
             }
             importer = CorporateActionImporter(
                 engine, raw_store=LocalRawArtifactStore(args.raw_root)

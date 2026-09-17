@@ -1157,7 +1157,17 @@ event is deferred until a reader needs the answer (ADR-0022 §1).
 
 ### Step 19-d — Corporate-action history backfill and reconciliation
 
-Status: **PLANNED**. Depends on: Step 19-c.
+Status: **BLOCKED**. Depends on: Step 19-c.
+
+Code, tests, and ADR-0022 §6–7 are done. Five of six feeds (TWTB8U,
+exDailyQ, revivt, pvChgRslt, TWTAUU) have a real, complete 2020-01-01 →
+2026-09-11 backfill with zero failures. TWT49U — the only feed with a
+legacy `dividend` reconciliation baseline — is blocked on TWSE's
+`TWT49UDetail` endpoint returning `HTTP 200 {"stat":"系統忙碌中，請稍後
+再試！"}` for every locator (2026-09-17), a failure shape `RetryingFetcher`
+does not retry (it is not one of the retryable HTTP statuses). Sibling
+endpoints on the same host are healthy, so this reads as transient
+endpoint-side trouble, not a sustained block; resume once it recovers.
 
 In scope: the 2020-01-01 → 2026-09-11 backfill for all six feeds and their
 details, and the reconciliation report.
@@ -1170,7 +1180,7 @@ Acceptance:
 
 ### Step 19-e — ETF split and reverse-split result feeds
 
-Status: **PLANNED**. Depends on: Step 19-c. Required by Step 25.
+Status: **IN REVIEW**. Depends on: Step 19-c. Required by Step 25.
 
 Found in 19-a: ETF splits and reverse splits have result feeds of their own —
 TWSE `rwd/zh/split/TWTCAU` (`ETF分割(反分割)恢復買賣參考價格`, which lists 0050's
@@ -1178,6 +1188,23 @@ split on 2025-06-18), TPEx `bulletin/etfSplitRslt` and `bulletin/etfRvsRslt`.
 None of the six Step 19 feeds lists these events, so without them an adjusted
 0050 series is wrong. Their fields, units and history still need verifying
 before anything is promised (§2.4).
+
+Verified live 2026-09-17 (`docs/source_field_audit.md`): `TWTCAU` publishes no
+detail page and no exchange-ratio field, only a 分割/反分割 direction label
+alongside the same two prices the other feeds carry, so it stores `other`
+like TWTB8U rather than dividing prices into a share count. Both TPEx feeds
+answer `totalCount: 0` for the whole 2020-01-01 → 2026-09-11 window — TPEx has
+never listed an ETF split or reverse split — so their adapters quarantine any
+row rather than guess an unsampled detail-page schema.
+
+Acceptance:
+
+- `TWTCAU`/`etfSplitRslt`/`etfRvsRslt` fields, units and real history are
+  verified against a live fetch, not assumed
+- a real 2020-01-01 → 2026-09-11 backfill exists for all three feeds; zero
+  duplicate `(feed, code, locator date)` over each one's stored history
+- a row whose direction/type cannot be determined quarantines with its
+  reason instead of being guessed
 
 Out of scope for all of Step 19: MOPS summary normalization; adjustment factors (Step 25).
 

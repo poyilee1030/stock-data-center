@@ -570,12 +570,35 @@ with a subscription price. An adapter treats a disagreement as a quarantine.
   (`1.00`). 0, 0, 4, 0, 3, 1, 5 events for 2020 through 2026, every one a split,
   and in every one the ratio equals the old par value over the new.
 
-**Not in Step 19's contract, found on the way.** ETF splits and reverse splits
-have result feeds of their own: TWSE `rwd/zh/split/TWTCAU`
-(`ETF分割(反分割)恢復買賣參考價格`, which lists 0050's 2025-06-18 split) and TPEx
-`bulletin/etfSplitRslt` and `bulletin/etfRvsRslt`. None of the six feeds above
-lists those events, and an adjusted 0050 series is wrong without them. ROADMAP
-records them as follow-up work before Step 25.
+**Not in Step 19's contract, found on the way; verified live for Step 19-e on
+2026-09-17.** ETF splits and reverse splits have result feeds of their own.
+None of the six Step 19 feeds lists those events, and an adjusted 0050 series
+is wrong without them. ROADMAP records them as follow-up work before Step 25.
+
+- **TWSE `rwd/zh/split/TWTCAU?startDate=YYYYMMDD&endDate=YYYYMMDD&response=json`**
+  (`ETF分割(反分割)恢復買賣參考價格`): 恢復買賣日期 (ROC slashed, `113/12/11`), ETF代號,
+  名稱, 分割(反分割) (`分割` or `反分割`), 停止買賣前收盤價格, 恢復買賣參考價, 漲停價格,
+  跌停價格, 開盤競價基準. `formula` confirms 恢復買賣參考價 = 停止買賣前收盤價 /
+  分割（反分割）比率 — the ratio is derivable from the two official prices, but the
+  feed publishes no source-native integer share count, unlike `TWTAVUDetail`'s
+  每壹仟股換發新股票. `old_shares`/`new_shares` therefore stay NULL for this feed;
+  only `close_before`/`official_reference_price` are sourced. A probed
+  `TWTCAUDetail?STK_NO=&FILE_DATE=` returns an all-dash empty row for every
+  locator tried — there is no detail endpoint. 11 events over 2020-01-01 →
+  2026-09-11 (all in ROC 113–115 / 2024–2026; zero before). One row
+  (00631L 元大台灣50正2, 115/03/31) has an **empty** 分割(反分割) direction field —
+  every other row is populated — so its `action_type` cannot be determined
+  from this feed alone and it quarantines rather than guessing (CLAUDE.md
+  §37/§51.5 fail-closed).
+- **TPEx `bulletin/etfSplitRslt` and `bulletin/etfRvsRslt`**
+  (`?startDate=YYYY/MM/DD&endDate=YYYY/MM/DD&response=json`, Gregorian
+  slashed like `exDailyQ`): same eight-column shape as `pvChgRslt` (恢復買賣日期,
+  證券代號, 證券名稱, 最後交易日之收盤價格, 恢復買賣開始參考價, 漲停價格, 跌停價格,
+  開始交易基準價, 詳細資料) — but the whole 2020-01-01 → 2026-09-11 window returns
+  `totalCount: 0` on both, verified live. TPEx has never had an ETF split or
+  reverse-split event in v1's window. Adapters are written and tested against
+  this contract but real backfilled history for these two feeds is zero rows,
+  not "not yet fetched."
 
 Event volumes in the legacy archive (TWSE, year-to-date files, 2020-01-01 →
 2026-09-14): `TWT49U` about 1,280 rows in 2026 alone. The legacy

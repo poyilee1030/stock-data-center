@@ -174,7 +174,9 @@ class _TWSEListAdapter(CorporateActionListAdapter):
             )
         _require_range(
             request,
-            payload.get("strDate") or _dict(payload.get("params")).get("startDate"),
+            payload.get("strDate")
+            or payload.get("startDate")
+            or _dict(payload.get("params")).get("startDate"),
             payload.get("endDate") or _dict(payload.get("params")).get("endDate"),
             self.feed,
         )
@@ -190,11 +192,19 @@ class _TWSEListAdapter(CorporateActionListAdapter):
                 skipped += 1
                 continue
             code = _code(values[1], self.feed, number)
-            locator = self._locator(
-                values[self.fields.index("詳細資料")], code, event_date, number
-            )
+            locator = self._build_locator(values, code, event_date, number)
             rows.append(self._row(values, code, event_date, locator, number))
         return self._parsed(request, rows, skipped)
+
+    def _build_locator(
+        self, values: tuple[str, ...], code: str, event_date: date, row_number: int
+    ) -> ExchangeLocator:
+        """Most TWSE list rows carry their locator in `詳細資料`; a feed with
+        no such column (`TWTCAU`) overrides this to key on the executed date
+        alone, like TPEx."""
+        return self._locator(
+            values[self.fields.index("詳細資料")], code, event_date, row_number
+        )
 
     def _locator(
         self, value: str, code: str, event_date: date, row_number: int
@@ -447,6 +457,70 @@ class TWSEParValueChangeAdapter(_TWSEListAdapter):
                 **_terms(zip(self.fields[5:8], values[5:8], strict=True)),
                 "停止買賣日期": locator.dates[0].isoformat(),
             },
+        )
+
+    def _observation(self, row, detail):
+        return CorporateActionObservation(
+            action_type="other",
+            source_event_type=row.source_event_type,
+            source_terms=dict(row.source_terms),
+            **row.fields,
+        )
+
+
+class TWSEETFSplitAdapter(_TWSEListAdapter):
+    """`TWTCAU` — ETF分割(反分割)恢復買賣參考價格 (ROADMAP Step 19-e).
+
+    Verified live 2026-09-17: the list carries no `詳細資料` column, so its
+    locator keys on the executed (resumption) date alone, like TPEx.
+    `TWTCAUDetail?STK_NO=&FILE_DATE=` returns an all-dash empty row for every
+    locator tried — there is no detail page. `分割(反分割)` states only the
+    direction; the row's two prices are the only numbers, and the `formula`
+    note that resumption price = prior close / ratio derives a ratio from
+    two prices, not a published share count. CLAUDE.md §51.2 keeps an
+    official reference price as reconciliation evidence, not identity, so
+    this does not divide prices into `old_shares`/`new_shares` — it stores
+    `other` with the direction kept verbatim, exactly TWTB8U's no-ratio
+    precedent.
+    """
+
+    source = "twse_twtcau"
+    feed = "TWTCAU"
+    version = "twse-twtcau:v1"
+    endpoint = "https://www.twse.com.tw/rwd/zh/split/TWTCAU"
+    fields = (
+        "恢復買賣日期", "ETF代號", "名稱", "分割(反分割)", "停止買賣前收盤價格",
+        "恢復買賣參考價", "漲停價格", "跌停價格", "開盤競價基準",
+    )
+    directions = frozenset({"分割", "反分割"})
+
+    def _event_date(self, value: str, row_number: int) -> date:
+        return _roc_slashed(value, f"TWTCAU row {row_number} date")
+
+    def _build_locator(self, values, code, event_date, row_number):
+        return ExchangeLocator(self.feed, code, (event_date,))
+
+    def _row(self, values, code, event_date, locator, row_number):
+        direction = values[3].strip()
+        if direction not in self.directions:
+            # Seen live for 00631L on 115/03/31: every other sampled row
+            # names a direction, so a blank one cannot be guessed.
+            raise SourceDataError(
+                "unknown_event_type",
+                f"TWTCAU row {row_number} publishes split direction {direction!r}",
+            )
+        return CorporateActionRow(
+            security_code=code,
+            event_date=event_date,
+            locator=locator,
+            action_type="other",
+            source_event_type=direction,
+            fields={
+                "ex_date": event_date,
+                "close_before": _twd(values[4], "停止買賣前收盤價格"),
+                "official_reference_price": _twd(values[5], "恢復買賣參考價"),
+            },
+            source_terms=_terms(zip(self.fields[6:9], values[6:9], strict=True)),
         )
 
     def _observation(self, row, detail):
@@ -926,6 +1000,49 @@ class TPExParValueChangeAdapter(_TPExListAdapter):
             new_shares=_plain(ratio),
             source_terms=dict(row.source_terms),
         )
+
+
+class _TPExETFSplitAdapter(_TPExListAdapter):
+    """`bulletin/etfSplitRslt` / `etfRvsRslt` (ROADMAP Step 19-e).
+
+    Verified live 2026-09-17: the list header is the same nine columns as
+    `pvChgRslt`, but `totalCount` is 0 over the whole 2020-01-01 →
+    2026-09-11 window on both endpoints — TPEx has never listed an ETF split
+    or reverse split. The `詳細資料` cell's inner labels are therefore
+    unverified against any real row (CLAUDE.md's Source-Field Rule: promise
+    a field only against a named, sampled endpoint). A row appearing before
+    that changes quarantines rather than guessing pvChgRslt's label schema.
+    """
+
+    fields = (
+        "恢復買賣日期", "證券代號", "證券名稱", "最後交易日之收盤價格",
+        "恢復買賣開始參考價", "漲停價格", "跌停價格", "開始交易基準價", "詳細資料",
+    )
+
+    def _event_date(self, value: str, row_number: int) -> date:
+        return _roc_compact(value, f"{self.feed} row {row_number} date")
+
+    def _row(self, values, code, event_date, locator, row_number):
+        raise SourceDataError(
+            "unverified_schema",
+            f"{self.feed} row {row_number} for {code}: no real row has ever "
+            f"been sampled to verify its 詳細資料 label schema (verified "
+            f"empty live on 2026-09-17)",
+        )
+
+
+class TPExETFSplitAdapter(_TPExETFSplitAdapter):
+    source = "tpex_etfsplitrslt"
+    feed = "etfSplitRslt"
+    version = "tpex-etfsplitrslt:v1"
+    endpoint = "https://www.tpex.org.tw/www/zh-tw/bulletin/etfSplitRslt"
+
+
+class TPExETFReverseSplitAdapter(_TPExETFSplitAdapter):
+    source = "tpex_etfrvsrslt"
+    feed = "etfRvsRslt"
+    version = "tpex-etfrvsrslt:v1"
+    endpoint = "https://www.tpex.org.tw/www/zh-tw/bulletin/etfRvsRslt"
 
 
 # --- shared checks ---------------------------------------------------------------
