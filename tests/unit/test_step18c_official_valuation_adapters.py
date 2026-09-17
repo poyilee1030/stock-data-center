@@ -165,9 +165,9 @@ def test_twse_unrecognised_placeholder_fails_closed() -> None:
     assert reason(lambda: twse(odd)) == "unrecognised_value"
 
 
-def test_twse_non_positive_ratio_rejects_only_that_row() -> None:
-    zero = mutate(TWSE, lambda p: p["data"][1].__setitem__(5, "0.00"))
-    parsed = twse(zero)
+def test_twse_negative_ratio_rejects_only_that_row() -> None:
+    negative = mutate(TWSE, lambda p: p["data"][1].__setitem__(5, "-1.00"))
+    parsed = twse(negative)
     assert len(parsed.rows) == 1079
     assert [(r.security_code, r.reason_code) for r in parsed.rejected] == [
         ("1102", "nonpositive_ratio")
@@ -250,10 +250,13 @@ def test_tpex_negative_ratio_rejects_only_that_row() -> None:
     ]
 
 
-def test_twse_zero_ratio_is_not_a_tpex_marker() -> None:
-    """The zero rule is TPEx's; TWSE documents only `-`."""
-    zero = mutate(TWSE, lambda p: p["data"][1].__setitem__(6, "0"))
-    assert [r.reason_code for r in twse(zero).rejected] == ["nonpositive_ratio"]
+def test_twse_zero_ratio_also_means_not_computed() -> None:
+    """By owner decision the zero rule covers both exchanges; `null` stays
+    TPEx's own marker and is a format change on TWSE."""
+    zero = mutate(TWSE, lambda p: p["data"][1].__setitem__(6, "0.00"))
+    parsed = twse(zero)
+    assert parsed.rejected == ()
+    assert one(parsed, "1102").pb_ratio is None
     null = mutate(TWSE, lambda p: p["data"][1].__setitem__(6, "null"))
     assert reason(lambda: twse(null)) == "unrecognised_value"
 

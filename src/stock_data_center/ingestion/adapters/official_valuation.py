@@ -18,9 +18,10 @@ in the other exchange's format is a format change, not a synonym.
 store as NULL. TPEx also prints its first listed day's ratios as `"null"`
 (2021-07-26 → 2022-11-02, 6840 and others) and later as `"0"` (6720,
 2024-12-04). No official note explains either, and both store as NULL by owner
-decision (ROADMAP 18-c). That rule is TPEx's alone. Any other ratio at or below
-zero, and any negative yield or dividend, rejects its own row rather than being
-guessed at, and the rest of the file imports.
+decision (ROADMAP 18-c). The same decision makes a ratio printed as zero mean
+not computed on TWSE too, where `null` stays a format change. A negative ratio,
+yield or dividend rejects its own row rather than being guessed at, and the
+rest of the file imports.
 
 Neither feed states a unit. The ratios are multiples, `殖利率(%)` is
 percentage points, and TPEx `每股股利` is TWD per share by the formula its notes
@@ -71,8 +72,8 @@ class OfficialValuationAdapter(ABC):
     variants: Mapping[str, tuple[str, ...]]
     # This source's own "not computed" markers.
     not_computed: frozenset[str]
-    # Whether a ratio printed as exactly zero also means not computed.
-    zero_ratio_not_computed: bool = False
+    # A ratio printed as exactly zero means not computed (owner decision).
+    zero_ratio_not_computed: bool = True
     report_period_pattern: re.Pattern[str]
 
     @abstractmethod
@@ -269,7 +270,7 @@ class TWSEOfficialValuationAdapter(OfficialValuationAdapter):
 
     source = "twse_bwibbu_d"
     market = "TWSE"
-    version = "twse-bwibbu-d:v1"
+    version = "twse-bwibbu-d:v2"
     endpoint = "https://www.twse.com.tw/rwd/zh/afterTrading/BWIBBU_d"
     variants = MappingProxyType({
         "bwibbu_8": (
@@ -350,7 +351,6 @@ class TPExOfficialValuationAdapter(OfficialValuationAdapter):
         "pe_qry_date_7": _fields,
     })
     not_computed = frozenset({"N/A", "null"})
-    zero_ratio_not_computed = True
     report_period_pattern = re.compile(r"(?P<year>\d{2,3})Q(?P<quarter>[1-4])")
 
     def resource(self, request: OfficialValuationRequest) -> SourceResource:

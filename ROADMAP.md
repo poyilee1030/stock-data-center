@@ -1038,10 +1038,13 @@ Decided 2026-09-17, by owner decision on the evidence below:
   `tpex_pe_qry_date`), not the legacy CSV. The legacy `pera.php` page redirects
   to the page that loads this JSON, and the two are identical row for row.
   TWSE is `twse_bwibbu_d`.
-- A published ratio of zero or below quarantines its own row. TPEx prints `"0"`
-  for both ratios of 6720 on its first listed day (2024-12-04), and no official
-  note explains it. The other rows of the file still import. `-` and `N/A` are
-  each source's documented not-computed marker and store NULL.
+- A ratio the source prints as not computed stores NULL: TWSE `-`, TPEx `N/A`
+  (both documented), TPEx `"null"`, and a ratio of exactly zero on either
+  exchange. TPEx prints its first listed day's ratios as `"null"` from
+  2021-07-26 to 2022-11-02 (6840 and others) and as `"0"` later (6720 on
+  2024-12-04). No official note explains either; both mean not computed by
+  owner decision. A negative ratio, yield or dividend quarantines its own row,
+  and the other rows of the file still import.
 - `財報年/季` is stored as Gregorian `YYYYQn` from each exchange's own format,
   and `股利年度` as ROC + 1911.
 
