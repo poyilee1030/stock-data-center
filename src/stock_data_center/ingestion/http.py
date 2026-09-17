@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Protocol
 
@@ -38,3 +40,51 @@ class HttpSourceFetcher:
             fetched_at=fetched_at,
             media_type=media_type,
         )
+
+
+# Not a redirect httpx could follow (no usable `Location`, or a loop back to
+# the same URL): TWSE's CDN answers this way intermittently under sustained
+# sequential load (Step 19-d: a live 2020-2026 backfill, thousands of
+# requests). It is transient — the same URL that 307s once succeeds seconds
+# later — and unrelated to which locator was asked for.
+_RETRYABLE_STATUSES = frozenset({307, 429, 500, 502, 503, 504})
+
+
+class RetryingFetcher:
+    """Retries a transient HTTP failure with backoff before giving up.
+
+    For a bulk backfill only: a normal single-resource import already
+    surfaces an operational failure to its caller, who decides whether to
+    rerun (CLAUDE.md §71). This exists because a multi-hour backfill making
+    thousands of sequential requests should not lose an hour of progress —
+    and a whole calendar year's range, in the corporate-action shape — to one
+    transient response the very next attempt would not have hit.
+    """
+
+    def __init__(
+        self,
+        fetcher: SourceFetcher | None = None,
+        *,
+        attempts: int = 5,
+        backoff_seconds: Callable[[int], float] = lambda attempt: 2.0 * 2**attempt,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
+        self._fetcher = fetcher or HttpSourceFetcher()
+        self._attempts = attempts
+        self._backoff_seconds = backoff_seconds
+        self._sleep = sleep
+
+    def fetch(self, resource: SourceResource) -> FetchedArtifact:
+        last_error: Exception | None = None
+        for attempt in range(self._attempts):
+            if attempt:
+                self._sleep(self._backoff_seconds(attempt - 1))
+            try:
+                return self._fetcher.fetch(resource)
+            except httpx.HTTPStatusError as error:
+                if error.response.status_code not in _RETRYABLE_STATUSES:
+                    raise
+                last_error = error
+            except (httpx.TimeoutException, httpx.TransportError) as error:
+                last_error = error
+        raise last_error  # type: ignore[misc]

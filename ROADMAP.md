@@ -601,8 +601,8 @@ Status date: 2026-09-16.
 | 18-c | PLANNED | Official valuation |
 | 19-a | MERGED | Result-feed contract, storage precision, and the TPEx adapters |
 | 19-b | MERGED | TWSE result-feed adapters and their detail pages |
-| 19-c | THIS STEP | Corporate-action import path, retraction included |
-| 19-d | PLANNED | Corporate-action history backfill and legacy reconciliation |
+| 19-c | MERGED | Corporate-action import path, retraction included |
+| 19-d | THIS STEP | Corporate-action history backfill and legacy reconciliation |
 | 19-e | PLANNED | ETF split and reverse-split result feeds |
 | 20 | PLANNED | Institutional flows, institutional summary, foreign holding |
 | 21 | PLANNED | Margin trading and securities lending |
@@ -1133,7 +1133,7 @@ sampled details across 2020-2026, both header variants and both reduction kinds.
 
 ### Step 19-c — Corporate-action import path
 
-Status: **THIS STEP**. Depends on: Step 19-b, Step 11, Step 16.
+Status: **MERGED**. Depends on: Step 19-b, Step 11, Step 16.
 
 In scope: set-based event registration and version writes for a range file,
 the detail fetches a TWSE range file needs, retraction of an event whose row
@@ -1157,17 +1157,18 @@ event is deferred until a reader needs the answer (ADR-0022 §1).
 
 ### Step 19-d — Corporate-action history backfill and reconciliation
 
-Status: **BLOCKED**. Depends on: Step 19-c.
+Status: **THIS STEP**. Depends on: Step 19-c.
 
 Code, tests, and ADR-0022 §6–7 are done. Five of six feeds (TWTB8U,
 exDailyQ, revivt, pvChgRslt, TWTAUU) have a real, complete 2020-01-01 →
 2026-09-11 backfill with zero failures. TWT49U — the only feed with a
-legacy `dividend` reconciliation baseline — is blocked on TWSE's
+legacy `dividend` reconciliation baseline — was blocked on TWSE's
 `TWT49UDetail` endpoint returning `HTTP 200 {"stat":"系統忙碌中，請稍後
 再試！"}` for every locator (2026-09-17), a failure shape `RetryingFetcher`
 does not retry (it is not one of the retryable HTTP statuses). Sibling
-endpoints on the same host are healthy, so this reads as transient
-endpoint-side trouble, not a sustained block; resume once it recovers.
+endpoints on the same host stayed healthy throughout, confirming this was
+transient endpoint-side trouble rather than a sustained block; the endpoint
+recovered later the same day and the TWT49U backfill resumes from here.
 
 In scope: the 2020-01-01 → 2026-09-11 backfill for all six feeds and their
 details, and the reconciliation report.
@@ -1180,7 +1181,7 @@ Acceptance:
 
 ### Step 19-e — ETF split and reverse-split result feeds
 
-Status: **IN REVIEW**. Depends on: Step 19-c. Required by Step 25.
+Status: **MERGED** (#27). Depends on: Step 19-c. Required by Step 25.
 
 Found in 19-a: ETF splits and reverse splits have result feeds of their own —
 TWSE `rwd/zh/split/TWTCAU` (`ETF分割(反分割)恢復買賣參考價格`, which lists 0050's

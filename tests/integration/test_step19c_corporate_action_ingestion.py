@@ -107,7 +107,8 @@ def run_range(
     list_key = f"twse_twt49u:{start.isoformat()}:{end.isoformat()}"
     fetcher = DispatchFetcher({list_key: content, **details})
     importer = CorporateActionImporter(
-        engine, raw_store=LocalRawArtifactStore(tmp_path / "raw"), fetcher=fetcher
+        engine, raw_store=LocalRawArtifactStore(tmp_path / "raw"), fetcher=fetcher,
+        sleep=lambda _seconds: None,
     )
     used_id = import_id or uuid4()
     result = importer.run(
@@ -345,5 +346,71 @@ def test_a_failing_detail_quarantines_the_range_and_keeps_raw_artifacts(
             assert connection.scalar(
                 sa.text("SELECT reason_code FROM import_quarantine")
             ) == "no_data_for_date"
+    finally:
+        engine.dispose()
+
+
+def test_detail_fetches_are_throttled_but_not_before_the_first(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """TWT49U alone can need thousands of these for one range (ADR-0019)."""
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        list_key = "twse_twt49u:2024-01-01:2024-12-31"
+        fetcher = DispatchFetcher({list_key: FULL_YEAR, **DETAILS_2024})
+        sleeps: list[float] = []
+        importer = CorporateActionImporter(
+            engine, raw_store=LocalRawArtifactStore(tmp_path / "raw"),
+            fetcher=fetcher, min_detail_interval_seconds=2.5,
+            sleep=sleeps.append,
+        )
+        importer.run(
+            adapter=TWSEExRightAdapter(),
+            request=CorporateActionRangeRequest(
+                date(2024, 1, 1), date(2024, 12, 31), date(2024, 12, 31)
+            ),
+            import_id=uuid4(),
+            git_commit="test-commit",
+            purpose=IngestPurpose.FIRST_CAPTURE,
+        )
+        # Three distinct detail locators, so two waits between three fetches.
+        assert sleeps == [2.5, 2.5]
+    finally:
+        engine.dispose()
+
+
+def test_a_fully_resumed_run_makes_no_detail_fetches_or_waits(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """Politeness is owed to the source, not to the checkpoint table: a run
+    resumed under its original import id must not wait for requests it never
+    makes."""
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        import_id = uuid4()
+        run_range(
+            engine, tmp_path, content=FULL_YEAR, details=DETAILS_2024,
+            start=date(2024, 1, 1), end=date(2024, 12, 31),
+            executed_through=date(2024, 12, 31), import_id=import_id,
+        )
+        list_key = "twse_twt49u:2024-01-01:2024-12-31"
+        fetcher = DispatchFetcher({list_key: FULL_YEAR, **DETAILS_2024})
+        sleeps: list[float] = []
+        importer = CorporateActionImporter(
+            engine, raw_store=LocalRawArtifactStore(tmp_path / "raw"),
+            fetcher=fetcher, min_detail_interval_seconds=2.5, sleep=sleeps.append,
+        )
+        result = importer.run(
+            adapter=TWSEExRightAdapter(),
+            request=CorporateActionRangeRequest(
+                date(2024, 1, 1), date(2024, 12, 31), date(2024, 12, 31)
+            ),
+            import_id=import_id,
+            git_commit="test-commit",
+            purpose=IngestPurpose.FIRST_CAPTURE,
+        )
+        assert result.resumed_from_checkpoint is True
+        assert fetcher.calls == []
+        assert sleeps == []
     finally:
         engine.dispose()

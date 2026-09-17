@@ -105,6 +105,41 @@ what actually blocks the delete」）。guard 因此照抄那個既有模式，�
   事件現在算不算撤回」是留給下一個需要它的 reader（19-d 回補對帳，或未來的
   corporate-action 查詢服務）的工作，不是本步驟的範圍。
 
+## Step 19-d 追加：年度回補與一個活來源才會暴露的暫時性失敗
+
+### 6. `CorporateActionBackfill`：以年為單位走 2020–2026，不是一次整個範圍
+
+來源可以一次接受整個 2020-2026 的範圍（實測：TWT49U 七年一次請求回傳 OK,
+1.5 MB），但回補仍照 ADR-0019「每個 feed 約 7 個請求」以年為單位走,原因與
+一次請求能不能成功無關：TWT49U 一年常有上千個事件,每個都要各自的明細頁,
+一次七年份、近八千筆明細全部抓完才進第一筆寫入,會讓一次當機的可視進度是
+零、也讓單一交易背上七年份的寫入。以年分段,每年有自己的 checkpoint 與
+import id（`year_import_id`,仿 `month_import_id`),一年當掉,重跑只補那一年。
+
+### 7. `RetryingFetcher`：一個只有活網路才會暴露的暫時性失敗
+
+2026-09-16 對 TWT49U/TWTAUU 的完整回補實測，TWSE 的 CDN
+（`server: HiNetCDN`）偶爾對明細頁請求回應 `307`，內容是
+「因為安全性考量，您所執行的頁面無法呈現」的 HTML 安全頁，不是我們的
+`SourceDataError`（沒有 `Location`，`httpx` 的 `follow_redirects=True`
+因此無從跟隨）。同一個 URL 在幾秒到幾分鐘後重試多半成功；極少數
+（實測一筆，TWTAUU 2025 年的一個 `TWTAVUDetail`）在多次重試視窗內持續
+擋下，之後才通過——沒有 `Retry-After`，也不是固定的每 N 次請求就觸發。
+
+`RetryingFetcher` 包一層在 `HttpSourceFetcher` 外，對 307/429/5xx 與
+timeout 類例外以退避重試（預設 5 次，CLI 用 8 次、封頂 30 秒),用不到就是
+把例外原樣丟出，語意不變。只在 `corporate-action` CLI 接上,不是
+`RawFirstImporter` 的預設——這是活來源在真正的多千請求量級下才暴露的失敗,
+其他資料集的既有回補（17-c、18-b）遇到的是逾時與斷線,不是這種類型;沒有
+證據以前，不替它們也換掉預設 fetcher。
+
+`CorporateActionBackfill`/`_capture_dependencies` 兩者都保持「一個年度、
+一個 range 要嘛全部完成、要嘛整個失敗」的既有顆粒——沒有為了這一個暫時性
+失敗新增「單筆事件隔離、其餘照常寫入」的機制。§19-c 已經定的邊界
+（一個 range 是一個寫入交易，`SourceDataError` 才隔離)保持不變；一個
+retry budget 內解不掉的請求，就是那一年回補失敗、重跑即可，與 17-c/18-b
+「一個壞日期回報而不致命」同一個顆粒,不是本步驟該开的新洞。
+
 ## 已否決的替代方案
 
 **在 `corporate_action_versions` 上加一個 `retracted_at` 欄位。** 該表是
@@ -123,3 +158,14 @@ append-only 且有 `immutable` trigger 擋 UPDATE；撤回本質上是後來才�
 `SourceDataError` 會被寫入交易的例外處理器當成 `writer_operational_error`，
 而不是 `_quarantine`——语意上這仍是「來源內容對不上契約」，應該隔離而非
 記一筆操作失敗。
+
+**擴大 `RetryingFetcher` 去重試 HTTP 200 但內容是忙碌訊息的回應。**
+2026-09-17 對 TWT49U 的完整回補實測，`TWT49UDetail`（僅此一個端點,同網域
+的 `TWTAVUDetail`、`TWT49U` 列表當時都正常)持續回 `HTTP 200
+{"stat":"系統忙碌中，請稍後再試！"}`——不是 `RetryingFetcher` 認得的任何
+可重試 HTTP 狀態碼，等了約 20 分鐘後才自行恢復。沒有加成「200 但
+`stat` != OK 也重試」這條規則,原因是目前只有一次真實觀測,無法分辨這是
+「這個端點偶爾如此,固定重試幾次會過」還是「這個端點掉線了,重試多少次
+都一樣」——貿然加重試會讓一次真正的端點故障看起來像是程式掛住,而不是
+明確回報並停手。留給下一次真的復現時,用兩次觀測決定退避曲線,而不是
+現在猜一個沒有第二個樣本驗證得了的行為。

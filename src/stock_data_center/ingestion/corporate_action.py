@@ -19,7 +19,8 @@ rows no longer name.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+import time
+from collections.abc import Callable, Mapping
 from datetime import date
 from types import MappingProxyType
 from uuid import UUID
@@ -84,11 +85,19 @@ class CorporateActionImporter(
         security_writer: MarketDataWriter | None = None,
         writer: MarketReferenceWriter | None = None,
         policy: EvidencePolicyService | None = None,
+        min_detail_interval_seconds: float = 1.5,
+        sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         super().__init__(engine, raw_store=raw_store, fetcher=fetcher)
         self._security_writer = security_writer or MarketDataWriter()
         self._writer = writer or MarketReferenceWriter()
         self._policy = policy or EvidencePolicyService()
+        # TWT49U alone can need thousands of detail pages for one range
+        # (ADR-0019: ~7,800 across 2020-2026). Throttled per real fetch, not
+        # per row: a resumed detail makes no request, so waiting for it buys
+        # the source nothing and costs a rerun dearly.
+        self._min_detail_interval_seconds = min_detail_interval_seconds
+        self._sleep = sleep
 
     def _source_scope(
         self,
@@ -149,6 +158,7 @@ class CorporateActionImporter(
         detail_adapter = _DETAIL_ADAPTERS.get(adapter.source)
         cache: dict[tuple[str, str], object] = {}
         observations: list[CorporateActionObservation] = []
+        requested_source = False
         for row in parsed.rows:
             detail = None
             if row.detail_request is not None:
@@ -160,13 +170,17 @@ class CorporateActionImporter(
                     )
                 key = (row.security_code, row.detail_request.locator.source_event_key)
                 if key not in cache:
-                    cache[key] = self._capture_and_parse(
+                    if requested_source:
+                        self._sleep(self._min_detail_interval_seconds)
+                    parsed_detail, fetched = self._capture_and_parse(
                         detail_adapter,
                         row.detail_request,
                         import_id=import_id,
                         purpose=purpose,
                         artifact_origin=artifact_origin,
                     )
+                    cache[key] = parsed_detail
+                    requested_source = requested_source or fetched
                 detail = cache[key]
             observations.append(adapter.observation(row, detail))
         return tuple(observations)

@@ -390,7 +390,7 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
         import_id: UUID,
         purpose: IngestPurpose,
         artifact_origin: ArtifactOrigin,
-    ) -> object:
+    ) -> tuple[object, bool]:
         """Capture and parse one resource under `import_id`, resuming a prior
         checkpoint when one exists. For use from `_capture_dependencies` only:
         it opens its own connections and must not be called from inside an
@@ -399,6 +399,11 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
         A dependency resource has no business write of its own to mark a
         checkpoint `succeeded` — only the primary resource's checkpoint
         reaches that status — so this only ever looks for `captured`.
+
+        Returns `(parsed, fetched)`: `fetched` is true only when this call
+        made a real request, so a caller throttling many of these — a
+        backfill's per-row detail pages — waits between requests the source
+        actually felt, not between resumed checkpoint reads.
         """
         resource = adapter.resource(request)
         with self._engine.begin() as connection:
@@ -411,6 +416,7 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
                 expected_digest=captured.artifact_hash,
                 expected_byte_size=captured.byte_size,
             )
+            fetched_now = False
         else:
             fetched = self._fetcher.fetch(resource)
             stored = self._raw_store.put(fetched.content)
@@ -428,8 +434,9 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
                     artifact_origin=artifact_origin,
                 )
             content = fetched.content
+            fetched_now = True
 
-        return adapter.parse(content, request)
+        return adapter.parse(content, request), fetched_now
 
     @abstractmethod
     def _write_business(
