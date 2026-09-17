@@ -81,6 +81,18 @@ New regressions in `tests/integration/test_step19c_corporate_action_ingestion.py
 (replacing the old range-level-quarantine fixture, which asserted the
 now-corrected behavior).
 
+`/code-review medium` on this PR found 3 real gaps in §8's own fix (ADR-0022
+§9), fixed in a follow-up commit: checkpoint-discard alone never got
+exercised once a range with a tolerated row finishes `succeeded` (fixed
+with one live inline retry); `row_quarantined_count` was invisible above
+each year's own manifest (`CorporateActionBackfillReport` now surfaces it);
+and `RetryingFetcher` didn't actually retry the same-URL redirect loop its
+own comment claimed to cover. Verified directly against the real
+`stockdc_step19d` data: zero row-level `invalid_json` quarantines exist in
+the final dataset (only whole-range ones from before §8 existed, already
+superseded by a later successful attempt), so this PR's own acceptance
+numbers above were never affected by the gap.
+
 ## Known limitations / deferred work
 
 - TWT49U's 2887-series gap is permanent and will keep appearing every year
