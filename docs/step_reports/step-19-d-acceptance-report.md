@@ -1,6 +1,6 @@
 # Step 19-d Acceptance Report
 
-Status: IN REVIEW
+Status: IN REVIEW (#28)
 
 Scope: real 2020-01-01 → 2026-09-11 backfill for all six corporate-action
 result feeds, and the legacy `dividend` reconciliation report ADR-0022 §6–8
