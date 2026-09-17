@@ -1157,18 +1157,17 @@ event is deferred until a reader needs the answer (ADR-0022 §1).
 
 ### Step 19-d — Corporate-action history backfill and reconciliation
 
-Status: **THIS STEP**. Depends on: Step 19-c.
+Status: **IN REVIEW**. Depends on: Step 19-c.
 
-Code, tests, and ADR-0022 §6–7 are done. Five of six feeds (TWTB8U,
-exDailyQ, revivt, pvChgRslt, TWTAUU) have a real, complete 2020-01-01 →
-2026-09-11 backfill with zero failures. TWT49U — the only feed with a
-legacy `dividend` reconciliation baseline — was blocked on TWSE's
-`TWT49UDetail` endpoint returning `HTTP 200 {"stat":"系統忙碌中，請稍後
-再試！"}` for every locator (2026-09-17), a failure shape `RetryingFetcher`
-does not retry (it is not one of the retryable HTTP statuses). Sibling
-endpoints on the same host stayed healthy throughout, confirming this was
-transient endpoint-side trouble rather than a sustained block; the endpoint
-recovered later the same day and the TWT49U backfill resumes from here.
+Real 2020-01-01 → 2026-09-11 backfill complete for all six feeds
+(ADR-0022 §6–8): zero duplicate identity, and `twse_twt49u` reconciles
+cleanly against legacy `dividend` (0 differences across 6,182 rows). Two
+real bugs the live backfill found and fixed along the way: a captured
+maintenance-page response was being replayed forever instead of retried
+(§7), and a range-level quarantine was silently dropping every other real
+row sharing a bad row's date (§8) — TWT49U's 2887-series preferred shares
+have no working detail page, and TWT49U's shared ex-dividend dates commonly
+list dozens of securities together.
 
 In scope: the 2020-01-01 → 2026-09-11 backfill for all six feeds and their
 details, and the reconciliation report.

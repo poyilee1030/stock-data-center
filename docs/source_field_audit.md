@@ -529,6 +529,14 @@ with a subscription price. An adapter treats a disagreement as a quarantine.
   - preferred shares (16 of 53): 股票代號, 股票名稱, (每股配發現金股利)除息,
     (增資配股) 除權, F. 按特別股股東持股比例每千股無償配股,
     G. 按特別股股東持股比例每千股有償認股, 每股認購金額.
+  - Verified live during the real Step 19-d backfill (2026-09-17): Taishin
+    Financial's 2887-series preferred/warrant sub-classes have never had a
+    working detail page, at all, on any date tried — `2887F` in every year
+    2020-2026, `2887Z1` from 2023 on, `2887G`/`2887H`/`2887I` newly in 2026.
+    Every request for these codes answers `{"stat":"無相關資料"}`, confirmed
+    by repeated fresh requests, not a transient blip. They quarantine
+    per-row (ADR-0022 §8) rather than blocking the rest of their shared
+    ex-dividend date.
 - **TWSE `rwd/zh/reducation/TWTAUU`** (capital reduction): 恢復買賣日期
   (`113/01/22`), 股票代號, 名稱, 停止買賣前收盤價格, 恢復買賣參考價, 漲停價格, 跌停價格,
   開盤競價基準, 除權參考價 (`--` in all 157 rows), 減資原因 (退還股款 87 / 彌補虧損 70),
