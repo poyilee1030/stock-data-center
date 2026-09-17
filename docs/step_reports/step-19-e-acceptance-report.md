@@ -80,3 +80,15 @@ rows, including the real blank-direction anomaly),
   split factors from `close_before`/`official_reference_price` the same
   way it already does for cash dividends and ex-rights (CLAUDE.md §80),
   not from a share count this feed never publishes.
+- **Any future `TWTCAU` request whose range spans 2026-03-31 fails
+  outright**, not intermittently — 00631L's blank direction cell is a
+  permanent feature of that date's response, not a transient glitch. This
+  PR's backfill worked around it by hand-splitting the range at that date
+  (ADR-0023 §4); a future automated job that does not know to do the same
+  — a `CorporateActionBackfill`-style year-chunked run, a correction-check
+  re-fetch, or Step 27's forward capture, whichever first requests a range
+  crossing that date — will quarantine the whole range and silently never
+  store 00674R (2026-04-22) or 00685L (2026-07-07) until a human notices
+  the quarantine and re-splits it by hand. Flagged here (code review of
+  #27) so the next PR that automates a `TWTCAU` range job reads this
+  first, rather than rediscovering it live.
