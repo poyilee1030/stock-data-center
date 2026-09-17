@@ -1288,7 +1288,7 @@
         "dataset_code": "official_valuation",
         "v1": true,
         "roadmap_pr": 18,
-        "reason": "TWSE BWIBBU_d and TPEx pera (audit 4.6).",
+        "reason": "TWSE BWIBBU_d and TPEx afterTrading/peQryDate, the JSON data call behind the legacy pera page (audit 4.6, Step 18-c).",
         "columns": {
           "security_id": {
             "coverage": "internal",
@@ -1297,11 +1297,11 @@
           "trade_date": {
             "coverage": "sourced",
             "source_fields": [
-              "report date of the requested BWIBBU_d file",
-              "report date of the requested pera file"
+              "BWIBBU_d top-level date (YYYYMMDD)",
+              "peQryDate top-level date (YYYYMMDD) and table date (ROC YYY/MM/DD)"
             ],
             "audit_section": "4.6",
-            "note": "One whole-market file per trade date."
+            "note": "One whole-market file per trade date; the response must state the requested date."
           },
           "pe_ratio": {
             "coverage": "sourced",
@@ -1309,7 +1309,7 @@
               "本益比"
             ],
             "audit_section": "4.6",
-            "note": "Published by both markets."
+            "note": "Published by both markets, as a multiple. TWSE `-`, TPEx `N/A` (and, for the two ratios only, `null`), and a printed zero mean not computed and store NULL; a negative value quarantines its row."
           },
           "pb_ratio": {
             "coverage": "sourced",
@@ -1317,7 +1317,7 @@
               "股價淨值比"
             ],
             "audit_section": "4.6",
-            "note": "Published by both markets."
+            "note": "Published by both markets, as a multiple, with the same not-computed markers as pe_ratio; a negative value quarantines its row."
           },
           "dividend_yield": {
             "coverage": "sourced",
@@ -1325,7 +1325,7 @@
               "殖利率(%)"
             ],
             "audit_section": "4.6",
-            "note": "Published by both markets."
+            "note": "Published by both markets, in percentage points."
           },
           "dividend_year": {
             "coverage": "sourced",
@@ -1333,12 +1333,12 @@
               "股利年度"
             ],
             "audit_section": "4.6",
-            "note": "Published by both markets."
+            "note": "Published by both markets as an ROC year; stored as ROC + 1911."
           },
           "dividend_per_share": {
             "coverage": "partially_sourced",
             "source_fields": [
-              "每股股利(註)"
+              "每股股利"
             ],
             "audit_section": "4.6",
             "note": "TPEx pera only; BWIBBU_d has no per-share dividend column."

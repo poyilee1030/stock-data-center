@@ -598,12 +598,12 @@ Status date: 2026-09-16.
 | 17-c | MERGED | Whole-market daily-price history backfill and reconciliation |
 | 18-a | MERGED | Market-index adapters |
 | 18-b | MERGED | Market-index import path and backfill |
-| 18-c | PLANNED | Official valuation |
+| 18-c | THIS STEP | Official valuation |
 | 19-a | MERGED | Result-feed contract, storage precision, and the TPEx adapters |
 | 19-b | MERGED | TWSE result-feed adapters and their detail pages |
 | 19-c | MERGED | Corporate-action import path, retraction included |
-| 19-d | THIS STEP | Corporate-action history backfill and legacy reconciliation |
-| 19-e | PLANNED | ETF split and reverse-split result feeds |
+| 19-d | MERGED | Corporate-action history backfill and legacy reconciliation |
+| 19-e | MERGED | ETF split and reverse-split result feeds |
 | 20 | PLANNED | Institutional flows, institutional summary, foreign holding |
 | 21 | PLANNED | Margin trading and securities lending |
 | 22 | PLANNED | Monthly revenue |
@@ -953,7 +953,9 @@ Source contract, verified live on 2026-09-16 (audit §4.2, §4.6):
   request.
 - TWSE valuation: `BWIBBU_d`. TPEx valuation: the legacy
   `web/stock/aftertrading/peratio_analysis/pera_result.php` CSV, which is still
-  served and still reaches 2020; no JSON equivalent exists on the new site.
+  served and still reaches 2020. *Corrected 2026-09-17:* the new site does serve
+  the same table as JSON, `www/zh-tw/afterTrading/peQryDate`, and it matches the
+  CSV row for row (audit §4.6).
 
 Index identity is `(source, section, published index name)`. No official index
 code exists in any of these feeds, and the published name alone collides: TPEx
@@ -1025,14 +1027,34 @@ evidence.
 
 ### Step 18-c — Official valuation
 
-Status: **PLANNED**. Depends on: Step 18-b.
+Status: **IN REVIEW** (#29). Depends on: Step 18-b.
 
 In scope: the `BWIBBU_d` and TPEx `pera` adapters, their importer, source policy
 and coverage declarations, and the backfill.
 
-The TPEx feed is big5 CSV with no JSON alternative, so it carries no self-declared
-report date and no unit statement. Recorded as a known weakness of that source:
-the requested date is the only thing that says which date a response is for.
+Decided 2026-09-17, by owner decision on the evidence below:
+
+- TPEx is read from `www/zh-tw/afterTrading/peQryDate` JSON (source code
+  `tpex_pe_qry_date`), not the legacy CSV. The legacy `pera.php` page redirects
+  to the page that loads this JSON, and the two are identical row for row.
+  TWSE is `twse_bwibbu_d`.
+- A ratio the source prints as not computed stores NULL: TWSE `-`, TPEx `N/A`
+  (both documented), TPEx `"null"`, and a ratio of exactly zero on either
+  exchange. TPEx prints its first listed day's ratios as `"null"` from
+  2021-07-26 to 2022-11-02 (6840 and others) and as `"0"` later (6720 on
+  2024-12-04). No official note explains either; both mean not computed by
+  owner decision. A negative ratio, yield or dividend quarantines its own row,
+  and the other rows of the file still import.
+- `財報年/季` is stored as Gregorian `YYYYQn` from each exchange's own format,
+  and `股利年度` as ROC + 1911.
+
+*Corrected 2026-09-17 (audit §4.6).* The earlier text said the TPEx feed is
+big5 CSV with no JSON alternative and no self-declared report date. Both
+statements are false. The CSV is MS950 and states `資料日期`. The official new
+site serves the same table as JSON through `www/zh-tw/afterTrading/peQryDate`,
+with a table date, a row count, and formula notes. Neither format states a
+unit: the ratios are multiples, `殖利率(%)` is percentage points, and
+`每股股利` is TWD per share by the notes' formula.
 
 Acceptance:
 
@@ -1226,11 +1248,27 @@ Acceptance:
 - a POST resource round-trips through serialization unchanged
 - every MOPS request in the process passes through the governor; a test proves two adapters running together cannot exceed the host budget
 
+Source finding, 2026-09-17 (audit §4.3–4.4, "TPEx new-site JSON endpoints"):
+TPEx serves `3itrade_hedge`, `3itrdsum`, and its own foreign-holding table as
+GET JSON, as `insti/dailyTrade`, `insti/summary` and `insti/qfii`, back to 2020.
+If `insti/qfii` proves equivalent to MOPS `t13sa150_otc`, this step needs no
+POST resource and no MOPS call. The new MOPS site was checked for the remaining
+MOPS domains on the same day (audit §4.7, §4.8, §4.13), and none has a usable
+JSON rendering. Monthly revenue (`nas/t21`, Step 22) and iXBRL (`t164sb01`,
+Step 23) are plain GETs. Only `t05st09sub` (Step 33) is a POST. Moving the POST
+resource would therefore land it in Step 33. The per-host governor would land
+in Step 22, the first remaining step that calls `mopsov.twse.com.tw`.
+This step settles that before it builds either.
+
 ## Step 21 — Margin Trading and Securities Lending
 
 Status: **PLANNED**. Depends on: Step 16, Step 17-c.
 
 Source contract (audit §4.5): `MI_MARGN`, `TWT93U`; TPEx `margin_bal`, `margin_sbl`. TWSE utilization ratios stay NULL. History: about 6,500 requests.
+
+Source finding, 2026-09-17 (audit §4.5): TPEx serves both tables as GET JSON,
+`www/zh-tw/margin/balance` and `margin/sbl`, with the same fields and back to
+2020. This step chooses between them and the legacy CSV.
 
 Acceptance: legacy `margin_trading` and `margin_sbl` reconcile after lots → shares.
 

@@ -279,6 +279,17 @@ class MarketReferenceWriter:
             )
         return tuple(retraction_ids)
 
+    def append_official_valuations(
+        self, connection: Connection, *, source: str,
+        observations: Sequence[tuple[int, OfficialValuationObservation]],
+        lineage: Phase8LineageRef,
+    ) -> tuple[WrittenPhase8Version, ...]:
+        """Append a whole market-date of valuations, in the order given."""
+        return self._append_many(
+            connection, SPECS["official_valuation"], "security_id",
+            source, observations, lineage, identity_fields=("trade_date",),
+        )
+
     def append_publication_evidence_batch(
         self, connection: Connection, *, dataset_code: str, source: str,
         planned: Sequence[tuple[int, Phase8Publication]], lineage: Phase8LineageRef,

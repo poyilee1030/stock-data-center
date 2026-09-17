@@ -18,9 +18,10 @@
 邊界寫在 [`CLAUDE.md`](CLAUDE.md)（"Current Step Sequence" 一節有目前的
 狀態快照，但 `ROADMAP.md` 永遠是最新且權威的版本）。
 
-目前已完成六個交易所公司行動結果檔（`corporate_action`）的 adapter 與
-import 路徑（Step 19-a/b/c/e），對應真實歷史回補與 legacy 對帳仍在進行中
-（Step 19-d，見下方「已知問題」）。
+已完成並驗證的真實資料（2020-01-02 → 2026-09-11，逐筆與 legacy 對帳）：
+全市場日行情（Step 17）、市場指數（Step 18-a/b）、交易所公司行動結果檔
+（Step 19）。官方估值（本益比／股價淨值比／殖利率，Step 18-c）的回補與
+對帳已完成，正在審查中。
 
 ## 技術棧
 
@@ -85,7 +86,7 @@ Redis 為選配，且要等 Step 30 的延遲量測證實有需要才會啟用�
 .venv/bin/python -m stock_data_center.ingestion.cli --help
 ```
 
-各子指令（`daily-market`、`market-index`、`corporate-action` 等）對應
+各子指令（`daily-market`、`market-index`、`official-valuation`、`corporate-action` 等）對應
 `ROADMAP.md` 上已交付的資料網域；每個真實來源的匯入/回補都會產生
 import manifest（涵蓋範圍、筆數、去重、隔離等統計），並對照 legacy
 `stock_db` 做對帳（`CLAUDE.md` §78）。
@@ -119,11 +120,10 @@ tests/
 
 ## 已知問題
 
-- **TWSE `TWT49UDetail` 端點目前忙碌中**（2026-09-17 觀測，`HTTP 200
-  {"stat":"系統忙碌中，請稍後再試！"}`，非暫時性的 307 重試可以解決）。
-  Step 19-d（公司行動歷史回補與 legacy 對帳）因此卡住——這是唯一有
-  legacy `dividend` 對帳基準的來源，其餘五個結果檔已完成真實回補。
-  詳見 `docs/decisions/0022-corporate-action-import-path.md` §7。
+- legacy `pe_ratio` 有 15 個 TWSE 日期存到別天的檔案（legacy 沒檢查
+  日期與表頭），以它為基準對帳時這些日期整日都會不同；已在
+  `scripts/reconcile_official_valuation.py` 分類，詳見
+  `docs/step_reports/step-18-c-acceptance-report.md`。
 - `TWTCAU`（ETF 分割/反分割）有一筆真實資料方向欄位是空白（00631L,
   115/03/31），任何涵蓋這個日期的請求都會整段隔離失敗；目前靠手動分段
   回補繞過，未來的自動化回補（forward capture、correction check）需要

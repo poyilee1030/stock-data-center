@@ -265,6 +265,11 @@ Summary sources: TWSE `fund/BFI82U` (單位名稱, 買進金額, 賣出金額, �
 TPEx `3itrdsum` (單位名稱, 買進金額(元), 賣出金額(元), 買賣超(元)). The TPEx file
 for 2026-07-10 in the archive is broken.
 
+TPEx new-site JSON, found 2026-09-17 (see "TPEx new-site JSON endpoints" below):
+`3itrade_hedge` is also served as `www/zh-tw/insti/dailyTrade`, with the same
+24 fields, and `3itrdsum` as `www/zh-tw/insti/summary`, with the same 4 fields.
+Both answer 2020-01-02 and 2026-09-11. Step 20 decides which endpoint to use.
+
 ### 4.4 Foreign holding
 
 - TWSE `fund/MI_QFIIS`: 12 columns, including the ISIN.
@@ -273,6 +278,16 @@ for 2026-07-10 in the archive is broken.
 Every `foreign_holding_versions` column is sourced. Its `issued_shares` is the
 only whole-market issued-share series for both markets, and legacy consumers
 read it.
+
+TPEx foreign holding is also served by TPEx itself, found 2026-09-17:
+`www/zh-tw/insti/qfii?date=YYYY/MM/DD&response=json`, a GET request. It has 10
+fields: 排行, 代號, 名稱, 發行股數(A), 僑外資及陸資尚可投資股數B=A*F-C,
+僑外資及陸資持有股數(C), 僑外資及陸資尚可投資比率(D=B/A),
+僑外資及陸資持股比率(E=C/A), 法令投資上限比率(F), 備註. It answers 2020-01-02
+(778 rows) and 2026-09-11 (892 rows). Legacy's MOPS-derived table holds 728 and
+891 rows on those dates. Nobody has yet checked that the two feeds cover the
+same securities or publish the same values; Step 20 must check that before it
+replaces MOPS.
 
 ### 4.5 Margin and securities lending
 
@@ -287,12 +302,111 @@ ratios exist for TPEx only; TWSE values are NULL.
 - SBL: TWSE `TWT93U` (15 columns, two header rows) and TPEx `margin_sbl`
   (15 columns). Every `securities_lending_versions` column is sourced.
 
+TPEx new-site JSON, found 2026-09-17: `margin_bal` is also served as
+`www/zh-tw/margin/balance`, with the same 20 fields, and `margin_sbl` as
+`www/zh-tw/margin/sbl`, with the same 15 fields. Both answer 2020-01-02 and
+2026-09-11. Step 21 decides which endpoint to use.
+
+#### TPEx new-site JSON endpoints
+
+Verified 2026-09-17. Each legacy `web/stock/.../*.php` page now answers with a
+302 redirect to a page on the new site, `www.tpex.org.tw/zh-tw/mainboard/...`.
+That page's own script loads its table from
+`www/zh-tw/<action>?date=YYYY/MM/DD&response=json`, read from its
+`tables.init({action: ...})` call. These are the official site's data calls,
+from the same family as `afterTrading/otc` and `afterTrading/indexSummary`,
+which Steps 17 and 18 already use.
+
+| Legacy page | New page | `action` | 2020-01-02 rows (legacy table) |
+| --- | --- | --- | --- |
+| `3insti/3insti_summary/3itrdsum.php` | `major-institutional/summary/day.html` | `insti/summary` | 8 |
+| `3insti/daily_trade/3itrade_hedge.php` | `major-institutional/detail/day.html` | `insti/dailyTrade` | 561 (459) |
+| `3insti/qfii/qfii.php` | `major-institutional/stock-ocfi.html` | `insti/qfii` | 778 (728, from MOPS) |
+| `margin_trading/margin_balance/margin_bal.php` | `margin-trading/transactions.html` | `margin/balance` | 743 (647) |
+| `margin_trading/margin_sbl/margin_sbl.php` | `margin-trading/sbl.html` | `margin/sbl` | 756 (660) |
+| `aftertrading/peratio_analysis/pera.php` | `trading/info/daily-pe.html` | `afterTrading/peQryDate` | 772 (see 4.6) |
+
+Every response carries `stat`, a top-level `date` in `YYYYMMDD`, and a table
+with its own ROC `date` and `fields`. The probe sent `type=Daily` to every
+action; which parameters each action actually reads is not yet established.
+Legacy holds fewer rows than every JSON table, and its archive is known to drop
+rows (section 3). These row counts are a first observation, not a
+reconciliation.
+
 ### 4.6 Official valuation
 
 - TWSE `BWIBBU_d`: 證券代號, 證券名稱, 收盤價, 殖利率(%), 股利年度, 本益比, 股價淨值比,
   財報年/季. One anomalous 5-column file on 2025-06-24.
 - TPEx `pera`: 股票代號, 公司名稱, 本益比, 每股股利(註), 股利年度, 殖利率(%), 股價淨值比.
   財報年/季 is added from 2025-01-02.
+
+Re-verified live 2026-09-17:
+
+- TWSE `rwd/zh/afterTrading/BWIBBU_d?date=YYYYMMDD&selectType=ALL&response=json`
+  serves the 8-field header on 2020-01-02, 2025-06-23, **2025-06-24** and
+  2026-09-11. `股利年度` is an ROC integer (`114`). `財報年/季` is written
+  `115/2`. `本益比` uses `-` when it is not computed. A closed date answers
+  `stat` `很抱歉，沒有符合條件的資料!`. The 5-field header (證券代號, 證券名稱,
+  本益比, 殖利率(%), 股價淨值比) is real, but it is what TWSE serves for older
+  dates such as 2017-01-03. The legacy archive's 2025-06-24 `sii.csv` has this
+  5-field header and different values: 1101 has PE 12.55, against 20.28 today
+  and 19.76 / 20.24 on the neighbouring dates. It also has 676 rows, against
+  1,044. That legacy file is a bad capture, not the official answer for that
+  date.
+- TPEx `pera_result.php?o=csv` is MS950 (the response says
+  `charset=MS950`; plain big5 fails to decode it). Contrary to the earlier note,
+  it **does** state its date (`資料日期:115/09/11`) and ends with a row count
+  (`共885筆`). A closed date answers with the header and `共0筆`.
+- TPEx also serves the same table as JSON: `www/zh-tw/afterTrading/peQryDate?
+  date=YYYY/MM/DD&response=json`. The legacy page redirects to the page that
+  loads it. It is identical to the CSV row for row on 2020-01-02 (772 rows) and
+  2026-09-11 (885 rows). It adds a table `date`, a `totalCount`, an integer
+  `股利年度`, and the page's `notes`. Its field label is `每股股利`, without `(註)`.
+- TPEx `notes` state the formulas. 本益比 = 收盤價 / 最近四季每股稅後純益, and it
+  is not computed when EPS is zero or negative; the file then prints `N/A`.
+  殖利率 = 每股股利 / 收盤價 × 100%, where 每股股利 is cash dividend plus
+  earnings stock dividend for the prior year. 每股股利 is not adjusted for later
+  capital changes. 股價淨值比 = 收盤價 / 每股淨值.
+- TPEx `財報年/季` is written `115Q2`, against TWSE's `115/2`.
+- Two first-day markers that the notes do not explain. TPEx 2024-12-04 prints
+  `"0"` for both 本益比 and 股價淨值比 of 6720 久昌. That date is 6720's first
+  row in the feed, in legacy `pe_ratio`, and in our daily prices. On 2024-12-05
+  the same feed prints 28.23 and 8.69. From 2021-07-26 to 2022-11-02, TPEx
+  prints the same first-day case as the string `"null"`, for example 6840 東研信超
+  on its first day, 2021-07-26. The legacy CSV has `"null"` there too.
+  By owner decision (ROADMAP 18-c), both mean not computed and store NULL. A
+  ratio of exactly zero is treated the same way on TWSE.
+
+Marker counts over the whole 2020-01-02 → 2026-09-11 backfill, each trade date
+counted once:
+
+| Source | Field | Value | Rows | Dates | First → last |
+| --- | --- | --- | ---: | ---: | --- |
+| TWSE | 本益比 | `-` | 309,579 | 1,627 | 2020-01-02 → 2026-09-11 |
+| TWSE | 股價淨值比 | `-` | 262 | 261 | 2021-01-06 → 2026-07-24 |
+| TWSE | either ratio | zero | 0 | 0 | — |
+| TPEx | 本益比 | `N/A` | 361,936 | 1,627 | 2020-01-02 → 2026-09-11 |
+| TPEx | 股價淨值比 | `N/A` | 178 | 157 | 2020-03-24 → 2025-06-20 |
+| TPEx | 本益比, 股價淨值比 | `"null"` | 379 each | 205 | 2021-07-26 → 2022-11-02 |
+| TPEx | 本益比, 股價淨值比 | `"0"` | 1 each | 1 | 2024-12-04 |
+
+Every TWSE file in the window has the 8-field header. Every TPEx file up to
+2024-12-31 has the 7-field header (1,216 dates), and every file from
+2025-01-02 has the 8-field one (411 dates).
+
+The legacy `pe_ratio` table disagrees with the official feed on 15 TWSE dates
+only, and on each of them the legacy file is a different date's file. Legacy
+checked neither the date nor the header of what it saved (section 3):
+
+- On 10 dates the legacy file is an exact copy of another official date,
+  sometimes earlier and sometimes later. For example, 2020-12-07 is the
+  2020-12-18 file, 2022-01-24 is the 2022-01-18 file, and both 2025-06-04 and
+  2025-06-05 are the 2025-06-18 file.
+- On 4 dates (2022-02-17, 2023-03-22, 2024-01-08, 2025-08-20) the archived
+  `sii.csv` files are byte-identical to one another. They hold data from
+  late 2017: 股利年度 105, 財報年/季 106/3.
+- On 2025-06-24 the legacy file is the 5-field header, which TWSE serves only
+  for older dates.
 
 PE, PB, yield, and dividend year are sourced for both markets.
 `dividend_per_share` exists for TPEx only. `report_period` exists for TWSE on
@@ -323,6 +437,24 @@ lists domestic issuers; `_1` lists foreign/KY issuers (for example, 5871
 | published comparatives (上月營收, 去年當月營收, three percentages, cumulative values, 備註) | ✓ in the source and read by legacy consumers, but not stored by the current schema |
 | KY issuers | missing from legacy, which never fetched `_1`; 140 KY securities appear in legacy `daily_quotes` |
 
+The new MOPS site does not change this. Checked 2026-09-17: the SPA
+(`mops.twse.com.tw/mops/`, bundle `assets/index.js`) routes 每月營業收入彙總表
+(`t21sc04_ifrs`) through its `redirectToOld` API. That call returns only a
+`mopsov.twse.com.tw/mops/web/ajax_t21sc04_ifrs?parameters=…` URL, which is an
+old-site HTML page. The site offers no JSON rendering of the monthly table.
+`nas/t21` stays the source, and it is a plain GET.
+
+Summary of the new MOPS site's request types, read from the dispatcher in
+`assets/index.js`. Every call goes to `mops.twse.com.tw/mops/api/`, and the
+`type` field decides how:
+
+| `type` | What the API does |
+| --- | --- |
+| `base` | POSTs JSON to `api/<name>` and returns JSON data |
+| `twse` | POSTs to `api/redirectToOld`, which returns an old-site `mopsov` URL |
+| `sii` | POSTs to `api/redirectToSiis` |
+| `url` | builds an old-site URL in the browser and makes no API call |
+
 ### 4.8 Financial statements (iXBRL)
 
 MOPS `server-java/t164sb01`, one iXBRL HTML per `(CO_ID, SYEAR, SSEASON,
@@ -336,6 +468,17 @@ sequence, and it returns the currently effective, possibly amended, report. A
 synthetic `filing_key` of `(security, year, quarter, report type)` matches the
 endpoint's own request key. Full history is about 45,000 requests (the legacy
 archive has 45,324 files).
+
+Checked 2026-09-17: the new MOPS site has a JSON API for financial statements,
+for example `POST mops.twse.com.tw/mops/api/t164sb04` with
+`{"companyId","dataType":"2","subsidiaryCompanyId","year"(ROC),"season"}`.
+It is **not a substitute** for the iXBRL documents. It returns a rendered
+statement: Chinese line-item labels, formatted amounts, and percentages. It has
+no concept QName, no context, no dimensions, no `unitRef`, and no `decimals`, so
+it cannot meet CLAUDE.md §33. Its own `urlList` points back to
+`mopsov.twse.com.tw/server-java/t164sb01?step=1&CO_ID=…&SYEAR=…&SSEASON=…&REPORT_ID=C`,
+which legacy fetched with a plain GET. At most, the JSON could serve Step 23 as
+a cross-check.
 
 ### 4.9 TDCC shareholding distribution
 
@@ -670,7 +813,9 @@ POST https://mopsov.twse.com.tw/server-java/t05st09sub
 
 One request returns the whole market for one year as a big5 HTML table. The
 endpoint is discoverable from the MOPS SPA route `t05st09_new`
-(`assets/t05st09_new.js`). Parameter names are case-sensitive: `YEAR` works,
+(`assets/t05st09_new.js`). Re-checked 2026-09-17: that route's search action is
+of type `url` and points straight at `mopsov…/server-java/t05st09sub` with
+method POST. The new site has no JSON rendering for it. Parameter names are case-sensitive: `YEAR` works,
 `year` returns the big5 error page `參數傳入錯誤`.
 
 Observed row counts (qryType=1):

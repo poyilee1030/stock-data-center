@@ -13,7 +13,10 @@ from stock_data_center.market_data import (
     DailyPriceObservation,
     SecurityMetadataObservation,
 )
-from stock_data_center.market_reference.models import MarketIndexObservation
+from stock_data_center.market_reference.models import (
+    MarketIndexObservation,
+    OfficialValuationObservation,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,6 +131,53 @@ class ParsedMarketIndex:
     trade_date: date
     rows: tuple[MarketIndexRow, ...]
     section_count: int
+    source_fields: tuple[str, ...]
+
+    @property
+    def coverage_start(self) -> date | None:
+        return self.trade_date if self.rows else None
+
+    @property
+    def coverage_end(self) -> date | None:
+        return self.trade_date if self.rows else None
+
+
+@dataclass(frozen=True, slots=True)
+class OfficialValuationRequest:
+    """Request one market's published valuation ratios for one trade date."""
+
+    trade_date: date
+
+
+@dataclass(frozen=True, slots=True)
+class OfficialValuationRow:
+    security_code: str
+    observation: OfficialValuationObservation
+
+
+@dataclass(frozen=True, slots=True)
+class RejectedValuationRow:
+    """One row the source published but the contract cannot store.
+
+    Its own quarantine, not the date's: a first-day `"0"` ratio for one
+    security says nothing about the other 830 rows of that file.
+    """
+
+    row_number: int
+    security_code: str
+    reason_code: str
+    detail: str
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedOfficialValuation:
+    """Every valuation one market published for one trade date."""
+
+    market: str
+    trade_date: date
+    rows: tuple[OfficialValuationRow, ...]
+    rejected: tuple[RejectedValuationRow, ...]
+    header_variant: str
     source_fields: tuple[str, ...]
 
     @property
