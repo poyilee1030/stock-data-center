@@ -303,3 +303,62 @@ def test_the_downgrade_removes_only_its_declarations_and_upgrade_restores_them(
             assert connection.scalar(query) == 2
     finally:
         engine.dispose()
+
+
+def run_as(engine, tmp_path, *, adapter, content, purpose):
+    importer = InstitutionalInvestorImporter(
+        engine,
+        raw_store=LocalRawArtifactStore(tmp_path / "raw"),
+        fetcher=StaticFetcher(content),
+    )
+    importer.run(
+        adapter=adapter,
+        request=InstitutionalInvestorRequest(DAY),
+        import_id=uuid4(),
+        git_commit="test-commit",
+        purpose=purpose,
+    )
+
+
+def test_a_reimport_does_not_append_the_rule_a_late_first_capture_withheld(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """Code review of #30: the policy could not see a stored capture for this
+    dataset, so a re-import appended `release_rule` at D+1 03:00 for a version
+    whose proven first sighting was days later — a market-PIT leak into
+    append-only storage."""
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        # The fixture's fetch instant is now, well after 2026-09-11's rule
+        # instant (2026-09-11 19:00 UTC), so this first sighting is late.
+        run_as(engine, tmp_path, adapter=TWSEInstitutionalInvestorAdapter(),
+               content=TWSE, purpose=IngestPurpose.FIRST_CAPTURE)
+        run_as(engine, tmp_path, adapter=TWSEInstitutionalInvestorAdapter(),
+               content=TWSE, purpose=IngestPurpose.GAP_FILL)
+        with engine.connect() as connection:
+            counts = dict(connection.execute(sa.text(
+                "SELECT evidence_type, count(*) FROM publication_evidence "
+                "WHERE dataset_code = 'institutional_investor' GROUP BY 1"
+            )).all())
+        assert counts == {"capture_bound": 1330}
+    finally:
+        engine.dispose()
+
+
+def test_every_dataset_accepting_capture_bound_can_read_its_stored_captures(
+    isolated_database_url: str,
+) -> None:
+    """The same gap for any later dataset: a source that accepts capture_bound
+    must have a DATASET_TARGETS entry, or falsification cannot see it."""
+    from stock_data_center.evidence.policy import DATASET_TARGETS
+
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        with engine.connect() as connection:
+            datasets = set(connection.execute(sa.text(
+                "SELECT DISTINCT dataset_code FROM dataset_sources "
+                "WHERE 'capture_bound' = ANY(accepted_evidence_types)"
+            )).scalars())
+        assert datasets - set(DATASET_TARGETS) == set()
+    finally:
+        engine.dispose()

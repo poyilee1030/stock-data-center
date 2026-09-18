@@ -154,11 +154,12 @@ and other codes that are not 4-digit. Legacy kept common stock only. No
 Database migrated from zero:
 
 ```text
-668 passed, 3 skipped, 1 warning
+670 passed, 3 skipped, 1 warning
 ```
 
-The baseline on `main` was 633 passed and 3 skipped. The 35 new tests (25
-unit, 10 integration) are the difference.
+The baseline on `main` was 633 passed and 3 skipped. The 37 new tests (25
+unit, 12 integration) are the difference. Two of them come from code review;
+see below.
 
 How each test was seen to fail first:
 
@@ -183,6 +184,20 @@ python scripts/reconcile_institutional_investors.py \
     --database-url postgresql+psycopg://stockdc:stockdc@localhost:5432/stockdc_backfill \
     --legacy-database-url postgresql+psycopg://user:password@127.0.0.1:5419/stock_db
 ```
+
+## Code-review findings
+
+The review of #30 found one bug and nothing else. It was checked against the
+code and reproduced before any change was made.
+
+| # | Finding | Verified by | Disposition |
+| --- | --- | --- | --- |
+| 1 | **Market-PIT leak.** `institutional_investor` had no entry in `DATASET_TARGETS` (`evidence/policy.py`), so `plan_many` could not see a `capture_bound` already stored for a version. Take a `first_capture` of D fetched after D+1 03:00: it correctly withholds the release rule. A later re-import of D would then append `release_rule` at D+1 03:00 into append-only evidence, making the version visible before its proven first sighting. | A new test runs a late `first_capture` and then a `gap_fill`. It found 1,330 `release_rule` rows next to the 1,330 `capture_bound` rows. | **Fixed.** The dataset is added to `DATASET_TARGETS`, and the test now finds `capture_bound` only. A second permanent test requires every dataset whose source accepts `capture_bound` to have a `DATASET_TARGETS` entry, so 20-b, 20-d and 21 cannot repeat the gap. Both tests failed before the fix. |
+
+The stored backfill was not affected. It ran as `gap_fill`, which never writes
+`capture_bound`. `stockdc_backfill` holds 3,125,466 `release_rule` rows for this
+dataset and no other evidence type, so there was no capture for a re-import to
+contradict.
 
 ## Scope exclusions confirmed
 
