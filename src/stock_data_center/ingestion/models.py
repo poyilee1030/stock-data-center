@@ -10,6 +10,7 @@ from types import MappingProxyType
 
 from stock_data_center.institutional_financing.models import (
     InstitutionalInvestorObservation,
+    InstitutionalMarketSummaryObservation,
 )
 from stock_data_center.provenance import ArtifactOrigin, IngestPurpose
 from stock_data_center.market_data import (
@@ -212,6 +213,32 @@ class ParsedInstitutionalInvestor:
     market: str
     trade_date: date
     rows: tuple[InstitutionalInvestorRow, ...]
+    header_variant: str
+    source_fields: tuple[str, ...]
+
+    @property
+    def coverage_start(self) -> date | None:
+        return self.trade_date if self.rows else None
+
+    @property
+    def coverage_end(self) -> date | None:
+        return self.trade_date if self.rows else None
+
+
+@dataclass(frozen=True, slots=True)
+class InstitutionalMarketSummaryRequest:
+    """Request one market's institutional trading-value summary for one trade date."""
+
+    trade_date: date
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedInstitutionalMarketSummary:
+    """Every summary row one market published for one trade date, in order."""
+
+    market: str
+    trade_date: date
+    rows: tuple[InstitutionalMarketSummaryObservation, ...]
     header_variant: str
     source_fields: tuple[str, ...]
 

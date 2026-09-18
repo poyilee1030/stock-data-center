@@ -263,7 +263,7 @@ Every `institutional_investor_versions` column is sourced for both markets.
 
 Summary sources: TWSE `fund/BFI82U` (單位名稱, 買進金額, 賣出金額, 買賣差額) and
 TPEx `3itrdsum` (單位名稱, 買進金額(元), 賣出金額(元), 買賣超(元)). The TPEx file
-for 2026-07-10 in the archive is broken.
+for 2026-07-10 in the archive is broken; Step 20-b found why (below).
 
 TPEx new-site JSON, found 2026-09-17 (see "TPEx new-site JSON endpoints" below):
 `3itrade_hedge` is also served as `www/zh-tw/insti/dailyTrade`, with the same
@@ -357,6 +357,40 @@ TPEx new-site JSON, found 2026-09-17: `margin_bal` is also served as
 `www/zh-tw/margin/balance`, with the same 20 fields, and `margin_sbl` as
 `www/zh-tw/margin/sbl`, with the same 15 fields. Both answer 2020-01-02 and
 2026-09-11. Step 21 decides which endpoint to use.
+
+Step 20-b settled the summary endpoints, verified 2026-09-18:
+
+- **TWSE** `rwd/zh/fund/BFI82U?type=day&dayDate=YYYYMMDD&response=json`,
+  source code `twse_bfi82u`. `hints` states `單位：元`. Six rows, in this
+  order on every sampled date from 2020 to 2026: 自營商(自行買賣),
+  自營商(避險), 投信, 外資及陸資(不含外資自營商), 外資自營商, 合計. A closed
+  day answers `{"stat": "很抱歉，沒有符合條件的資料!"}`.
+- **TPEx** `www/zh-tw/insti/summary?date=YYYY/MM/DD&response=json`, source
+  code `tpex_insti_summary`. Eight rows: 外資及陸資合計, 外資及陸資(不含自營商),
+  外資自營商, 投信, 自營商合計, 自營商(自行買賣), 自營商(避險), 三大法人合計*.
+  The page indents the four subgroup rows with U+3000; the stored name drops
+  that indent and the raw artifact keeps it. A closed day answers `stat: ok`
+  with an empty table.
+- **A five-row TWSE layout existed.** Legacy files for 2021-08-26,
+  2022-09-22 and 2025-03-14, saved 2026-01-30 → 2026-02-01, have one combined
+  `外資` row and no `外資自營商` row. Its values equal today's
+  外資及陸資(不含外資自營商), and 合計 is unchanged. TWSE now serves six rows
+  for those dates; the adapter treats the five-row layout as a format change.
+- **Names are per market.** The two exchanges name the foreign row
+  differently, and TPEx publishes two subtotals TWSE does not. Rows are
+  stored under the published name, as the indices are (Step 18); nothing maps
+  one market onto the other.
+- **Totals.** Both exchanges note that the foreign-dealer row is already
+  inside the dealer rows and is not added into the total. TWSE 合計 is
+  self + hedge + trust + foreign; TPEx 三大法人合計* is foreign + trust +
+  自營商合計. The Step 20-b reconciliation checks every stored date.
+- **The broken 2026-07-10 file.** 2026-07-10, a Friday, was an unscheduled
+  closure. It is not on TWSE's published 2026 holiday schedule, but it is
+  absent from the TWSE trading calendar (Step 16), and neither market has
+  prices or flows for it. The
+  legacy scraper saved TPEx's empty-table answer into its CSV archive, which
+  is why the file does not parse. Re-fetched, TPEx answers the date exactly as
+  it answers a Sunday. It is not a gap.
 
 #### TPEx new-site JSON endpoints
 
