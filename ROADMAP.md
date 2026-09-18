@@ -1263,7 +1263,7 @@ Acceptance, across the four parts:
 
 ### Step 20-a — Per-security institutional flows
 
-Status: **IN REVIEW**. Depends on: Step 16, Step 17-c.
+Status: **IN REVIEW** (#30). Depends on: Step 16, Step 17-c.
 
 In scope: TWSE `T86` (`twse_t86`) and TPEx `insti/dailyTrade`
 (`tpex_insti_daily_trade`), chosen over the legacy `3itrade_hedge` CSV because
