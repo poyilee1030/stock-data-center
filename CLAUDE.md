@@ -101,7 +101,7 @@ Each required criterion must be PASS/FAIL with concrete evidence.
 
 ## Current Step Sequence
 
-ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–18 and 19-a through 19-e as MERGED and labels Step 20-a as `THIS STEP` (a contextual marker, not an additional status value):
+ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–18, 19-a through 19-e and 20-a as MERGED and labels Step 20-b as `THIS STEP` (a contextual marker, not an additional status value):
 
 ```text
 Step 11  authoritative security lifecycle history        MERGED
@@ -123,8 +123,8 @@ Step 19-b TWSE result-feed adapters + detail pages      MERGED
 Step 19-c corporate-action import path                  MERGED
 Step 19-d corporate-action backfill + reconciliation    MERGED
 Step 19-e ETF split / reverse-split result feeds        MERGED
-Step 20-a per-security institutional flows             THIS STEP
-Step 20-b institutional market summary                  PLANNED
+Step 20-a per-security institutional flows             MERGED
+Step 20-b institutional market summary                  THIS STEP
 Step 20-c complete source requests + MOPS rate governor PLANNED
 Step 20-d foreign holding (MI_QFIIS + MOPS)             PLANNED
 Step 21  margin trading + securities lending            PLANNED

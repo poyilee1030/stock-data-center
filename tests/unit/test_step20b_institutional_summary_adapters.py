@@ -3,8 +3,9 @@
 Every fixture is a live response from 2026-09-18, fetched with the URL the
 adapter builds. `twse_bfi82u_20260913_closed.json` is a Sunday.
 `tpex_insti_summary_20260710_closed.json` is the date whose legacy archive file
-is broken (audit §4.3): 2026-07-10 was a typhoon closure, and TPEx answers it
-today exactly as it answers a Sunday, with an empty table.
+is broken (audit §4.3): 2026-07-10 was an unscheduled closure, absent from the
+TWSE trading calendar, and TPEx answers it today exactly as it answers a
+Sunday, with an empty table.
 """
 
 from __future__ import annotations
@@ -32,12 +33,12 @@ TWSE_2020 = (FIXTURES / "twse_bfi82u_20200102.json").read_bytes()
 TWSE_CLOSED = (FIXTURES / "twse_bfi82u_20260913_closed.json").read_bytes()
 TPEX = (FIXTURES / "tpex_insti_summary_20260911.json").read_bytes()
 TPEX_2020 = (FIXTURES / "tpex_insti_summary_20200102.json").read_bytes()
-TPEX_TYPHOON = (FIXTURES / "tpex_insti_summary_20260710_closed.json").read_bytes()
+TPEX_CLOSURE = (FIXTURES / "tpex_insti_summary_20260710_closed.json").read_bytes()
 
 DAY = date(2026, 9, 11)
 FIRST = date(2020, 1, 2)
 SUNDAY = date(2026, 9, 13)
-TYPHOON = date(2026, 7, 10)
+CLOSURE = date(2026, 7, 10)
 
 TWSE_INSTITUTIONS = (
     "自營商(自行買賣)", "自營商(避險)", "投信",
@@ -231,7 +232,7 @@ def test_tpex_2020_reads_its_first_window_date() -> None:
 
 
 def test_tpex_a_closed_day_is_no_data() -> None:
-    assert reason(lambda: tpex(TPEX_TYPHOON, TYPHOON)) == "no_data_for_date"
+    assert reason(lambda: tpex(TPEX_CLOSURE, CLOSURE)) == "no_data_for_date"
 
 
 def test_tpex_answering_for_another_date_fails() -> None:

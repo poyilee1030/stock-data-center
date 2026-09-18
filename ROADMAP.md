@@ -571,7 +571,7 @@ If a required correctness criterion fails, stop and keep the PR unmerged.
 
 # 20. Step Ledger
 
-Status date: 2026-09-16.
+Status date: 2026-09-18.
 
 | Step | Status | Delivery |
 |---|---|---|
@@ -604,8 +604,8 @@ Status date: 2026-09-16.
 | 19-c | MERGED | Corporate-action import path, retraction included |
 | 19-d | MERGED | Corporate-action history backfill and legacy reconciliation |
 | 19-e | MERGED | ETF split and reverse-split result feeds |
-| 20-a | THIS STEP | Per-security institutional flows |
-| 20-b | PLANNED | Institutional market summary |
+| 20-a | MERGED | Per-security institutional flows |
+| 20-b | THIS STEP | Institutional market summary |
 | 20-c | PLANNED | Complete source requests and the per-host rate governor |
 | 20-d | PLANNED | Foreign holding |
 | 21 | PLANNED | Margin trading and securities lending |
@@ -1263,7 +1263,7 @@ Acceptance, across the four parts:
 
 ### Step 20-a — Per-security institutional flows
 
-Status: **IN REVIEW** (#30). Depends on: Step 16, Step 17-c.
+Status: **MERGED** (#30). Depends on: Step 16, Step 17-c.
 
 In scope: TWSE `T86` (`twse_t86`) and TPEx `insti/dailyTrade`
 (`tpex_insti_daily_trade`), chosen over the legacy `3itrade_hedge` CSV because
@@ -1282,11 +1282,28 @@ sums of stored groups on every raw artifact.
 
 ### Step 20-b — Institutional market summary
 
-Status: **PLANNED**. Depends on: Step 20-a.
+Status: **IN REVIEW**. Depends on: Step 20-a.
 
-TWSE `BFI82U` and TPEx `insti/summary` (or `3itrdsum`), into
-`institutional_market_summary_versions`. Amounts are in TWD. This part
-re-fetches or quarantines the broken TPEx archive file of 2026-07-10.
+In scope: TWSE `BFI82U` (`twse_bfi82u`) and TPEx `insti/summary`
+(`tpex_insti_summary`), the JSON of `3itrdsum` with the same four fields, into
+`institutional_market_summary_versions`, in TWD. Also in scope: the importer,
+source policy and coverage declarations, the CLI, the 2020-01-02 → 2026-09-11
+backfill, and the reconciliation against legacy `institutional_summary`.
+
+Settled 2026-09-18 (audit §4.3): one version per published row, identified by
+`(market, institution)` with the published name and TPEx's layout indent
+removed. The two markets keep their own names, and TPEx's two subtotal rows
+are stored as published. The broken 2026-07-10 archive file is an unscheduled
+closure the legacy scraper saved; re-fetched, the date answers an empty table
+and quarantines as `no_data_for_date`.
+
+Schema impact: none. The migration adds catalog, source, release-rule and
+coverage rows. Both sources follow `exchange_daily_settled@1`.
+
+Acceptance: legacy `institutional_summary` reconciles, with every difference
+classified; coverage is 1,627 of 1,627 dates for both markets; every stored
+row satisfies buy − sell = net and every stored date its market's published
+totals; the 2026-07-10 file is re-fetched and quarantined.
 
 ### Step 20-c — Complete source requests and the per-host rate governor
 

@@ -33,10 +33,10 @@ pytestmark = pytest.mark.integration
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 TWSE = (FIXTURES / "twse_bfi82u_20260911.json").read_bytes()
 TPEX = (FIXTURES / "tpex_insti_summary_20260911.json").read_bytes()
-TPEX_TYPHOON = (FIXTURES / "tpex_insti_summary_20260710_closed.json").read_bytes()
+TPEX_CLOSURE = (FIXTURES / "tpex_insti_summary_20260710_closed.json").read_bytes()
 
 DAY = date(2026, 9, 11)
-TYPHOON = date(2026, 7, 10)
+CLOSURE = date(2026, 7, 10)
 PREVIOUS_HEAD = "c4e7a1d3f9b6"
 
 
@@ -237,7 +237,7 @@ def test_the_two_markets_keep_separate_histories(
         engine.dispose()
 
 
-def test_the_typhoon_date_quarantines_and_keeps_its_raw_artifact(
+def test_the_closure_date_quarantines_and_keeps_its_raw_artifact(
     isolated_database_url: str, tmp_path: Path
 ) -> None:
     """The legacy archive file for 2026-07-10 is broken (audit §4.3). Re-fetched,
@@ -247,7 +247,7 @@ def test_the_typhoon_date_quarantines_and_keeps_its_raw_artifact(
     try:
         with pytest.raises(ResourceQuarantinedError, match="no_data_for_date"):
             run(engine, tmp_path, adapter=TPExInstitutionalMarketSummaryAdapter(),
-                content=TPEX_TYPHOON, day=TYPHOON)
+                content=TPEX_CLOSURE, day=CLOSURE)
         with engine.connect() as connection:
             assert connection.scalar(sa.text(
                 "SELECT count(*) FROM institutional_market_summary_versions"
@@ -323,7 +323,7 @@ def test_the_downgrade_guard_sees_a_quarantined_run_with_no_versions(
     try:
         with pytest.raises(ResourceQuarantinedError):
             run(engine, tmp_path, adapter=TPExInstitutionalMarketSummaryAdapter(),
-                content=TPEX_TYPHOON, day=TYPHOON)
+                content=TPEX_CLOSURE, day=CLOSURE)
         with pytest.raises(DBAPIError) as blocked:
             command.downgrade(alembic_config(isolated_database_url), PREVIOUS_HEAD)
         assert blocked.value.orig.sqlstate == "P0001"

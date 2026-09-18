@@ -20,8 +20,8 @@
 
 已完成並驗證的真實資料（2020-01-02 → 2026-09-11，逐筆與 legacy 對帳）：
 全市場日行情（Step 17）、市場指數與官方估值（Step 18）、交易所公司行動
-結果檔（Step 19）。三大法人個股買賣超（Step 20-a）的回補與對帳已完成，
-正在審查中；三大法人買賣金額彙總（20-b）與外資持股（20-d，需要 20-c 的
+結果檔（Step 19）、三大法人個股買賣超（Step 20-a）。三大法人買賣金額彙總
+（Step 20-b）的回補與對帳已完成，正在審查中；外資持股（20-d，需要 20-c 的
 MOPS POST 請求與限速器）尚未開始。
 
 ## 技術棧
@@ -130,6 +130,12 @@ tests/
   2026 年有 4 天 legacy 在交易日當晚就抓了尚未定稿的檔案。全部在
   `scripts/reconcile_institutional_investors.py` 分類，詳見
   `docs/step_reports/step-20-a-acceptance-report.md`。
+- legacy `institutional_summary` 有 3 個 TWSE 日期（2022-09-27、2022-10-25、
+  2026-01-23）的金額和 TWSE 現在提供的不同，而 legacy 是在結算後才抓的：
+  TWSE 事後改了歷史數字。我們存的是現在的值、在 D+1 03:00 可見，這正是
+  ADR-0020 接受的「更正 look-ahead」。另有 3 天 legacy 抓到舊的五列版面
+  （合併的「外資」列），被它的解析器丟掉。詳見
+  `docs/step_reports/step-20-b-acceptance-report.md`。
 - TWSE 回補時偶爾會回一頁 CDN 錯誤頁而不是 JSON（Step 20-a 碰到 12 天），
   該日期會以 `invalid_json` 隔離、保留原始檔；換新的 import id 重跑該區段
   即可補齊。

@@ -902,17 +902,17 @@
         "dataset_code": "institutional_market_summary",
         "v1": true,
         "roadmap_pr": 20,
-        "reason": "TWSE fund/BFI82U and TPEx 3itrdsum (audit 4.3).",
+        "reason": "TWSE fund/BFI82U (twse_bfi82u, 6 rows) and TPEx insti/summary (tpex_insti_summary, 8 rows), the JSON of 3itrdsum with the same 4 fields (audit 4.3). One version per published institution row.",
         "columns": {
           "market": {
             "coverage": "internal",
-            "note": "Market of the requested feed: BFI82U is TWSE, 3itrdsum is TPEx."
+            "note": "Market of the requested feed: BFI82U is TWSE, insti/summary is TPEx. Part of the logical key; coverage is counted per market."
           },
           "trade_date": {
             "coverage": "sourced",
             "source_fields": [
-              "report date of the requested BFI82U file",
-              "report date of the requested 3itrdsum file"
+              "TWSE BFI82U `date`",
+              "TPEx insti/summary `date` and table `date`"
             ],
             "audit_section": "4.3",
             "note": "One market-level file per trade date."
@@ -923,7 +923,7 @@
               "單位名稱"
             ],
             "audit_section": "4.3",
-            "note": "Published by both markets."
+            "note": "The published name, with TPEx's U+3000 layout indent removed. Each market keeps its own names; TPEx also publishes the subtotals 外資及陸資合計 and 自營商合計, which TWSE does not. The adapter accepts exactly the published rows in the published order."
           },
           "buy": {
             "coverage": "sourced",
@@ -932,7 +932,7 @@
               "買進金額(元)"
             ],
             "audit_section": "4.3",
-            "note": "TWSE 買進金額, TPEx 買進金額(元)."
+            "note": "TWD as published (BFI82U hints 單位：元; TPEx labels (元)). Never negative."
           },
           "sell": {
             "coverage": "sourced",
@@ -941,7 +941,7 @@
               "賣出金額(元)"
             ],
             "audit_section": "4.3",
-            "note": "TWSE 賣出金額, TPEx 賣出金額(元)."
+            "note": "TWD as published (BFI82U hints 單位：元; TPEx labels (元)). Never negative."
           },
           "net": {
             "coverage": "sourced",
@@ -950,7 +950,7 @@
               "買賣超(元)"
             ],
             "audit_section": "4.3",
-            "note": "TWSE 買賣差額, TPEx 買賣超(元)."
+            "note": "TWD as published, signed, never recomputed."
           }
         }
       },
