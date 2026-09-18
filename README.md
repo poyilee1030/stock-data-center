@@ -19,9 +19,10 @@
 狀態快照，但 `ROADMAP.md` 永遠是最新且權威的版本）。
 
 已完成並驗證的真實資料（2020-01-02 → 2026-09-11，逐筆與 legacy 對帳）：
-全市場日行情（Step 17）、市場指數（Step 18-a/b）、交易所公司行動結果檔
-（Step 19）。官方估值（本益比／股價淨值比／殖利率，Step 18-c）的回補與
-對帳已完成，正在審查中。
+全市場日行情（Step 17）、市場指數與官方估值（Step 18）、交易所公司行動
+結果檔（Step 19）。三大法人個股買賣超（Step 20-a）的回補與對帳已完成，
+正在審查中；三大法人買賣金額彙總（20-b）與外資持股（20-d，需要 20-c 的
+MOPS POST 請求與限速器）尚未開始。
 
 ## 技術棧
 
@@ -124,6 +125,14 @@ tests/
   日期與表頭），以它為基準對帳時這些日期整日都會不同；已在
   `scripts/reconcile_official_valuation.py` 分類，詳見
   `docs/step_reports/step-18-c-acceptance-report.md`。
+- legacy `institutional_investors` 有 6 個 TWSE 日期存到別天的檔案，另有
+  130 個日期共 1,491 列被 legacy 解析器弄壞（欄位錯位、留下 NULL）；
+  2026 年有 4 天 legacy 在交易日當晚就抓了尚未定稿的檔案。全部在
+  `scripts/reconcile_institutional_investors.py` 分類，詳見
+  `docs/step_reports/step-20-a-acceptance-report.md`。
+- TWSE 回補時偶爾會回一頁 CDN 錯誤頁而不是 JSON（Step 20-a 碰到 12 天），
+  該日期會以 `invalid_json` 隔離、保留原始檔；換新的 import id 重跑該區段
+  即可補齊。
 - `TWTCAU`（ETF 分割/反分割）有一筆真實資料方向欄位是空白（00631L,
   115/03/31），任何涵蓋這個日期的請求都會整段隔離失敗；目前靠手動分段
   回補繞過，未來的自動化回補（forward capture、correction check）需要

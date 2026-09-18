@@ -131,6 +131,21 @@ def identity_failures(row: dict) -> list[str]:
     return failed
 
 
+def legacy_row_kind(theirs: dict) -> str:
+    """Why a legacy row that disagrees with ours cannot simply be trusted.
+
+    Every stored row satisfies the published identities (reported separately),
+    so the legacy row is what gets examined: a row with NULLs or one that
+    breaks the source's own arithmetic was damaged by the legacy parser; a
+    complete, self-consistent row is a real value difference.
+    """
+    if any(theirs[name] is None for name in FIELDS):
+        return "value_differs:legacy_row_incomplete"
+    if identity_failures(theirs):
+        return "value_differs:legacy_row_inconsistent"
+    return "value_differs:both_rows_consistent"
+
+
 def tpex_unstored_totals(connection, raw_root: Path, start: date, end: date) -> dict:
     """Re-read every TPEx artifact the window's versions came from."""
     artifacts = connection.execute(
@@ -203,6 +218,7 @@ def compare(connection, legacy, source: str, start: date, end: date) -> dict:
     source_only_dates: Counter[str] = Counter()
     identity: Counter[str] = Counter()
     identity_examples: list[dict] = []
+    differing_fields: Counter[str] = Counter()
     compared = 0
     legacy_total = 0
 
@@ -245,7 +261,8 @@ def compare(connection, legacy, source: str, start: date, end: date) -> dict:
                 sample.update(
                     {name: {"ours": ours[name], "legacy": theirs[name]} for name in differing}
                 )
-                note("value_differs:" + ",".join(differing), day, sample)
+                note(legacy_row_kind(theirs), day, sample)
+                differing_fields.update(differing)
         for code in ours_day:
             if code not in theirs_day:
                 # Legacy kept only 4-digit common-stock codes (audit §4.3).
@@ -275,6 +292,7 @@ def compare(connection, legacy, source: str, start: date, end: date) -> dict:
             else {"date_count": len(source_only_dates),
                   "top": dict(source_only_dates.most_common(20))}
         ),
+        "differing_fields": dict(differing_fields),
         "published_identity_failures": dict(identity),
         "published_identity_examples": identity_examples,
     }

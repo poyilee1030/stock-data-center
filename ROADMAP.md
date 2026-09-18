@@ -2,7 +2,7 @@
 
 > Delivery is tracked by step. One step = one branch = one pull request; a step too large to review splits into `step-N-a`, `step-N-b`, … (CLAUDE.md §1). Historical phase names are retained only as legacy references.
 >
-> Status date: 2026-09-16.
+> Status date: 2026-09-18.
 >
 > Source-reality baseline: [`docs/source_field_audit.md`](docs/source_field_audit.md). Every planned PR in this roadmap is scoped to fields that the audit shows actually exist.
 
@@ -194,7 +194,7 @@ Two properties make this worth writing down now.
 
 **Fetching is already replaceable.** `SourceFetcher` is a one-method Protocol, adapters only describe a resource and parse bytes, and `FetchedArtifact.fetched_at` is explicit data rather than the caller's `now()`, so a fetch performed elsewhere or earlier carries an honest timestamp. Moving fetching out of process later means supplying a different `SourceFetcher` and replacing the in-process job list with a real queue. No adapter, evidence rule, or writer changes.
 
-v1 builds no queue and no separate service. The flow above is the shape, not the topology. What would justify splitting it out is a second consumer, or a source that needs more than one egress IP — neither exists today. The real pressure that does exist is the shared MOPS request budget (§13), which the rate governor in Step 20 addresses inside one process.
+v1 builds no queue and no separate service. The flow above is the shape, not the topology. What would justify splitting it out is a second consumer, or a source that needs more than one egress IP — neither exists today. The real pressure that does exist is the shared MOPS request budget (§13), which the rate governor in Step 20-c addresses inside one process.
 
 The risk this section exists to prevent: adapters that decide what to fetch, call the fetcher, and judge evidence inline. That works in one process and is invisible until the day it has to be split, at which point "what needs fetching" is scattered across a dozen adapters with nowhere to list it.
 
@@ -598,13 +598,16 @@ Status date: 2026-09-16.
 | 17-c | MERGED | Whole-market daily-price history backfill and reconciliation |
 | 18-a | MERGED | Market-index adapters |
 | 18-b | MERGED | Market-index import path and backfill |
-| 18-c | THIS STEP | Official valuation |
+| 18-c | MERGED | Official valuation |
 | 19-a | MERGED | Result-feed contract, storage precision, and the TPEx adapters |
 | 19-b | MERGED | TWSE result-feed adapters and their detail pages |
 | 19-c | MERGED | Corporate-action import path, retraction included |
 | 19-d | MERGED | Corporate-action history backfill and legacy reconciliation |
 | 19-e | MERGED | ETF split and reverse-split result feeds |
-| 20 | PLANNED | Institutional flows, institutional summary, foreign holding |
+| 20-a | THIS STEP | Per-security institutional flows |
+| 20-b | PLANNED | Institutional market summary |
+| 20-c | PLANNED | Complete source requests and the per-host rate governor |
+| 20-d | PLANNED | Foreign holding |
 | 21 | PLANNED | Margin trading and securities lending |
 | 22 | PLANNED | Monthly revenue |
 | 23 | PLANNED | Financial statements (iXBRL) |
@@ -1027,7 +1030,7 @@ evidence.
 
 ### Step 18-c — Official valuation
 
-Status: **IN REVIEW** (#29). Depends on: Step 18-b.
+Status: **MERGED** (#29). Depends on: Step 18-b.
 
 In scope: the `BWIBBU_d` and TPEx `pera` adapters, their importer, source policy
 and coverage declarations, and the backfill.
@@ -1232,33 +1235,76 @@ Out of scope for all of Step 19: MOPS summary normalization; adjustment factors 
 
 ## Step 20 — Institutional Flows, Institutional Summary, Foreign Holding
 
-Status: **PLANNED**. Depends on: Step 16, Step 17-c.
+Depends on: Step 16, Step 17-c.
 
 Source contract (audit §4.3–4.4): `T86`, `BFI82U`, `MI_QFIIS`; TPEx `3itrade_hedge`, `3itrdsum`, MOPS `t13sa150_otc`. History: about 9,800 requests.
 
-This PR is where the fetch layer stops being GET-only, so it also completes the two pieces §3.1 depends on:
+Split into 20-a–d, one dataset per part, because three datasets across two
+markets exceed the size limit for one reviewable change (`CLAUDE.md` §1). The
+fetch-layer work gets its own part, 20-c, which must merge before the one
+dataset that needs it.
 
-- **`SourceResource` becomes a complete request.** MOPS `t13sa150_otc` is a POST with a form body returning big5, which the current `HttpSourceFetcher` cannot express: it issues `GET` with a fixed `Accept: application/json`. Add method, body, and headers, so a resource is a full, serializable description of one fetch — which is also what a job needs to be.
-- **A per-host rate governor, injected into the fetcher.** Four v1 PRs (#20, #22, #23, #33) call `mopsov.twse.com.tw`, today each with its own sleep and no view of the others. MOPS blocked the legacy scraper on 2026-07-02 and the legacy 23:50 XBRL window already overruns into the 03:00 retry (audit §7.2). One budget per host, enforced in one place.
+Source finding, 2026-09-17 (audit §4.3–4.4, "TPEx new-site JSON endpoints"):
+TPEx serves `3itrade_hedge`, `3itrdsum`, and its own foreign-holding table as
+GET JSON, as `insti/dailyTrade`, `insti/summary` and `insti/qfii`, back to 2020.
 
-Acceptance:
+Settled 2026-09-18 (audit §4.4): **`insti/qfii` is not equivalent to MOPS
+`t13sa150_otc`.** It omits 119 ETFs, and it has no mainland limit ratio and no
+issuer-report date. Its investable ratio also rounds differently from MOPS in
+436 rows. MOPS remains the TPEx foreign-holding source, so the POST resource
+and the per-host governor stay in this step, as 20-c.
+
+Acceptance, across the four parts:
 
 - legacy `institutional_investors`, `institutional_summary`, and `foreign_holding` reconcile
 - the broken TPEx summary artifact of 2026-07-10 is re-fetched or quarantined
 - a POST resource round-trips through serialization unchanged
 - every MOPS request in the process passes through the governor; a test proves two adapters running together cannot exceed the host budget
 
-Source finding, 2026-09-17 (audit §4.3–4.4, "TPEx new-site JSON endpoints"):
-TPEx serves `3itrade_hedge`, `3itrdsum`, and its own foreign-holding table as
-GET JSON, as `insti/dailyTrade`, `insti/summary` and `insti/qfii`, back to 2020.
-If `insti/qfii` proves equivalent to MOPS `t13sa150_otc`, this step needs no
-POST resource and no MOPS call. The new MOPS site was checked for the remaining
-MOPS domains on the same day (audit §4.7, §4.8, §4.13), and none has a usable
-JSON rendering. Monthly revenue (`nas/t21`, Step 22) and iXBRL (`t164sb01`,
-Step 23) are plain GETs. Only `t05st09sub` (Step 33) is a POST. Moving the POST
-resource would therefore land it in Step 33. The per-host governor would land
-in Step 22, the first remaining step that calls `mopsov.twse.com.tw`.
-This step settles that before it builds either.
+### Step 20-a — Per-security institutional flows
+
+Status: **IN REVIEW**. Depends on: Step 16, Step 17-c.
+
+In scope: TWSE `T86` (`twse_t86`) and TPEx `insti/dailyTrade`
+(`tpex_insti_daily_trade`), chosen over the legacy `3itrade_hedge` CSV because
+it serves the same 24 fields. Also in scope: a set-based writer for the Phase 7
+datasets, the importer, source policy and coverage declarations, the CLI, the
+2020-01-02 → 2026-09-11 backfill, and the reconciliation against legacy
+`institutional_investors`.
+
+Schema impact: none. The migration adds catalog, source, release-rule and
+coverage rows. Both sources follow `exchange_daily_settled@1`.
+
+Acceptance: legacy `institutional_investors` reconciles, with every difference
+classified; coverage is 1,627 of 1,627 dates for both markets; every stored row
+satisfies the published identities; and TPEx's two unstored totals equal the
+sums of stored groups on every raw artifact.
+
+### Step 20-b — Institutional market summary
+
+Status: **PLANNED**. Depends on: Step 20-a.
+
+TWSE `BFI82U` and TPEx `insti/summary` (or `3itrdsum`), into
+`institutional_market_summary_versions`. Amounts are in TWD. This part
+re-fetches or quarantines the broken TPEx archive file of 2026-07-10.
+
+### Step 20-c — Complete source requests and the per-host rate governor
+
+Status: **PLANNED**. Depends on: nothing in Step 20. Required by Step 20-d.
+
+- **`SourceResource` becomes a complete request.** MOPS `t13sa150_otc` is a POST with a form body returning big5, which the current `HttpSourceFetcher` cannot express: it issues `GET` with a fixed `Accept: application/json`. Add method, body, and headers, so a resource is a full, serializable description of one fetch — which is also what a job needs to be.
+- **A per-host rate governor, injected into the fetcher.** Four v1 PRs (#20, #22, #23, #33) call `mopsov.twse.com.tw`, today each with its own sleep and no view of the others. MOPS blocked the legacy scraper on 2026-07-02 and the legacy 23:50 XBRL window already overruns into the 03:00 retry (audit §7.2). One budget per host, enforced in one place.
+
+Acceptance: a POST resource round-trips through serialization unchanged, and a
+test proves that two adapters running together cannot exceed the host budget.
+
+### Step 20-d — Foreign holding
+
+Status: **PLANNED**. Depends on: Step 20-c.
+
+TWSE `MI_QFIIS` and MOPS `t13sa150_otc` (a POST, big5 HTML, about 550 KB per
+date) into `foreign_holding_versions`, every column sourced. Every MOPS request
+goes through the 20-c governor.
 
 ## Step 21 — Margin Trading and Securities Lending
 
