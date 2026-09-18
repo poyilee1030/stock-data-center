@@ -1282,7 +1282,7 @@ sums of stored groups on every raw artifact.
 
 ### Step 20-b — Institutional market summary
 
-Status: **IN REVIEW**. Depends on: Step 20-a.
+Status: **IN REVIEW** (#31). Depends on: Step 20-a.
 
 In scope: TWSE `BFI82U` (`twse_bfi82u`) and TPEx `insti/summary`
 (`tpex_insti_summary`), the JSON of `3itrdsum` with the same four fields, into

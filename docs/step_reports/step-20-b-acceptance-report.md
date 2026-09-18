@@ -1,6 +1,6 @@
 # Step 20-b Acceptance Report
 
-Status: IN REVIEW
+Status: IN REVIEW (#31)
 
 Scope: Institutional market summary. This step adds the TWSE `BFI82U` and TPEx
 `insti/summary` adapters, the importer, the source policy and coverage
