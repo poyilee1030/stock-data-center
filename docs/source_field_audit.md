@@ -268,7 +268,40 @@ for 2026-07-10 in the archive is broken.
 TPEx new-site JSON, found 2026-09-17 (see "TPEx new-site JSON endpoints" below):
 `3itrade_hedge` is also served as `www/zh-tw/insti/dailyTrade`, with the same
 24 fields, and `3itrdsum` as `www/zh-tw/insti/summary`, with the same 4 fields.
-Both answer 2020-01-02 and 2026-09-11. Step 20 decides which endpoint to use.
+Both answer 2020-01-02 and 2026-09-11.
+
+Step 20-a settled the per-security endpoints, verified 2026-09-18:
+
+- **TWSE** `rwd/zh/fund/T86?date=YYYYMMDD&selectType=ALLBUT0999&response=json`.
+  `hints` states `單位：股`. `ALLBUT0999` means every security except warrants
+  and CBBCs. It returns 1,037 rows on 2020-01-02 and 1,330 on 2026-09-11. A
+  closed day answers `{"stat": "很抱歉，沒有符合條件的資料!", "total": 0}`.
+- **TPEx** `www/zh-tw/insti/dailyTrade?date=YYYY/MM/DD&type=Daily&sect=EW&response=json`,
+  source code `tpex_insti_daily_trade`. `type` is mandatory; without it the
+  answer is `{"stat": "參數輸入錯誤"}`. `sect=EW` is 所有證券(不含權證、牛熊證),
+  the TPEx counterpart of `ALLBUT0999` and the selector the legacy scraper sent
+  to `3itrade_hedge`. `sect=AL` adds warrants: 3,681 rows on 2020-01-02 against
+  561. A closed day answers `stat: ok` with an empty table.
+- **TPEx column groups.** The JSON labels its 21 value columns with only three
+  repeated names: 買進股數, 賣出股數, 買賣超股數. The group each triple belongs to
+  is in the `<template id="theads">` of the official page,
+  `zh-tw/mainboard/trading/major-institutional/detail/day.html`. The groups are,
+  in order: 外資及陸資(不含外資自營商), 外資自營商, 外資及陸資, 投信,
+  自營商(自行買賣), 自營商(避險), 自營商. The response also carries a second,
+  always-empty table (`{}`). The same page defines a 16-column layout, with no
+  foreign-dealer group, for older dates. No window date uses it, and the
+  adapter treats it as a format change.
+- **Not stored:** TPEx's 外資及陸資 total and the 自營商 total's buy and sell
+  have no contract column. Each is the sum of two stored groups. The Step 20-a
+  reconciliation re-reads every raw artifact to prove this.
+- **Legacy kept common stock only.** On 2020-01-02 legacy holds 901 TWSE and
+  459 TPEx rows. Both official files hold every legacy row, plus 136 and 102
+  other rows, all ETFs and other non-4-digit instruments. Those are source data
+  and are stored.
+
+Both markets satisfy every published identity on the captured dates: buy −
+sell = net per group, self + hedge = dealer net, and foreign (excluding foreign
+dealers) + trust + dealer = total. Nothing is recomputed.
 
 ### 4.4 Foreign holding
 
@@ -285,9 +318,27 @@ fields: 排行, 代號, 名稱, 發行股數(A), 僑外資及陸資尚可投資�
 僑外資及陸資持有股數(C), 僑外資及陸資尚可投資比率(D=B/A),
 僑外資及陸資持股比率(E=C/A), 法令投資上限比率(F), 備註. It answers 2020-01-02
 (778 rows) and 2026-09-11 (892 rows). Legacy's MOPS-derived table holds 728 and
-891 rows on those dates. Nobody has yet checked that the two feeds cover the
-same securities or publish the same values; Step 20 must check that before it
-replaces MOPS.
+891 rows on those dates.
+
+Checked 2026-09-18 against MOPS `t13sa150_otc` for 2026-09-11: **`insti/qfii`
+does not replace MOPS.**
+
+- **Coverage.** MOPS lists 1,010 securities and `insti/qfii` lists 892. The 119
+  that only MOPS lists are all ETFs, including the bond ETFs. `insti/qfii` alone
+  lists `8349A`, a preferred share.
+- **Fields.** `insti/qfii` has no 陸資法令投資上限比率 and no
+  最近一次上櫃公司申報外資持股異動日期. Those are
+  `foreign_holding_versions.mainland_legal_limit_ratio` and
+  `source_last_update_date`.
+- **Values.** For the 891 securities both list, issued, investable and held
+  shares agree exactly. 尚可投資比率 differs by 0.01 in 436 rows, for example
+  5455 is 99.87 in MOPS and 99.88% in `insti/qfii`: the two sources round
+  differently. 備註 differs in 8 rows.
+- **Schedule.** `insti/qfii` notes that the table updates at 18:00 and again
+  at 22:00.
+
+MOPS stays the TPEx foreign-holding source. Its POST resource and the per-host
+governor therefore stay in Step 20; ROADMAP Step 20-c builds them.
 
 ### 4.5 Margin and securities lending
 

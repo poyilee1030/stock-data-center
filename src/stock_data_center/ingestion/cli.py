@@ -19,6 +19,7 @@ from stock_data_center.ingestion.adapters import (
     TPExETFReverseSplitAdapter,
     TPExETFSplitAdapter,
     TPExExRightDailyAdapter,
+    TPExInstitutionalInvestorAdapter,
     TPExListingHistoryAdapter,
     TPExMarketIndexAdapter,
     TPExOfficialValuationAdapter,
@@ -30,6 +31,7 @@ from stock_data_center.ingestion.adapters import (
     TWSEDelistingHistoryAdapter,
     TWSEETFSplitAdapter,
     TWSEExRightAdapter,
+    TWSEInstitutionalInvestorAdapter,
     TWSEListingHistoryAdapter,
     TWSEMarketIndexAdapter,
     TWSEOfficialValuationAdapter,
@@ -49,6 +51,9 @@ from stock_data_center.ingestion.backfill import (
 from stock_data_center.ingestion.corporate_action import CorporateActionImporter
 from stock_data_center.ingestion.daily_market import DailyMarketImporter
 from stock_data_center.ingestion.http import RetryingFetcher
+from stock_data_center.ingestion.institutional_investor import (
+    InstitutionalInvestorImporter,
+)
 from stock_data_center.ingestion.market_index import (
     MarketIndexImporter,
     TaiexHistoryImporter,
@@ -57,6 +62,7 @@ from stock_data_center.ingestion.models import (
     CorporateActionRangeRequest,
     DailyMarketRequest,
     IngestPurpose,
+    InstitutionalInvestorRequest,
     MarketIndexRequest,
     OfficialValuationRequest,
     SecurityLifecycleRequest,
@@ -159,6 +165,22 @@ def main(argv: list[str] | None = None) -> int:
     valuation.add_argument("--min-interval-seconds", type=float, default=1.5)
     valuation.add_argument("--import-id", type=UUID)
     valuation.add_argument("--raw-root", type=Path, default=Path("data/raw"))
+    flows = subparsers.add_parser(
+        "institutional-investor",
+        help="import one market's per-security institutional flows for one trade date",
+    )
+    flows.add_argument(
+        "--source", choices=("twse_t86", "tpex_insti_daily_trade"), required=True
+    )
+    flows.add_argument("--trade-date", required=True, help="Gregorian YYYY-MM-DD")
+    flows.add_argument(
+        "--through",
+        help="optional Gregorian YYYY-MM-DD; import every published trading "
+        "date from --trade-date to it, driven by the Step 16 calendar",
+    )
+    flows.add_argument("--min-interval-seconds", type=float, default=1.5)
+    flows.add_argument("--import-id", type=UUID)
+    flows.add_argument("--raw-root", type=Path, default=Path("data/raw"))
     taiex = subparsers.add_parser(
         "taiex-history",
         help="import one calendar month of TAIEX open/high/low/close",
@@ -400,6 +422,40 @@ def main(argv: list[str] | None = None) -> int:
                 result = importer.run(
                     adapter=adapter,
                     request=OfficialValuationRequest(first),
+                    import_id=import_id,
+                    purpose=IngestPurpose(args.purpose),
+                )
+        elif args.command == "institutional-investor":
+            importer = InstitutionalInvestorImporter(
+                engine, raw_store=LocalRawArtifactStore(args.raw_root)
+            )
+            adapter = (
+                TWSEInstitutionalInvestorAdapter()
+                if args.source == "twse_t86"
+                else TPExInstitutionalInvestorAdapter()
+            )
+            first = date.fromisoformat(args.trade_date)
+            if args.through:
+                last = date.fromisoformat(args.through)
+                if last < first:
+                    parser.error("--through must not be before --trade-date")
+                base_import_id = args.import_id or default_base_import_id(
+                    args.source, first, last
+                )
+                backfill_report = WholeMarketDailyBackfill(
+                    importer, request_factory=InstitutionalInvestorRequest
+                ).run(
+                    adapter=adapter,
+                    start=first,
+                    end=last,
+                    base_import_id=base_import_id,
+                    purpose=IngestPurpose(args.purpose),
+                    min_interval_seconds=args.min_interval_seconds,
+                )
+            else:
+                result = importer.run(
+                    adapter=adapter,
+                    request=InstitutionalInvestorRequest(first),
                     import_id=import_id,
                     purpose=IngestPurpose(args.purpose),
                 )

@@ -8,6 +8,9 @@ from datetime import UTC, date, datetime
 from enum import Enum
 from types import MappingProxyType
 
+from stock_data_center.institutional_financing.models import (
+    InstitutionalInvestorObservation,
+)
 from stock_data_center.provenance import ArtifactOrigin, IngestPurpose
 from stock_data_center.market_data import (
     DailyPriceObservation,
@@ -177,6 +180,38 @@ class ParsedOfficialValuation:
     trade_date: date
     rows: tuple[OfficialValuationRow, ...]
     rejected: tuple[RejectedValuationRow, ...]
+    header_variant: str
+    source_fields: tuple[str, ...]
+
+    @property
+    def coverage_start(self) -> date | None:
+        return self.trade_date if self.rows else None
+
+    @property
+    def coverage_end(self) -> date | None:
+        return self.trade_date if self.rows else None
+
+
+@dataclass(frozen=True, slots=True)
+class InstitutionalInvestorRequest:
+    """Request one market's per-security institutional flows for one trade date."""
+
+    trade_date: date
+
+
+@dataclass(frozen=True, slots=True)
+class InstitutionalInvestorRow:
+    security_code: str
+    observation: InstitutionalInvestorObservation
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedInstitutionalInvestor:
+    """Every per-security flow one market published for one trade date."""
+
+    market: str
+    trade_date: date
+    rows: tuple[InstitutionalInvestorRow, ...]
     header_variant: str
     source_fields: tuple[str, ...]
 

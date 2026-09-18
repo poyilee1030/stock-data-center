@@ -728,7 +728,7 @@
         "dataset_code": "institutional_investor",
         "v1": true,
         "roadmap_pr": 20,
-        "reason": "TWSE fund/T86 (one 19-column header for all dates) and TPEx 3itrade_hedge (24 columns). Audit 4.3 certifies every column of this table as sourced for both markets.",
+        "reason": "TWSE fund/T86 (twse_t86, one 19-field header for the window) and TPEx insti/dailyTrade (tpex_insti_daily_trade), the JSON of 3itrade_hedge with the same 24 fields. Audit 4.3 certifies every column of this table as sourced for both markets.",
         "columns": {
           "security_id": {
             "coverage": "internal",
@@ -737,8 +737,8 @@
           "trade_date": {
             "coverage": "sourced",
             "source_fields": [
-              "report date of the requested T86 file",
-              "report date of the requested 3itrade_hedge file"
+              "TWSE T86 `date`",
+              "TPEx insti/dailyTrade `date` and table `date`"
             ],
             "audit_section": "4.3",
             "note": "One whole-market file per trade date."
@@ -746,155 +746,155 @@
           "foreign_buy": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE fund/T86",
-              "TPEx 3itrade_hedge"
+              "TWSE T86 外陸資買進股數(不含外資自營商)",
+              "TPEx insti/dailyTrade 外資及陸資(不含外資自營商) / 買進股數"
             ],
             "audit_section": "4.3",
-            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
           },
           "foreign_sell": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE fund/T86",
-              "TPEx 3itrade_hedge"
+              "TWSE T86 外陸資賣出股數(不含外資自營商)",
+              "TPEx insti/dailyTrade 外資及陸資(不含外資自營商) / 賣出股數"
             ],
             "audit_section": "4.3",
-            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
           },
           "foreign_net": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE fund/T86",
-              "TPEx 3itrade_hedge"
+              "TWSE T86 外陸資買賣超股數(不含外資自營商)",
+              "TPEx insti/dailyTrade 外資及陸資(不含外資自營商) / 買賣超股數"
             ],
             "audit_section": "4.3",
-            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
           },
           "foreign_dealer_buy": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE fund/T86",
-              "TPEx 3itrade_hedge"
+              "TWSE T86 外資自營商買進股數",
+              "TPEx insti/dailyTrade 外資自營商 / 買進股數"
             ],
             "audit_section": "4.3",
-            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
           },
           "foreign_dealer_sell": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE fund/T86",
-              "TPEx 3itrade_hedge"
+              "TWSE T86 外資自營商賣出股數",
+              "TPEx insti/dailyTrade 外資自營商 / 賣出股數"
             ],
             "audit_section": "4.3",
-            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
           },
           "foreign_dealer_net": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE fund/T86",
-              "TPEx 3itrade_hedge"
+              "TWSE T86 外資自營商買賣超股數",
+              "TPEx insti/dailyTrade 外資自營商 / 買賣超股數"
             ],
             "audit_section": "4.3",
-            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
           },
           "trust_buy": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE fund/T86",
-              "TPEx 3itrade_hedge"
+              "TWSE T86 投信買進股數",
+              "TPEx insti/dailyTrade 投信 / 買進股數"
             ],
             "audit_section": "4.3",
-            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
           },
           "trust_sell": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE fund/T86",
-              "TPEx 3itrade_hedge"
+              "TWSE T86 投信賣出股數",
+              "TPEx insti/dailyTrade 投信 / 賣出股數"
             ],
             "audit_section": "4.3",
-            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
           },
           "trust_net": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE fund/T86",
-              "TPEx 3itrade_hedge"
+              "TWSE T86 投信買賣超股數",
+              "TPEx insti/dailyTrade 投信 / 買賣超股數"
             ],
             "audit_section": "4.3",
-            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
           },
           "dealer_self_buy": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE fund/T86",
-              "TPEx 3itrade_hedge"
+              "TWSE T86 自營商買進股數(自行買賣)",
+              "TPEx insti/dailyTrade 自營商(自行買賣) / 買進股數"
             ],
             "audit_section": "4.3",
-            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
           },
           "dealer_self_sell": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE fund/T86",
-              "TPEx 3itrade_hedge"
+              "TWSE T86 自營商賣出股數(自行買賣)",
+              "TPEx insti/dailyTrade 自營商(自行買賣) / 賣出股數"
             ],
             "audit_section": "4.3",
-            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
           },
           "dealer_self_net": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE fund/T86",
-              "TPEx 3itrade_hedge"
+              "TWSE T86 自營商買賣超股數(自行買賣)",
+              "TPEx insti/dailyTrade 自營商(自行買賣) / 買賣超股數"
             ],
             "audit_section": "4.3",
-            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
           },
           "dealer_hedge_buy": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE fund/T86",
-              "TPEx 3itrade_hedge"
+              "TWSE T86 自營商買進股數(避險)",
+              "TPEx insti/dailyTrade 自營商(避險) / 買進股數"
             ],
             "audit_section": "4.3",
-            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
           },
           "dealer_hedge_sell": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE fund/T86",
-              "TPEx 3itrade_hedge"
+              "TWSE T86 自營商賣出股數(避險)",
+              "TPEx insti/dailyTrade 自營商(避險) / 賣出股數"
             ],
             "audit_section": "4.3",
-            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
           },
           "dealer_hedge_net": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE fund/T86",
-              "TPEx 3itrade_hedge"
+              "TWSE T86 自營商買賣超股數(避險)",
+              "TPEx insti/dailyTrade 自營商(避險) / 買賣超股數"
             ],
             "audit_section": "4.3",
-            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
           },
           "dealer_net": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE fund/T86",
-              "TPEx 3itrade_hedge"
+              "TWSE T86 自營商買賣超股數",
+              "TPEx insti/dailyTrade 自營商 / 買賣超股數"
             ],
             "audit_section": "4.3",
-            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
           },
           "total_net": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE fund/T86",
-              "TPEx 3itrade_hedge"
+              "TWSE T86 三大法人買賣超股數",
+              "TPEx insti/dailyTrade 三大法人買賣超股數合計"
             ],
             "audit_section": "4.3",
-            "note": "Audit 4.3: every institutional_investor_versions column is sourced for both markets. Quantities are canonical shares."
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
           }
         }
       },
