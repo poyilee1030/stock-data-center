@@ -12,7 +12,13 @@ stored uses it. Legacy never kept TPEx's two subtotal rows, 外資及陸資合�
 自營商合計, so those are reported as source-only.
 
 Each difference is classified from the legacy archive file it came from
-(`--legacy-archive`, one `<yyyy>/<yyyymmdd>/<sii|otc>.csv` per date):
+(`--legacy-archive`, one `<yyyy>/<yyyymmdd>/<sii|otc>.csv` per date). A value
+difference gets a class only if two things hold. The legacy database row must
+equal its own archive file, so the difference is in what the source served
+and not in legacy's parsing. And on that date at least one nonzero row must
+agree exactly with ours, so the two sides share a scale and a row mapping. A
+systematic unit or mapping error in ours fails the second test on every date
+and stays unexplained (code review of #31).
 
 - **Captured before settlement.** The file was saved before 03:00 on D+1, the
   `exchange_daily_settled@1` instant; ours is the settled value (ADR-0020 §10).
@@ -169,21 +175,32 @@ def legacy_file_rows(path: Path) -> dict[str, tuple[int, int, int]]:
     with path.open(encoding="utf-8-sig", newline="") as handle:
         rows = list(csv.reader(handle))
     return {
-        row[0]: tuple(int(cell.replace(",", "")) for cell in row[1:4])
+        row[0].strip(): tuple(int(cell.replace(",", "")) for cell in row[1:4])
         for row in rows[1:]
         if len(row) >= 4
     }
 
 
 def classify_value(
-    archive: Path, day: date, legacy_market: str, theirs: tuple
+    archive: Path, day: date, legacy_market: str, name: str, theirs: tuple,
+    ours_day: dict,
 ) -> str:
+    """A class, or bare `value_differs` when the difference is unexplained."""
     buy, sell, net = theirs
     if buy - sell != net:
         return "value_differs:legacy_row_inconsistent"
     path = legacy_file(archive, day, legacy_market)
     if not path.exists():
         return "value_differs:legacy_file_missing"
+    archived = legacy_file_rows(path)
+    if archived.get(name) != theirs:
+        return "value_differs"
+    anchored = any(
+        values != (0, 0, 0) and ours_day.get(other) == values
+        for other, values in archived.items()
+    )
+    if not anchored:
+        return "value_differs"
     saved = datetime.fromtimestamp(path.stat().st_mtime, TAIPEI)
     if saved < settled_at(day):
         return "value_differs:legacy_captured_before_settlement"
@@ -278,7 +295,12 @@ def compare(
             ours = ours_day[name]
             if ours != theirs:
                 sample.update({"ours": ours, "legacy": theirs})
-                note(classify_value(archive, day, legacy_market, theirs), sample)
+                note(
+                    classify_value(
+                        archive, day, legacy_market, name, theirs, ours_day
+                    ),
+                    sample,
+                )
         for name in ours_day:
             if name in theirs_day:
                 continue

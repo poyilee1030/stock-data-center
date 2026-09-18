@@ -201,6 +201,22 @@ python scripts/reconcile_institutional_summary.py \
 `~/GitHubLL/my_stock_project/data/raw/institutional_summary`. It is needed only
 to classify differences, from each file's save time and content.
 
+## Code-review findings
+
+The review of #31 found one issue, in the reconciliation script, and nothing
+in the code that stores data. It was checked against the script before any
+change was made.
+
+| # | Finding | Verified by | Disposition |
+| --- | --- | --- | --- |
+| 1 | **A value class was granted on metadata alone.** `classify_value` labelled a difference `source_changed_after_legacy_capture` whenever the legacy file was saved after settlement and the legacy row was consistent. It never checked that legacy's database row matched its own file, or that the two sides agreed on scale. A systematic error in ours, such as every amount ×1000, would be absorbed as "the source changed". | A probe scaled every stored amount ×1000 and ran the committed script. 8,520 TWSE and 7,420 TPEx rows came out as `source_changed_after_legacy_capture`, and 1,400 more as `legacy_captured_before_settlement`. The script still exited 1, but only because the scaling also broke the six five-row-layout matches. Without those three dates it would have exited 0. | **Fixed.** A value difference now gets a class only if legacy's database row equals its archive file, and at least one nonzero row on that date agrees exactly with ours. That shows the same scale and row mapping. Anything else is bare `value_differs`, which fails the run. Under the same probe, 9,205 TWSE and 8,135 TPEx rows are now unexplained, and the script exits 1. On the real data every class and count is unchanged, and it exits 0. |
+
+The reviewer also said the script never checks our row's buy − sell = net.
+It does, separately, on every stored row: a failure makes the run exit 1 (0
+failures in 22,778 rows). On each of the six dates classed
+`source_changed_after_legacy_capture` or `legacy_captured_before_settlement`,
+the anchoring row is 自營商(自行買賣) or one of the other unchanged rows.
+
 ## Scope exclusions confirmed
 
 - 20-c and 20-d are not started.
