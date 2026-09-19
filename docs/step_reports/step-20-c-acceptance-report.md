@@ -115,6 +115,6 @@ again.
 - **TWSE/TPEx pacing stays with each backfill.** Their per-backfill sleeps
   are unchanged. Moving them onto the governor is a behaviour change for the
   Step 17–20 backfills and has no ROADMAP step.
-- **A pre-existing ledger error.** ROADMAP Step 19-d's section still reads
-  **IN REVIEW** although it is MERGED, both in the §20 table and in `CLAUDE.md`. This
-  step leaves it for a ledger-only fix.
+- **A pre-existing ledger error, fixed here.** ROADMAP Step 19-d's section
+  read **IN REVIEW** although #28 is merged and the §20 table already said
+  MERGED. It now reads **MERGED** (#28).

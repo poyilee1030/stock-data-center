@@ -1182,7 +1182,7 @@ event is deferred until a reader needs the answer (ADR-0022 §1).
 
 ### Step 19-d — Corporate-action history backfill and reconciliation
 
-Status: **IN REVIEW**. Depends on: Step 19-c.
+Status: **MERGED** (#28). Depends on: Step 19-c.
 
 Real 2020-01-01 → 2026-09-11 backfill complete for all six feeds
 (ADR-0022 §6–8): zero duplicate identity, and `twse_twt49u` reconciles
