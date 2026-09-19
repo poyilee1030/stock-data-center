@@ -340,6 +340,46 @@ does not replace MOPS.**
 MOPS stays the TPEx foreign-holding source. Its POST resource and the per-host
 governor therefore stay in Step 20; ROADMAP Step 20-c builds them.
 
+#### Step 20-d findings (2026-09-19)
+
+Verified by live fetches and the 2020-01-02 → 2026-09-11 backfill of all three
+sources.
+
+- **TWSE `MI_QFIIS`**, `rwd/zh/fund/MI_QFIIS?date=YYYYMMDD&selectType=ALLBUT0999&response=json`.
+  One 12-field header for the whole window; `hints` is `單位:股`. The two share
+  ratios (`外資及陸資尚可投資比率`, `全體外資及陸資持股比率`) are JSON numbers,
+  every other value a string, so the payload must be read with exact decimals.
+  A security that has not filed yet gets the JSON integer `0` as
+  `最近一次上市公司申報外資及陸資持股異動日期` (4581 on 2020-03-06). A closed
+  date answers `stat` `OK` with `total` 0.
+- **MOPS `t13sa150_otc`**, a POST of `step=2&years=<Gregorian>&months=MM&days=DD&bcode=`.
+  MS950 HTML: strict big5 fails on a few security names (安碁, 宏碁 …), cp950
+  decodes the whole page. One 11-column header for the whole window, titled
+  `<ROC yyy/mm/dd>　外資及陸資投資持股統計`. `最近一次上櫃公司申報外資持股異動日期`
+  is sometimes blank (7839 on 2026-09-11). A closed date answers
+  `查無所需資料` with no table.
+- **`與前日異動原因`** is a set of single-digit codes 2–5, defined in each page's
+  note; blank is an ordinary market-trade change. A cell may hold several codes:
+  TWSE wraps each in its own link, separated by `<br>` (2303 on 2020-05-15:
+  `2<br>4`); MOPS runs them together inside one link (5483 on 2020-04-06:
+  `24`). The links point at filing pages whose query month changes every month.
+  Stored as the codes, ascending and comma-separated (`2,4`); blank is NULL.
+- **Ratio arithmetic.** In both markets E = trunc(C / A, 2) on every row; D =
+  trunc(B / A, 2) in TWSE and MOPS and round(B / A, 2) in `insti/qfii`, which is
+  the 436-row difference noted above. B + C never exceeds floor(A × F), and
+  falls below it when the source withholds capacity: `insti/qfii` marks some of
+  those rows `禁止投資`, with B = 0.
+- **MOPS drops securities no longer listed.** MOPS rebuilds every past date from
+  today's security list. 5371 中光電, 4130 健亞, 3426 台興 and 4987 科誠
+  stopped trading on TPEx between 2026-05 and 2026-08, and 5236 凌陽創新 moved
+  to TWSE on 2026-07-15; all five are absent from every MOPS date back to
+  2020-01-02, although legacy's files, fetched in February 2026, list them.
+  TPEx's `insti/qfii` still lists them for past dates. Owner decision
+  2026-09-19: `insti/qfii` is stored as a second TPEx source, `tpex_insti_qfii`,
+  each source keeping its own history. For `insti/qfii` the mainland limit,
+  change reason and last-update date are not published and stay NULL; its
+  `排行`, `名稱` and `備註` (blank or `禁止投資`) have no contract column.
+
 ### 4.5 Margin and securities lending
 
 - TWSE `MI_MARGN`: a market summary block (項目, 買進, 賣出, 現金(券)償還,

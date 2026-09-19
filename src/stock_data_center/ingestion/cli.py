@@ -20,6 +20,7 @@ from stock_data_center.ingestion.adapters import (
     TPExETFSplitAdapter,
     TPExExRightDailyAdapter,
     MOPSForeignHoldingAdapter,
+    TPExInstiQfiiForeignHoldingAdapter,
     TPExInstitutionalInvestorAdapter,
     TPExInstitutionalMarketSummaryAdapter,
     TPExListingHistoryAdapter,
@@ -212,7 +213,9 @@ def main(argv: list[str] | None = None) -> int:
         help="import one market's per-security foreign holding for one trade date",
     )
     holding.add_argument(
-        "--source", choices=("twse_mi_qfiis", "mops_t13sa150_otc"), required=True
+        "--source",
+        choices=("twse_mi_qfiis", "mops_t13sa150_otc", "tpex_insti_qfii"),
+        required=True,
     )
     holding.add_argument("--trade-date", required=True, help="Gregorian YYYY-MM-DD")
     holding.add_argument(
@@ -540,11 +543,11 @@ def main(argv: list[str] | None = None) -> int:
             importer = ForeignHoldingImporter(
                 engine, raw_store=LocalRawArtifactStore(args.raw_root)
             )
-            adapter = (
-                TWSEForeignHoldingAdapter()
-                if args.source == "twse_mi_qfiis"
-                else MOPSForeignHoldingAdapter()
-            )
+            adapter = {
+                "twse_mi_qfiis": TWSEForeignHoldingAdapter,
+                "mops_t13sa150_otc": MOPSForeignHoldingAdapter,
+                "tpex_insti_qfii": TPExInstiQfiiForeignHoldingAdapter,
+            }[args.source]()
             first = date.fromisoformat(args.trade_date)
             if args.through:
                 last = date.fromisoformat(args.through)

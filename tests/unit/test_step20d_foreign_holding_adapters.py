@@ -27,6 +27,7 @@ import pytest
 
 from stock_data_center.ingestion.adapters import (
     MOPSForeignHoldingAdapter,
+    TPExInstiQfiiForeignHoldingAdapter,
     TWSEForeignHoldingAdapter,
 )
 from stock_data_center.ingestion.http import process_governor
@@ -39,6 +40,9 @@ TWSE_CLOSED = (FIXTURES / "twse_mi_qfiis_20260913_closed.json").read_bytes()
 MOPS = (FIXTURES / "mops_t13sa150_otc_20260911.html").read_bytes()
 MOPS_2020 = (FIXTURES / "mops_t13sa150_otc_20200102.html").read_bytes()
 MOPS_CLOSED = (FIXTURES / "mops_t13sa150_otc_20260913_closed.html").read_bytes()
+QFII = (FIXTURES / "tpex_insti_qfii_20260911.json").read_bytes()
+QFII_2020 = (FIXTURES / "tpex_insti_qfii_20200102.json").read_bytes()
+QFII_CLOSED = (FIXTURES / "tpex_insti_qfii_20260913_closed.json").read_bytes()
 
 DAY = date(2026, 9, 11)
 FIRST = date(2020, 1, 2)
@@ -372,3 +376,116 @@ def test_mops_a_reason_that_is_not_distinct_known_codes_fails(published: str) ->
 
 def test_mops_the_adapter_version_records_the_multi_code_rule() -> None:
     assert MOPSForeignHoldingAdapter.version == "mops-t13sa150-otc:v2"
+
+
+
+# ---- TPEx insti/qfii -------------------------------------------------------
+#
+# MOPS rebuilds a past date from today's security list: 5371, 4130, 3426 and
+# 4987 (delisted 2026-05..08) and 5236 (moved to TWSE 2026-07-15) are gone from
+# every MOPS date back to 2020, though legacy's February 2026 files hold them.
+# TPEx's own `insti/qfii` still lists them, so it is the second TPEx source.
+
+
+def qfii(content: bytes = QFII, day: date = DAY):
+    return TPExInstiQfiiForeignHoldingAdapter().parse(content, ForeignHoldingRequest(day))
+
+
+def edit_qfii(raw: bytes, edit) -> bytes:
+    payload = json.loads(raw)
+    edit(payload)
+    return json.dumps(payload, ensure_ascii=False).encode("utf-8")
+
+
+def test_qfii_is_its_own_tpex_source() -> None:
+    adapter = TPExInstiQfiiForeignHoldingAdapter
+    assert adapter.dataset_code == "foreign_holding"
+    assert adapter.source == "tpex_insti_qfii"
+    assert adapter.market == "TPEx"
+    assert adapter.version == "tpex-insti-qfii:v1"
+
+
+def test_qfii_requests_the_date_as_json() -> None:
+    resource = TPExInstiQfiiForeignHoldingAdapter().resource(ForeignHoldingRequest(DAY))
+    url = urlsplit(resource.source_uri)
+    assert resource.method == "GET"
+    assert (url.netloc, url.path) == ("www.tpex.org.tw", "/www/zh-tw/insti/qfii")
+    assert parse_qs(url.query) == {"date": ["2026/09/11"], "response": ["json"]}
+    assert resource.resource_key == "tpex_insti_qfii:foreign_holding:2026-09-11"
+
+
+def test_qfii_still_lists_securities_mops_has_dropped() -> None:
+    parsed = qfii(QFII_2020, FIRST)
+    assert len(parsed.rows) == 778
+    codes = {row.security_code for row in parsed.rows}
+    assert {"5371", "4130", "3426", "4987"} <= codes
+    assert not {"5371", "4130", "3426", "4987"} & {
+        row.security_code for row in mops(MOPS_2020, FIRST).rows
+    }
+
+
+def test_qfii_5371_equals_the_legacy_row_except_the_rounded_ratio() -> None:
+    # Legacy saved MOPS, which truncates D (56.80); insti/qfii rounds it.
+    assert values(one(qfii(QFII_2020, FIRST), "5371")) == {
+        "issued": 434_423_110,
+        "investable": 246_785_122,
+        "held": 187_637_988,
+        "investable_ratio": Decimal("56.81"),
+        "held_ratio": Decimal("43.19"),
+        "foreign_limit": Decimal(100),
+        "mainland_limit": None,
+        "reason": None,
+        "last_update": None,
+    }
+
+
+def test_qfii_reads_every_published_row() -> None:
+    assert len(qfii().rows) == 892
+    assert "8349A" in {row.security_code for row in qfii().rows}
+
+
+def test_qfii_a_prohibition_note_is_not_a_change_reason() -> None:
+    # 3086 carries 禁止投資 with B = 0; the note has no contract column.
+    observation = one(qfii(QFII_2020, FIRST), "3086")
+    assert observation.change_reason is None
+    assert int(observation.investable_shares.value) == 0
+
+
+def test_qfii_an_unknown_note_fails_the_file() -> None:
+    raw = edit_qfii(QFII, lambda p: p["tables"][0]["data"][0].__setitem__(9, "新註記"))
+    with pytest.raises(SourceDataError) as error:
+        qfii(raw)
+    assert error.value.reason_code == "unrecognised_value"
+
+
+def test_qfii_a_ratio_without_its_percent_sign_fails_the_file() -> None:
+    raw = edit_qfii(QFII, lambda p: p["tables"][0]["data"][0].__setitem__(6, "12.15"))
+    with pytest.raises(SourceDataError) as error:
+        qfii(raw)
+    assert error.value.reason_code == "unrecognised_value"
+
+
+def test_qfii_a_closed_day_is_no_data() -> None:
+    with pytest.raises(SourceDataError) as error:
+        qfii(QFII_CLOSED, SUNDAY)
+    assert error.value.reason_code == "no_data_for_date"
+
+
+def test_qfii_answering_for_another_date_fails() -> None:
+    with pytest.raises(SourceDataError) as error:
+        qfii(QFII, date(2026, 9, 10))
+    assert error.value.reason_code == "date_mismatch"
+
+
+def test_qfii_an_unknown_header_fails_the_file() -> None:
+    raw = edit_qfii(QFII, lambda p: p["tables"][0]["fields"].append("新欄位"))
+    with pytest.raises(SourceDataError) as error:
+        qfii(raw)
+    assert error.value.reason_code == "schema_mismatch"
+
+
+def test_qfii_a_declared_total_that_disagrees_fails_the_file() -> None:
+    raw = edit_qfii(QFII, lambda p: p["tables"][0].__setitem__("totalCount", 5))
+    with pytest.raises(SourceDataError) as error:
+        qfii(raw)
+    assert error.value.reason_code == "schema_mismatch"

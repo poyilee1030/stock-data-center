@@ -19,8 +19,16 @@ Both sources wrap codes in links to filing pages whose URLs move every month;
 the links are presentation and only the codes are stored, so a moved link is
 not a revision. Anything else fails the file.
 
-No value is recomputed, and the security name and TWSE's ISIN are not stored:
-security metadata owns them.
+TPEx is also read from its own `www/zh-tw/insti/qfii`, a second source kept
+as its own history (CLAUDE.md §30). MOPS rebuilds a past date from today's
+security list, so a security delisted or moved to TWSE disappears from every
+past MOPS date; `insti/qfii` keeps it. `insti/qfii` in turn omits most ETFs and
+publishes no mainland limit, change reason or last-update date, which stay
+NULL for that source. Its 備註 is blank or 禁止投資, a flag with no contract
+column; any other note fails the file.
+
+No value is recomputed, and the security name, TWSE's ISIN and `insti/qfii`'s
+rank are not stored.
 """
 
 from __future__ import annotations
@@ -119,13 +127,16 @@ class ForeignHoldingAdapter(ABC):
             values = dict(zip(_VALUE_FIELDS, cells, strict=True))
             # Parse first: a SourceDataError is itself a ValueError, and only
             # the observation's own range checks are `invalid_numeric`.
+            # A cell given as None is a column this source does not publish.
+            readers = {
+                **dict.fromkeys(_VALUE_FIELDS[:3], self._shares),
+                **dict.fromkeys(_VALUE_FIELDS[3:7], self._ratio),
+                "change_reason": self._reason,
+                "source_last_update_date": self._roc_date,
+            }
             parsed = {
-                **{name: self._shares(values[name], number, code) for name in _VALUE_FIELDS[:3]},
-                **{name: self._ratio(values[name], number, code) for name in _VALUE_FIELDS[3:7]},
-                "change_reason": self._reason(values["change_reason"], number, code),
-                "source_last_update_date": self._roc_date(
-                    values["source_last_update_date"], number, code
-                ),
+                name: None if values[name] is None else readers[name](values[name], number, code)
+                for name in _VALUE_FIELDS
             }
             try:
                 observation = ForeignHoldingObservation(
@@ -404,3 +415,104 @@ class MOPSForeignHoldingAdapter(ForeignHoldingAdapter):
 def _cell(text: str) -> str:
     """A cell's text: tags and line breaks dropped, entities decoded, trimmed."""
     return html.unescape(_TAG.sub("", _BR.sub("", text))).replace("\xa0", " ").strip()
+
+
+
+_QFII_NOTES = frozenset({"", "禁止投資"})
+
+
+class TPExInstiQfiiForeignHoldingAdapter(ForeignHoldingAdapter):
+    """TPEx `insti/qfii` — 櫃檯買賣股票僑外資及陸資持股比例排行表."""
+
+    source = "tpex_insti_qfii"
+    market = "TPEx"
+    version = "tpex-insti-qfii:v1"
+    endpoint = "https://www.tpex.org.tw/www/zh-tw/insti/qfii"
+    variants = MappingProxyType({
+        "insti_qfii_10": (
+            "排行", "代號", "名稱", "發行股數(A)", "僑外資及陸資尚可投資股數B=A*F-C",
+            "僑外資及陸資持有股數(C)", "僑外資及陸資尚可投資比率(D=B/A)",
+            "僑外資及陸資持股比率(E=C/A)", "法令投資上限比率(F)", "備註",
+        ),
+    })
+
+    def resource(self, request: ForeignHoldingRequest) -> SourceResource:
+        query = urlencode(
+            {"date": request.trade_date.strftime("%Y/%m/%d"), "response": "json"}
+        )
+        return SourceResource(
+            resource_key=f"{self.source}:foreign_holding:{request.trade_date.isoformat()}",
+            source_uri=f"{self.endpoint}?{query}",
+        )
+
+    def parse(
+        self, content: bytes, request: ForeignHoldingRequest
+    ) -> ParsedForeignHolding:
+        try:
+            payload = json.loads(content)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise SourceDataError("invalid_json", f"invalid source JSON: {error}") from error
+        if not isinstance(payload, dict):
+            raise SourceDataError("schema_mismatch", "source JSON must be an object")
+        if payload.get("stat") != "ok":
+            raise SourceDataError(
+                "source_status", f"TPEx response status: {payload.get('stat')!r}"
+            )
+        day = request.trade_date
+        if payload.get("date") != day.strftime("%Y%m%d"):
+            raise SourceDataError(
+                "date_mismatch",
+                f"TPEx answered for {payload.get('date')!r}, not {day.isoformat()}",
+            )
+        tables = payload.get("tables")
+        if not isinstance(tables, list) or len(tables) != 1 or not isinstance(tables[0], dict):
+            raise SourceDataError("schema_mismatch", "TPEx must publish exactly one table")
+        table = tables[0]
+        expected = f"{day.year - _ROC_OFFSET}/{day:%m/%d}"
+        if table.get("date") != expected:
+            raise SourceDataError(
+                "date_mismatch", f"TPEx table is dated {table.get('date')!r}, not {expected}"
+            )
+        variant = self._variant(table.get("fields"))
+        data = table.get("data")
+        total = table.get("totalCount")
+        if total == 0 and not data:
+            raise SourceDataError(
+                "no_data_for_date", f"TPEx has no foreign holding for {day.isoformat()}"
+            )
+        if not isinstance(data, list) or not data:
+            raise SourceDataError("schema_mismatch", "TPEx data is not a non-empty list")
+        if not isinstance(total, int) or isinstance(total, bool) or total != len(data):
+            raise SourceDataError(
+                "schema_mismatch", f"TPEx declares {total!r} rows but lists {len(data)}"
+            )
+        header = self.variants[variant]
+        rows: list[tuple[str, Sequence[object]]] = []
+        for number, raw in enumerate(data, 1):
+            if not isinstance(raw, list) or len(raw) != len(header):
+                raise SourceDataError("schema_mismatch", f"TPEx row {number} has an invalid shape")
+            code = self._text(raw[1], number, "?")
+            note = self._text(raw[9], number, code)
+            if note not in _QFII_NOTES:
+                raise SourceDataError(
+                    "unrecognised_value", f"TPEx row {number} ({code}) note {raw[9]!r}"
+                )
+            ratios = [self._percent(cell, number, code) for cell in raw[6:9]]
+            # Rank, name and note are not stored; the last three contract
+            # columns are not published here.
+            rows.append((code, [*raw[3:6], *ratios, None, None, None]))
+        return ParsedForeignHolding(
+            market=self.market,
+            trade_date=day,
+            rows=self._rows(request, rows),
+            header_variant=variant,
+            source_fields=header,
+        )
+
+    def _percent(self, value: object, number: int, code: str) -> str:
+        text = self._text(value, number, code)
+        if not text.endswith("%"):
+            raise SourceDataError(
+                "unrecognised_value", f"TPEx row {number} ({code}) ratio {value!r} has no %"
+            )
+        return text[:-1]

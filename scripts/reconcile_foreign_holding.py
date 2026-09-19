@@ -6,6 +6,12 @@ Step 20-d, the shape of `reconcile_institutional_investors.py` and
 the Step 16 coverage report, and the row-level comparison with every difference
 classified (CLAUDE.md §78).
 
+TPEx has two sources (migration f2b6d8a4c1e9): MOPS drops a security that is
+no longer listed from every past date, and TPEx's `insti/qfii` omits most ETFs.
+A legacy row one of them lacks is explained when the other has it on that
+date, and unexplained otherwise. `insti/qfii` rounds D where MOPS truncates it,
+so a legacy row (saved from MOPS) differing only that way is its own class.
+
 Legacy `foreign_holding` stores six of the contract's nine values, as floats:
 issued, investable and held shares, the two ratios, and the shared legal limit.
 Shares compare exactly; ratios compare at the two decimals both sides publish.
@@ -15,8 +21,9 @@ Two checks need no legacy, and fail the run if any stored row breaks them. Both
 are the source's own arithmetic, stated on TPEx's `insti/qfii` page as
 B = A×F − C, D = B/A, E = C/A (audit §4.4), and measured on both markets:
 
-- **Ratios are truncated share ratios.** D = trunc(B / A, 2) and
-  E = trunc(C / A, 2), in percent, whenever A > 0.
+- **Ratios are the share ratios at two decimals.** E = trunc(C / A, 2) in
+  every source; D = trunc(B / A, 2) in TWSE and MOPS and round(B / A, 2) in
+  `insti/qfii`, in percent, whenever A > 0.
 - **Holding never exceeds the cap.** B + C ≤ floor(A × F). The source
   sometimes withholds capacity (B is 0 for some issuers, smaller for others),
   so rows below the cap are counted, not failed.
@@ -44,7 +51,7 @@ import os
 import sys
 from collections import Counter
 from datetime import date, datetime, time, timedelta
-from decimal import ROUND_DOWN, Decimal
+from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -55,7 +62,20 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from stock_data_center.coverage import CoverageValidator
 
 DATASET = "foreign_holding"
-MARKETS = {"twse_mi_qfiis": ("TWSE", "sii"), "mops_t13sa150_otc": ("TPEx", "otc")}
+MARKETS = {
+    "twse_mi_qfiis": ("TWSE", "sii"),
+    "mops_t13sa150_otc": ("TPEx", "otc"),
+    "tpex_insti_qfii": ("TPEx", "otc"),
+}
+# How each source derives D (investable ratio) from B / A: MOPS and TWSE
+# truncate, TPEx's insti/qfii rounds half up. E is truncated everywhere.
+INVESTABLE_ROUNDING = {
+    "twse_mi_qfiis": ROUND_DOWN,
+    "mops_t13sa150_otc": ROUND_DOWN,
+    "tpex_insti_qfii": ROUND_HALF_UP,
+}
+# The other TPEx source, whose rows explain what one of them lacks.
+COMPANION = {"mops_t13sa150_otc": "tpex_insti_qfii", "tpex_insti_qfii": "mops_t13sa150_otc"}
 SHARES = ("issued_shares", "investable_shares", "held_shares")
 RATIOS = ("investable_ratio", "held_ratio", "foreign_legal_limit_ratio")
 LEGACY = {
@@ -141,13 +161,16 @@ def stored_by_date(connection, source: str, start: date, end: date) -> dict:
     return grouped
 
 
-def arithmetic(row: dict) -> tuple[list[str], bool]:
+def arithmetic(row: dict, source: str) -> tuple[list[str], bool]:
     """(identities broken, capacity withheld) for one stored row."""
     issued, investable, held = (row[name] for name in SHARES)
     broken: list[str] = []
     if issued > 0:
-        for ratio, shares in (("investable_ratio", investable), ("held_ratio", held)):
-            expected = (Decimal(shares) * 100 / issued).quantize(CENT, ROUND_DOWN)
+        for ratio, shares, rounding in (
+            ("investable_ratio", investable, INVESTABLE_ROUNDING[source]),
+            ("held_ratio", held, ROUND_DOWN),
+        ):
+            expected = (Decimal(shares) * 100 / issued).quantize(CENT, rounding)
             if row[ratio] != expected:
                 broken.append(ratio)
     cap = (Decimal(issued) * row["foreign_legal_limit_ratio"] / 100).to_integral_value(
@@ -156,6 +179,21 @@ def arithmetic(row: dict) -> tuple[list[str], bool]:
     if investable + held > cap:
         broken.append("above_cap")
     return broken, investable + held < cap
+
+
+def rounded_only(ours: dict, theirs: dict) -> bool:
+    """insti/qfii against a legacy row saved from MOPS: the same shares, and D
+    differing exactly as rounding versus truncation of the same B / A."""
+    if any(ours[name] != theirs[name] for name in LEGACY if name != "investable_ratio"):
+        return False
+    issued = ours["issued_shares"]
+    if issued <= 0:
+        return False
+    share = Decimal(ours["investable_shares"]) * 100 / issued
+    return (
+        ours["investable_ratio"] == share.quantize(CENT, ROUND_HALF_UP)
+        and theirs["investable_ratio"] == share.quantize(CENT, ROUND_DOWN)
+    )
 
 
 def legacy_value(name: str, value) -> object:
@@ -224,6 +262,10 @@ def classify_value(
 def compare(connection, legacy, archive: Path, source: str, start: date, end: date) -> dict:
     market, legacy_market = MARKETS[source]
     stored = stored_by_date(connection, source, start, end)
+    companion = (
+        stored_by_date(connection, COMPANION[source], start, end)
+        if source in COMPANION else {}
+    )
     columns = ", ".join(LEGACY.values())
     legacy_by_date: dict[date, dict[str, dict]] = {}
     for row in legacy.execute(
@@ -265,7 +307,7 @@ def compare(connection, legacy, archive: Path, source: str, start: date, end: da
         theirs_day = legacy_by_date.get(day, {})
         legacy_total += len(theirs_day)
         for code, row in ours_day.items():
-            failed, below = arithmetic(row)
+            failed, below = arithmetic(row, source)
             withheld += below
             for name in failed:
                 broken[name] += 1
@@ -284,11 +326,23 @@ def compare(connection, legacy, archive: Path, source: str, start: date, end: da
         for code, theirs in theirs_day.items():
             sample = {"date": day.isoformat(), "symbol": code}
             if code not in ours_day:
-                note("legacy_only", day, sample)
+                other = companion.get(day, {}).get(code)
+                if other is None:
+                    note("legacy_only", day, sample)
+                elif source == "mops_t13sa150_otc":
+                    # MOPS drops a security that is no longer listed from every
+                    # past date; insti/qfii still has it (migration f2b6d8a4c1e9).
+                    note("legacy_only:mops_omits_security_no_longer_listed", day, sample)
+                else:
+                    # insti/qfii omits most ETFs; MOPS lists them (audit 4.4).
+                    note("legacy_only:qfii_omits_security_listed_in_mops", day, sample)
                 continue
             compared += 1
             ours = ours_day[code]
             differing = [name for name in LEGACY if ours[name] != theirs[name]]
+            if differing and source == "tpex_insti_qfii" and rounded_only(ours, theirs):
+                note("investable_ratio_rounded_not_truncated", day, sample)
+                continue
             if differing:
                 sample.update({
                     name: {"ours": str(ours[name]), "legacy": str(theirs[name])}
@@ -350,14 +404,24 @@ def main(argv: list[str] | None = None) -> int:
                     connection, dataset_code=DATASET, market=market,
                     start=args.start, end=args.end,
                 )
+                # The market's declaration names one source; measure this one's
+                # own dates against the same expected calendar.
+                observed = set(connection.execute(
+                    sa.text(
+                        "SELECT DISTINCT trade_date FROM foreign_holding_versions "
+                        "WHERE source = :source AND trade_date BETWEEN :start AND :end"
+                    ),
+                    {"source": source, "start": args.start, "end": args.end},
+                ).scalars())
+                expected = set(coverage.expected)
                 report["sources"][source] = {
                     "import": import_counts(connection, source, args.start, args.end),
                     "coverage": {
-                        "expected_dates": len(coverage.expected),
-                        "observed_dates": len(coverage.observed),
-                        "missing_dates": [d.isoformat() for d in coverage.missing],
-                        "unexpected_dates": [d.isoformat() for d in coverage.unexpected],
-                        "is_complete": coverage.is_complete,
+                        "expected_dates": len(expected),
+                        "observed_dates": len(observed & expected),
+                        "missing_dates": sorted(d.isoformat() for d in expected - observed),
+                        "unexpected_dates": sorted(d.isoformat() for d in observed - expected),
+                        "is_complete": expected <= observed <= expected,
                     },
                     "legacy_reconciliation": compare(
                         connection, legacy, args.legacy_archive, source,

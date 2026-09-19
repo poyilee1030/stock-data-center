@@ -22,6 +22,7 @@ from stock_data_center.ingestion.adapters.daily_market import (
 from stock_data_center.ingestion.adapters.foreign_holding import (
     ForeignHoldingAdapter,
     MOPSForeignHoldingAdapter,
+    TPExInstiQfiiForeignHoldingAdapter,
     TWSEForeignHoldingAdapter,
 )
 from stock_data_center.ingestion.adapters.institutional_investor import (
@@ -84,6 +85,7 @@ __all__ = [
     "TPExETFReverseSplitAdapter",
     "TPExETFSplitAdapter",
     "TPExExRightDailyAdapter",
+    "TPExInstiQfiiForeignHoldingAdapter",
     "TPExInstitutionalInvestorAdapter",
     "TWSEForeignHoldingAdapter",
     "TPExInstitutionalMarketSummaryAdapter",

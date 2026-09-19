@@ -13,6 +13,7 @@ from stock_data_center.coverage import ExpectedCoverageService
 from stock_data_center.db.metadata import import_manifests, ingest_runs
 from stock_data_center.ingestion.adapters import (
     MOPSForeignHoldingAdapter,
+    TPExInstiQfiiForeignHoldingAdapter,
     TWSEForeignHoldingAdapter,
 )
 from stock_data_center.ingestion.foreign_holding import ForeignHoldingImporter
@@ -34,10 +35,13 @@ TWSE = (FIXTURES / "twse_mi_qfiis_20260911.json").read_bytes()
 TWSE_CLOSED = (FIXTURES / "twse_mi_qfiis_20260913_closed.json").read_bytes()
 MOPS = (FIXTURES / "mops_t13sa150_otc_20260911.html").read_bytes()
 MOPS_CLOSED = (FIXTURES / "mops_t13sa150_otc_20260913_closed.html").read_bytes()
+QFII = (FIXTURES / "tpex_insti_qfii_20260911.json").read_bytes()
+QFII_2020 = (FIXTURES / "tpex_insti_qfii_20200102.json").read_bytes()
 
 DAY = date(2026, 9, 11)
 SUNDAY = date(2026, 9, 13)
 PREVIOUS_HEAD = "d5f8b2e4a0c7"
+QFII_PREVIOUS = "e7a9c3f1b2d4"
 SOURCES = ("twse_mi_qfiis", "mops_t13sa150_otc")
 
 
@@ -381,3 +385,104 @@ def test_a_reimport_does_not_append_the_rule_a_late_first_capture_withheld(
         assert counts == {"capture_bound": 1362}
     finally:
         engine.dispose()
+
+
+
+def test_a_qfii_date_imports_as_its_own_tpex_history(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """MOPS drops securities no longer listed from every past date; insti/qfii
+    keeps them. Both TPEx sources keep their own histories (CLAUDE.md §30)."""
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        run(engine, tmp_path, adapter=MOPSForeignHoldingAdapter(), content=MOPS)
+        result, manifest, _ = run(engine, tmp_path,
+                                  adapter=TPExInstiQfiiForeignHoldingAdapter(),
+                                  content=QFII_2020, day=date(2020, 1, 2))
+        assert manifest.status == "succeeded"
+        assert result.business_versions_created == 778
+        with engine.connect() as connection:
+            record = InstitutionalFinancingService().foreign_holding(
+                connection, security_code="5371", trade_date=date(2020, 1, 2),
+                context=later(), source="tpex_insti_qfii",
+            )
+            counts = dict(connection.execute(sa.text(
+                "SELECT source, count(*) FROM foreign_holding_versions GROUP BY source"
+            )).all())
+        assert int(record.data["held_shares"]) == 187_637_988
+        assert record.data["mainland_legal_limit_ratio"] is None
+        assert record.authoritative_evidence.evidence_source == "exchange_daily_settled@1"
+        assert counts == {"mops_t13sa150_otc": 1010, "tpex_insti_qfii": 778}
+    finally:
+        engine.dispose()
+
+
+def test_the_qfii_source_leaves_mops_as_the_declared_tpex_coverage(
+    isolated_database_url: str,
+) -> None:
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        with engine.connect() as connection:
+            tpex = ExpectedCoverageService().declaration(
+                connection, dataset_code="foreign_holding", market="TPEx"
+            )
+            accepted = connection.scalar(sa.text(
+                "SELECT accepted_evidence_types FROM dataset_sources "
+                "WHERE dataset_code = 'foreign_holding' AND source = 'tpex_insti_qfii'"
+            ))
+        assert tpex.source == "mops_t13sa150_otc"
+        assert set(accepted) == {"official", "capture_bound", "release_rule"}
+    finally:
+        engine.dispose()
+
+
+def test_the_qfii_downgrade_is_guarded_and_reversible(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    from alembic import command
+    from conftest import alembic_config
+    from sqlalchemy.exc import DBAPIError
+
+    config = alembic_config(isolated_database_url)
+    engine = sa.create_engine(isolated_database_url)
+    query = sa.text(
+        "SELECT count(*) FROM dataset_sources WHERE source = 'tpex_insti_qfii'"
+    )
+    try:
+        command.downgrade(config, QFII_PREVIOUS)
+        with engine.connect() as connection:
+            assert connection.scalar(query) == 0
+        command.upgrade(config, "head")
+        run(engine, tmp_path, adapter=TPExInstiQfiiForeignHoldingAdapter(),
+            content=QFII_2020, day=date(2020, 1, 2))
+        with pytest.raises(DBAPIError) as blocked:
+            command.downgrade(config, QFII_PREVIOUS)
+        assert blocked.value.orig.sqlstate == "P0001"
+    finally:
+        engine.dispose()
+
+
+def test_the_cli_offers_the_qfii_source(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    import stock_data_center.ingestion.foreign_holding as module
+    from stock_data_center.ingestion.cli import main
+
+    original = module.ForeignHoldingImporter.__init__
+
+    def static_init(self, engine, **kwargs):
+        kwargs["fetcher"] = StaticFetcher(QFII)
+        original(self, engine, **kwargs)
+
+    module.ForeignHoldingImporter.__init__ = static_init
+    try:
+        code = main([
+            "--database-url", isolated_database_url,
+            "--purpose", "gap_fill",
+            "foreign-holding", "--source", "tpex_insti_qfii",
+            "--trade-date", "2026-09-11",
+            "--raw-root", str(tmp_path / "raw"),
+        ])
+    finally:
+        module.ForeignHoldingImporter.__init__ = original
+    assert code == 0
