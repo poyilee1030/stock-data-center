@@ -1315,14 +1315,14 @@ Status: **IN REVIEW** (#32). Depends on: nothing in Step 20. Required by Step 20
 Acceptance: a POST resource round-trips through serialization unchanged, and a
 test proves that two adapters running together cannot exceed the host budget.
 
-Settled 2026-09-19:
+2026-09-19 定案：
 
-- **The budget.** `mopsov.twse.com.tw` gets 3 seconds, the interval the legacy scraper adopted after the 2026-07-02 block (`my_stock_project` `scraper/quarterly/fetch_xbrl.py`, `FETCH_INTERVAL_SECONDS`). Requests to a governed host never overlap, and each starts at least the interval after the previous one *finished*, failed requests included. No other host is governed: the TWSE/TPEx backfills keep their own `min_interval_seconds`, and moving them is not this step's job.
-- **Where it lives.** One `HostRateGovernor` per process, held by every `HttpSourceFetcher` built without an explicit one — including the fetcher a `RetryingFetcher` builds for itself — so a retry waits for the host as well.
-- **Request provenance.** `raw_artifact_observations.source_uri` records a URL, which does not identify a POST. When a resource is not a plain GET, the lifecycle adds its serialized request to the manifest's `source_scope`, and so to the configuration fingerprint. A plain GET adds nothing, so no existing import's fingerprint changes. No schema change.
-- **Live check.** One POST of the legacy form for 2026-09-11 through the new fetcher returned 548,126 bytes of big5 HTML with the 11-column foreign-holding table, and a second request waited 3.1 s. The 11 bytes that do not decode as strict big5 are for 20-d's parser to settle.
+- **請求配額。** `mopsov.twse.com.tw` 的間隔是 3 秒，沿用舊 scraper 在 2026-07-02 被 MOPS 封鎖後採用的間隔（`my_stock_project` `scraper/quarterly/fetch_xbrl.py`，`FETCH_INTERVAL_SECONDS`）。送往受控管主機的請求不會同時進行；每個請求都在前一個請求*結束*後至少間隔這麼久才送出，失敗的請求也算。其他主機不受控管：TWSE／TPEx 的 backfill 保留各自的 `min_interval_seconds`，把它們移到控管器上不屬於這個 step。
+- **控管器放在哪裡。** 每個 process 一個 `HostRateGovernor`。沒有另外指定控管器的 `HttpSourceFetcher` 都使用它，`RetryingFetcher` 自己建立的 fetcher 也一樣，所以重試也要等主機的間隔。
+- **請求內容寫進 provenance。** `raw_artifact_observations.source_uri` 只記 URL，不足以識別一個 POST。resource 不是一般 GET 時，序列化後的請求內容會寫進抓取它的那次 run 的 `ingest_runs.run_metadata`。每一次抓取都會寫，包括以 dependency 抓取的 resource（#32 review）。主 resource 的請求內容另外寫進 manifest 的 `source_scope`，因此也進入設定 fingerprint。一般 GET 不多寫任何東西，現有 import 的 fingerprint 不變。沒有 schema 變更。
+- **實際打 MOPS 的檢查。** 透過新的 fetcher 送出一次舊 scraper 查 2026-09-11 的表單 POST，回傳 548,126 bytes 的 big5 HTML，內含 11 欄的外資持股表；第二次請求等了 3.1 秒才送出。用嚴格的 big5 解碼會出現 11 個替代字元，要採用哪種編碼交給 20-d 的 parser 決定。
 
-Evidence: `docs/step_reports/step-20-c-acceptance-report.md`.
+驗收證據：`docs/step_reports/step-20-c-acceptance-report.md`。
 
 ### Step 20-d — Foreign holding
 
