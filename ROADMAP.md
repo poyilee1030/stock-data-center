@@ -605,8 +605,8 @@ Status date: 2026-09-18.
 | 19-d | MERGED | Corporate-action history backfill and legacy reconciliation |
 | 19-e | MERGED | ETF split and reverse-split result feeds |
 | 20-a | MERGED | Per-security institutional flows |
-| 20-b | THIS STEP | Institutional market summary |
-| 20-c | PLANNED | Complete source requests and the per-host rate governor |
+| 20-b | MERGED | Institutional market summary |
+| 20-c | THIS STEP | Complete source requests and the per-host rate governor |
 | 20-d | PLANNED | Foreign holding |
 | 21 | PLANNED | Margin trading and securities lending |
 | 22 | PLANNED | Monthly revenue |
@@ -1282,7 +1282,7 @@ sums of stored groups on every raw artifact.
 
 ### Step 20-b — Institutional market summary
 
-Status: **IN REVIEW** (#31). Depends on: Step 20-a.
+Status: **MERGED** (#31). Depends on: Step 20-a.
 
 In scope: TWSE `BFI82U` (`twse_bfi82u`) and TPEx `insti/summary`
 (`tpex_insti_summary`), the JSON of `3itrdsum` with the same four fields, into
@@ -1307,13 +1307,22 @@ totals; the 2026-07-10 file is re-fetched and quarantined.
 
 ### Step 20-c — Complete source requests and the per-host rate governor
 
-Status: **PLANNED**. Depends on: nothing in Step 20. Required by Step 20-d.
+Status: **IN REVIEW**. Depends on: nothing in Step 20. Required by Step 20-d.
 
 - **`SourceResource` becomes a complete request.** MOPS `t13sa150_otc` is a POST with a form body returning big5, which the current `HttpSourceFetcher` cannot express: it issues `GET` with a fixed `Accept: application/json`. Add method, body, and headers, so a resource is a full, serializable description of one fetch — which is also what a job needs to be.
 - **A per-host rate governor, injected into the fetcher.** Four v1 PRs (#20, #22, #23, #33) call `mopsov.twse.com.tw`, today each with its own sleep and no view of the others. MOPS blocked the legacy scraper on 2026-07-02 and the legacy 23:50 XBRL window already overruns into the 03:00 retry (audit §7.2). One budget per host, enforced in one place.
 
 Acceptance: a POST resource round-trips through serialization unchanged, and a
 test proves that two adapters running together cannot exceed the host budget.
+
+Settled 2026-09-19:
+
+- **The budget.** `mopsov.twse.com.tw` gets 3 seconds, the interval the legacy scraper adopted after the 2026-07-02 block (`my_stock_project` `scraper/quarterly/fetch_xbrl.py`, `FETCH_INTERVAL_SECONDS`). Requests to a governed host never overlap, and each starts at least the interval after the previous one *finished*, failed requests included. No other host is governed: the TWSE/TPEx backfills keep their own `min_interval_seconds`, and moving them is not this step's job.
+- **Where it lives.** One `HostRateGovernor` per process, held by every `HttpSourceFetcher` built without an explicit one — including the fetcher a `RetryingFetcher` builds for itself — so a retry waits for the host as well.
+- **Request provenance.** `raw_artifact_observations.source_uri` records a URL, which does not identify a POST. When a resource is not a plain GET, the lifecycle adds its serialized request to the manifest's `source_scope`, and so to the configuration fingerprint. A plain GET adds nothing, so no existing import's fingerprint changes. No schema change.
+- **Live check.** One POST of the legacy form for 2026-09-11 through the new fetcher returned 548,126 bytes of big5 HTML with the 11-column foreign-holding table, and a second request waited 3.1 s. The 11 bytes that do not decode as strict big5 are for 20-d's parser to settle.
+
+Evidence: `docs/step_reports/step-20-c-acceptance-report.md`.
 
 ### Step 20-d — Foreign holding
 
