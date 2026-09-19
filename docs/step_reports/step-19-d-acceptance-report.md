@@ -1,66 +1,55 @@
-# Step 19-d Acceptance Report
+# Step 19-d 驗收報告
 
-Status: IN REVIEW (#28)
+狀態：IN REVIEW (#28)
 
-Scope: real 2020-01-01 → 2026-09-11 backfill for all six corporate-action
-result feeds, and the legacy `dividend` reconciliation report ADR-0022 §6–8
-built the framework for.
+範圍：六種公司行動結果資料 2020-01-01 → 2026-09-11 的真實 backfill，以及 ADR-0022
+§6–8 為其建立框架的舊系統 `dividend` 對帳報告。
 
-Schema impact: none new (uses `corporate_action_events`/`_versions`/
-`corporate_action_retractions` from Step 19-c). Code impact:
-`CorporateActionBackfill` (year-chunked backfill, ADR-0022 §6),
-`RetryingFetcher` (transient-HTTP-status retry, ADR-0022 §7),
-`scripts/reconcile_corporate_actions.py`, and a real correctness fix to the
-shared `RawFirstImporter._capture_dependencies` contract (ADR-0022 §8: a
-row whose detail cannot resolve quarantines on its own, not the whole
-range).
+Schema 影響：沒有新的影響（使用 Step 19-c 的 `corporate_action_events`／`_versions`／
+`corporate_action_retractions`）。程式影響：`CorporateActionBackfill`（以年為區塊的
+backfill，ADR-0022 §6）、`RetryingFetcher`（暫時性 HTTP 狀態的重試，ADR-0022 §7）、
+`scripts/reconcile_corporate_actions.py`，以及對共用的
+`RawFirstImporter._capture_dependencies` 契約的一項真正的正確性修正（ADR-0022 §8：
+明細無法解析的列單獨被 quarantine，而不是整個區間）。
 
-## What the real backfill found (ADR-0022 §7–8)
+## 真實 backfill 發現了什麼（ADR-0022 §7–8）
 
-Two genuine, live discoveries changed the design after it was written:
+兩項真實、實際執行中的發現，在設計寫好之後改變了它：
 
-1. **A captured-but-unparseable dependency was replayed forever.** TWSE
-   served an HTML `網站維護中` maintenance page for one `TWT49UDetail`
-   request; its raw bytes got checkpointed like any real response, and
-   every retry re-parsed the same garbage. Fixed in
-   `RawFirstImporter._capture_and_parse`: a `SourceDataError` whose content
-   was never real JSON (`invalid_json`) now discards its own checkpoint;
-   a genuine `no_data_for_date` (a stable domain fact) keeps it.
-2. **Range-level quarantine cost real, retrievable data.** TWT49U's
-   2887-series preferred shares (Taishin Financial's `2887F`/`2887G`/`2887H`/
-   `2887I`/`2887Z1`, different codes different years) have never had a
-   working detail page — confirmed permanent by repeated live requests, not
-   a transient blip. TWT49U ex-dividend dates commonly list dozens of
-   securities together, so failing the whole day over one such row was
-   silently dropping every other real, legacy-matched row on it. Fixed:
-   `_capture_dependencies` now quarantines one row at a time;
-   `_write_business` still registers every row's event identity (so an
-   unresolved row stays a retraction candidate) but writes a version only
-   for rows that resolved.
+1. **抓到但無法解析的 dependency 被永遠重播。** TWSE 對一次 `TWT49UDetail` 請求提供了
+   HTML 的 `網站維護中` 維護頁；它的原始 bytes 像任何真實回應一樣被建立 checkpoint，
+   而每次重試都重新解析同樣的垃圾。已在 `RawFirstImporter._capture_and_parse` 修正：
+   內容從來不是真正 JSON 的 `SourceDataError`（`invalid_json`）現在會丟棄它自己的
+   checkpoint；真正的 `no_data_for_date`（穩定的領域事實）則保留。
+2. **區間層級的 quarantine 讓真實、可取得的資料付出代價。** TWT49U 的 2887 系列特別股
+   （台新金的 `2887F`／`2887G`／`2887H`／`2887I`／`2887Z1`，不同年份不同代號）從來沒有
+   可用的明細頁——經多次實際請求確認是永久的，不是暫時的故障。TWT49U 的除息日常常
+   一次列出幾十支證券，所以為了一個這樣的列讓整天失敗，就是默默丟掉那天其他每一列
+   真實、與舊系統相符的資料。已修正：`_capture_dependencies` 現在一次 quarantine
+   一列；`_write_business` 仍為每一列註冊事件 identity（所以未解析的列仍是 retraction
+   的候選），但只為已解析的列寫入版本。
 
-`scripts/reconcile_corporate_actions.py`'s own `duplicate_check` had the
-same identity bug the codebase had just fixed for TWTCAU in Step 19-e: it
-grouped by `source_event_key` alone, which double-counted the ordinary case
-of two different securities sharing one locator date. Fixed to group by
-`(security_id, source_event_key)`, the real identity (CLAUDE.md §51.5).
+`scripts/reconcile_corporate_actions.py` 自己的 `duplicate_check` 有程式庫剛在
+Step 19-e 為 TWTCAU 修正的同一個 identity bug：它只以 `source_event_key` 分組，把兩支
+不同證券共用同一個 locator 日期這種普通情況重複計算。已修正為以
+`(security_id, source_event_key)` 分組，也就是真正的 identity（CLAUDE.md §51.5）。
 
-## Acceptance evidence
+## 驗收證據
 
-Real backfill against a fresh-ish `stockdc_step19d` database, 2026-09-16 →
-2026-09-17, `--purpose first_capture`.
+對一個幾乎全新的 `stockdc_step19d` 資料庫做真實 backfill，2026-09-16 →
+2026-09-17，`--purpose first_capture`。
 
-| Criterion | Result | Evidence |
+| 標準 | 結果 | 證據 |
 | --- | --- | --- |
-| Zero duplicate `(feed, code, locator date)` over each feed's stored history | PASS | `(security_id, source_event_key)` grouping returns 0 duplicate groups for all six sources (`twse_twt49u` 7,784 events, `twse_twtauu` 149, `twse_twtb8u` 10, `tpex_exdailyq` 7,318, `tpex_revivt` 107, `tpex_pvchgrslt` 13). |
-| Legacy `dividend` reconciles on date, close before, reference price, rights+dividend value, and type, with every difference classified | PASS | `reconcile_corporate_actions.py`: `differences: {}`. All 6,182 legacy rows (2020-01-02 → 2026-09-11) matched a stored `twse_twt49u` row; 0 `legacy_only`, 0 field-level disagreements. |
-| Quarantined events, if any, are listed with their reason | PASS | 14 distinct locators, all `no_data_for_date`, all Taishin 2887-series preferred/warrant sub-classes: `2887F` in 2020/2021/2022/2023/2024/2025/2026 (every year), `2887Z1` in 2023/2024/2025/2026, `2887G`/`2887H`/`2887I` newly in 2026. Every other security on each of those dates completed normally. |
+| 每種資料的已儲存歷史中，`(feed, code, locator date)` 重複數為零 | PASS | 以 `(security_id, source_event_key)` 分組，六個來源都回傳 0 個重複群組（`twse_twt49u` 7,784 個事件、`twse_twtauu` 149、`twse_twtb8u` 10、`tpex_exdailyq` 7,318、`tpex_revivt` 107、`tpex_pvchgrslt` 13）。 |
+| 舊系統 `dividend` 在日期、前日收盤、參考價、權值+息值和類型上都已對帳，每個差異都已分類 | PASS | `reconcile_corporate_actions.py`：`differences: {}`。全部 6,182 列舊系統資料（2020-01-02 → 2026-09-11）都對上一個已儲存的 `twse_twt49u` 列；0 個 `legacy_only`，0 個欄位層級的不一致。 |
+| 被 quarantine 的事件（如果有）連同理由一起列出 | PASS | 14 個不同的 locator，全部是 `no_data_for_date`，全部是台新 2887 系列的特別股／認股權子類別：`2887F` 在 2020/2021/2022/2023/2024/2025/2026（每一年）、`2887Z1` 在 2023/2024/2025/2026、`2887G`／`2887H`／`2887I` 在 2026 年新出現。那些日期上的其他每支證券都正常完成。 |
 
-No legacy baseline exists for `twse_twtauu`/`twse_twtb8u`/`tpex_exdailyq`/
-`tpex_revivt`/`tpex_pvchgrslt` (Step 19-b: legacy `dividend` holds only
-TWT49U-shaped rows), so only the duplicate-identity criterion applies to
-them; all five have 0 rejected/quarantined and 0 retracted.
+`twse_twtauu`／`twse_twtb8u`／`tpex_exdailyq`／`tpex_revivt`／`tpex_pvchgrslt` 沒有
+舊系統基準（Step 19-b：舊系統 `dividend` 只有 TWT49U 形式的列），所以只有重複
+identity 的標準適用於它們；五者被拒絕／quarantine 的都是 0，被 retract 的也是 0。
 
-## Verification
+## 驗證
 
 ```text
 $ .venv/bin/python3 -m pytest tests/ -q
@@ -74,43 +63,34 @@ $ .venv/bin/python3 scripts/reconcile_corporate_actions.py \
 # exit 0; differences: {}
 ```
 
-New regressions in `tests/integration/test_step19c_corporate_action_ingestion.py`:
-`test_a_failing_detail_quarantines_only_its_own_row`,
-`test_a_garbled_detail_page_quarantines_its_row_and_clears_its_checkpoint`,
+`tests/integration/test_step19c_corporate_action_ingestion.py` 中新的回歸測試：
+`test_a_failing_detail_quarantines_only_its_own_row`、
+`test_a_garbled_detail_page_quarantines_its_row_and_clears_its_checkpoint`、
 `test_a_genuine_no_data_detail_quarantines_its_row_and_keeps_its_checkpoint`
-(replacing the old range-level-quarantine fixture, which asserted the
-now-corrected behavior).
+（取代舊的區間層級 quarantine fixture，它斷言的是現在已被更正的行為）。
 
-`/code-review medium` on this PR found 3 real gaps in §8's own fix (ADR-0022
-§9), fixed in a follow-up commit: checkpoint-discard alone never got
-exercised once a range with a tolerated row finishes `succeeded` (fixed
-with one live inline retry); `row_quarantined_count` was invisible above
-each year's own manifest (`CorporateActionBackfillReport` now surfaces it);
-and `RetryingFetcher` didn't actually retry the same-URL redirect loop its
-own comment claimed to cover. Verified directly against the real
-`stockdc_step19d` data: zero row-level `invalid_json` quarantines exist in
-the final dataset (only whole-range ones from before §8 existed, already
-superseded by a later successful attempt), so this PR's own acceptance
-numbers above were never affected by the gap.
+對這個 PR 的 `/code-review medium` 在 §8 自己的修正中找到 3 個真正的缺口（ADR-0022
+§9），在後續 commit 中修正：一旦帶有被容許列的區間以 `succeeded` 結束，單靠丟棄
+checkpoint 永遠不會被觸發（以一次即時的行內重試修正）；`row_quarantined_count` 在每年
+自己的 manifest 之上看不到（`CorporateActionBackfillReport` 現在會呈現它）；而
+`RetryingFetcher` 實際上沒有重試它自己的註解宣稱涵蓋的同一 URL redirect 迴圈。直接
+對照真實的 `stockdc_step19d` 資料驗證：最終資料集中不存在任何列層級的 `invalid_json`
+quarantine（只有 §8 存在之前的整個區間 quarantine，已被之後一次成功的嘗試取代），所以
+這個 PR 上面自己的驗收數字從未受到這個缺口影響。
 
-A second pass found the inline retry insufficient on its own: a maintenance
-window outlasts one immediate retry, and a row quarantined on the second
-garbled answer was still lost for good behind a `succeeded` range while the
-backfill reported complete. Garbled content that survives the retry now fails
-the range resumably (`UnusableSourceResponseError`, ADR-0022 §10): no
-quarantine, the year reports `failed`, the CLI exits 1, and a rerun under the
-same import id refetches only the details it never captured.
+第二輪發現單靠行內重試並不足夠：維護時段會比一次即時重試更長，而在第二次收到亂碼
+回應時被 quarantine 的列，仍然會永久遺失在一個 `succeeded` 的區間後面，而 backfill
+卻回報完成。經過重試仍是亂碼的內容，現在會讓區間以可續跑的方式失敗
+（`UnusableSourceResponseError`，ADR-0022 §10）：沒有 quarantine，該年回報 `failed`，
+CLI 以 1 結束，而以相同 import id 重跑時，只會重新抓取它從未抓到的明細。
 
-## Known limitations / deferred work
+## 已知限制／延後的工作
 
-- TWT49U's 2887-series gap is permanent and will keep appearing every year
-  a member of that share family has an ex-dividend date; no further action
-  is needed per occurrence — it quarantines on its own automatically now.
-- The stray `2887G`/`2887H`/`2887I` discoveries in 2026 (not seen in
-  earlier years) suggest Taishin has issued more sub-classes since; nothing
-  to do until one appears with a genuine cash dividend and a working detail
-  page, which would be a new, different observation.
-- One stale `running` manifest remains from a process killed earlier this
-  session (2023's original whole-year attempt, before this fix existed);
-  harmless — it references no data any current read path uses — and left
-  as an accurate record rather than mutated after the fact.
+- TWT49U 的 2887 系列缺口是永久的，只要那個股票家族的成員有除息日，每年都會出現；
+  每次發生都不需要進一步處理——它現在會自動單獨被 quarantine。
+- 2026 年零星發現的 `2887G`／`2887H`／`2887I`（前幾年沒有）顯示台新此後又發行了更多
+  子類別；在其中一個帶著真正的現金股利和可用的明細頁出現之前，不需要做任何事，而那
+  會是一個新的、不同的觀察。
+- 這個 session 稍早被砍掉的一個 process 留下一個過時的 `running` manifest（2023 年
+  原本的整年嘗試，在這個修正存在之前）；無害——它不參照任何目前讀取路徑會用到的
+  資料——並且作為準確的紀錄保留，而不是事後去修改它。

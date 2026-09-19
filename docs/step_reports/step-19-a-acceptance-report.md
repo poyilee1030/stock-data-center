@@ -1,157 +1,142 @@
-# Step 19-a Acceptance Report
+# Step 19-a 驗收報告
 
-Status: IN REVIEW (#24)
+狀態：IN REVIEW (#24)
 
-Scope: Result-feed contract, storage precision, and the TPEx adapters
+範圍：結果資料契約、儲存精度，以及 TPEx adapter
 
-Schema impact: migration `8e4b2c7d9a13` widens the four share-ratio columns of
-`corporate_action_versions` to `NUMERIC(28, 12)`, drops
-`official_rights_dividend_value` from the non-negative check, and rehashes
-existing revisions both ways. Downgrade is guarded.
-PIT impact: none. Nothing is written by an adapter; the one PIT-relevant
-decision, `executed_through`, is a request field fixed when a job is issued.
-`src/` changed by +824/−27 lines (630 of them the new adapter module).
+Schema 影響：migration `8e4b2c7d9a13` 把 `corporate_action_versions` 的四個股數比率
+欄位加寬到 `NUMERIC(28, 12)`，把 `official_rights_dividend_value` 從非負檢查中移除，
+並對既有 revision 做雙向的重新 hash。downgrade 受保護。
+PIT 影響：無。adapter 不寫入任何東西；唯一與 PIT 有關的決定 `executed_through`，是
+在發出 job 時就固定的請求欄位。
+`src/` 改動 +824/−27 行（其中 630 行是新的 adapter 模組）。
 
-## Why Step 19 is split five ways
+## 為什麼 Step 19 拆成五部分
 
-Six feeds, two TWSE detail pages, a storage correction, an import with
-retraction semantics and a backfill run well past what one pull request can be
-reviewed as (CLAUDE.md §1). The first draft of this step held all six adapters
-and came to about 1,400 lines under `src/`, so it was cut again along the
-exchange seam:
+六種資料、兩個 TWSE 明細頁、一次儲存更正、一個帶 retraction 語意的匯入，再加上一次
+backfill，遠超過一個 pull request 能審閱的量（CLAUDE.md §1）。這個 step 的第一版草稿
+包含全部六個 adapter，`src/` 底下約 1,400 行，所以沿著交易所的接縫再切一次：
 
-| Part | Scope |
+| 部分 | 範圍 |
 | --- | --- |
-| 19-a | the contract, the storage corrections, the three self-contained TPEx feeds |
-| 19-b | the three TWSE list feeds and their two detail pages |
-| 19-c | the import path, retraction included |
-| 19-d | the 2020-2026 backfill and legacy reconciliation |
-| 19-e | the ETF split feeds found on the way (below) |
+| 19-a | 契約、儲存更正、三種本身完整的 TPEx 資料 |
+| 19-b | 三種 TWSE 清單資料及其兩個明細頁 |
+| 19-c | 匯入路徑，含 retraction |
+| 19-d | 2020-2026 的 backfill 與舊系統對帳 |
+| 19-e | 途中發現的 ETF 分割資料（見下文） |
 
-Each part is correct on its own. 19-a's contract already names all six result
-feeds, so 19-b adds adapters without changing it.
+每一部分本身都是正確的。19-a 的契約已經指名全部六種結果資料，所以 19-b 新增 adapter
+時不需要改動它。
 
-## Baseline, measured before any code was written
+## 基準，在寫任何程式之前量測
 
-Legacy `stock_db.dividend`, 2020-01-02 → 2026-09-11: 6,182 rows, all TWSE.
-Every official feed was fetched per calendar year 2020-2026 on 2026-09-16.
+舊系統 `stock_db.dividend`，2020-01-02 → 2026-09-11：6,182 列，全部是 TWSE。
+每種官方資料都在 2026-09-16 依日曆年 2020-2026 抓取。
 
-| Measurement | Result |
+| 量測 | 結果 |
 | --- | ---: |
-| legacy rows matched by TWT49U on `(code, date)` | 6,182 of 6,182 |
-| value differences (close before, reference, 權值+息值, type) | **0** |
-| TWT49U rows the legacy never kept | 1,602 — 1,402 ETFs, 170 preferred shares, 30 TDRs |
-| legacy-only rows | 0 |
+| TWT49U 以 `(code, date)` 對上的舊系統列 | 6,182／6,182 |
+| 數值差異（前日收盤、參考價、權值+息值、類型） | **0** |
+| 舊系統從未保留的 TWT49U 列 | 1,602——1,402 個 ETF、170 個特別股、30 個 TDR |
+| 只在舊系統的列 | 0 |
 
-That baseline is 19-b's acceptance evidence to reproduce through its adapter.
-TPEx has no legacy counterpart: the legacy system never fetched a TPEx
-corporate-action feed, so every TPEx event here is new data.
+這個基準是 19-b 要透過它的 adapter 重現的驗收證據。TPEx 沒有舊系統的對應：舊系統
+從未抓過 TPEx 的公司行動資料，所以這裡每個 TPEx 事件都是新資料。
 
-## What the live feeds falsified
+## 實際資料否證了什麼
 
-Four assumptions this step started with were wrong. Each is now a test, and
-ADR-0019 records the decision it forced.
+這個 step 開始時的四個假設是錯的。每一個現在都是測試，ADR-0019 記錄了它迫使做出的
+決定。
 
-1. **Result files list events that have not happened yet.** Fetched on
-   2026-09-16, TWT49U listed 35 rows dated 09-16 or later, `revivt` three on
-   09-21, TWTAUU up to 10-19 with `-` in every price. Invariant G(2) rests on
-   the event being executed. A request now carries `executed_through`; later
-   rows are counted and not parsed, and the file claims completeness only
-   through that date — which is also the only range 19-c may retract in.
-2. **`權值+息值` is signed.** It is defined as close before minus reference
-   price, and six rights issues priced above the close publish it negative
-   (TPEx 8444 on 2024-12-12: −0.204602). The schema's non-negative check was
-   wrong, not the data.
-3. **Share ratios need eleven places.** `202.11906001` shares per thousand is
-   0.20211906001. `NUMERIC(24, 8)` would have stored 0.20211906 without an
-   error; the integration test shows PostgreSQL doing exactly that before the
-   migration. TPEx cash dividends carry eight places, which `TwdAmount` capped
-   at four.
-4. **A TPEx par-value endpoint exists.** Audit §4.10 said none had been found.
-   `bulletin/pvChgRslt` publishes the exchange ratio and both par values, and
-   all 13 events 2020-2026 satisfy ratio = old par ÷ new par. TWSE's
-   `TWTB8UDetail`, verified the same day, publishes no ratio at all.
+1. **結果檔案會列出還沒發生的事件。** 2026-09-16 抓取時，TWT49U 列出 35 個日期在
+   09-16 或之後的列，`revivt` 有三個在 09-21，TWTAUU 則到 10-19，每個價格都是 `-`。
+   Invariant G(2) 建立在事件已被執行的前提上。請求現在帶有 `executed_through`；之後
+   的列只計數、不解析，而檔案只宣稱完整到那個日期為止——那也是 19-c 唯一可以做
+   retraction 的範圍。
+2. **`權值+息值` 有正負號。** 它的定義是前日收盤減參考價，而有六個價格高於收盤的現金
+   增資把它發布成負數（TPEx 8444，2024-12-12：−0.204602）。錯的是 schema 的非負
+   檢查，不是資料。
+3. **股數比率需要十一位小數。** 每千股 `202.11906001` 股就是 0.20211906001。
+   `NUMERIC(24, 8)` 會不報錯地存成 0.20211906；integration test 顯示 PostgreSQL 在
+   migration 之前正是這樣做。TPEx 的現金股利帶八位小數，而 `TwdAmount` 把它限制在四位。
+4. **TPEx 有面額變更端點。** audit §4.10 說沒有找到。`bulletin/pvChgRslt` 發布換股比率
+   和前後兩個面額，2020-2026 的全部 13 個事件都滿足比率 = 舊面額 ÷ 新面額。同一天驗證
+   的 TWSE `TWTB8UDetail` 則完全沒有發布比率。
 
-## Acceptance evidence
+## 驗收證據
 
-| Criterion | Result | Evidence |
+| 標準 | 結果 | 證據 |
 | --- | --- | --- |
-| Announcement-feed rejection with the 1591/108/1 fixture | PASS | The fixture holds both TPEx rows (board dates 1080806 and 1090505). `ExchangeLocator` refuses `mopsfin_t187ap39_O`, `t187ap45_L`, `TWT48U` and `t05st09sub` with `announcement_feed`, and any unregistered feed with `unknown_feed`. |
-| `source_event_key` is `"<feed>:<locator date>"` with no revision content | PASS | `exDailyQ:20240103`, `revivt:20240205`, `pvChgRslt:20240909`. Changing the name, both prices, the dividend values, the type, the cash and the free shares of one row leaves its locator unchanged; a rename leaves the whole observation unchanged. |
-| Separate events have separate keys | PASS | 6629 paid four times in 2024: four keys. A repeated row quarantines the file as `ambiguous_identity`. |
-| Zero duplicate keys over the full TPEx history | PASS | 2020-01-01 → 2026-09-15 through the adapters: `exDailyQ` 7,328 rows, `revivt` 108, `pvChgRslt` 13 — zero duplicate `(code, key)`. |
-| Rows after `executed_through` are not events | PASS | The 2026 `revivt` file parsed through 2026-09-15: 7 events, 3 counted as not yet executed, coverage ends 2026-09-15. |
-| Every TPEx row maps or is quarantined with a reason | PASS | All 7,449 rows above map, **zero quarantined**: 6,464 ex-dividend, 430 ex-right, 434 ex-right-dividend; 87 loss-offset and 21 cash-refund reductions; 13 splits. |
-| Stored values round-trip; the downgrade refuses what it cannot hold; history still deduplicates | PASS | Integration tests: an eleven-place ratio and a negative difference are read back exactly; the downgrade raises `P0001` for either, before mutation, with the head and column scale unchanged; a revision written before the migration still deduplicates after it and gets its old hash back on downgrade. Removing the rehash from the migration makes that test fail. |
+| 使用 1591/108/1 fixture 拒絕公告型資料 | PASS | fixture 包含兩列 TPEx 資料（董事會日期 1080806 和 1090505）。`ExchangeLocator` 以 `announcement_feed` 拒絕 `mopsfin_t187ap39_O`、`t187ap45_L`、`TWT48U` 和 `t05st09sub`，以 `unknown_feed` 拒絕任何未註冊的資料。 |
+| `source_event_key` 是 `"<feed>:<locator date>"`，不含 revision 內容 | PASS | `exDailyQ:20240103`、`revivt:20240205`、`pvChgRslt:20240909`。改變一列的名稱、兩個價格、股利值、類型、現金和無償配股，它的 locator 都不變；改名則讓整個觀察不變。 |
+| 不同事件有不同的 key | PASS | 6629 在 2024 年配發了四次：四個 key。重複的列會以 `ambiguous_identity` 把檔案送進 quarantine。 |
+| 完整 TPEx 歷史中重複的 key 為零 | PASS | 2020-01-01 → 2026-09-15 經過 adapter：`exDailyQ` 7,328 列、`revivt` 108、`pvChgRslt` 13——重複的 `(code, key)` 為零。 |
+| `executed_through` 之後的列不是事件 | PASS | 2026 年的 `revivt` 檔案解析到 2026-09-15：7 個事件，3 個計為尚未執行，涵蓋止於 2026-09-15。 |
+| 每一列 TPEx 資料都能對應，或附上理由被 quarantine | PASS | 上面全部 7,449 列都能對應，**被 quarantine 的為零**：6,464 個除息、430 個除權、434 個除權息；87 個彌補虧損和 21 個退還現金的減資；13 個分割。 |
+| 儲存的值能完整往返；downgrade 拒絕它無法容納的東西；歷史仍能去重 | PASS | Integration test：十一位小數的比率和負的差值都能完全讀回；對任一者，downgrade 都在修改之前拋出 `P0001`，head 和欄位精度不變；migration 之前寫入的 revision 在之後仍能去重，downgrade 後也取回它原本的 hash。從 migration 中移除重新 hash 會讓那個測試失敗。 |
 
-### Fail-closed paths
+### Fail-closed 路徑
 
-Each has a test, and each test was checked by removing its guard:
+每一條都有測試，每個測試都以移除其防護的方式檢查過：
 
-- range echo or a row outside the requested range: `date_mismatch`
-- changed list header or inline-detail labels: `schema_mismatch`
-- unknown event type or reduction reason: `unknown_event_type`
-- any status but `ok`: `source_status`
-- detail for another security: `invalid_identity`
-- resumption date the detail contradicts: `date_mismatch`
-- detail unit other than the declared one: `unit_mismatch`
-- a negative amount other than the signed difference: `invalid_numeric`
-- type the terms contradict, or a rights ratio without a price: `inconsistent_terms`
-- refund reason with no cash, or offset reason with cash: `inconsistent_terms`
-- a par-value ratio the par values contradict: `inconsistent_terms`
-- a `revivt` cash increase whose unit has never been seen: `unsupported_terms`
+- 區間回應或列落在請求的區間之外：`date_mismatch`
+- 清單 header 或行內明細標籤改變：`schema_mismatch`
+- 未知的事件類型或減資原因：`unknown_event_type`
+- `ok` 以外的任何狀態：`source_status`
+- 明細屬於另一支證券：`invalid_identity`
+- 與明細矛盾的恢復交易日期：`date_mismatch`
+- 明細單位與宣告的不同：`unit_mismatch`
+- 有正負號的差值以外的負數金額：`invalid_numeric`
+- 條件與類型矛盾，或有現金增資比率卻沒有價格：`inconsistent_terms`
+- 退還原因卻沒有現金，或彌補原因卻有現金：`inconsistent_terms`
+- 面額變更比率與面額矛盾：`inconsistent_terms`
+- 單位從未見過的 `revivt` 現金增資：`unsupported_terms`
 
-## Verification
+## 驗證
 
 ```text
 510 passed, 3 skipped
 ```
 
-Baseline before this step: 472 collected. The 41 tests added here (36 unit, 5
-integration) are the difference. The first unit suite and all five integration
-tests were run red before their code existed. The unit suite was then rewritten
-for the split, against adapters that already existed, so a red run proved
-nothing for it. Instead it was run against 19 deliberate breaks of the adapter:
-removing each guard above, storing the name, skipping the per-thousand
-division, letting a negative through, and emitting `1E+1` for a ratio. Every
-break made at least one test fail.
+本 step 之前的基準：收集到 472 個。差異就是這裡新增的 41 個測試（36 個 unit、5 個
+integration）。第一版的 unit 測試套件和全部五個 integration test，都在其程式存在之前
+跑紅過。之後 unit 測試套件為了拆分而改寫，對照的是已經存在的 adapter，所以跑紅對它
+證明不了什麼。改為對照 19 個刻意對 adapter 做的破壞來執行：移除上面每一道防護、儲存
+名稱、跳過每千股的除法、讓負數通過，以及對比率輸出 `1E+1`。每一個破壞都至少讓一個
+測試失敗。
 
-- `alembic check`: no new operations. Downgrade to `7a2c9e4d1b58` and upgrade
-  back ran clean on the local database.
-- `git diff --check`: clean.
-- `ruff check`: nothing new against `main`.
+- `alembic check`：沒有新的操作。在本機資料庫上 downgrade 到 `7a2c9e4d1b58` 再
+  upgrade 回來，執行乾淨。
+- `git diff --check`：乾淨。
+- `ruff check`：相對於 `main` 沒有新問題。
 
-## Found on the way, scheduled rather than absorbed
+## 途中發現，排入後續而不是順手吸收
 
-- **ETF splits have their own result feeds**: TWSE `rwd/zh/split/TWTCAU` (it
-  lists 0050's split on 2025-06-18), TPEx `bulletin/etfSplitRslt` and
-  `bulletin/etfRvsRslt`. None of Step 19's six feeds lists these events, so an
-  adjusted 0050 series would be wrong without them. ROADMAP now has Step 19-e,
-  and Step 25 depends on it.
-- **TWT49U's `最近一次申報*` columns are today's filing**, not the event's:
-  every 2024 row carries `115年第2季`. Audit §6 had said to keep them in
-  `source_terms`, which would revise every past event each quarter. The audit
-  is corrected here; 19-b's adapter excludes them.
-- **ROADMAP ledger drift.** Step 18-b merged as #23 while the ledger still said
-  `THIS STEP`; corrected here.
+- **ETF 分割有自己的結果資料**：TWSE `rwd/zh/split/TWTCAU`（列出 0050 在 2025-06-18
+  的分割）、TPEx `bulletin/etfSplitRslt` 和 `bulletin/etfRvsRslt`。Step 19 的六種資料
+  都沒有列出這些事件，所以沒有它們，0050 的還原序列就是錯的。ROADMAP 現在有
+  Step 19-e，而 Step 25 依賴它。
+- **TWT49U 的 `最近一次申報*` 欄位是今天的申報**，不是事件的：2024 年的每一列都帶著
+  `115年第2季`。audit §6 原本說要把它們放在 `source_terms`，那會讓每個過去的事件每季
+  被修訂一次。audit 在這裡更正；19-b 的 adapter 排除它們。
+- **ROADMAP 帳本漂移。** Step 18-b 以 #23 合併時，帳本上仍寫著 `THIS STEP`；在這裡
+  更正。
 
-## Scope exclusions confirmed
+## 已確認的範圍排除
 
-- No TWSE adapter or detail page, no write, no retraction, no source policy,
-  no CLI, no backfill.
-- `announcement_date`, `record_date`, `payment_date`,
-  `earnings_stock_ratio` and `capital_surplus_stock_ratio` stay NULL.
-- No ratio is inferred from prices, for TWSE par-value changes or anywhere else.
+- 沒有 TWSE adapter 或明細頁、沒有寫入、沒有 retraction、沒有 source policy、沒有
+  CLI、沒有 backfill。
+- `announcement_date`、`record_date`、`payment_date`、`earnings_stock_ratio` 和
+  `capital_surplus_stock_ratio` 保持 NULL。
+- 不從價格推斷任何比率，TWSE 面額變更或其他地方都一樣。
 
-## Code-review findings
+## Code review 發現
 
-One `/code-review` finding held up after checking. Three other claims in that
-review did not.
+一項 `/code-review` 發現在檢查後成立。那次 review 中的另外三項宣稱不成立。
 
-| # | Finding | Checked by | Disposition |
+| # | 發現 | 檢查方式 | 處置 |
 | --- | --- | --- | --- |
-| 1 | `CorporateActionRangeRequest` accepted `executed_through` earlier than `start`. The 2027 file requested on 2027-01-01 would report coverage from 2027-01-01 to 2026-12-31 | Reading `coverage_end` | **Fixed.** The request now refuses it: such a job can only count rows, so the issuer skips it. A regression test failed before the fix. |
-| — | `money` and `ratios` in `CorporateActionObservation.__post_init__` are unused | `models.py:290` still reads both in the "at least one term" check | Not a defect. |
-| — | revivt 2026: nobody confirmed that the three dropped rows are future-dated | `test_rows_dated_after_executed_through_are_not_events_yet` asserts exactly three rows after 2026-09-15 and `not_yet_executed == 3` | Already covered. |
-| — | Ruff: I001 and an unused `ArtifactOrigin` in `ingestion/models.py`, TRY004 in `market_reference/models.py` | Running ruff on `main` | All three already exist on `main`, so they are out of scope. |
-
+| 1 | `CorporateActionRangeRequest` 接受早於 `start` 的 `executed_through`。在 2027-01-01 請求 2027 年的檔案，會回報從 2027-01-01 到 2026-12-31 的涵蓋 | 閱讀 `coverage_end` | **已修正。** 請求現在拒絕這種情況：這樣的 job 只能計數，所以發出者會跳過它。一個回歸測試在修正前失敗。 |
+| — | `CorporateActionObservation.__post_init__` 中的 `money` 和 `ratios` 沒有被使用 | `models.py:290` 在「至少一個條件」的檢查中仍讀取兩者 | 不是缺陷。 |
+| — | revivt 2026：沒有人確認被丟掉的三列是未來日期 | `test_rows_dated_after_executed_through_are_not_events_yet` 斷言 2026-09-15 之後恰好三列，且 `not_yet_executed == 3` | 已經涵蓋。 |
+| — | Ruff：`ingestion/models.py` 中的 I001 和未使用的 `ArtifactOrigin`，`market_reference/models.py` 中的 TRY004 | 在 `main` 上執行 ruff | 三者都已存在於 `main`，所以不在範圍內。 |

@@ -1,58 +1,51 @@
-# Step 19-e Acceptance Report
+# Step 19-e 驗收報告
 
-Status: IN REVIEW (#27)
+狀態：IN REVIEW (#27)
 
-Scope: verify TWSE `TWTCAU` and TPEx `etfSplitRslt`/`etfRvsRslt` (found in
-19-a, never in Step 19's original six-feed contract) against a live fetch,
-add their adapters and dataset sources, and run a real 2020-01-01 →
-2026-09-11 backfill for all three.
+範圍：以實際抓取驗證 TWSE `TWTCAU` 和 TPEx `etfSplitRslt`／`etfRvsRslt`（在 19-a
+發現，從未在 Step 19 原本的六種資料契約中），新增它們的 adapter 和資料集來源，並對
+三者執行真實的 2020-01-01 → 2026-09-11 backfill。
 
-Schema impact: migration `9f3d7c2e5a41` declares three more
-`dataset_sources` rows (`twse_twtcau`, `tpex_etfsplitrslt`,
-`tpex_etfrvsrslt`), same shape as `02f0a144b1fc` — `capture_bound`
-evidence, no release rule. No new tables. Migration impact: upgrade/
-downgrade pass on `stockdc`; the downgrade guard refuses while any
-`ingest_runs`/`import_manifests` row references a declared source.
+Schema 影響：migration `9f3d7c2e5a41` 再宣告三個 `dataset_sources` 列
+（`twse_twtcau`、`tpex_etfsplitrslt`、`tpex_etfrvsrslt`），形狀與 `02f0a144b1fc`
+相同——`capture_bound` 證據，沒有 release rule。沒有新表。Migration 影響：在
+`stockdc` 上 upgrade／downgrade 都通過；只要有任何 `ingest_runs`／`import_manifests`
+列參照宣告的來源，downgrade 防護就拒絕。
 
-`src/` changed +141/−6 across 4 files (`corporate_action.py` +125:
-`TWSEETFSplitAdapter`, `TPExETFSplitAdapter`, `TPExETFReverseSplitAdapter`,
-and a `_build_locator` hook on `_TWSEListAdapter`; `adapters/__init__.py`
-+6 exports; `cli.py` +11 for the three feed choices; `models.py` +5 to add
-the three feeds to `RESULT_FEEDS`, without which `ExchangeLocator` would
-refuse every row as `unknown_feed`).
+`src/` 改動 +141/−6，分布在 4 個檔案（`corporate_action.py` +125：
+`TWSEETFSplitAdapter`、`TPExETFSplitAdapter`、`TPExETFReverseSplitAdapter`，以及
+`_TWSEListAdapter` 上的 `_build_locator` 掛鉤；`adapters/__init__.py` +6 個 export；
+`cli.py` +11，用於三種資料的選項；`models.py` +5，把三種資料加進 `RESULT_FEEDS`，
+沒有它的話 `ExchangeLocator` 會以 `unknown_feed` 拒絕每一列）。
 
-## Design decisions (ADR-0023)
+## 設計決策（ADR-0023）
 
-Live verification (`docs/source_field_audit.md`) found two things that
-decided the design before any code was written:
+實際驗證（`docs/source_field_audit.md`）在寫任何程式之前發現了兩件決定設計的事：
 
-- **`TWTCAU` publishes no exchange ratio and no detail page** — only a
-  `分割(反分割)` direction label and the same two official prices every other
-  feed carries. `TWSEETFSplitAdapter` stores `action_type="other"`
-  (TWTB8U's existing no-ratio precedent), not a derived `old_shares`/
-  `new_shares` from dividing two prices.
-- **TPEx's two feeds have listed zero rows, ever**, over the full
-  2020-2026 window. Their `_row()` raises `unverified_schema` for any row
-  rather than reusing `pvChgRslt`'s never-verified-against-this-feed detail
-  label schema.
+- **`TWTCAU` 沒有發布換股比率，也沒有明細頁**——只有一個 `分割(反分割)` 方向標籤，
+  以及其他每種資料都有的那兩個官方價格。`TWSEETFSplitAdapter` 儲存
+  `action_type="other"`（TWTB8U 既有的無比率先例），而不是從兩個價格相除推導出
+  `old_shares`／`new_shares`。
+- **TPEx 的兩種資料在整個 2020-2026 期間從未列出任何一列。** 它們的 `_row()` 對任何
+  列都拋出 `unverified_schema`，而不是重用從未針對這種資料驗證過的 `pvChgRslt` 明細
+  標籤 schema。
 
-## Acceptance evidence
+## 驗收證據
 
-Real live backfill against `stockdc_step19e` (fresh database, migrated to
-`9f3d7c2e5a41`), 2026-09-17, `--purpose first_capture`.
+對 `stockdc_step19e`（全新資料庫，migrate 到 `9f3d7c2e5a41`）做真實的實際
+backfill，2026-09-17，`--purpose first_capture`。
 
-| Criterion | Result | Evidence |
+| 標準 | 結果 | 證據 |
 | --- | --- | --- |
-| Fields, units and history verified against a live fetch, not assumed | PASS | `docs/source_field_audit.md`'s ETF-split section: `TWTCAU` sampled live, 11 real rows across 2020-01-01 → 2026-09-11; both TPEx feeds sampled live, `totalCount: 0`. |
-| A real 2020-01-01 → 2026-09-11 backfill exists for all three feeds | PASS | `twse_twtcau`: 7 yearly imports, 2020–2025 succeeded whole; 2026 split at the ambiguous row into `2026-01-01→2026-03-31` (quarantined alone) and `2026-04-01→2026-09-11` (succeeded, 2 events). 10 events stored total. `tpex_etfsplitrslt`/`tpex_etfrvsrslt`: one whole-range import each, succeeded, 0 events (real, not "not yet fetched"). |
-| Zero duplicate `(feed, code, locator date)` over each feed's stored history | PASS | `SELECT security_id, source_event_key ... GROUP BY ... HAVING count(*)>1` returns 0 rows for all three sources. `TWTCAU:20251022` is shared by two different ETFs (00673R, 00706L) and is not a duplicate under the real identity `(security_id, source, source_event_key)`. |
-| A row whose direction/type cannot be determined quarantines with its reason instead of being guessed | PASS | 00631L (115/03/31) publishes an empty `分割(反分割)` cell; both ranges that included it (`2020-01-01→2026-09-11` and `2026-01-01→2026-03-31`) quarantined with `reason_code = unknown_event_type`, raw artifacts retained, zero business rows written from either. |
+| 欄位、單位和歷史以實際抓取驗證，而不是假設 | PASS | `docs/source_field_audit.md` 的 ETF 分割章節：`TWTCAU` 實際抽樣，2020-01-01 → 2026-09-11 共 11 列真實資料；兩種 TPEx 資料實際抽樣，`totalCount: 0`。 |
+| 三種資料都有 2020-01-01 → 2026-09-11 的真實 backfill | PASS | `twse_twtcau`：7 次逐年匯入，2020–2025 整年成功；2026 在有歧義的列處拆成 `2026-01-01→2026-03-31`（單獨被 quarantine）和 `2026-04-01→2026-09-11`（成功，2 個事件）。共儲存 10 個事件。`tpex_etfsplitrslt`／`tpex_etfrvsrslt`：各一次整段區間匯入，成功，0 個事件（真的沒有，而不是「還沒抓」）。 |
+| 每種資料的已儲存歷史中，`(feed, code, locator date)` 重複數為零 | PASS | `SELECT security_id, source_event_key ... GROUP BY ... HAVING count(*)>1` 對三個來源都回傳 0 列。`TWTCAU:20251022` 由兩支不同的 ETF（00673R、00706L）共用，在真正的 identity `(security_id, source, source_event_key)` 下不是重複。 |
+| 無法判斷方向／類型的列附上理由被 quarantine，而不是猜測 | PASS | 00631L（115/03/31）發布了空白的 `分割(反分割)` 儲存格；包含它的兩個區間（`2020-01-01→2026-09-11` 和 `2026-01-01→2026-03-31`）都以 `reason_code = unknown_event_type` 被 quarantine，raw artifact 保留，兩者都沒有寫入任何業務列。 |
 
-No legacy reconciliation criterion: legacy `stock_db` never collected ETF
-splits or reverse splits (CLAUDE.md §78 applies only where a legacy baseline
-exists).
+沒有舊系統對帳標準：舊系統 `stock_db` 從未收集 ETF 分割或反分割（CLAUDE.md §78 只
+適用於有舊系統基準的地方）。
 
-## Verification
+## 驗證
 
 ```text
 $ .venv/bin/python3 -m pytest tests/ -q
@@ -63,32 +56,25 @@ $ .venv/bin/python3 -m ruff check <changed files>
 # no new findings; pre-existing repo-wide findings unchanged
 ```
 
-New tests: `tests/unit/test_step19e_etf_split_adapters.py` (11 tests) using
-real fixtures captured live 2026-09-17: `twse_twtcau_2020_2026.json` (11
-rows, including the real blank-direction anomaly),
-`tpex_etfsplitrslt_2020_2026_empty.json`,
-`tpex_etfrvsrslt_2020_2026_empty.json` (both real, `totalCount: 0`).
+新測試：`tests/unit/test_step19e_etf_split_adapters.py`（11 個測試），使用
+2026-09-17 實際抓到的真實 fixture：`twse_twtcau_2020_2026.json`（11 列，包括真實的
+空白方向異常）、`tpex_etfsplitrslt_2020_2026_empty.json`、
+`tpex_etfrvsrslt_2020_2026_empty.json`（兩者都是真實的，`totalCount: 0`）。
 
-## Known limitations / deferred work
+## 已知限制／延後的工作
 
-- TPEx `etfSplitRslt`/`etfRvsRslt` adapters cannot parse a real row yet —
-  by design (ADR-0023 §3). The day either feed lists one, its `詳細資料`
-  schema must be verified against that real response before `_row()` can
-  be implemented; guessing `pvChgRslt`'s schema was rejected.
-- `TWTCAU`'s `old_shares`/`new_shares` stay NULL permanently for this
-  source; Step 25's adjustment-factor work must derive 0050-style ETF
-  split factors from `close_before`/`official_reference_price` the same
-  way it already does for cash dividends and ex-rights (CLAUDE.md §80),
-  not from a share count this feed never publishes.
-- **Any future `TWTCAU` request whose range spans 2026-03-31 fails
-  outright**, not intermittently — 00631L's blank direction cell is a
-  permanent feature of that date's response, not a transient glitch. This
-  PR's backfill worked around it by hand-splitting the range at that date
-  (ADR-0023 §4); a future automated job that does not know to do the same
-  — a `CorporateActionBackfill`-style year-chunked run, a correction-check
-  re-fetch, or Step 27's forward capture, whichever first requests a range
-  crossing that date — will quarantine the whole range and silently never
-  store 00674R (2026-04-22) or 00685L (2026-07-07) until a human notices
-  the quarantine and re-splits it by hand. Flagged here (code review of
-  #27) so the next PR that automates a `TWTCAU` range job reads this
-  first, rather than rediscovering it live.
+- TPEx `etfSplitRslt`／`etfRvsRslt` adapter 目前還無法解析真實的列——這是刻意的設計
+  （ADR-0023 §3）。等到任一種資料列出一筆的那天，必須先對照那個真實回應驗證它的
+  `詳細資料` schema，才能實作 `_row()`；猜測 `pvChgRslt` 的 schema 已被否決。
+- `TWTCAU` 的 `old_shares`／`new_shares` 對這個來源永遠保持 NULL；Step 25 的還原因子
+  工作必須從 `close_before`／`official_reference_price` 推導 0050 這類 ETF 的分割因子，
+  方式與它對現金股利和除權已經採用的相同（CLAUDE.md §80），而不是從這個資料從未發布
+  的股數。
+- **任何區間跨過 2026-03-31 的未來 `TWTCAU` 請求都會直接失敗**，而不是偶爾失敗——
+  00631L 的空白方向儲存格是那天回應的永久特徵，不是暫時的故障。這個 PR 的 backfill
+  以手動在那天拆分區間來繞過它（ADR-0023 §4）；未來不知道要這樣做的自動化工作——
+  `CorporateActionBackfill` 形式的逐年執行、correction-check 重新抓取，或 Step 27 的
+  前向抓取，看哪一個先請求跨過那天的區間——會把整個區間送進 quarantine，並默默地
+  永遠不儲存 00674R（2026-04-22）或 00685L（2026-07-07），直到有人注意到 quarantine
+  並手動重新拆分。在這裡標記出來（#27 的 code review），讓下一個自動化 `TWTCAU` 區間
+  工作的 PR 先讀到這段，而不是在實際執行時重新發現。

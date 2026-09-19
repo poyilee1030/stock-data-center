@@ -1,29 +1,26 @@
-# Step 17-c Acceptance Report
+# Step 17-c 驗收報告
 
-Status: IN REVIEW
+狀態：IN REVIEW
 
-Scope: Whole-market daily-price history backfill and reconciliation
+範圍：全市場每日價格歷史 backfill 與對帳
 
-Schema impact: none. Migration impact: none.
-PIT impact: none new — the imported history resolves by `exchange_daily_settled@1`,
-the rule Step 15-c applied and 17-b mapped to these sources.
-`src/` changed by +408/−14 lines, plus one committed script.
+Schema 影響：無。Migration 影響：無。
+PIT 影響：沒有新的影響——匯入的歷史以 `exchange_daily_settled@1` 解析，也就是
+Step 15-c 套用、17-b 對應到這些來源的規則。
+`src/` 改動 +408/−14 行，另外提交一個腳本。
 
-## Baseline
+## 基準
 
-Step 17-b's import path, merged as #20, proved on five market-dates. This step
-runs the window: 1,627 trading dates per market, 2020-01-02 → 2026-09-11.
+Step 17-b 的匯入路徑（以 #20 合併）在五個市場日上得到證明。這個 step 跑完整個
+期間：每個市場 1,627 個交易日，2020-01-02 → 2026-09-11。
 
-Before the run, `daily_price` held nothing for either whole-market source. The
-Step 16 calendar measured the window at **1,627 trading days**, and the legacy
-baseline measured at the start of 17-a was **1,631,598 `sii` rows / 1,299,781
-`otc` rows**. Both numbers are matched exactly below, which is what makes the
-comparison meaningful rather than approximate.
+執行之前，`daily_price` 對兩個全市場來源都沒有任何資料。Step 16 日曆量測這段期間為
+**1,627 個交易日**，而 17-a 開始時量測的舊系統基準是 **1,631,598 列 `sii`／1,299,781
+列 `otc`**。這兩個數字在下文都完全吻合，這讓比較有意義，而不只是近似。
 
-## The run
+## 執行
 
-Both markets, throttled 1.2 s, in parallel (separate hosts, so each host's
-interval is preserved):
+兩個市場，節流 1.2 秒，平行執行（不同主機，所以各主機的間隔都得以維持）：
 
 ```text
                   dates   imported  resumed  failed        rows
@@ -35,42 +32,38 @@ raw artifacts 3,338   observations 3,343   evidence 3,470,031 release_rule
 data/raw 547 MB       non-trading days not requested: 818 per market
 ```
 
-TWSE needed a second pass; see *What the run found* below.
+TWSE 需要第二輪；見下方*執行發現了什麼*。
 
-## Acceptance evidence
+## 驗收證據
 
-| Criterion | Result | Evidence |
+| 標準 | 結果 | 證據 |
 | --- | --- | --- |
-| Every trading date is imported or explicitly reported as a gap | PASS | The Step 16 coverage validator, not a second implementation: `expected_dates 1627, observed_dates 1627, missing_dates [], unexpected_dates [], non_trading_days 818, is_complete true` for **both** markets. |
-| Row counts and values reconcile against legacy | PASS | TWSE 1,631,598 legacy rows compared, TPEx 1,299,781 — both exactly the baseline measured before any code was written. **Zero `legacy_only` rows in either market across the whole window**: the feed is a strict superset on all 1,627 dates. TPEx: **zero differences**. TWSE: 1,062 rows differ, fully explained below. |
-| Every difference is classified | PASS | Five classes, each counted separately so "expected" cannot hide "unexplained": `legacy_only` (0), `legacy_snapshot_differs` (1,062, one date, explained), source-only untraded (17,480 TWSE / 31,201 TPEx), source-only with no published volume (0 / 0), source-only outside the legacy universe (319,970 / 170,001). The script exits 0, which is the same verdict as this table. |
-| A resumed run continues rather than restarting | PASS | The TWSE second pass: `resumed 1619, imported 8, failed 0` in **41 s**. The 1,619 finished dates were not re-fetched. |
-| Reruns stay idempotent | PASS | `dedup_count 0` across 3,254 manifests, because no date was imported twice — and the 1,619 resumed dates returned their stored results without touching the source. The per-date idempotency contract itself is 17-b's regression set. |
-| A report of priced securities with no metadata row | PASS | 366 TWSE and 217 TPEx, broken down below. |
+| 每個交易日都已匯入，或明確回報為缺口 | PASS | 用的是 Step 16 的涵蓋驗證器，而不是第二套實作：**兩個**市場都是 `expected_dates 1627, observed_dates 1627, missing_dates [], unexpected_dates [], non_trading_days 818, is_complete true`。 |
+| 列數和值與舊系統對帳 | PASS | TWSE 比較了 1,631,598 列舊系統資料，TPEx 1,299,781 列——兩者都恰好是在寫任何程式之前量測的基準。**整段期間兩個市場的 `legacy_only` 列都是零**：在全部 1,627 個日期上，資料都是嚴格超集合。TPEx：**差異為零**。TWSE：1,062 列不同，下文完整解釋。 |
+| 每個差異都已分類 | PASS | 五個類別，各自分開計數，所以「預期的」無法掩蓋「無法解釋的」：`legacy_only`（0）、`legacy_snapshot_differs`（1,062，一個日期，已解釋）、只在來源的未成交列（TWSE 17,480／TPEx 31,201）、只在來源且沒有發布成交量的列（0／0）、只在來源且在舊系統範圍之外的列（319,970／170,001）。腳本以 0 結束，與這張表的結論相同。 |
+| 續跑的執行會接續，而不是重新開始 | PASS | TWSE 第二輪：`resumed 1619, imported 8, failed 0`，耗時 **41 秒**。已完成的 1,619 個日期沒有重新抓取。 |
+| 重跑保持冪等 | PASS | 3,254 個 manifest 的 `dedup_count 0`，因為沒有任何日期被匯入兩次——而續跑的 1,619 個日期回傳已儲存的結果，沒有碰到來源。逐日的冪等契約本身是 17-b 的回歸測試集。 |
+| 有價格但沒有 metadata 列的證券報告 | PASS | TWSE 366 支、TPEx 217 支，細項如下。 |
 
-## What the run found
+## 執行發現了什麼
 
-**TWSE served a maintenance page for 18 seconds.** Six dates quarantined as
-`invalid_json`. Raw-first meant the bytes were on disk to look at, and all six
-were the *same* 611-byte artifact — content-addressed storage deduplicated them
-into one row:
+**TWSE 有 18 秒提供的是維護頁。** 六個日期以 `invalid_json` 被 quarantine。
+raw-first 意味著 bytes 就在磁碟上可以查看，而六個都是*同一個* 611 bytes 的
+artifact——以內容定址的儲存把它們去重成一列：
 
 ```html
 <title>網站維護中 - 臺灣證券交易所</title>
 ```
 
-Fetched between 03:49:30 and 03:49:48 UTC, with successful dates in between, so
-TWSE was flapping rather than down. Two further dates hit `ReadTimeout`. All
-eight were retried by re-running the same command with the same import id, which
-is the resumability criterion demonstrated on real failures rather than
-simulated ones. The six quarantine rows remain: the audit trail is append-only,
-and the manifests for those dates now read `succeeded`.
+抓取時間在 UTC 03:49:30 到 03:49:48 之間，中間夾著成功的日期，所以 TWSE 是在
+忽好忽壞，而不是停機。另有兩個日期遇到 `ReadTimeout`。這八個都以相同的 import id
+重跑同一個指令來重試，這是在真實失敗上、而不是模擬的失敗上，展示可續跑的標準。
+六筆 quarantine 列仍然保留：稽核軌跡只可附加，而那些日期的 manifest 現在是
+`succeeded`。
 
-**All 1,062 TWSE value differences are on one date, and the archive explains
-them.** Every difference is in volume, trade value and trade count; **no OHLC
-value differs anywhere in 1.63 M rows**. All 1,062 fall on 2026-03-27, and on
-that date every legacy volume is an exact multiple of 1,000 while neighbouring
-dates are not:
+**TWSE 全部 1,062 個數值差異都在同一天，而檔案庫解釋了它們。** 每個差異都在成交量、
+成交金額和成交筆數；**163 萬列中沒有任何 OHLC 值不同**。1,062 個全落在 2026-03-27，
+那天舊系統的每個成交量都恰好是 1,000 的倍數，而相鄰的日期不是：
 
 ```text
 0051 on 2026-03-27   ours 41,556 shares / 354 trades
@@ -78,158 +71,135 @@ dates are not:
 legacy archive file written  2026-03-27 14:10:01 +0800
 ```
 
-The regular session closes at 13:30 and the odd-lot session settles later, so at
-14:10 TWSE was still serving round-lot-only statistics. The legacy scraper skips
-any date whose file already exists (`fetch_daily_sii.py`, audit §3), so it never
-saw the final figures. Ours are ≥ legacy on all 1,076 compared rows of that date,
-which is the direction that hypothesis predicts.
+一般交易時段在 13:30 收盤，零股交易稍後才確定，所以在 14:10，TWSE 提供的仍是只含
+整股的統計。舊 scraper 會跳過檔案已存在的日期（`fetch_daily_sii.py`，audit §3），
+所以它從未看到最終數字。那天比較的 1,076 列中，我們的數字都 ≥ 舊系統，這正是那個
+假設所預測的方向。
 
-This is a documented, PIT-correct difference, and it is why the classification is
-called `legacy_snapshot_differs` rather than naming a field as wrong: nothing
-preserved the official bytes as they stood at 14:10, so which snapshot is stale
-is established from the capture time, not asserted from the numbers.
+這是有記載、PIT 正確的差異，也是這個類別叫做 `legacy_snapshot_differs`，而不是指名
+某個欄位錯誤的原因：沒有任何東西保存了 14:10 當下的官方 bytes，所以哪一份快照過時，
+是從抓取時間確立的，而不是從數字斷言的。
 
-**Priced securities with no metadata row**, the report ROADMAP asks for:
+**有價格但沒有 metadata 列的證券**，也就是 ROADMAP 要求的報告：
 
 | | TWSE | TPEx |
 | --- | ---: | ---: |
-| ETFs and beneficiary certificates | 293 | 173 |
-| Preferred shares | 33 | 3 |
-| TDRs / foreign listings | 4 | 0 |
-| Ordinary shares, all of them delisted mid-window | 36 | 41 |
-| **total** | **366** | **217** |
+| ETF 和受益憑證 | 293 | 173 |
+| 特別股 | 33 | 3 |
+| TDR／外國掛牌 | 4 | 0 |
+| 普通股，全部在期間中途下市 | 36 | 41 |
+| **合計** | **366** | **217** |
 
-The first three groups are permanent: the company snapshots Step 10 imports
-describe companies, and these are not companies. The fourth is different and
-worth stating plainly — every ordinary share in the list stopped being priced
-before 2026-09-11, so these are delisted issuers that the *current* snapshot no
-longer lists. This run imported only the current snapshots; Step 11's
-listing/delisting lifecycle history writes to the same table and would describe
-them. The number is therefore a property of what this database holds, not a
-permanent gap in the contract.
+前三組是永久的：Step 10 匯入的公司快照描述的是公司，而這些不是公司。第四組不同，
+值得直接說明——清單中每支普通股都在 2026-09-11 之前停止報價，所以這些是*當下*快照
+不再列出的下市發行公司。這次執行只匯入了當下的快照；Step 11 的上市／下市生命週期
+歷史寫入同一張表，就能描述它們。因此這個數字是這個資料庫目前內容的性質，而不是
+契約中的永久缺口。
 
-## Design decisions
+## 設計決策
 
-**The calendar decides which dates to ask for.** 818 non-trading days per market
-were never requested, so a closure can never arrive as a quarantined date and
-never looks like a gap. A range the calendar has not imported raises before the
-first request rather than after the last, because an unimported month and a month
-of closures are indistinguishable in the data.
+**日曆決定要請求哪些日期。** 每個市場有 818 個非交易日從未被請求，所以休市日永遠
+不會以被 quarantine 的日期出現，也永遠不會看起來像缺口。日曆尚未匯入的區間會在
+第一次請求之前、而不是最後一次之後拋出錯誤，因為在資料中，未匯入的月份和整月休市
+無法區分。
 
-**Each date carries its own import id**, derived from the run's with `uuid5`, so
-a run that dies on date 900 resumes at date 900, and two runs never collide on
-one checkpoint.
+**每個日期帶有自己的 import id**，以 `uuid5` 從這次執行的 id 推導，所以在第 900
+個日期中斷的執行會從第 900 個日期續跑，而兩次執行永遠不會撞到同一個 checkpoint。
 
-**One bad date is reported, not fatal.** It is named in the run report with its
-reason code, the exit status is non-zero, and the remaining dates still import.
-Ending the run on the first failure would have thrown away 1,618 good dates to
-report eight bad ones.
+**一個壞日期會被回報，但不會致命。** 它在執行報告中以 reason code 被指名，結束狀態
+非零，其餘日期仍然匯入。在第一個失敗就結束執行，會為了回報八個壞日期而丟掉 1,618
+個好日期。
 
-**The gap report is the Step 16 coverage validator.** It already answers which
-expected dates a dataset holds, which it is missing, and which closures are not
-its gaps. A second implementation would have been a second thing to keep true.
+**缺口報告就是 Step 16 的涵蓋驗證器。** 它已經能回答一個資料集有哪些預期日期、缺哪
+些，以及哪些休市不是它的缺口。第二套實作只會是另一個需要維持正確的東西。
 
-## Two defects the live run found that the tests could not
+## 實際執行發現、測試發現不了的兩個缺陷
 
-**The runner asked for a `TPEx` calendar.** No official TPEx calendar exists — by
-Step 16's measured decision, TPEx datasets declare the TWSE one through
-`dataset_expected_coverage.calendar_market`. The first TPEx backfill died on its
-first call. Every one of the seven tests written before it was a TWSE test, where
-`market` and `calendar_market` are the same string, so the tests had grown the
-implementation's blind spot exactly. The runner now reads the declaration, and a
-TPEx regression covers the path.
+**runner 請求了 `TPEx` 日曆。** TPEx 沒有官方日曆——依 Step 16 經量測的決定，TPEx
+資料集透過 `dataset_expected_coverage.calendar_market` 宣告使用 TWSE 日曆。第一次
+TPEx backfill 在第一次呼叫就中止了。在它之前寫的七個測試全都是 TWSE 測試，而在 TWSE
+中 `market` 和 `calendar_market` 是同一個字串，所以測試恰好長出了實作的盲點。runner
+現在讀取宣告，並有 TPEx 回歸測試涵蓋這條路徑。
 
-**The throttle slept between resumed dates.** Politeness is owed to the source,
-not to the checkpoint table. Retrying eight failed dates would have slept once per
-already-finished date: 1,627 × 1.2 s of waiting to make eight requests. The
-throttle now follows a real request, which is what made the retry take 41 s.
+**節流在續跑的日期之間也會 sleep。** 禮貌是對來源的，而不是對 checkpoint 表的。重試
+八個失敗的日期，會對每個已完成的日期 sleep 一次：為了發出八次請求等待 1,627 × 1.2
+秒。節流現在跟在真正的請求之後，這讓重試只花 41 秒。
 
-Both were found by running the thing against reality, which is the argument for
-the backfill being its own step rather than a footnote to 17-b.
+兩者都是對著現實實際執行才發現的，這正是 backfill 應該是獨立 step、而不是 17-b 註腳
+的理由。
 
-## What the legacy archive turned out to be
+## 舊系統檔案庫原來是什麼
 
-Reading `my_stock_project/scraper/daily/` changed how this report reads its own
-baseline, and audit §3 is updated with it:
+閱讀 `my_stock_project/scraper/daily/` 改變了這份報告解讀自己基準的方式，audit §3
+也隨之更新：
 
-- The scraper requests `response=csv`, so the JSON representation's `hints`
-  (`單位：元、股`), `notes`, `date` and per-table `fields` never existed in the
-  archive. The official CSV is first-hand — the archive is not, because the saved
-  file is a rewrite of it: big5 decoded with `errors="ignore"`, `="…"` stripped,
-  single-cell rows dropped (which is where the report date went), requoted as
-  UTF-8-BOM, and skipped entirely below a size floor.
-- 92% of the window (1,492 of 1,629 files) was written in one campaign in January
-  and February 2026, and `skip if exists` means nothing was refreshed afterwards.
-  So the archive carries no first-seen evidence for daily prices, which is why
-  this run declares `gap_fill` and claims no capture bound.
+- scraper 請求 `response=csv`，所以 JSON 呈現方式的 `hints`（`單位：元、股`）、
+  `notes`、`date` 和各表的 `fields` 從來不存在於檔案庫中。官方 CSV 是第一手的——
+  檔案庫則不是，因為存下的檔案是它的改寫：以 `errors="ignore"` 解碼 big5、去掉
+  `="…"`、丟掉單格的列（報告日期就是這樣不見的）、以 UTF-8-BOM 重新加引號，而且
+  低於某個大小下限的就完全跳過。
+- 期間的 92%（1,629 個檔案中的 1,492 個）是在 2026 年 1 月和 2 月的一次行動中寫入的，
+  而 `skip if exists` 意味著之後沒有任何東西被更新。所以檔案庫對每日價格沒有任何
+  首次看到的證據，這也是這次執行宣告 `gap_fill` 且不宣稱抓取界限的原因。
 
-Three checks found no damage to the values themselves: 1,627 archive dates
-against 1,627 official ones, zero corrupted names in 2,133 code/name pairs, and
-the row-level comparison above. The archive is a sound reconciliation baseline.
-It is not an official artifact, and the difference is what this section records.
+三項檢查都沒有發現值本身有損壞：1,627 個檔案庫日期對 1,627 個官方日期、2,133 組
+代號／名稱中零個損壞的名稱，以及上面的逐列比較。檔案庫是可靠的對帳基準。它不是
+官方 artifact，而這一節記錄的就是這個差別。
 
-## Source capability recorded
+## 已記錄的來源能力
 
-Audit §4.1 now records how far back each endpoint serves, probed at the
-boundary: TWSE **2004-02-11** (the endpoint says so itself —
-`查詢日期小於93年2月11日，請重新查詢!`) and TPEx **2007-07-02** (it says nothing;
-2007-06-29, the previous trading day, simply returns zero rows).
+audit §4.1 現在記錄了每個端點能回溯多遠，在邊界上探測過：TWSE **2004-02-11**（端點
+自己就這麼說——`查詢日期小於93年2月11日，請重新查詢!`），以及 TPEx **2007-07-02**
+（它什麼都沒說；前一個交易日 2007-06-29 只是回傳零列）。
 
-This is recorded because the window starting on 2020-01-02 is a ROADMAP scope
-decision, and nothing until now said so — "the endpoints still serve 2020
-onward" read like a limit. It also documents what extending the window would
-actually take: the Step 16 calendar covers only 2020-01 onward and the runner
-fails closed outside it, and the two markets would need different
-`window_start` values, since TWSE reaches three years further back than TPEx.
+記錄這個是因為從 2020-01-02 開始的期間是 ROADMAP 的範圍決定，而在此之前沒有任何地方
+這樣寫——「端點仍提供 2020 年起的資料」讀起來像是限制。它也記錄了延伸期間實際需要
+什麼：Step 16 日曆只涵蓋 2020-01 起，runner 在範圍外會 fail closed，而兩個市場需要
+不同的 `window_start` 值，因為 TWSE 比 TPEx 多回溯三年。
 
-TPEx's out-of-range answer is `stat` `ok` with zero rows — identical to a
-closure. That is the reason Step 17-a's reason code is `no_data_for_date` and
-not `market_closed`, and it is now written down next to the evidence.
+TPEx 對範圍外的回答是 `stat` `ok` 加零列——與休市日完全相同。這就是 Step 17-a 的
+reason code 是 `no_data_for_date` 而不是 `market_closed` 的原因，現在它被寫在證據
+旁邊。
 
-## Code-review findings
+## Code review 發現
 
-Six findings, all verified against the code and the imported data before
-anything changed; none was a false positive. Four were latent — the conditions
-that trigger them do not occur in this data — and latent is not the same as
-harmless, since each would fire on the first correction or the first extended
-window.
+六項發現，在改動任何東西之前都對照程式和匯入的資料驗證過；沒有一項是誤報。其中四項
+是潛在的——觸發它們的條件在這份資料中沒有發生——而潛在不等於無害，因為每一項都會在
+第一次更正或第一次延伸期間時觸發。
 
-| # | Finding | Verified by | Disposition |
+| # | 發現 | 驗證方式 | 處置 |
 | --- | --- | --- | --- |
-| 1 | The CLI mints a fresh base id per invocation, so a `--through` run restarted without `--import-id` re-fetches everything it already finished | `cli.py:160`. The backfill in this report only resumed because the id was passed by hand. | **Fixed.** The base id is derived from `(source, start, end)`, so resuming is the default; `--import-id` still overrides, and the run prints the id it used. The documented promise no longer depends on an undocumented flag. |
-| 2 | The reconciliation collapses several revisions of a security-date in whatever order PostgreSQL returned | The revision constraint includes the business hash, so multiple revisions are legal. Latent: this data has 0 multi-revision keys. | Fixed. `DISTINCT ON ... ORDER BY ingested_at DESC` — the current state, chosen deterministically, as §78 requires. |
-| 3 | `import_counts` takes a window and filters only on source, so unscoped totals print under a window header | Read. | Fixed. Scoped by the trade date each manifest recorded. |
-| 4 | The exit code gates on `legacy_snapshot_differs`, which the script itself says is reported and not judged — so it returns 1 on the run this report marks PASS | Ran it: exit 1 against accepted differences. | Fixed. It gates on `legacy_only` and null disagreements, the classes that are defects. The script now exits **0**, agreeing with the acceptance table. |
-| 5 | `volume == 0` is false for NULL, so a source-only row with no published volume was counted as outside the legacy universe | Latent: 0 NULL volumes in this data. | Fixed, and with a third bucket rather than the other one: an unknown volume is not evidence of anything, and putting it in either explanation would hide an unexplained row inside one. |
-| 6 | The runner passes the caller's range straight to the calendar, so a range before `window_start` imports dates the validator reports as `unexpected` for ever | Confirmed `expected_periods` clamps and the runner does not. Latent: the backfill starts exactly at `window_start`. | Fixed. Refused before the first fetch, and before the calendar check, because the declaration is the more specific authority. |
+| 1 | CLI 每次呼叫都產生新的 base id，所以沒帶 `--import-id` 重啟的 `--through` 執行，會重新抓取它已經完成的所有東西 | `cli.py:160`。這份報告中的 backfill 能續跑，只是因為 id 是手動傳入的。 | **已修正。** base id 由 `(source, start, end)` 推導，所以續跑是預設行為；`--import-id` 仍可覆寫，而執行會印出它使用的 id。文件中的承諾不再依賴一個沒有記載的 flag。 |
+| 2 | 對帳把同一證券日的多個 revision，以 PostgreSQL 回傳的任意順序合併 | revision constraint 包含業務 hash，所以多個 revision 是合法的。潛在：這份資料有 0 個多 revision 的 key。 | 已修正。`DISTINCT ON ... ORDER BY ingested_at DESC`——確定性地選出當下狀態，如 §78 所要求。 |
+| 3 | `import_counts` 接受一個時間窗，卻只依來源過濾，所以未限定範圍的總數印在時間窗的標題下 | 閱讀。 | 已修正。以每個 manifest 記錄的交易日界定範圍。 |
+| 4 | 結束碼依據 `legacy_snapshot_differs` 判斷，而腳本自己說這個類別只回報、不判斷——所以在這份報告標為 PASS 的執行上它回傳 1 | 實際執行：對已接受的差異以 1 結束。 | 已修正。它依據 `legacy_only` 和 null 不一致判斷，這兩個類別才是缺陷。腳本現在以 **0** 結束，與驗收表一致。 |
+| 5 | `volume == 0` 對 NULL 為 false，所以沒有發布成交量的只在來源列，被算成在舊系統範圍之外 | 潛在：這份資料有 0 個 NULL 成交量。 | 已修正，並且用第三個類別，而不是另一個類別：未知的成交量不是任何事情的證據，把它放進任一種解釋，都會把一個無法解釋的列藏在其中。 |
+| 6 | runner 把呼叫端的範圍直接傳給日曆，所以 `window_start` 之前的範圍會匯入驗證器永遠回報為 `unexpected` 的日期 | 確認 `expected_periods` 會裁切，而 runner 不會。潛在：backfill 恰好從 `window_start` 開始。 | 已修正。在第一次抓取之前、也在日曆檢查之前拒絕，因為宣告是更具體的權威。 |
 
-Finding 1 is the one that matters: the resume this step is built on worked in
-this run only because the id was passed by hand, while the documentation
-promised it without the flag. The other five are the kind that stay invisible
-until the day they are not.
+真正重要的是第 1 項：這個 step 所依賴的續跑，在這次執行中能運作，只是因為 id 是手動
+傳入的，而文件承諾的是不需要那個 flag。其餘五項都是那種在出事那天之前一直看不見的
+問題。
 
-## Verification
+## 驗證
 
-Database migrated from zero:
+從零 migrate 的資料庫：
 
 ```text
 432 passed, 3 skipped, 1 warning
 ```
 
-Baseline before this step: 421 (Step 17-b). The 11 integration tests added here
-are the difference, and each was seen to fail first — the two written after the
-live run against the code as it then stood, and the two from the review against
-the code as it was pushed.
+本 step 之前的基準：421（Step 17-b）。差異就是這裡新增的 11 個 integration test，
+每一個都確認過先失敗——實際執行之後寫的兩個對照當時的程式，review 的兩個則對照 push
+時的程式。
 
-`ruff check` reports nothing new against `main` for every file touched.
+`ruff check` 對每個碰到的檔案，相對於 `main` 都沒有回報新問題。
 
-## Scope exclusions confirmed
+## 已確認的範圍排除
 
-- No adjusted prices, and **no analysis-readiness claim**: CLAUDE.md §51.4 gates
-  that on corporate-action history, which is Step 19. Raw OHLC is stored, correct
-  and reconciled; that is all this step claims.
-- The Step 9 per-security pilots stay out of production and are unchanged.
-- The index sections of the TWSE artifacts are untouched. Step 18 reuses these
-  same 1,627 raw artifacts rather than re-fetching them.
-- `data/raw` holds 547 MB of official response bytes on this machine only; it is
-  gitignored, and a rebuild elsewhere is a re-run of the same CLI.
+- 沒有還原價格，也**不宣稱可用於分析**：CLAUDE.md §51.4 以公司行動歷史作為關卡，
+  那是 Step 19。原始 OHLC 已儲存、正確且已對帳；這個 step 只宣稱這些。
+- Step 9 的個股 pilot 仍不在正式環境使用，也沒有改變。
+- TWSE artifact 的指數區段沒有動。Step 18 重用同樣這 1,627 個 raw artifact，而不是
+  重新抓取。
+- `data/raw` 只在這台機器上保存 547 MB 的官方回應 bytes；它在 gitignore 中，在別處
+  重建就是重跑同一個 CLI。

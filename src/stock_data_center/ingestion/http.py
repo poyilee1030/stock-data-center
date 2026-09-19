@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from typing import Protocol
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -16,21 +19,114 @@ class SourceFetcher(Protocol):
     def fetch(self, resource: SourceResource) -> FetchedArtifact: ...
 
 
+# MOPS blocked the legacy scraper on 2026-07-02. Its answer, kept since, is a
+# 3-second pause between requests (my_stock_project
+# scraper/quarterly/fetch_xbrl.py, `FETCH_INTERVAL_SECONDS`). Steps 20-d, 22,
+# 23 and 33 all call this host, so the pause is one budget for the whole
+# process, not one per adapter.
+MOPS_HOST = "mopsov.twse.com.tw"
+MOPS_MIN_INTERVAL_SECONDS = 3.0
+
+
+class HostRateGovernor:
+    """One request budget per host, shared by every fetcher that holds it.
+
+    For a governed host, requests never overlap, and each starts at least the
+    host's interval after the previous one to that host finished — failed
+    requests included, since the host saw them too. Hosts with no budget pass
+    straight through. Thread-safe: two importers on two threads, each with
+    its own fetcher, still share one budget.
+
+    The host is the requested URL's. A redirect to another host is not
+    re-governed; no governed source redirects today.
+    """
+
+    def __init__(
+        self,
+        min_interval_seconds: Mapping[str, float],
+        *,
+        clock: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
+        for host, interval in min_interval_seconds.items():
+            if not interval > 0:
+                raise ValueError(f"{host}: interval must be positive, got {interval}")
+        self._intervals = {
+            host.lower(): float(interval)
+            for host, interval in min_interval_seconds.items()
+        }
+        self._locks = {host: threading.Lock() for host in self._intervals}
+        self._last_finished: dict[str, float] = {}
+        self._clock = clock
+        self._sleep = sleep
+
+    def interval_for(self, url: str) -> float | None:
+        host = (urlsplit(url).hostname or "").lower()
+        return self._intervals.get(host)
+
+    @contextmanager
+    def slot(self, url: str) -> Iterator[None]:
+        """Hold the host for one request: wait out its interval, then keep
+        every other request to it waiting until this one has finished."""
+        host = (urlsplit(url).hostname or "").lower()
+        interval = self._intervals.get(host)
+        if interval is None:
+            yield
+            return
+        with self._locks[host]:
+            last = self._last_finished.get(host)
+            if last is not None:
+                wait = last + interval - self._clock()
+                if wait > 0:
+                    self._sleep(wait)
+            try:
+                yield
+            finally:
+                self._last_finished[host] = self._clock()
+
+
+_PROCESS_GOVERNOR = HostRateGovernor({MOPS_HOST: MOPS_MIN_INTERVAL_SECONDS})
+
+
+def process_governor() -> HostRateGovernor:
+    """The governor every fetcher in this process uses unless handed another."""
+    return _PROCESS_GOVERNOR
+
+
+_DEFAULT_HEADERS = {
+    "accept": "application/json",
+    "user-agent": "stock-data-center/0.1 raw-first-ingestion",
+}
+
+
 class HttpSourceFetcher:
-    def __init__(self, *, timeout_seconds: float = 20.0) -> None:
+    def __init__(
+        self,
+        *,
+        timeout_seconds: float = 20.0,
+        governor: HostRateGovernor | None = None,
+        transport: httpx.BaseTransport | None = None,
+    ) -> None:
         self._timeout = httpx.Timeout(timeout_seconds)
+        self._governor = governor or process_governor()
+        self._transport = transport
+
+    @property
+    def governor(self) -> HostRateGovernor:
+        return self._governor
 
     def fetch(self, resource: SourceResource) -> FetchedArtifact:
         with httpx.Client(
             timeout=self._timeout,
             follow_redirects=True,
-            headers={
-                "Accept": "application/json",
-                "User-Agent": "stock-data-center/0.1 raw-first-ingestion",
-            },
+            headers={**_DEFAULT_HEADERS, **dict(resource.headers)},
+            transport=self._transport,
         ) as client:
-            response = client.get(resource.source_uri)
-            fetched_at = datetime.now(UTC)
+            with self._governor.slot(resource.source_uri):
+                response = client.request(
+                    resource.method, resource.source_uri, content=resource.body
+                )
+                fetched_at = datetime.now(UTC)
             response.raise_for_status()
         media_type = response.headers.get("content-type", "application/octet-stream")
         media_type = media_type.split(";", 1)[0].strip().lower()

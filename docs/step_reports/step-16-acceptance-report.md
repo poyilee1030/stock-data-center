@@ -1,34 +1,33 @@
-# Step 16 Acceptance Report
+# Step 16 驗收報告
 
-Status: IN REVIEW
+狀態：IN REVIEW
 
-Scope: Trading Calendar and Coverage Validator
+範圍：交易日曆與涵蓋範圍驗證器
 
-Delivered by GitHub pull request [#15](https://github.com/poyilee1030/stock-data-center/pull/15). Step numbers
-and pull-request numbers diverged here and are not reconciled: ADR-0020 went
-straight to `main` without a pull request, so Step 16 opened as #15 (ROADMAP §20).
+由 GitHub pull request [#15](https://github.com/poyilee1030/stock-data-center/pull/15) 交付。
+Step 編號和 pull request 編號在這裡分岔，不再對齊：ADR-0020 沒有經過 pull request
+直接進了 `main`，所以 Step 16 開的是 #15（ROADMAP §20）。
 
-Schema impact: `trading_calendar_versions`, its observation link, a seventeenth
-`publication_evidence` target, and `dataset_expected_coverage`.
-Migration: `1a6f3b7c8d24`. PIT impact: none — the calendar carries `unknown`
-evidence with `published_at = NULL` until ADR-0020 lands.
+Schema 影響：`trading_calendar_versions`、它的觀察連結、第十七個
+`publication_evidence` 目標，以及 `dataset_expected_coverage`。
+Migration：`1a6f3b7c8d24`。PIT 影響：無——在 ADR-0020 完成之前，日曆帶的是
+`published_at = NULL` 的 `unknown` 證據。
 
-## Baseline, measured before any code was written
+## 基準，在寫任何程式之前量測
 
-| Measurement | Result |
+| 量測 | 結果 |
 | --- | ---: |
-| TWSE `FMTQIK`, 2020-01-02 → 2026-09-11 | 1,627 trading days |
-| Legacy archive `daily_quotes/*/sii.csv` | 1,627 dates |
-| Legacy archive `daily_quotes/*/otc.csv` | 1,627 dates |
-| TWSE vs TPEx archive date sets | identical, 0 differences either way |
-| 2024-07-24 / 07-25 in `FMTQIK` | absent (typhoon closure) |
+| TWSE `FMTQIK`，2020-01-02 → 2026-09-11 | 1,627 個交易日 |
+| 舊系統檔案庫 `daily_quotes/*/sii.csv` | 1,627 個日期 |
+| 舊系統檔案庫 `daily_quotes/*/otc.csv` | 1,627 個日期 |
+| TWSE 與 TPEx 檔案庫的日期集合 | 完全相同，雙向差異為 0 |
+| `FMTQIK` 中的 2024-07-24 / 07-25 | 不存在（颱風休市） |
 
-The TPEx equivalence this PR relies on is therefore **measured, not assumed**.
+因此，本 PR 依賴的 TPEx 等價性是**量測出來的，不是假設的**。
 
-## Acceptance evidence
+## 驗收證據
 
-Full history imported live through the CLI into a database migrated from zero
-(81 requests, 1.2 s apart):
+透過 CLI 實際匯入完整歷史，寫入從零 migrate 的資料庫（81 次請求，間隔 1.2 秒）：
 
 ```text
 months imported          81
@@ -39,53 +38,46 @@ coverage_through         2026-09-15
 stored trading days      1,627   (2020-01-02 → 2026-09-11)
 ```
 
-| Criterion | Result | Evidence |
+| 標準 | 結果 | 證據 |
 | --- | --- | --- |
-| The 2020-01-02 → 2026-09-11 calendar matches the legacy archive | PASS | 1,627 stored days vs 1,627 archive dates; `calendar-only = []`, `archive-only = []`. No difference to explain. |
-| Typhoon closures appear as closures | PASS | 2024-07-24 and 07-25 are absent from the stored month and `is_trading_day` returns `False` for both. The real captured bytes are a permanent fixture (`tests/fixtures/twse_fmtqik_202407.json`). |
-| The coverage report separates non-trading days from missing data | PASS | `CoverageReport.missing` and `.non_trading_days` are disjoint by construction: a closure is never expected. Regression asserts both fields for the 07-22..07-26 window. |
-| The report does not rely on today's security universe | PASS | The report is period-grained. A regression stores one security, takes a report, adds two more securities for the same date, and asserts both reports are identical. |
-| Expected coverage is queryable for a (dataset, period) range | PASS | `dataset_expected_coverage` is a table; `ExpectedCoverageService.expected_periods(...)` answers directly, and an undeclared dataset raises instead of returning an empty expectation. |
+| 2020-01-02 → 2026-09-11 的日曆與舊系統檔案庫一致 | PASS | 儲存 1,627 天，檔案庫 1,627 個日期；`calendar-only = []`、`archive-only = []`。沒有需要解釋的差異。 |
+| 颱風休市以休市呈現 | PASS | 2024-07-24 和 07-25 不在儲存的月份中，`is_trading_day` 對兩者都回傳 `False`。真實抓到的 bytes 是永久 fixture（`tests/fixtures/twse_fmtqik_202407.json`）。 |
+| 涵蓋報告把非交易日和缺漏資料分開 | PASS | `CoverageReport.missing` 和 `.non_trading_days` 在結構上互斥：休市日永遠不在預期之中。回歸測試對 07-22..07-26 期間斷言這兩個欄位。 |
+| 報告不依賴今天的證券範圍 | PASS | 報告以期間為粒度。一個回歸測試儲存一支證券、產生報告、再為同一天加入兩支證券，並斷言兩份報告相同。 |
+| 可以查詢某個 (dataset, period) 範圍的預期涵蓋 | PASS | `dataset_expected_coverage` 是一張表；`ExpectedCoverageService.expected_periods(...)` 直接回答，未宣告的資料集會拋出錯誤，而不是回傳空的預期。 |
 
-## Design decisions (ADR-0021)
+## 設計決策（ADR-0021）
 
-**The version is month-grained.** A closure is an *absence* from the published
-list, so a corrected closure cannot be expressed day-grained: adding a row can
-say "this day did open", but rows are never deleted, so "this day did not open
-after all" would be inexpressible. With the month as the version, the day list
-changes, the business hash changes, and it becomes a new version of that month —
-both directions work. ROADMAP describes the table as
-`(market, trading date, source, lineage)`; that holds at query level, while the
-storage grain follows the source's own publication and revision unit.
+**版本以月為粒度。** 休市是從發布清單中*缺席*，所以以日為粒度無法表達被更正的
+休市：新增一列可以說「這天確實有開市」，但列永遠不會被刪除，所以「這天其實沒有
+開市」就無法表達。以月份作為版本，日期清單改變、業務 hash 改變，就成為該月的新
+版本——兩個方向都行得通。ROADMAP 把這張表描述為
+`(market, trading date, source, lineage)`；這在查詢層級成立，而儲存粒度依循來源
+自己的發布與 revision 單位。
 
-**`coverage_through` bounds what a version may answer.** A month fetched before
-it ends publishes a partial list, and the days after the last published one are
-unknown rather than closed. A still-running month claims only the last day the
-source actually showed — claiming *today* would read an unpublished day as a
-closure.
+**`coverage_through` 界定一個版本可以回答的範圍。** 月底之前抓取的月份發布的是
+不完整的清單，最後一個發布日期之後的日子是未知，而不是休市。仍在進行中的月份只
+宣稱來源實際顯示的最後一天——宣稱到*今天*，就會把尚未發布的日子讀成休市。
 
-**Out of coverage raises.** An unimported month and a month of closures are
-indistinguishable in the data, so `False` would quietly turn "we never imported
-August" into "the market never opened in August". A gap between imported months
-stops coverage at the gap for the same reason.
+**超出涵蓋範圍會拋出錯誤。** 在資料中，未匯入的月份和整月休市無法區分，所以回傳
+`False` 會默默把「我們從未匯入八月」變成「市場整個八月都沒開」。基於同樣的理由，
+已匯入月份之間的缺口會讓涵蓋停在缺口處。
 
-**No TPEx row is written.** No official TPEx calendar source exists, so writing
-one would be inventing data. TPEx datasets declare the TWSE calendar instead,
-and the declaration records the measurement behind it.
+**不寫入任何 TPEx 列。** TPEx 沒有官方的日曆來源，寫入一列就等於捏造資料。TPEx
+資料集改為宣告使用 TWSE 日曆，宣告中記錄了背後的量測。
 
-## Verification
+## 驗證
 
-Database migrated from zero to `1a6f3b7c8d24`:
+從零 migrate 到 `1a6f3b7c8d24` 的資料庫：
 
 ```text
 312 passed, 3 skipped, 1 warning
 ```
 
-Baseline on `main`, same database state: 300 passed after the registry and
-downgrade-helper fixes below; the 41 tests added here are the difference.
+`main` 上相同資料庫狀態的基準：在下文 registry 和 downgrade helper 修正之後為 300
+passed；這裡新增的 41 個測試就是差異。
 
-Every storage rejection was checked to fire for **its own** constraint rather
-than a neighbour's:
+每一種儲存層拒絕都檢查過，確認觸發的是**它自己的** constraint，而不是隔壁的：
 
 ```text
 not first day        ck_trading_calendar_versions_calendar_month_is_first_day
@@ -96,61 +88,55 @@ coverage too early   ck_trading_calendar_versions_coverage_through_inside_month
 coverage outside     ck_trading_calendar_versions_coverage_through_inside_month
 ```
 
-That check found a real gap in the tests: "a day outside its month" was being
-caught by the coverage bound, not by `trading_days_inside_month`. The test now
-uses a day *before* the month, which only that constraint can reject, and
-asserts the constraint by name.
+這項檢查找到了測試中真正的缺口：「在月份之外的日子」被涵蓋界限抓到，而不是被
+`trading_days_inside_month` 抓到。測試現在使用月份*之前*的日子，那只有這個
+constraint 能拒絕，並以名稱斷言該 constraint。
 
-## Two incidental fixes this PR forced
+## 本 PR 被迫做的兩個附帶修正
 
-**The Step 14 storage-contract guard did its job.** Adding the tables failed
-`test_every_table_in_the_schema_is_classified_or_explicitly_excluded`
-immediately. Both are classified: the calendar with its per-column source
-mapping, the observation link and `dataset_expected_coverage` as excluded with
-reasons.
+**Step 14 的儲存契約防護發揮了作用。** 新增這些表立刻讓
+`test_every_table_in_the_schema_is_classified_or_explicitly_excluded` 失敗。兩者都
+已分類：日曆附上逐欄的來源對應，觀察連結和 `dataset_expected_coverage` 附上理由
+排除。
 
-**Three downgrade tests hardcoded the head revision** (`7c9e2a4b6d81`), so every
-new migration would break them. They now compare against the script head through
-a `conftest.alembic_head()` helper — the assertion's intent was "the blocked
-downgrade left the version untouched", not "the head is this literal".
+**三個 downgrade 測試把 head revision 寫死**（`7c9e2a4b6d81`），所以每個新
+migration 都會弄壞它們。它們現在透過 `conftest.alembic_head()` helper 與 script
+head 比較——這個斷言的本意是「被擋下的 downgrade 沒有動到版本」，而不是「head
+就是這個字面值」。
 
-## Code-review findings
+## Code review 發現
 
-A `/code-review` pass raised 12 findings. All 12 were verified against the
-running code before anything was changed; none was a false positive. Eleven are
-fixed here, one is scheduled as its own step.
+一次 `/code-review` 提出 12 項發現。12 項在改動任何東西之前都對照執行中的程式
+驗證過；沒有一項是誤報。其中十一項在這裡修正，一項排成獨立的 step。
 
-| # | Finding | Verified by | Disposition |
+| # | 發現 | 驗證方式 | 處置 |
 | --- | --- | --- | --- |
-| 1 | `coverage_through` advanced the contiguity walk on month presence alone, so a partial month followed by a complete one made unpublished days answer `False` | Stored July published only through the 11th plus a complete August; `is_trading_day(2024-07-12)` returned `False` | Fixed. The walk stops at the first month that did not reach its own end. |
-| 2 | `_latest_versions` partitioned by source but filtered on market only, unioning two sources' calendars | Read | Fixed. Each call reads one source, the canonical one unless named. |
-| 3 | The observed-period query had no source predicate, so one market's rows counted as another's coverage | Read | Fixed. The declaration carries `source`, and the query filters on it. |
-| 4 | `report()` on `trading_calendar` crashed: not in `DATASET_CONTRACTS` | `get_contract('trading_calendar')` raised `UnknownDatasetError` | Fixed. The calendar is registered. |
-| 5 | Observed periods outside the expectation were filtered away instead of surfaced | Read | Fixed. `CoverageReport.unexpected` reports them, and `is_complete` accounts for them. |
-| 6 | `non_trading_days` used the caller's unclipped range while `expected` was clipped to the declared window | Read | Fixed. Both follow the window. |
-| 7 | `set(observed)` was rebuilt for every expected element | Read | Fixed. |
-| 8 | `downgrade()` dropped `trading_calendar_versions`, destroying append-only history instead of refusing | Read | Fixed. A `P0001` preflight refuses before mutating, matching the Step 12 convention, with a regression. |
-| 9 | The evidence hash includes every target column, so adding one shifts the hash for every dataset and breaks dedup | Computed `to_jsonb(row) - exclusions` in PostgreSQL; the new column is present | **Scheduled as Step 34.** Not introduced here — Step 8 did the same — and fixing it changes the hash function for every domain, so it needs its own step and regression set. |
-| 10 | A multi-month CLI run printed only the last month's manifest | Read | Fixed. The run reports every month. |
-| 11 | `date.today()` decided whether a month was over in the process timezone | CLAUDE.md §34 requires Asia/Taipei | Fixed. |
-| 12 | (grouped with 6) | | Fixed. |
+| 1 | `coverage_through` 只要月份存在就推進連續性檢查，所以一個不完整的月份後面接著一個完整的月份時，尚未發布的日子會回答 `False` | 儲存只發布到 11 日的七月，加上完整的八月；`is_trading_day(2024-07-12)` 回傳 `False` | 已修正。檢查在第一個沒有到達自己月底的月份停下。 |
+| 2 | `_latest_versions` 依來源分區，卻只依市場過濾，把兩個來源的日曆合在一起 | 閱讀 | 已修正。每次呼叫只讀一個來源，除非指名，否則是標準來源。 |
+| 3 | 已觀察期間的查詢沒有來源條件，所以一個市場的列會被算成另一個市場的涵蓋 | 閱讀 | 已修正。宣告帶有 `source`，查詢依它過濾。 |
+| 4 | 對 `trading_calendar` 呼叫 `report()` 會當掉：不在 `DATASET_CONTRACTS` 中 | `get_contract('trading_calendar')` 拋出 `UnknownDatasetError` | 已修正。日曆已註冊。 |
+| 5 | 預期之外的已觀察期間被過濾掉，而不是呈現出來 | 閱讀 | 已修正。`CoverageReport.unexpected` 回報它們，`is_complete` 也把它們納入考量。 |
+| 6 | `non_trading_days` 使用呼叫端未裁切的範圍，而 `expected` 被裁切到宣告的時間窗 | 閱讀 | 已修正。兩者都依循時間窗。 |
+| 7 | 每個預期元素都重新建立一次 `set(observed)` | 閱讀 | 已修正。 |
+| 8 | `downgrade()` 丟掉 `trading_calendar_versions`，摧毀只可附加的歷史，而不是拒絕 | 閱讀 | 已修正。`P0001` 預檢在修改之前拒絕，符合 Step 12 的慣例，並附回歸測試。 |
+| 9 | 證據 hash 包含每個目標欄位，所以新增一個欄位會移動每個資料集的 hash，破壞去重 | 在 PostgreSQL 中計算 `to_jsonb(row) - exclusions`；新欄位確實在其中 | **排為 Step 34。** 不是這裡引入的——Step 8 也做了一樣的事——而且修正它會改變每個領域的 hash 函數，所以需要自己的 step 和回歸測試集。 |
+| 10 | 多月份的 CLI 執行只印出最後一個月的 manifest | 閱讀 | 已修正。執行會回報每個月。 |
+| 11 | `date.today()` 以 process 的時區判斷一個月份是否已結束 | CLAUDE.md §34 要求 Asia/Taipei | 已修正。 |
+| 12 | （與 6 合併） | | 已修正。 |
 
-Finding 1 is the one that matters: the calendar was claiming closures it never
-saw, which ADR-0021 §3 exists to prevent. The original partial-month test only
-covered a partial month in *last* position, so it could not see the bug — the
-test had grown alongside the implementation and inherited its blind spot.
-`tests/integration/test_pr16_review_findings.py` keeps one regression per
-finding.
+真正重要的是第 1 項：日曆宣稱了它從未看到的休市，而 ADR-0021 §3 存在的目的就是
+防止這種事。原本的不完整月份測試只涵蓋不完整月份在*最後*一個位置的情況，所以看
+不到這個 bug——測試是跟著實作長出來的，繼承了它的盲點。
+`tests/integration/test_pr16_review_findings.py` 為每項發現保留一個回歸測試。
 
-Finding 3's fix surfaced something the documentation claimed and the code never
-did: TPEx datasets were documented as using the TWSE calendar, but nothing
-recorded that. The declaration now carries `calendar_market`.
+第 3 項的修正揭露了一件文件宣稱、程式卻從未做到的事：文件說 TPEx 資料集使用 TWSE
+日曆，但沒有任何東西記錄這點。宣告現在帶有 `calendar_market`。
 
-## Scope exclusions confirmed
+## 已確認的範圍排除
 
-- No TPEx calendar source is used or invented.
-- `holidaySchedule` is not used: it lists planned closures only, returned
-  nothing before 2023, and cannot represent a typhoon closure.
-- Only `trading_calendar` declares its expected coverage here. Steps 17–24
-  declare their own alongside the adapters that fill them.
-- No release-rule evidence is written; that is Step 15 under ADR-0020.
+- 沒有使用或捏造任何 TPEx 日曆來源。
+- 不使用 `holidaySchedule`：它只列出計畫中的休市，2023 年之前什麼都沒回傳，而且
+  無法表示颱風休市。
+- 這裡只有 `trading_calendar` 宣告它的預期涵蓋。Steps 17–24 與填入它們的 adapter
+  一起宣告自己的。
+- 不寫入任何 release rule 證據；那是 ADR-0020 下的 Step 15。

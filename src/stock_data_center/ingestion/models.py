@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+import base64
+import json
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from enum import Enum
 from types import MappingProxyType
+from urllib.parse import urlencode
 
 from stock_data_center.institutional_financing.models import (
     InstitutionalInvestorObservation,
@@ -526,10 +529,119 @@ class ParsedSecurityMetadata:
     source_fields: tuple[str, ...]
 
 
+_REQUEST_METHODS = frozenset({"GET", "POST"})
+
+# Headers httpx derives from the URL and the body. A resource that set them
+# could disagree with what is actually sent, and the stored request would then
+# misdescribe the fetch.
+_DERIVED_HEADERS = frozenset({"host", "content-length", "transfer-encoding"})
+
+_SERIALIZED_FIELDS = frozenset(
+    {"resource_key", "source_uri", "method", "body_base64", "headers"}
+)
+
+
 @dataclass(frozen=True, slots=True)
 class SourceResource:
+    """One fetch, completely described: what a job needs to replay it.
+
+    `headers` are stored with lower-cased names, sorted, so two resources
+    that send the same request compare equal and serialize identically.
+    They are added to, and override, the fetcher's defaults. The body is
+    bytes, sent as given: an adapter decides its encoding, as it decides
+    the source's.
+    """
+
     resource_key: str
     source_uri: str
+    method: str = "GET"
+    body: bytes | None = None
+    headers: tuple[tuple[str, str], ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.method not in _REQUEST_METHODS:
+            raise ValueError(
+                f"method must be one of {sorted(_REQUEST_METHODS)}, got {self.method!r}"
+            )
+        if self.body is not None and not isinstance(self.body, bytes):
+            raise ValueError("body must be bytes")
+        if self.method == "GET" and self.body is not None:
+            raise ValueError("a GET request carries no body")
+        normalized: dict[str, str] = {}
+        for name, value in self.headers:
+            key = name.strip().lower()
+            if key in normalized:
+                raise ValueError(f"duplicate header {key!r}")
+            if key in _DERIVED_HEADERS:
+                raise ValueError(f"header {key!r} is derived from the request")
+            normalized[key] = value
+        object.__setattr__(self, "headers", tuple(sorted(normalized.items())))
+
+    @classmethod
+    def form_post(
+        cls,
+        *,
+        resource_key: str,
+        source_uri: str,
+        fields: Sequence[tuple[str, str]],
+        headers: Sequence[tuple[str, str]] = (),
+    ) -> SourceResource:
+        """A POST of an ASCII `application/x-www-form-urlencoded` body, its
+        fields in the given order."""
+        return cls(
+            resource_key=resource_key,
+            source_uri=source_uri,
+            method="POST",
+            body=urlencode(list(fields)).encode("ascii"),
+            headers=(
+                *headers,
+                ("content-type", "application/x-www-form-urlencoded"),
+            ),
+        )
+
+    def to_json_object(self) -> dict[str, object]:
+        return {
+            "resource_key": self.resource_key,
+            "source_uri": self.source_uri,
+            "method": self.method,
+            "body_base64": (
+                None if self.body is None else base64.b64encode(self.body).decode("ascii")
+            ),
+            "headers": [list(pair) for pair in self.headers],
+        }
+
+    def to_json(self) -> str:
+        return json.dumps(
+            self.to_json_object(), ensure_ascii=False, sort_keys=True,
+            separators=(",", ":"),
+        )
+
+    @classmethod
+    def from_json_object(cls, data: Mapping[str, object]) -> SourceResource:
+        unknown = set(data) - _SERIALIZED_FIELDS
+        if unknown:
+            raise ValueError(f"unknown SourceResource fields: {sorted(unknown)}")
+        body = data["body_base64"]
+        return cls(
+            resource_key=str(data["resource_key"]),
+            source_uri=str(data["source_uri"]),
+            method=str(data["method"]),
+            body=None if body is None else base64.b64decode(str(body), validate=True),
+            headers=tuple(
+                (str(name), str(value)) for name, value in data["headers"]  # type: ignore[union-attr]
+            ),
+        )
+
+    @classmethod
+    def from_json(cls, text: str) -> SourceResource:
+        return cls.from_json_object(json.loads(text))
+
+    def request_identity(self) -> dict[str, object] | None:
+        """The serialized request when its URL alone does not identify it;
+        `None` for a plain GET, whose URL an importer's scope already records."""
+        if self.method == "GET" and self.body is None and not self.headers:
+            return None
+        return self.to_json_object()
 
 
 @dataclass(frozen=True, slots=True)

@@ -1,69 +1,67 @@
-# Step 17-a Acceptance Report
+# Step 17-a 驗收報告
 
-Status: IN REVIEW
+狀態：IN REVIEW
 
-Scope: Whole-market daily-price adapters
+範圍：全市場每日價格 adapter
 
-Schema impact: none. Migration impact: none. PIT impact: none — this step writes
-nothing; it turns official bytes into `DailyPriceObservation` values.
-`src/` changed by +658/−0 lines.
+Schema 影響：無。Migration 影響：無。PIT 影響：無——這個 step 不寫入任何東西；
+它把官方 bytes 轉成 `DailyPriceObservation` 值。
+`src/` 改動 +658/−0 行。
 
-## Why Step 17 is split three ways
+## 為什麼 Step 17 拆成三部分
 
-Step 17's acceptance spans a parse, an import path and a ~3,300-request backfill.
-Built together it came to about 1,200 lines under `src/`, past what CLAUDE.md §1
-treats as reviewable, so it splits along seams that leave each part correct on
-its own: 17-a parses, 17-b imports one date end to end, 17-c runs the window and
-reconciles. ROADMAP §20 and the Step 17 section are updated accordingly, and
-Step 15-c is marked MERGED — it shipped in #18 with the ledger still reading
-`THIS STEP`.
+Step 17 的驗收涵蓋解析、匯入路徑，以及約 3,300 次請求的 backfill。一起建的話，
+`src/` 底下約 1,200 行，超過 CLAUDE.md §1 認為可審閱的量，所以沿著讓每一部分
+本身都正確的接縫拆分：17-a 解析，17-b 端到端匯入一個日期，17-c 跑完整期間並
+對帳。ROADMAP §20 和 Step 17 的章節也相應更新，並把 Step 15-c 標為 MERGED——它在 #18
+出貨時，帳本上仍寫著 `THIS STEP`。
 
-## Baseline, measured before any code was written
+## 基準，在寫任何程式之前量測
 
-Legacy `stock_db.daily_quotes`, 2020-01-02 → 2026-09-11:
+舊系統 `stock_db.daily_quotes`，2020-01-02 → 2026-09-11：
 
-| Measurement | Result |
+| 量測 | 結果 |
 | --- | ---: |
-| rows | 2,931,379 |
-| `sii` | 1,631,598 rows / 1,135 symbols / 1,627 dates |
-| `otc` | 1,299,781 rows / 945 symbols / 1,627 dates |
-| `bid` / `ask` non-null | 0 |
-| `direction` populated | `sii` only (`otc` is NULL in every row) |
-| minimum `volume` | 1 — the legacy scraper kept no untraded row |
+| 列數 | 2,931,379 |
+| `sii` | 1,631,598 列 / 1,135 個代號 / 1,627 個日期 |
+| `otc` | 1,299,781 列 / 945 個代號 / 1,627 個日期 |
+| `bid` / `ask` 非 null | 0 |
+| `direction` 有值 | 只有 `sii`（`otc` 每一列都是 NULL） |
+| `volume` 最小值 | 1——舊 scraper 不保留沒有成交的列 |
 
-Live source shape, verified 2026-09-16 before implementation:
+實際來源的樣貌，2026-09-16 在實作前驗證：
 
-| Measurement | Result |
+| 量測 | 結果 |
 | --- | --- |
-| TWSE `MI_INDEX?type=ALLBUT0999` on 2026-09-11 | 10 tables; the stock section is index 8 and must be found by header |
-| TWSE stock rows | 1,379 (legacy `sii` holds 1,092) |
-| TWSE `漲跌(+/-)` values | `<p style= color:red>+</p>`, `…green>-</p>`, `<p> </p>`, `<p>X</p>` |
-| `漲跌價差` on every `X` and blank row | `0.00`, in both the 2020 and the 2026 file |
-| TPEx `afterTrading/otc` header variants | three, changing exactly on 2020-04-30 and 2025-01-10 |
-| TPEx `漲跌` non-numeric values | `---` (untraded) and `除息` / `除權` (不比價) |
-| TWSE closed date (2024-07-24) | `stat` = `很抱歉，沒有符合條件的資料!` |
-| TPEx closed date (2024-07-24) | `stat` = `ok`, zero rows |
+| 2026-09-11 的 TWSE `MI_INDEX?type=ALLBUT0999` | 10 張表；股票區段是 index 8，必須以 header 找到 |
+| TWSE 股票列數 | 1,379（舊系統 `sii` 有 1,092） |
+| TWSE `漲跌(+/-)` 的值 | `<p style= color:red>+</p>`、`…green>-</p>`、`<p> </p>`、`<p>X</p>` |
+| 每個 `X` 列和空白列的 `漲跌價差` | `0.00`，2020 和 2026 的檔案都是 |
+| TPEx `afterTrading/otc` header 版本 | 三種，恰好在 2020-04-30 和 2025-01-10 改變 |
+| TPEx `漲跌` 的非數字值 | `---`（未成交）和 `除息`／`除權`（不比價） |
+| TWSE 休市日（2024-07-24） | `stat` = `很抱歉，沒有符合條件的資料!` |
+| TPEx 休市日（2024-07-24） | `stat` = `ok`，零列 |
 
-Both facts the design turns on were measured, not assumed: the whole-market
-feeds are a strict **superset** of legacy on every date checked, and TPEx carries
-a 不比價 marker the audit's CSV-era header table did not record.
+設計所依據的兩個事實都是量測出來的，不是假設的：在每個檢查過的日期，全市場資料
+都是舊系統的嚴格**超集合**；而 TPEx 帶有一個不比價標記，audit 在 CSV 時代的 header
+表中沒有記錄。
 
-## Acceptance evidence
+## 驗收證據
 
-| Criterion | Result | Evidence |
+| 標準 | 結果 | 證據 |
 | --- | --- | --- |
-| Each TPEx header variant parses | PASS | All three parse from the real response bytes captured at their own boundary dates — 2020-01-02 (`prices_only`), 2020-04-30 (`volume_in_thousand_shares`), 2026-09-11 (`volume_in_lots`) — and each file is a permanent fixture. Variant one exposes no disclosed bid/ask volume, so those columns stay NULL rather than defaulting to zero. |
-| An unknown header fails closed | PASS | The variant table is keyed on the exact field tuple; an added column raises `schema_mismatch`. A `flagField` that contradicts its header is rejected the same way, and a TWSE header change or a missing stock section is `schema_mismatch` too. |
-| Units are declared, not inferred | PASS | Each unit comes from the feed that declares it: TWSE `hints: 單位：元、股` for its whole table, TPEx from its `成交金額(元)` and `最後買量(千股)` / `(張數)` labels. Only TPEx's disclosed bid/ask level is in lots, so only it is converted ×1,000. The TWSE adapter re-checks `hints` on every parse and raises `unit_declaration_changed` on a restatement. A quantity that is not a whole source unit raises `ambiguous_unit`. |
-| A closed date fails closed in both markets | PASS | Both raise `no_data_for_date` — TWSE answers an apology with no tables, TPEx an empty table — so 17-b can skip such a date without re-deriving the calendar. A TWSE status this adapter cannot interpret stays `source_status`. Both regressions use the real closed-date responses. |
-| Values equal legacy `daily_quotes` | PASS | 4,423 legacy rows across five market-dates covering all three variants: open/high/low/close, volume, trade value and trade count compared, **zero differences**, and no legacy-only row on any date. |
-| Extra rows are explained, not silent | PASS | The feeds carry 287 more TWSE and 150 more TPEx rows on 2026-09-11. Classified: untraded securities (9 and 29 — legacy's minimum volume over the whole window is 1) and instrument classes legacy never collected (ETFs, preferred shares, TDRs). The per-security no-metadata report is Step 17-c's. |
-| `price_direction` claims only what is published | PASS | TWSE's own column, as `+`/`-`/`flat`/`X`. TPEx publishes no direction column, so an ordinary TPEx row claims none; its `除息` / `除權` / `除權息` marker is the same 不比價 statement as TWSE's `X` and parses to `X`. |
-| The stock section is found by its header | PASS | A regression reverses the table order and still reads 1,379 rows; a second asserts that two or zero matching tables is `schema_mismatch`. |
-| Identity is unambiguous | PASS | A duplicated security code in one file raises `ambiguous_identity` rather than letting one trade date be written twice. |
+| 每種 TPEx header 版本都能解析 | PASS | 三種都從在各自邊界日期抓到的真實回應 bytes 解析——2020-01-02（`prices_only`）、2020-04-30（`volume_in_thousand_shares`）、2026-09-11（`volume_in_lots`）——每個檔案都是永久 fixture。第一種版本沒有揭露買賣量，所以這些欄位保持 NULL，而不是預設為零。 |
+| 未知的 header 會 fail closed | PASS | 版本表以精確的欄位 tuple 為 key；多出一個欄位會拋出 `schema_mismatch`。與其 header 矛盾的 `flagField` 也以同樣方式被拒絕，TWSE header 改變或缺少股票區段同樣是 `schema_mismatch`。 |
+| 單位是宣告的，不是推斷的 | PASS | 每個單位都來自宣告它的資料：TWSE 整張表的 `hints: 單位：元、股`，TPEx 則來自其 `成交金額(元)` 和 `最後買量(千股)`／`(張數)` 標籤。只有 TPEx 揭露的買賣檔以張為單位，所以只有它 ×1,000 換算。TWSE adapter 每次解析都重新檢查 `hints`，重新陳述時拋出 `unit_declaration_changed`。不是整數來源單位的數量會拋出 `ambiguous_unit`。 |
+| 休市日在兩個市場都 fail closed | PASS | 兩者都拋出 `no_data_for_date`——TWSE 回應道歉訊息且沒有表格，TPEx 回應空表——所以 17-b 可以跳過這種日期，而不需要重新推導日曆。這個 adapter 無法解讀的 TWSE 狀態保持為 `source_status`。兩個回歸測試都使用真實的休市日回應。 |
+| 值與舊系統 `daily_quotes` 相同 | PASS | 涵蓋三種版本的五個市場日共 4,423 列舊系統資料：比較開高低收、成交量、成交金額和成交筆數，**差異為零**，任何日期都沒有只在舊系統存在的列。 |
+| 多出來的列有解釋，不是默默存在 | PASS | 2026-09-11 資料比舊系統多 287 列 TWSE 和 150 列 TPEx。分類：未成交的證券（9 和 29——舊系統整段期間的最小成交量是 1），以及舊系統從未收集的商品類別（ETF、特別股、TDR）。逐證券的無 metadata 報告屬於 Step 17-c。 |
+| `price_direction` 只宣稱有發布的內容 | PASS | TWSE 自己的欄位，為 `+`/`-`/`flat`/`X`。TPEx 沒有發布方向欄位，所以一般的 TPEx 列不宣稱方向；它的 `除息`／`除權`／`除權息` 標記與 TWSE 的 `X` 是同一個不比價陳述，解析為 `X`。 |
+| 股票區段以 header 找到 | PASS | 一個回歸測試把表的順序反轉，仍讀到 1,379 列；另一個斷言有兩張或零張符合的表時是 `schema_mismatch`。 |
+| Identity 沒有歧義 | PASS | 同一檔案中重複的證券代號會拋出 `ambiguous_identity`，而不是讓同一交易日被寫入兩次。 |
 
-Reconciliation against legacy `stock_db`, parsing each fixture through its
-adapter and comparing every security legacy carried:
+與舊系統 `stock_db` 的對帳，把每個 fixture 透過其 adapter 解析，並比較舊系統有收錄
+的每支證券：
 
 ```text
 2026-09-11 twse_mi_index:   parsed=1379 legacy=1092 compared=1092 diffs={}
@@ -73,92 +71,75 @@ adapter and comparing every security legacy carried:
 2020-04-30 tpex_otc_quotes: parsed=885  legacy=762  compared=762  diffs={}
 ```
 
-## Design decisions
+## 設計決策
 
-**Two new source codes, not more revisions of the pilots.** The whole-market
-feeds publish a disclosed bid/ask level the per-security pilots do not. Sharing
-a source code would make one `(security, trade_date)` alternate between two field
-sets on every import, which CLAUDE.md §30 forbids. ROADMAP left the choice open
-between this and retiring the pilots; the pilots are kept, because a
-single-security spot check is still worth one request instead of a whole market.
-The codes are declared here and become storage policy in 17-b.
+**兩個新的 source code，而不是 pilot 的更多 revision。** 全市場資料發布了個股 pilot
+沒有的揭露買賣檔。共用 source code 會讓同一個 `(security, trade_date)` 在每次匯入
+時於兩組欄位之間來回切換，而 CLAUDE.md §30 禁止這樣。ROADMAP 在這個做法和讓 pilot
+退役之間保留了選擇；pilot 被保留，因為單一證券的抽查仍然只值得一次請求，而不是整個
+市場。這些 code 在這裡宣告，在 17-b 成為儲存政策。
 
-**The stock section is found by its header.** It sits at table index 8 today,
-after six index sections and two summary sections that are Step 18's. A
-positional read would silently start returning index rows the day TWSE adds a
-section.
+**股票區段以 header 找到。** 它目前在 table index 8，排在六個指數區段和兩個彙總區段
+之後，那些屬於 Step 18。依位置讀取的話，TWSE 新增一個區段的那天，就會默默開始回傳
+指數列。
 
-**`X` stores no price change.** TWSE's own note reads `+/-/X表示漲/跌/不比價`,
-and every `X` row in every file inspected fills `漲跌價差` with `0.00`. Storing
-that zero would claim the price did not move on a day it demonstrably did.
-TPEx writes the reason — `除息`, `除權`, `除權息` — where the number would be,
-which is the same statement with no number to misread; it maps to the same `X`.
-The source's own wording survives in the raw artifact.
+**`X` 不儲存價格變動。** TWSE 自己的說明寫著 `+/-/X表示漲/跌/不比價`，而檢查過的
+每個檔案中，每個 `X` 列的 `漲跌價差` 都填 `0.00`。儲存那個零，等於在價格明顯有變動
+的那天宣稱價格沒動。TPEx 在數字的位置寫的是原因——`除息`、`除權`、`除權息`——
+這是同一個陳述，而且沒有會被誤讀的數字；它對應到同一個 `X`。來源自己的文字保留在
+raw artifact 中。
 
-**TPEx claims no ordinary direction.** The feed has no `漲跌(+/-)` column: the
-sign is inside the number. Deriving a direction from it would be our restatement,
-not the source's observation, so `price_direction` stays NULL except for the
-不比價 marker. The audit is updated in the same step, as the source-field rule
-requires.
+**TPEx 不宣稱一般的方向。** 這個資料沒有 `漲跌(+/-)` 欄位：正負號在數字裡。從它
+推導方向會是我們的重述，而不是來源的觀察，所以 `price_direction` 除了不比價標記
+之外保持 NULL。audit 依來源欄位規則的要求在同一個 step 更新。
 
-**The disclosed bid/ask level is a different unit in each market.** TWSE
-declares `單位：元、股` for its whole table and makes no other unit statement
-about it, so that column is already shares; TPEx labels the column itself,
-`最後買量(千股)` / `(張數)`, so only TPEx is converted. This corrects an earlier
-audit line that recorded the TWSE column as lots — see the review section
-below.
+**揭露的買賣檔在兩個市場的單位不同。** TWSE 對整張表宣告 `單位：元、股`，沒有其他
+單位陳述，所以那個欄位已經是股；TPEx 在欄位本身標示 `最後買量(千股)`／`(張數)`，
+所以只有 TPEx 要換算。這更正了 audit 中一行把 TWSE 欄位記為張的紀錄——見下方
+review 章節。
 
-**A blank TWSE sign must accompany a zero.** Every blank-sign row publishes
-`0.00`, so a blank sign next to a non-zero magnitude is a change whose direction
-would have to be guessed: it raises `ambiguous_direction`. A row that did not
-trade has no close, and therefore no change and no direction.
+**TWSE 空白的符號必須伴隨零。** 每個空白符號的列都發布 `0.00`，所以空白符號旁邊
+如果是非零的幅度，就是一個方向必須用猜的變動：它拋出 `ambiguous_direction`。沒有
+成交的列沒有收盤價，因此也沒有變動和方向。
 
-## Code-review findings
+## Code review 發現
 
-Three findings, all verified before anything changed; none was a false positive,
-and the first was larger than reported.
+三項發現，在改動任何東西之前都經過驗證；沒有一項是誤報，而且第一項比回報的更大。
 
-| # | Finding | Verified by | Disposition |
+| # | 發現 | 驗證方式 | 處置 |
 | --- | --- | --- | --- |
-| 1 | The blanket ×1,000 on TWSE disclosed bid/ask volume is wrong for the classes note 3 excludes — 00636K traded 200 shares all day yet stored a 11,000-share best bid | The rows are real, but the diagnosis is not the whole story, and both the finding's argument and my original one were inferences from magnitude, which §72 forbids. `TWT53U`, the odd-lot report, settles it structurally: same column labels, same `單位：元、股` hint, and 2330 shows `最後揭示買量 = 200,937` — only shares can be that. | **Fixed, wider than reported.** The column is shares for *every* TWSE row, not just the excluded classes: the conversion is removed entirely. The audit line claiming lots was never sourced and is corrected. Note 3 turns out to be about each security's trading unit, not this column's unit, and no stored column depends on it. |
-| 2 | TWSE units were asserted in a comment and never checked at runtime, so a switch to 仟股 under an unchanged header would mis-scale everything by 1,000 | Read: the TPEx path checked `flagField`, the TWSE path checked nothing. | Fixed, and now load-bearing: `hints` is the statement the unit is taken *from*, so a restatement raises `unit_declaration_changed`. |
-| 3 | A TPEx closed date and a genuine empty result share `empty_coverage`, so 17-b cannot tell a benign holiday skip from a coverage failure | Read, and confirmed against the real closed-date response. | Fixed. Both markets raise `no_data_for_date`, detected structurally (TWSE returns no `tables` key at all). Not named `market_closed`: only the Step 16 calendar can call a date a closure, and the same answer covers a date the source simply has nothing for. |
+| 1 | 對 TWSE 揭露買賣量一律 ×1,000，對註 3 排除的類別是錯的——00636K 整天成交 200 股，卻儲存了 11,000 股的最佳買量 | 這些列是真的，但診斷並不完整，而且這項發現的論證和我原本的論證都是從數值大小推斷的，而 §72 禁止這樣做。零股報表 `TWT53U` 從結構上解決了這個問題：相同的欄位標籤、相同的 `單位：元、股` 提示，而 2330 顯示 `最後揭示買量 = 200,937`——只有股才可能是這個數字。 | **已修正，範圍比回報的更廣。** 這個欄位對*每一個* TWSE 列都是股，不只是被排除的類別：換算完全移除。宣稱是張的那行 audit 從來沒有來源，已更正。註 3 原來講的是每支證券的交易單位，而不是這個欄位的單位，沒有任何儲存欄位依賴它。 |
+| 2 | TWSE 的單位只在註解中斷言，執行期從未檢查，所以在 header 不變下改成仟股，會讓所有東西差 1,000 倍 | 閱讀：TPEx 路徑檢查 `flagField`，TWSE 路徑什麼都沒檢查。 | 已修正，而且現在是承重的：`hints` 就是單位*取自*的陳述，所以重新陳述會拋出 `unit_declaration_changed`。 |
+| 3 | TPEx 休市日和真正的空結果共用 `empty_coverage`，所以 17-b 無法區分無害的假日跳過與涵蓋失敗 | 閱讀，並以真實的休市日回應確認。 | 已修正。兩個市場都拋出 `no_data_for_date`，以結構偵測（TWSE 根本不回傳 `tables` key）。不叫 `market_closed`：只有 Step 16 的日曆能把一個日期稱為休市，而同一個回答也涵蓋來源對某日期就是沒有資料的情況。 |
 
-Finding 1 is the one that matters, and it is the reason the seam was worth
-having: the reconciliation that passes 4,423 rows with zero differences could
-never have caught it, because legacy `daily_quotes` has no bid/ask columns at
-all. It would have shipped as 1,000×-inflated order-book data behind a green
-acceptance table.
+真正重要的是第 1 項，這也是這道接縫值得存在的原因：以零差異通過 4,423 列的對帳
+永遠抓不到它，因為舊系統 `daily_quotes` 根本沒有買賣欄位。它會以放大 1,000 倍的
+委託簿資料出貨，藏在一張全綠的驗收表後面。
 
-## Verification
+## 驗證
 
-Database migrated from zero:
+從零 migrate 的資料庫：
 
 ```text
 409 passed, 3 skipped, 1 warning
 ```
 
-Baseline before this step: 378 (Step 15-c). The 31 adapter tests added here are
-the difference — 27 in the original push, 4 more for the review findings. They run against captured response bytes with no database, which
-is the whole point of the seam: this step writes nothing, so it needs no
-integration test.
+本 step 之前的基準：378（Step 15-c）。差異是這裡新增的 31 個 adapter 測試——原本
+push 時 27 個，review 發現再加 4 個。它們對照抓到的回應 bytes 執行，不需要資料庫，
+這正是這道接縫的重點：這個 step 不寫入任何東西，所以不需要 integration test。
 
-Every one of the 31 was seen to fail first: the original 27 before the adapter existed, and the review's 4 (plus 2 changed assertions) against the adapter as pushed. `ruff check` reports
-nothing new: the files this step touches match their state on `main` (the two
-pre-existing findings in `ingestion/models.py` are unchanged).
+31 個測試每一個都確認過先失敗：原本的 27 個在 adapter 存在之前，review 的 4 個
+（加上 2 個改變的斷言）則對照 push 時的 adapter。`ruff check` 沒有回報新問題：這個
+step 碰到的檔案與 `main` 上的狀態一致（`ingestion/models.py` 中兩項既有的發現不變）。
 
-The shared `stockdc` test database was stale from earlier work and could not be
-migrated to head at all, which made 188 tests error before anything was run. It
-was recreated from zero; that is environment, not code.
+共用的 `stockdc` 測試資料庫因為先前的工作而過時，完全無法 migrate 到 head，導致 188
+個測試在執行任何東西之前就出錯。它已從零重建；那是環境問題，不是程式問題。
 
-## Scope exclusions confirmed
+## 已確認的範圍排除
 
-- Nothing is written and no migration ships: the source policy, the release-rule
-  mapping, the expected-coverage declarations and the importer are 17-b's.
-- The index sections of the TWSE artifact are untouched; Step 18 reuses the same
-  raw artifacts.
-- `bid_snapshot` / `ask_snapshot` stay NULL: no daily whole-market endpoint
-  publishes order-book depth.
-- TPEx `發行股數` and next-day limit prices stay unstored, as audit §6 records.
-- No adjusted prices, and no readiness claim for returns or indicators: the
-  §51.4 gate still waits on corporate-action history.
+- 不寫入任何東西，也不出貨 migration：source policy、release rule 對應、預期涵蓋
+  宣告和 importer 都屬於 17-b。
+- TWSE artifact 的指數區段沒有動；Step 18 重用同樣的 raw artifact。
+- `bid_snapshot`／`ask_snapshot` 保持 NULL：沒有任何全市場每日端點發布委託簿深度。
+- TPEx 的 `發行股數` 和次日漲跌停價不儲存，如 audit §6 所記錄。
+- 沒有還原價格，也不宣稱可用於報酬或指標：§51.4 的關卡仍在等待公司行動歷史。
