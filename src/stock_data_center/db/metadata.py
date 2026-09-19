@@ -569,6 +569,15 @@ monthly_revenue_versions = sa.Table(
     sa.Column("revenue_month", sa.SmallInteger(), nullable=False),
     sa.Column("revenue", sa.Numeric(24, 4), nullable=False),
     sa.Column("currency", sa.String(3), nullable=False),
+    # Published comparatives, as published (Step 22-a, audit §7.3).
+    sa.Column("revenue_last_month", sa.Numeric(24, 4)),
+    sa.Column("revenue_last_year_month", sa.Numeric(24, 4)),
+    sa.Column("cumulative_revenue", sa.Numeric(24, 4)),
+    sa.Column("cumulative_revenue_last_year", sa.Numeric(24, 4)),
+    sa.Column("mom_pct", sa.Numeric(24, 4)),
+    sa.Column("yoy_pct", sa.Numeric(24, 4)),
+    sa.Column("cumulative_yoy_pct", sa.Numeric(24, 4)),
+    sa.Column("note", sa.Text()),
     sa.Column("business_content_hash", sa.CHAR(64), nullable=False),
     sa.Column("ingested_at", aware_timestamp, nullable=False),
     sa.Column("raw_artifact_id", uuid_type, nullable=False),
@@ -586,6 +595,7 @@ monthly_revenue_versions = sa.Table(
     sa.CheckConstraint("revenue_year BETWEEN 1900 AND 9999", name="year_range"),
     sa.CheckConstraint("revenue_month BETWEEN 1 AND 12", name="month_range"),
     sa.CheckConstraint("currency ~ '^[A-Z]{3}$'", name="currency_format"),
+    sa.CheckConstraint("note IS NULL OR note <> ''", name="note_nonempty"),
 )
 
 monthly_revenue_version_observations = sa.Table(
