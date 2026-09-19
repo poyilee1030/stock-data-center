@@ -233,7 +233,7 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
                     connection,
                     import_id=import_id,
                     adapter=adapter,
-                    resource_key=resource.resource_key,
+                    resource=resource,
                     stored=stored,
                     source_uri=fetched.source_uri,
                     fetched_at=fetched.fetched_at,
@@ -445,7 +445,7 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
                         connection,
                         import_id=import_id,
                         adapter=adapter,
-                        resource_key=resource.resource_key,
+                        resource=resource,
                         stored=stored,
                         source_uri=fetched.source_uri,
                         fetched_at=fetched.fetched_at,
@@ -791,7 +791,7 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
         *,
         import_id: UUID,
         adapter: RawFirstAdapter[RequestT, ParsedT],
-        resource_key: str,
+        resource: SourceResource,
         stored: StoredRawArtifact,
         source_uri: str,
         fetched_at: datetime,
@@ -807,11 +807,7 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
                 status="running",
                 started_at=sa.func.statement_timestamp(),
                 purpose=purpose.value,
-                run_metadata={
-                    "import_id": str(import_id),
-                    "resource_key": resource_key,
-                    "adapter_version": adapter.version,
-                },
+                run_metadata=_run_metadata(import_id, adapter, resource),
             )
             .returning(ingest_runs.c.id)
         ).scalar_one()
@@ -856,7 +852,7 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
             insert(import_checkpoints)
             .values(
                 import_id=import_id,
-                resource_key=resource_key,
+                resource_key=resource.resource_key,
                 status="captured",
                 attempt_count=1,
                 last_ingest_run_id=run_id,
@@ -1213,3 +1209,20 @@ def _optional_date(value: object) -> date | None:
     if not isinstance(value, str):
         return None
     return date.fromisoformat(value)
+
+
+def _run_metadata(
+    import_id: UUID, adapter: RawFirstAdapter, resource: SourceResource
+) -> dict[str, object]:
+    """One capture's run metadata. A request its URL does not identify (a
+    POST, say) is recorded whole, on the run that fetched it — a dependency
+    resource's as much as the primary one's (CLAUDE.md §71)."""
+    metadata: dict[str, object] = {
+        "import_id": str(import_id),
+        "resource_key": resource.resource_key,
+        "adapter_version": adapter.version,
+    }
+    request_identity = resource.request_identity()
+    if request_identity is not None:
+        metadata["request"] = request_identity
+    return metadata

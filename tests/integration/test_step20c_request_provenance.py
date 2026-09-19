@@ -1,5 +1,9 @@
 """Step 20-c — a POST resource's request is part of its import's provenance.
 
+Every capture's `ingest_runs.run_metadata` carries its own request, so a
+dependency POST fetched through `_capture_and_parse` is covered as well as the
+primary resource (review of #32).
+
 `raw_artifact_observations.source_uri` records a URL. For a GET that is the
 whole request; for a POST it is not — every MOPS `t13sa150_otc` date posts
 to the same URL and differs only in its form body. CLAUDE.md §71 requires the
@@ -18,7 +22,7 @@ from uuid import uuid4
 import pytest
 import sqlalchemy as sa
 
-from stock_data_center.db.metadata import import_manifests
+from stock_data_center.db.metadata import import_manifests, ingest_runs
 from stock_data_center.ingestion.adapters import TWSEInstitutionalMarketSummaryAdapter
 from stock_data_center.ingestion.institutional_summary import (
     InstitutionalMarketSummaryImporter,
@@ -64,9 +68,33 @@ class PostingAdapter(TWSEInstitutionalMarketSummaryAdapter):
         )
 
 
-def _run(engine, tmp_path, adapter):
+class DependencyPostingImporter(InstitutionalMarketSummaryImporter):
+    """Fetches one auxiliary POST resource beside its primary GET, the way
+    the corporate-action importer fetches detail pages."""
+
+    def _capture_dependencies(self, *, adapter, request, parsed, import_id,
+                              purpose, artifact_origin):
+        self._capture_and_parse(
+            PostingAdapter(), request, import_id=import_id,
+            purpose=purpose, artifact_origin=artifact_origin,
+        )
+
+
+def _runs(engine, import_id):
+    with engine.connect() as connection:
+        return {
+            row["run_metadata"]["resource_key"]: row["run_metadata"]
+            for row in connection.execute(
+                sa.select(ingest_runs.c.run_metadata).where(
+                    ingest_runs.c.run_metadata["import_id"].astext == str(import_id)
+                )
+            ).mappings()
+        }
+
+
+def _run(engine, tmp_path, adapter, importer_class=InstitutionalMarketSummaryImporter):
     fetcher = StaticFetcher()
-    importer = InstitutionalMarketSummaryImporter(
+    importer = importer_class(
         engine, raw_store=LocalRawArtifactStore(tmp_path / "raw"), fetcher=fetcher
     )
     import_id = uuid4()
@@ -81,20 +109,38 @@ def _run(engine, tmp_path, adapter):
         manifest = connection.execute(
             sa.select(import_manifests).where(import_manifests.c.import_id == import_id)
         ).mappings().one()
-    return fetcher, manifest
+    return fetcher, manifest, _runs(engine, import_id)
 
 
 def test_a_post_resource_records_its_full_request_in_the_manifest(
     engine, tmp_path
 ) -> None:
-    fetcher, manifest = _run(engine, tmp_path, PostingAdapter())
+    fetcher, manifest, runs = _run(engine, tmp_path, PostingAdapter())
     (sent,) = fetcher.resources
     assert manifest["source_scope"]["request"] == sent.request_identity()
     assert (
         SourceResource.from_json_object(manifest["source_scope"]["request"]) == sent
     )
+    assert runs[sent.resource_key]["request"] == sent.request_identity()
+
+
+def test_a_dependency_post_records_its_request_on_its_own_run(
+    engine, tmp_path
+) -> None:
+    fetcher, _, runs = _run(
+        engine, tmp_path, TWSEInstitutionalMarketSummaryAdapter(),
+        importer_class=DependencyPostingImporter,
+    )
+    primary, dependency = fetcher.resources
+    assert primary.method == "GET" and dependency.method == "POST"
+    assert "request" not in runs[primary.resource_key]
+    assert (
+        SourceResource.from_json_object(runs[dependency.resource_key]["request"])
+        == dependency
+    )
 
 
 def test_a_plain_get_resource_scope_is_unchanged(engine, tmp_path) -> None:
-    _, manifest = _run(engine, tmp_path, TWSEInstitutionalMarketSummaryAdapter())
+    _, manifest, runs = _run(engine, tmp_path, TWSEInstitutionalMarketSummaryAdapter())
     assert "request" not in manifest["source_scope"]
+    assert all("request" not in metadata for metadata in runs.values())

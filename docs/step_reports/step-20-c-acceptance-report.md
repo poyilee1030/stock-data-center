@@ -12,8 +12,8 @@ Scope: the fetch layer that Step 20-d needs. There are two parts.
 Schema impact: none. There is no migration.
 PIT impact: none. Publication evidence, release rules and business identity
 are untouched.
-Size: `src/` changed by +223/−9 lines (`http.py`, `models.py`, and a
-6-line change to `lifecycle.py`). That is below the ~800-line split threshold
+Size: `src/` changed by +245/−18 lines (`http.py`, `models.py`, and a
+small change to `lifecycle.py`). That is below the ~800-line split threshold
 (`CLAUDE.md` §1).
 
 ## Design decisions
@@ -58,9 +58,16 @@ Size: `src/` changed by +223/−9 lines (`http.py`, `models.py`, and a
    so a retry also waits for the host.
 6. **Request provenance.** `raw_artifact_observations.source_uri` stores a
    URL, and every `t13sa150_otc` date posts to the same URL. When a resource
-   is not a plain GET, the lifecycle adds `resource.request_identity()` to the
-   manifest's `source_scope`, which also puts it in the configuration
-   fingerprint. A plain GET's identity is `None`, so no existing import's
+   is not a plain GET, its `resource.request_identity()` is recorded in two
+   places:
+   - in the `ingest_runs.run_metadata` of the run that fetched it. Every
+     capture passes through `_capture_raw`, so this covers dependency
+     resources fetched through `_capture_and_parse` as well as the primary
+     one (review of #32);
+   - for the primary resource, also in the manifest's `source_scope`, which
+     puts it in the configuration fingerprint.
+
+   A plain GET's identity is `None`, so no existing import's run metadata,
    scope or fingerprint changes, and a half-finished backfill still resumes
    under its old `import_id`.
 
@@ -71,17 +78,18 @@ Size: `src/` changed by +223/−9 lines (`http.py`, `models.py`, and a
 | A POST resource round-trips through serialization unchanged | PASS | `test_a_post_resource_round_trips_through_serialization_unchanged` checks both that the restored resource equals the original and that it re-serializes to the same text. `test_a_body_that_is_not_text_round_trips_byte_for_byte` does the same for a big5 body with `\x00\xff`. |
 | Two adapters running together cannot exceed the host budget | PASS | `test_two_adapters_running_together_cannot_exceed_the_host_budget`: two fetchers on two threads share one governor and send 4 GETs (revenue) and 4 POSTs (foreign holding) to the MOPS host. The test asserts that no two request spans overlap and that every gap is at least the interval. |
 | Every MOPS request in the process passes through the governor | PASS | `test_every_default_fetcher_in_the_process_shares_one_governor` covers default fetchers, including the one inside `RetryingFetcher`. `test_a_retry_goes_through_the_governor_too` shows a retry waiting out 3 s even though its own backoff is zero. |
-| A POST's request is in its import's provenance | PASS | `test_a_post_resource_records_its_full_request_in_the_manifest` (integration) restores the manifest's `source_scope.request` to the exact resource that was sent. `test_a_plain_get_resource_scope_is_unchanged` confirms plain-GET scopes are unchanged. |
+| A POST's request is in its import's provenance | PASS | `test_a_post_resource_records_its_full_request_in_the_manifest` (integration) restores the manifest's `source_scope.request` to the exact resource that was sent and finds it on the run's metadata. `test_a_dependency_post_records_its_request_on_its_own_run` does the same for a POST fetched as a dependency beside a primary GET. `test_a_plain_get_resource_scope_is_unchanged` confirms plain-GET scopes and run metadata are unchanged. |
 | The fetcher sends what the resource names | PASS | `test_the_fetcher_sends_the_method_body_and_headers_the_resource_names` and `test_a_plain_get_is_sent_exactly_as_before`, both through `httpx.MockTransport`. |
 
 **The tests failed first.** Both new unit files failed at import before any
 implementation existed. The integration test failed on the missing `request`
-key. `test_a_plain_get_resource_scope_is_unchanged` guards against a change
+key. The review fix's two assertions (the primary run and the dependency run)
+failed with `KeyError: 'request'` before `_capture_raw` recorded it. `test_a_plain_get_resource_scope_is_unchanged` guards against a change
 rather than asking for one, so it passed from the start. Mutation check: with
 the fetcher's `governor.slot(...)` replaced by `if True:`, the concurrency test
 and the retry test both fail. They pass again once the mutation is reverted.
 
-**The full suite passes:** 737 passed, 3 skipped. The skipped tests are
+**The full suite passes:** 738 passed, 3 skipped. The skipped tests are
 opt-in live calls (`RUN_LIVE_SOURCE_TESTS`). The run used a freshly
 recreated `stockdc` test database. Ruff reports no errors in the new and
 changed code. `models.py` and `lifecycle.py` still report three findings
