@@ -399,6 +399,41 @@ TPEx new-site JSON, found 2026-09-17: `margin_bal` is also served as
 `www/zh-tw/margin/sbl`, with the same 15 fields. Both answer 2020-01-02 and
 2026-09-11. Step 21 decides which endpoint to use.
 
+#### Step 21-a findings (2026-09-19)
+
+Verified by live fetches and the 2020-01-02 → 2026-09-11 backfill of both
+markets.
+
+- **Endpoints.** TWSE `rwd/zh/marginTrading/MI_MARGN?date=YYYYMMDD&selectType=ALL&response=json`
+  (`twse_mi_margn`); TPEx `www/zh-tw/margin/balance?date=YYYY/MM/DD&response=json`
+  (`tpex_margin_balance`), chosen over the legacy CSV. One header per market for
+  the whole window. A closed date answers TWSE `很抱歉，沒有符合條件的資料` with
+  no tables, and TPEx `stat` `ok` with an empty table.
+- **Units.** TWSE states the unit only in its market summary rows,
+  `融資(交易單位)` and `融券(交易單位)`; TPEx labels `(張)`. TWSE's MI_INDEX
+  note defines the trading unit: 除境外指數股票型基金及外國股票第二上市外，餘交易
+  單位皆為千股. In the window that exception is **008201 BP上證50** (offshore ETF,
+  ISIN HK0000052297, 2020-01-02 → 2022-07-08), which trades in lots of 100: its
+  next-day limit × 100 equals 25% of its issued units on all 612 of its dates.
+  It was found by comparing every next-day limit with 25% of the issued shares
+  Step 20-d stored; no other security departs from a 1,000-share lot except
+  where its issued shares moved at least twofold nearby. The adapter's
+  `TWSE_LOT_SHARES` records each exception with the dates its evidence covers;
+  the same code outside them fails its file as `unverified_trading_unit`
+  (`twse-mi-margn:v3`).
+- **Column order.** TPEx lists 券賣 before 券買 on the short side; TWSE repeats
+  買進/賣出/前日餘額/今日餘額/次一營業日限額 for both sides.
+- **Utilization above 100.** TPEx published 資使用率 103.1% for 00989B on
+  2026-07-14: 15,568 lots bought in one day against a 15,113-lot limit. The stop
+  takes effect on the next business day (TWSE's note: 備註欄係表明成交日次一營業日
+  股票融資融券狀況), so one day can overshoot. Step 7's 0–100 cap is relaxed to
+  non-negative (migration `b9d1f3a5c7e2`).
+- **Roll-forward.** On every stored row of both markets, margin previous + buy −
+  sell − cash repayment = balance and short previous + sell − buy − stock
+  repayment = balance.
+- **Not stored.** TPEx 資屬證金 and 券屬證金, and both exchanges' status notes
+  (TWSE `O X @ % !`, TPEx codes such as `11 C`), have no contract column.
+
 Step 20-b settled the summary endpoints, verified 2026-09-18:
 
 - **TWSE** `rwd/zh/fund/BFI82U?type=day&dayDate=YYYYMMDD&response=json`,

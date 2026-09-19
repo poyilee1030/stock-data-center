@@ -199,6 +199,24 @@ class InstitutionalFinancingWriter:
             lineage=lineage,
         )
 
+    def append_margin_tradings(
+        self,
+        connection: Connection,
+        *,
+        source: str,
+        observations: Sequence[tuple[int, MarginTradingObservation]],
+        lineage: SourceLineageRef,
+    ) -> tuple[WrittenSourceVersion, ...]:
+        """Append a whole market-date of margin rows, in the order given; set-based
+        for the reason `append_institutional_investors` is."""
+        return self._append_many(
+            connection,
+            spec=_SPECS["margin_trading"],
+            source=source,
+            observations=observations,
+            lineage=lineage,
+        )
+
     def append_securities_lending(
         self,
         connection: Connection,

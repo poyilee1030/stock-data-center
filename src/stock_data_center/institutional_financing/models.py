@@ -30,6 +30,10 @@ def _validate_decimal(
         raise ValueError(f"{name} must not exceed {maximum}")
 
 
+# The largest value a NUMERIC(12, 8) column holds.
+_RATIO_COLUMN_MAXIMUM = Decimal("9999.99999999")
+
+
 class QuantityScale(str, Enum):
     """Source scale for a stock quantity before canonical normalization."""
 
@@ -278,13 +282,14 @@ class MarginTradingObservation:
                 )
             if value is not None and value.value < 0:
                 raise ValueError(f"{name} must not be negative")
+        # No business upper bound: the stop applies from the next business day,
+        # so one day's buying can overshoot the limit (TPEx 00989B, 2026-07-14:
+        # 103.1%). The only bound is what NUMERIC(12,8) can store, checked here
+        # so that it fails as data rather than on every write (review of #34).
         for name in ("margin_utilization_ratio", "short_utilization_ratio"):
             _validate_decimal(
-                name,
-                getattr(self, name),
-                scale=8,
-                nonnegative=True,
-                maximum=Decimal("100"),
+                name, getattr(self, name), scale=8, nonnegative=True,
+                maximum=_RATIO_COLUMN_MAXIMUM,
             )
 
 

@@ -21,8 +21,9 @@
 已完成並驗證的真實資料（2020-01-02 → 2026-09-11，逐筆與 legacy 對帳）：
 全市場日行情（Step 17）、市場指數與官方估值（Step 18）、交易所公司行動
 結果檔（Step 19）、三大法人個股買賣超與買賣金額彙總（Step 20-a、20-b）。
-MOPS 的 POST 請求與每台主機的限速器（Step 20-c）已合併。外資持股（Step 20-d，
-TWSE、MOPS 與 TPEx insti/qfii 三個來源）的回補與對帳已完成，正在審查中。
+MOPS 的 POST 請求與每台主機的限速器（Step 20-c）、外資持股（Step 20-d，TWSE、
+MOPS 與 TPEx insti/qfii 三個來源）已合併。融資融券（Step 21-a）的回補與對帳已完成，
+正在審查中；借券（Step 21-b）尚未開始。
 
 ## 技術棧
 
@@ -142,6 +143,14 @@ tests/
   legacy）。TPEx 的 `insti/qfii` 仍保留它們，因此存成第二個 TPEx 來源
   `tpex_insti_qfii`；兩個來源各自保存、不合併。詳見
   `docs/step_reports/step-20-d-acceptance-report.md`。
+- 融資融券的「張」不一定是 1,000 股：TWSE 註明境外 ETF 和外國股票第二上市例外。
+  期間內只有 008201（一張 100 股，2020-01-02 → 2022-07-08），列在 adapter 的
+  `TWSE_LOT_SHARES`；同一代號在日期範圍外出現時整個檔案失敗。對帳腳本會對每一天
+  檢查限額與發行股數，出現新的例外會失敗。
+- 融資使用率可以超過 100%（單日買超限額，隔天才暫停），Step 21-a 已放寬 schema。
+- 回補續跑時，如果工作目錄的 git 狀態（乾淨或有未提交檔案）和原本那次不同，已完成的
+  日期會因「import_id cannot be reused with changed configuration」而回報失敗；資料
+  本身不受影響。續跑前先把工作目錄恢復成原本的狀態。
 - MOPS 偶爾回 `502 Bad Gateway`（Step 20-d 回補碰到 9 天）；該日期不寫入任何
   東西，用同一個 import id 重跑即可補齊。
 - TWSE 回補時偶爾會回一頁 CDN 錯誤頁而不是 JSON（Step 20-a 碰到 12 天），

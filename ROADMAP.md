@@ -605,8 +605,9 @@ explicit out-of-scope work
 | 20-a | MERGED | 個股法人買賣 |
 | 20-b | MERGED | 法人買賣市場彙總 |
 | 20-c | MERGED | 完整描述來源請求，以及每台主機的請求速率控管 |
-| 20-d | THIS STEP | 外資持股 |
-| 21 | PLANNED | 融資融券與借券 |
+| 20-d | MERGED | 外資持股 |
+| 21-a | THIS STEP | 融資融券 |
+| 21-b | PLANNED | 借券 |
 | 22 | PLANNED | 月營收 |
 | 23 | PLANNED | 財務報表（iXBRL） |
 | 24 | PLANNED | TDCC 股權分散 |
@@ -1275,7 +1276,7 @@ Schema 影響：無。migration 新增 catalog、source、release rule 和涵蓋
 
 ### Step 20-d — 外資持股
 
-狀態：**IN REVIEW** (#33)。依賴：Step 20-c。
+狀態：**MERGED** (#33)。依賴：Step 20-c。
 
 TWSE `MI_QFIIS`（`twse_mi_qfiis`）和 MOPS `t13sa150_otc`（`mops_t13sa150_otc`，
 POST，cp950 HTML，每個日期約 550 KB）寫入 `foreign_holding_versions`，每個欄位都
@@ -1309,17 +1310,52 @@ POST，cp950 HTML，每個日期約 550 KB）寫入 `foreign_holding_versions`�
 
 ## Step 21 — 融資融券與借券
 
-狀態：**PLANNED**。依賴：Step 16、Step 17-c。
+依賴：Step 16、Step 17-c。
 
-來源契約（audit §4.5）：`MI_MARGN`、`TWT93U`；TPEx `margin_bal`、`margin_sbl`。TWSE 的使用率保持 NULL。歷史：約 6,500 次請求。
+來源契約（audit §4.5）：`MI_MARGN`、`TWT93U`；TPEx `margin_bal`、`margin_sbl`。歷史：約 6,500 次請求。
 
-來源發現，2026-09-17（audit §4.5）：TPEx 以 GET JSON 提供這兩張表，
-`www/zh-tw/margin/balance` 和 `margin/sbl`，欄位相同，可回溯到 2020。這個
-step 在它們和舊的 CSV 之間做選擇。
+拆成 21-a 和 21-b，每部分一個資料集：Step 20-a 單一資料集就有 +832 行，兩個資料集
+跨兩個市場會超過單一可審閱變更的大小上限（`CLAUDE.md` §1）。
 
 驗收：舊系統 `margin_trading` 和 `margin_sbl` 在張 → 股換算後對帳。
 
 範圍外：市場彙總區塊（`margin_summary`，沒有使用者讀取）。
+
+### Step 21-a — 融資融券
+
+狀態：**IN REVIEW** (#34)。依賴：Step 16、Step 17-c、Step 20-d（單位檢查用它的發行股數）。
+
+範圍內：TWSE `marginTrading/MI_MARGN`（`twse_mi_margn`）和 TPEx `margin/balance`
+（`tpex_margin_balance`，舊 `margin_bal` 頁面的 JSON，選它而不選 CSV）寫入
+`margin_trading_versions`，張換算成股。範圍內還有：importer、source policy 與涵蓋
+宣告、CLI `margin-trading`、2020-01-02 → 2026-09-11 的 backfill，以及與舊系統
+`margin_trading` 的對帳。兩個來源都遵循 `exchange_daily_settled@1`。
+
+2026-09-19 定案（audit §4.5「Step 21-a findings」）：
+
+- **交易單位不一定是 1,000 股。** TWSE 自己的註解寫著「除境外指數股票型基金及外國
+  股票第二上市外，餘交易單位皆為千股」。期間內的例外是 008201 BP上證50（境外 ETF，
+  一張 100 股，2020-01-02 → 2022-07-08），由「次一營業日限額對照 Step 20-d 發行股數
+  的 25%」這項檢查找到。依 owner 決定，adapter 以明確的例外清單
+  `TWSE_LOT_SHARES` 換算，其餘以 1,000 股換算。每個例外都附上證據涵蓋的日期
+  （v3）：同一代號在範圍外出現時整個檔案失敗，不會沿用舊的單位；例外清單也列入
+  manifest 的設定指紋。對帳持續做這項檢查，出現新的例外就會失敗，直到補進清單。
+- **融資使用率可以超過 100%（storage contract 修正）。** TPEx 公布 00989B 在
+  2026-07-14 的資使用率為 103.1%：單日融資買進就超過限額，因為暫停從次一營業日才
+  生效。Step 7 的 0–100 上限沒有來源依據；依 owner 決定，migration `b9d1f3a5c7e2`
+  改為只要求 ≥ 0，downgrade 在已有超過 100 的列時會在修改前拒絕（§68、§81）。
+- **不儲存的欄位。** TPEx 的 資屬證金、券屬證金，以及兩個交易所的狀態註記，沒有契約
+  欄位。
+
+驗收證據：`docs/step_reports/step-21-a-acceptance-report.md`。
+
+### Step 21-b — 借券
+
+狀態：**PLANNED**。依賴：Step 21-a。
+
+TWSE `TWT93U` 和 TPEx `margin/sbl`（舊 `margin_sbl` 頁面的 JSON）寫入
+`securities_lending_versions`，對帳舊系統 `margin_sbl`。開工時先查 TWT93U 的單位是股
+還是張，以及 21-a 找到的交易單位例外是否也適用。
 
 ## Step 22 — 月營收
 

@@ -964,7 +964,7 @@
         "dataset_code": "margin_trading",
         "v1": true,
         "roadmap_pr": 21,
-        "reason": "TWSE MI_MARGN per-security table and TPEx margin_bal, both in lots; margin-short columns also come from the legacy margin_sbl contract (audit 4.5).",
+        "reason": "TWSE marginTrading/MI_MARGN (twse_mi_margn) and TPEx margin/balance (tpex_margin_balance, the JSON of margin_bal), both in lots (audit 4.5, Step 21-a).",
         "columns": {
           "security_id": {
             "coverage": "internal",
@@ -982,135 +982,135 @@
           "margin_buy": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE MI_MARGN",
-              "TPEx margin_bal"
+              "TWSE marginTrading/MI_MARGN 融資 買進",
+              "TPEx margin/balance 資買"
             ],
             "audit_section": "4.5",
-            "note": "Audit 4.5: every margin_trading_versions quantity column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+            "note": "Audit 4.5, Step 21-a: 2020-01-02 onward in both markets; lots × 1,000 shares, except TWSE_LOT_SHARES (008201: 100), per TWSE's trading-unit note."
           },
           "margin_sell": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE MI_MARGN",
-              "TPEx margin_bal"
+              "TWSE marginTrading/MI_MARGN 融資 賣出",
+              "TPEx margin/balance 資賣"
             ],
             "audit_section": "4.5",
-            "note": "Audit 4.5: every margin_trading_versions quantity column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+            "note": "Audit 4.5, Step 21-a: 2020-01-02 onward in both markets; lots × 1,000 shares, except TWSE_LOT_SHARES (008201: 100), per TWSE's trading-unit note."
           },
           "margin_cash_repayment": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE MI_MARGN",
-              "TPEx margin_bal"
+              "TWSE marginTrading/MI_MARGN 現金償還",
+              "TPEx margin/balance 現償"
             ],
             "audit_section": "4.5",
-            "note": "Audit 4.5: every margin_trading_versions quantity column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+            "note": "Audit 4.5, Step 21-a: 2020-01-02 onward in both markets; lots × 1,000 shares, except TWSE_LOT_SHARES (008201: 100), per TWSE's trading-unit note."
           },
           "margin_previous_balance": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE MI_MARGN",
-              "TPEx margin_bal"
+              "TWSE marginTrading/MI_MARGN 融資 前日餘額",
+              "TPEx margin/balance 前資餘額(張)"
             ],
             "audit_section": "4.5",
-            "note": "Audit 4.5: every margin_trading_versions quantity column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+            "note": "Audit 4.5, Step 21-a: 2020-01-02 onward in both markets; lots × 1,000 shares, except TWSE_LOT_SHARES (008201: 100), per TWSE's trading-unit note."
           },
           "margin_balance": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE MI_MARGN",
-              "TPEx margin_bal"
+              "TWSE marginTrading/MI_MARGN 融資 今日餘額",
+              "TPEx margin/balance 資餘額"
             ],
             "audit_section": "4.5",
-            "note": "Audit 4.5: every margin_trading_versions quantity column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+            "note": "Audit 4.5, Step 21-a: 2020-01-02 onward in both markets; lots × 1,000 shares, except TWSE_LOT_SHARES (008201: 100), per TWSE's trading-unit note."
           },
           "margin_next_limit": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE MI_MARGN",
-              "TPEx margin_bal"
+              "TWSE marginTrading/MI_MARGN 融資 次一營業日限額",
+              "TPEx margin/balance 資限額"
             ],
             "audit_section": "4.5",
-            "note": "Audit 4.5: every margin_trading_versions quantity column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+            "note": "Audit 4.5, Step 21-a: 2020-01-02 onward in both markets; lots × 1,000 shares, except TWSE_LOT_SHARES (008201: 100), per TWSE's trading-unit note."
           },
           "short_buy": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE MI_MARGN",
-              "TPEx margin_bal"
+              "TWSE marginTrading/MI_MARGN 融券 買進",
+              "TPEx margin/balance 券買"
             ],
             "audit_section": "4.5",
-            "note": "Audit 4.5: every margin_trading_versions quantity column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+            "note": "Audit 4.5, Step 21-a: 2020-01-02 onward in both markets; lots × 1,000 shares, except TWSE_LOT_SHARES (008201: 100), per TWSE's trading-unit note."
           },
           "short_sell": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE MI_MARGN",
-              "TPEx margin_bal"
+              "TWSE marginTrading/MI_MARGN 融券 賣出",
+              "TPEx margin/balance 券賣"
             ],
             "audit_section": "4.5",
-            "note": "Audit 4.5: every margin_trading_versions quantity column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+            "note": "Audit 4.5, Step 21-a: 2020-01-02 onward in both markets; lots × 1,000 shares, except TWSE_LOT_SHARES (008201: 100), per TWSE's trading-unit note."
           },
           "short_stock_repayment": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE MI_MARGN",
-              "TPEx margin_bal"
+              "TWSE marginTrading/MI_MARGN 現券償還",
+              "TPEx margin/balance 券償"
             ],
             "audit_section": "4.5",
-            "note": "Audit 4.5: every margin_trading_versions quantity column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+            "note": "Audit 4.5, Step 21-a: 2020-01-02 onward in both markets; lots × 1,000 shares, except TWSE_LOT_SHARES (008201: 100), per TWSE's trading-unit note."
           },
           "short_previous_balance": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE MI_MARGN",
-              "TPEx margin_bal"
+              "TWSE marginTrading/MI_MARGN 融券 前日餘額",
+              "TPEx margin/balance 前券餘額(張)"
             ],
             "audit_section": "4.5",
-            "note": "Audit 4.5: every margin_trading_versions quantity column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+            "note": "Audit 4.5, Step 21-a: 2020-01-02 onward in both markets; lots × 1,000 shares, except TWSE_LOT_SHARES (008201: 100), per TWSE's trading-unit note."
           },
           "short_balance": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE MI_MARGN",
-              "TPEx margin_bal"
+              "TWSE marginTrading/MI_MARGN 融券 今日餘額",
+              "TPEx margin/balance 券餘額"
             ],
             "audit_section": "4.5",
-            "note": "Audit 4.5: every margin_trading_versions quantity column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+            "note": "Audit 4.5, Step 21-a: 2020-01-02 onward in both markets; lots × 1,000 shares, except TWSE_LOT_SHARES (008201: 100), per TWSE's trading-unit note."
           },
           "short_next_limit": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE MI_MARGN",
-              "TPEx margin_bal"
+              "TWSE marginTrading/MI_MARGN 融券 次一營業日限額",
+              "TPEx margin/balance 券限額"
             ],
             "audit_section": "4.5",
-            "note": "Audit 4.5: every margin_trading_versions quantity column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+            "note": "Audit 4.5, Step 21-a: 2020-01-02 onward in both markets; lots × 1,000 shares, except TWSE_LOT_SHARES (008201: 100), per TWSE's trading-unit note."
           },
           "offset_balance": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE MI_MARGN",
-              "TPEx margin_bal"
+              "TWSE marginTrading/MI_MARGN 資券互抵",
+              "TPEx margin/balance 資券相抵(張)"
             ],
             "audit_section": "4.5",
-            "note": "Audit 4.5: every margin_trading_versions quantity column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+            "note": "Audit 4.5, Step 21-a: 2020-01-02 onward in both markets; lots × 1,000 shares, except TWSE_LOT_SHARES (008201: 100), per TWSE's trading-unit note."
           },
           "margin_utilization_ratio": {
             "coverage": "partially_sourced",
             "source_fields": [
-              "資使用率(%)"
+              "TPEx margin/balance 資使用率(%)"
             ],
             "audit_section": "4.5",
-            "note": "TPEx margin_bal only; MI_MARGN publishes no utilization ratio, so the TWSE values stay NULL."
+            "note": "Audit 4.5, Step 21-a: TPEx only, percent as published, may exceed 100 (00989B 2026-07-14: 103.1%); TWSE publishes none and stays NULL."
           },
           "short_utilization_ratio": {
             "coverage": "partially_sourced",
             "source_fields": [
-              "券使用率(%)"
+              "TPEx margin/balance 券使用率(%)"
             ],
             "audit_section": "4.5",
-            "note": "TPEx margin_bal only; MI_MARGN publishes no utilization ratio, so the TWSE values stay NULL."
+            "note": "Audit 4.5, Step 21-a: TPEx only, percent as published, may exceed 100 (00989B 2026-07-14: 103.1%); TWSE publishes none and stays NULL."
           }
         }
       },
