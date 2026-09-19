@@ -1,6 +1,6 @@
 # Step 20-c Acceptance Report
 
-Status: IN REVIEW
+Status: IN REVIEW (#32)
 
 Scope: the fetch layer that Step 20-d needs. There are two parts.
 

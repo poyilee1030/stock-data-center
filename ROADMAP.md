@@ -1307,7 +1307,7 @@ totals; the 2026-07-10 file is re-fetched and quarantined.
 
 ### Step 20-c — Complete source requests and the per-host rate governor
 
-Status: **IN REVIEW**. Depends on: nothing in Step 20. Required by Step 20-d.
+Status: **IN REVIEW** (#32). Depends on: nothing in Step 20. Required by Step 20-d.
 
 - **`SourceResource` becomes a complete request.** MOPS `t13sa150_otc` is a POST with a form body returning big5, which the current `HttpSourceFetcher` cannot express: it issues `GET` with a fixed `Accept: application/json`. Add method, body, and headers, so a resource is a full, serializable description of one fetch — which is also what a job needs to be.
 - **A per-host rate governor, injected into the fetcher.** Four v1 PRs (#20, #22, #23, #33) call `mopsov.twse.com.tw`, today each with its own sleep and no view of the others. MOPS blocked the legacy scraper on 2026-07-02 and the legacy 23:50 XBRL window already overruns into the 03:00 retry (audit §7.2). One budget per host, enforced in one place.
