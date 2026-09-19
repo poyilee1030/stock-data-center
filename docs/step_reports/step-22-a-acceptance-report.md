@@ -54,8 +54,9 @@ owner 於 2026-09-20 決定拆成三部分：22-a schema 與 adapter、22-b back
    （`scraper/monthly/fetch_monthly_revenue.py:18`），從未請求 `_1` 頁。所以舊系統
    `monthly_revenue` 裡 KY 是 0 列，但 `daily_quotes` 有 140 支 KY 證券。
 5. **不是來源回答的內容。** 主機曾回應 18 bytes 的 `Unreachable Server`（HTTP 200），
-   adapter 以 `unusable_response` 讓整頁失敗。處理方式與 20-a 的 TWSE CDN 錯誤頁相同：
-   隔離並保留 raw，換新的 import id 重跑就能補齊（有測試）。原本打算讓共用 lifecycle
+   adapter 以 `unusable_response` 讓整頁失敗（與 MOPS 外資持股 adapter 同一個代碼）。
+   處理方式與 20-a 的 TWSE CDN 錯誤頁相同：隔離並保留 raw。隔離後的 checkpoint 不是
+   `captured`，所以用同一個或新的 import id 重跑都會重新抓頁面（有測試）。原本打算讓共用 lifecycle
    自動重抓一次，但那會一併改變其他資料集主資源的行為，已撤回。
 
 ## 驗收證據
@@ -77,6 +78,7 @@ owner 於 2026-09-20 決定拆成三部分：22-a schema 與 adapter、22-b back
 ```
 
 `main` 上的基準是 896 passed，差異是 35 個新測試：21 個 unit、14 個 integration。
+code review 修正再加 3 個 unit test（見下一節），共 38 個。
 
 每個測試如何確認先失敗：
 
@@ -90,6 +92,20 @@ owner 於 2026-09-20 決定拆成三部分：22-a schema 與 adapter、22-b back
 
 `ruff check` 對新增和改動的檔案沒有回報新問題（`adapters/__init__.py`、`models.py`
 的既有問題在 `main` 上就存在）。
+
+## Code review（#36）
+
+review 沒有找到正確性問題。它提到一點但沒有列為 finding，owner 判斷應該修，已在本 step
+修正：
+
+- **`_0` 與 `_1` 的標題相同，adapter 分不出來。** review 認為伺服器回錯頁時「只會多出
+  重複列、被去重吸收」，這個推論不成立：`_0` 的請求如果拿到 `_1` 的內容，KY 列確實會被
+  去重，但那次執行的國內公司會整批缺漏，manifest 卻記成成功。這是靜默的涵蓋缺口，要到
+  22-b 對帳才看得到。每一頁的全市場合計列會寫明是國內還是國外（`全部國內上市公司合計`／
+  `全部國外上市公司合計`），adapter 現在會檢查這一列，對不上就讓整頁以 `page_mismatch`
+  失敗；adapter 版本改為 v2。3 個 unit test 在修改之前失敗：`_1` 內容答 `_0` 請求、
+  `_0` 內容答 `_1` 請求、合計列缺漏。整段期間的 32 頁真實頁面在 v2 下重新解析，全部
+  通過。
 
 ## 踩到的坑
 

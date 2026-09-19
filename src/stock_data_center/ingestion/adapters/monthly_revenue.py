@@ -18,7 +18,8 @@ issuer's correction, and it is data. A blank percentage — no base to compare
 with — is NULL; 備註 is kept verbatim, `-` included.
 
 The title names the market and the ROC year-month and is checked on every
-page. `出表日期` is when the page was generated, not a publication time; it is
+page. `_0` and `_1` share that title; the whole-market total row names the page
+(`全部國內上市公司合計` / `全部國外上市公司合計`), and it is checked too. `出表日期` is when the page was generated, not a publication time; it is
 recorded, never used as evidence. Values are the latest corrected ones: the
 first-published values are not recoverable from this source.
 
@@ -38,6 +39,7 @@ from stock_data_center.ingestion.models import (
     MonthlyRevenueRequest,
     MonthlyRevenueRow,
     ParsedMonthlyRevenue,
+    RevenuePage,
     SourceDataError,
     SourceResource,
 )
@@ -56,6 +58,8 @@ _AMOUNT = re.compile(r"-?(?:\d{1,3}(?:,\d{3})*|\d+)")
 # Percentages carry thousands separators too (4,533.33).
 _PERCENT = re.compile(r"-?(?:\d{1,3}(?:,\d{3})*|\d+)(?:\.\d+)?")
 _NO_DATA = "查無資料"
+# `_0` and `_1` share one title; only the whole-market total row names the page.
+_MARKET_TOTAL = re.compile(r"全部(?:國內|國外)(?:上市|上櫃)公司合計")
 _CODE = re.compile(r"[0-9A-Z]+")
 
 # The company-table header, after `<br>` is dropped; 備註 heads the group row.
@@ -190,6 +194,19 @@ class MOPSMonthlyRevenueAdapter:
                     f"{period.year}-{period.month:02d}",
                 )
             raise SourceDataError("schema_mismatch", f"{self.source} page lists no company")
+        expected_total = (
+            f"全部{'國內' if request.page is RevenuePage.DOMESTIC else '國外'}"
+            f"{self.market_title}公司合計"
+        )
+        totals = set(_MARKET_TOTAL.findall(text))
+        if totals != {expected_total}:
+            # A `_0` request answered with `_1` would otherwise store the KY rows
+            # and silently lose every domestic company (review of #36).
+            raise SourceDataError(
+                "page_mismatch",
+                f"{self.source} {request.page.name.lower()} page totals read "
+                f"{sorted(totals)!r}, not {expected_total!r}",
+            )
         units = set(_UNIT.findall(text))
         if units != {"千元"}:
             raise SourceDataError(
@@ -278,7 +295,7 @@ class MOPSSiiMonthlyRevenueAdapter(MOPSMonthlyRevenueAdapter):
     source = "mops_t21sc03_sii"
     market = "sii"
     market_title = "上市"
-    version = "mops-t21sc03-sii:v1"
+    version = "mops-t21sc03-sii:v2"
 
 
 class MOPSOtcMonthlyRevenueAdapter(MOPSMonthlyRevenueAdapter):
@@ -287,4 +304,4 @@ class MOPSOtcMonthlyRevenueAdapter(MOPSMonthlyRevenueAdapter):
     source = "mops_t21sc03_otc"
     market = "otc"
     market_title = "上櫃"
-    version = "mops-t21sc03-otc:v1"
+    version = "mops-t21sc03-otc:v2"

@@ -679,7 +679,9 @@ Verified by live fetches of both markets' `_0` and `_1` pages for every January
   whole-market total table whose 備註 column is commented out. A company row
   is 11 `<td>` cells; the totals (`合計`, `全部國內上市公司合計`) start with a
   `<th>`. One header for the whole window. The page title names the market and
-  the ROC year-month (`上市公司115年7月份(累計與當月)營業收入統計表`).
+  the ROC year-month (`上市公司115年7月份(累計與當月)營業收入統計表`), and is the
+  same on `_0` and `_1`; only the whole-market total row names the page
+  (`全部國內上市公司合計` / `全部國外上市公司合計`), on every page sampled.
 - **Values.** Percentages carry thousands separators (`4,533.33`); a blank
   percentage has no base and is stored as NULL. 備註 is `-` when empty and is
   stored verbatim.

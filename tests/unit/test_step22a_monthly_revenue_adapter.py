@@ -224,3 +224,19 @@ def test_a_company_row_missing_a_cell_fails_the_file() -> None:
 def test_a_malformed_company_code_fails_the_file() -> None:
     raw = row_edit(SII_0, "1101", "<td align=center>1101</td>", "<td align=center>11 01</td>")
     fails("invalid_identity", sii, raw)
+
+
+def test_the_foreign_page_answered_for_the_domestic_request_fails() -> None:
+    """Review of #36: `_0` and `_1` share one title. Only the whole-market total
+    row says which page it is (全部國內… / 全部國外…); without checking it, a
+    `_0` request answered with `_1` would store the KY rows and silently lose
+    every domestic company for that run."""
+    fails("page_mismatch", sii, SII_1)
+
+
+def test_the_domestic_page_answered_for_the_foreign_request_fails() -> None:
+    fails("page_mismatch", lambda c: sii(c, page=RevenuePage.FOREIGN), SII_0)
+
+
+def test_a_page_without_its_market_total_fails() -> None:
+    fails("page_mismatch", sii, edit(SII_0, "全部國內上市公司合計", "合計"))
