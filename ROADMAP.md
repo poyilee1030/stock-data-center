@@ -1323,7 +1323,7 @@ POST，cp950 HTML，每個日期約 550 KB）寫入 `foreign_holding_versions`�
 
 ### Step 21-a — 融資融券
 
-狀態：**IN REVIEW**。依賴：Step 16、Step 17-c、Step 20-d（單位檢查用它的發行股數）。
+狀態：**IN REVIEW** (#34)。依賴：Step 16、Step 17-c、Step 20-d（單位檢查用它的發行股數）。
 
 範圍內：TWSE `marginTrading/MI_MARGN`（`twse_mi_margn`）和 TPEx `margin/balance`
 （`tpex_margin_balance`，舊 `margin_bal` 頁面的 JSON，選它而不選 CSV）寫入
