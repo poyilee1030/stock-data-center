@@ -22,8 +22,9 @@
 全市場日行情（Step 17）、市場指數與官方估值（Step 18）、交易所公司行動
 結果檔（Step 19）、三大法人個股買賣超與買賣金額彙總（Step 20-a、20-b）。
 MOPS 的 POST 請求與每台主機的限速器（Step 20-c）、外資持股（Step 20-d，TWSE、
-MOPS 與 TPEx insti/qfii 三個來源）、融資融券（Step 21-a）已合併。借券（Step 21-b）
-的回補與對帳已完成，正在審查中。
+MOPS 與 TPEx insti/qfii 三個來源）、融資融券與借券（Step 21-a、21-b）已合併。
+月營收拆成 22-a（比較值 schema 與 MOPS adapter，審查中）、22-b（backfill 與對帳）、
+22-c（發布證據）；22-a 寫入的版本只有 System PIT 可見，直到 22-c 附加證據。
 
 ## 技術棧
 

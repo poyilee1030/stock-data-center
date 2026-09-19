@@ -1252,7 +1252,7 @@
         "dataset_code": "monthly_revenue",
         "v1": true,
         "roadmap_pr": 22,
-        "reason": "MOPS nas/t21/{sii|otc}/t21sc03_{ROC year}_{month}_{0|1} (audit 4.7).",
+        "reason": "MOPS nas/t21/{sii|otc}/t21sc03_{ROC year}_{month}_{0|1}, sources mops_t21sc03_sii and mops_t21sc03_otc (audit 4.7, Step 22-a).",
         "columns": {
           "security_id": {
             "coverage": "internal",
@@ -1287,6 +1287,70 @@
             "audit_section": "4.7",
             "effect": "stores a documented constant",
             "note": "A page-level constant, not a per-row observation: the page states 單位：千元. The column is NOT NULL and part of the revision identity, so it stores the constant TWD; it is never NULL."
+          },
+          "revenue_last_month": {
+            "coverage": "sourced",
+            "source_fields": [
+              "上月營收"
+            ],
+            "audit_section": "4.7",
+            "note": "Audit 4.7, Step 22-a: 2020M01 onward on every page; published in 千元 (單位：千元) and multiplied by 1,000 to TWD. Stored as published and never reconciled against our own series (audit 7.3)."
+          },
+          "revenue_last_year_month": {
+            "coverage": "sourced",
+            "source_fields": [
+              "去年當月營收"
+            ],
+            "audit_section": "4.7",
+            "note": "Audit 4.7, Step 22-a: 2020M01 onward on every page; published in 千元 (單位：千元) and multiplied by 1,000 to TWD. Stored as published and never reconciled against our own series (audit 7.3)."
+          },
+          "mom_pct": {
+            "coverage": "sourced",
+            "source_fields": [
+              "上月比較增減(%)"
+            ],
+            "audit_section": "4.7",
+            "note": "Audit 4.7, Step 22-a: 2020M01 onward on every page; a percentage as printed, thousands separators removed; blank (no base) is NULL. Stored as published and never reconciled against our own series (audit 7.3)."
+          },
+          "yoy_pct": {
+            "coverage": "sourced",
+            "source_fields": [
+              "去年同月增減(%)"
+            ],
+            "audit_section": "4.7",
+            "note": "Audit 4.7, Step 22-a: 2020M01 onward on every page; a percentage as printed, thousands separators removed; blank (no base) is NULL. Stored as published and never reconciled against our own series (audit 7.3)."
+          },
+          "cumulative_revenue": {
+            "coverage": "sourced",
+            "source_fields": [
+              "當月累計營收"
+            ],
+            "audit_section": "4.7",
+            "note": "Audit 4.7, Step 22-a: 2020M01 onward on every page; published in 千元 (單位：千元) and multiplied by 1,000 to TWD. Stored as published and never reconciled against our own series (audit 7.3)."
+          },
+          "cumulative_revenue_last_year": {
+            "coverage": "sourced",
+            "source_fields": [
+              "去年累計營收"
+            ],
+            "audit_section": "4.7",
+            "note": "Audit 4.7, Step 22-a: 2020M01 onward on every page; published in 千元 (單位：千元) and multiplied by 1,000 to TWD. Stored as published and never reconciled against our own series (audit 7.3)."
+          },
+          "cumulative_yoy_pct": {
+            "coverage": "sourced",
+            "source_fields": [
+              "前期比較增減(%)"
+            ],
+            "audit_section": "4.7",
+            "note": "Audit 4.7, Step 22-a: 2020M01 onward on every page; a percentage as printed, thousands separators removed; blank (no base) is NULL. Stored as published and never reconciled against our own series (audit 7.3)."
+          },
+          "note": {
+            "coverage": "sourced",
+            "source_fields": [
+              "備註"
+            ],
+            "audit_section": "4.7",
+            "note": "Audit 4.7, Step 22-a: 2020M01 onward; verbatim, '-' included; a blank cell is NULL."
           }
         }
       },
@@ -3156,64 +3220,56 @@
       "legacy_field": "revenue_last_month",
       "disposition": "observed",
       "target": "monthly_revenue_versions.revenue_last_month",
-      "reason": "Source field 上月營收. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by step 22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
-      "planned_pr": 22
+      "reason": "Source field 上月營收. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by Step 22-a and never reconciled against our own series; a disagreement with our series is the data (audit 7.3)."
     },
     {
       "legacy_table": "monthly_revenue",
       "legacy_field": "revenue_last_year",
       "disposition": "observed",
       "target": "monthly_revenue_versions.revenue_last_year_month",
-      "reason": "Source field 去年當月營收. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by step 22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
-      "planned_pr": 22
+      "reason": "Source field 去年當月營收. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by Step 22-a and never reconciled against our own series; a disagreement with our series is the data (audit 7.3)."
     },
     {
       "legacy_table": "monthly_revenue",
       "legacy_field": "mom_pct",
       "disposition": "observed",
       "target": "monthly_revenue_versions.mom_pct",
-      "reason": "Source field 上月比較增減(%). Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by step 22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
-      "planned_pr": 22
+      "reason": "Source field 上月比較增減(%). Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by Step 22-a and never reconciled against our own series; a disagreement with our series is the data (audit 7.3)."
     },
     {
       "legacy_table": "monthly_revenue",
       "legacy_field": "yoy_pct",
       "disposition": "observed",
       "target": "monthly_revenue_versions.yoy_pct",
-      "reason": "Source field 去年同月增減(%). Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by step 22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
-      "planned_pr": 22
+      "reason": "Source field 去年同月增減(%). Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by Step 22-a and never reconciled against our own series; a disagreement with our series is the data (audit 7.3)."
     },
     {
       "legacy_table": "monthly_revenue",
       "legacy_field": "revenue_cumulative",
       "disposition": "observed",
       "target": "monthly_revenue_versions.cumulative_revenue",
-      "reason": "Source field 當月累計營收. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by step 22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
-      "planned_pr": 22
+      "reason": "Source field 當月累計營收. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by Step 22-a and never reconciled against our own series; a disagreement with our series is the data (audit 7.3)."
     },
     {
       "legacy_table": "monthly_revenue",
       "legacy_field": "revenue_cumulative_last_year",
       "disposition": "observed",
       "target": "monthly_revenue_versions.cumulative_revenue_last_year",
-      "reason": "Source field 去年累計營收. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by step 22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
-      "planned_pr": 22
+      "reason": "Source field 去年累計營收. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by Step 22-a and never reconciled against our own series; a disagreement with our series is the data (audit 7.3)."
     },
     {
       "legacy_table": "monthly_revenue",
       "legacy_field": "cumulative_yoy_pct",
       "disposition": "observed",
       "target": "monthly_revenue_versions.cumulative_yoy_pct",
-      "reason": "Source field 前期比較增減(%). Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by step 22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
-      "planned_pr": 22
+      "reason": "Source field 前期比較增減(%). Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by Step 22-a and never reconciled against our own series; a disagreement with our series is the data (audit 7.3)."
     },
     {
       "legacy_table": "monthly_revenue",
       "legacy_field": "comment",
       "disposition": "observed",
       "target": "monthly_revenue_versions.note",
-      "reason": "Source field 備註. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by step 22 and never reconciled against our own series; a disagreement with our series is the data (audit 7.3).",
-      "planned_pr": 22
+      "reason": "Source field 備註. Published in the same MOPS t21sc03 row as 當月營收 and read by legacy consumers (audit 4.7, 6). Stored verbatim as an observed published comparative by Step 22-a and never reconciled against our own series; a disagreement with our series is the data (audit 7.3)."
     },
     {
       "legacy_table": "monthly_revenue",

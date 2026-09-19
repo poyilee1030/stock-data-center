@@ -101,7 +101,7 @@ Each required criterion must be PASS/FAIL with concrete evidence.
 
 ## Current Step Sequence
 
-ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–18, 19-a through 19-e, 20-a through 20-d and 21-a as MERGED and labels Step 21-b as `THIS STEP` (a contextual marker, not an additional status value):
+ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–18, 19-a through 19-e, 20-a through 20-d, 21-a and 21-b as MERGED and labels Step 22-a as `THIS STEP` (a contextual marker, not an additional status value):
 
 ```text
 Step 11  authoritative security lifecycle history        MERGED
@@ -128,8 +128,10 @@ Step 20-b institutional market summary                  MERGED
 Step 20-c complete source requests + MOPS rate governor MERGED
 Step 20-d foreign holding (MI_QFIIS + MOPS + insti/qfii) MERGED
 Step 21-a margin trading                               MERGED
-Step 21-b securities lending                           THIS STEP
-Step 22  monthly revenue                               PLANNED
+Step 21-b securities lending                           MERGED
+Step 22-a monthly revenue: comparatives + MOPS adapter  THIS STEP
+Step 22-b monthly revenue: backfill + reconciliation    PLANNED
+Step 22-c monthly revenue: publication evidence         PLANNED
 Step 23  financial statements (iXBRL)                   PLANNED
 Step 24  TDCC distribution                             PLANNED
 Step 25  adjusted prices                               PLANNED
@@ -1292,7 +1294,7 @@ Do not bulk-copy without field mapping, source-semantic validation, unit normali
 
 Default artifact origin is `official_fetch`, preserving exact response bytes. `legacy_archive` is allowed only for ROADMAP §14 / Steps 22–24 exceptions:
 
-- Monthly revenue: `market.csv` provides first-captured values from 2026M02 and recovered announcement dates for older rows. `revswarm.db` is not a live import dependency. Apply Step 22's date ambiguity rule and import cross-check under the approved evidence policy.
+- Monthly revenue: `market.csv` provides first-captured values from 2026M02 and recovered announcement dates for older rows. `revswarm.db` is not a live import dependency. Apply Step 22's date ambiguity rule under the approved evidence policy.
 - XBRL: legacy documents from 2020Q1, with the Step 23 archive-vs-official sample gate and full re-fetch fallback if its mismatch threshold fails. Synthetic filename dates and late backfill files carry no first-seen evidence.
 - TDCC: the consolidated `shareholding` archive up to forward capture (375 weeks, 348 inside v1), then official OpenData. Follow Step 24's payload/date validation; reject filename/payload disagreement.
 

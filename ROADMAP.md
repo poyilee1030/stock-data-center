@@ -607,8 +607,10 @@ explicit out-of-scope work
 | 20-c | MERGED | 完整描述來源請求，以及每台主機的請求速率控管 |
 | 20-d | MERGED | 外資持股 |
 | 21-a | MERGED | 融資融券 |
-| 21-b | THIS STEP | 借券 |
-| 22 | PLANNED | 月營收 |
+| 21-b | MERGED | 借券 |
+| 22-a | THIS STEP | 月營收：比較值 schema 與 MOPS adapter |
+| 22-b | PLANNED | 月營收：歷史 backfill 與舊系統對帳 |
+| 22-c | PLANNED | 月營收：發布證據 |
 | 23 | PLANNED | 財務報表（iXBRL） |
 | 24 | PLANNED | TDCC 股權分散 |
 | 25 | PLANNED | 還原價格 |
@@ -1351,7 +1353,7 @@ POST，cp950 HTML，每個日期約 550 KB）寫入 `foreign_holding_versions`�
 
 ### Step 21-b — 借券
 
-狀態：**IN REVIEW** (#35)。依賴：Step 21-a（對帳用它的 `margin_trading` 融券欄位）。
+狀態：**MERGED** (#35)。依賴：Step 21-a（對帳用它的 `margin_trading` 融券欄位）。
 
 範圍內：TWSE `marginTrading/TWT93U`（`twse_twt93u`）和 TPEx `margin/sbl`
 （`tpex_margin_sbl`，舊 `margin_sbl` 頁面的 JSON，選它而不選 CSV）寫入
@@ -1388,7 +1390,7 @@ POST，cp950 HTML，每個日期約 550 KB）寫入 `foreign_holding_versions`�
 
 ## Step 22 — 月營收
 
-狀態：**PLANNED**。依賴：Step 4 契約、Step 11。
+依賴：Step 4 契約、Step 11。
 
 來源契約（audit §4.7）：MOPS `t21sc03` 頁面，`sii`／`otc` × `_0`／`_1` × 月份，從 2020M01 起。歷史：約 330 次請求。營收 ×1,000 換算為元。
 
@@ -1401,7 +1403,11 @@ cumulative_revenue, cumulative_revenue_last_year, cumulative_yoy_pct, note
 
 標準衍生的 `monthly_revenue_growth:v1` 移出 v1。
 
-復原的發布日期（audit §7.4）：2020M01-2026M01 從舊系統的 `market.csv` 讀取，`revswarm` 已經把日期寫回——128,063 列中有 114,910 列（89.7%）帶有真實的公告日期。CSV 是介面；`revswarm.db` 不是這個 PR 的執行期依賴。
+拆成三部分（owner 於 2026-09-20 決定）：22-a 是 schema 與 adapter，22-b 是歷史
+backfill 與對帳，22-c 是發布證據。每部分本身都正確：22-a 與 22-b 寫入的版本只帶
+`unknown` 證據（只有 System PIT 可見，偏晚而不偏早），直到 22-c 附加證據。
+
+復原的發布日期（audit §7.4）：2020M01-2026M01 從舊系統的 `market.csv` 讀取，`revswarm` 已經把可靠的日期寫回——128,063 列中有 114,910 列（89.7%）帶有真實的公告日期。CSV 是介面；`revswarm.db` 不是任何部分的依賴。
 
 CSV 只保留日期，所以日期是 10 日的列，無法與保留法定預設值的列區分。由此得出的規則：
 
@@ -1416,18 +1422,69 @@ publish_time == the 10th of the next month  ->  release_rule
 
 舊系統首次看到的匯入（audit §7.1）：2026M02 起，把舊系統 `market.csv` 的列匯入為首次抓取值的 `legacy_archive` 觀察，並以其 `publish_time` 日期作為 `legacy_capture_bound` 證據。官方重新抓取的結果不同時，成為之後的 revision，證據是 Data Center 自己的抓取時間。2026M02 之前合成的 `publish_time` 值不作為證據匯入。
 
+範圍外：復原 2026M02 之前首次發布的值。
+
+### Step 22-a — 比較值 schema 與 MOPS adapter
+
+狀態：**IN REVIEW**。依賴：Step 4 契約、Step 11。
+
+範圍內：migration `d4a7f2c9b8e1`（比較值欄位、兩個來源的宣告）、MOPS `t21sc03`
+adapter（`mops_t21sc03_sii`、`mops_t21sc03_otc`，各含 `_0`／`_1` 頁）、importer、
+CLI `monthly-revenue`。
+
+2026-09-20 定案（audit §4.7「Step 22-a findings」）：
+
+- **每個市場一個來源。** 轉市場的月份，同一證券可能同時出現在兩個市場的頁面（舊系統
+  5236，2026M06）；單一來源會讓同一個邏輯鍵的 revision 交替出現（CLAUDE.md §30）。
+- **比較值只在有值時進 hash。** `stockdc_monthly_revenue_hash` 對 `revenue`、`currency`
+  的算法與原本相同，比較值去掉 NULL 後接在後面，所以沒有比較值的既有版本身分完全
+  不變，不改寫任何已存的列。
+- **KY 是新涵蓋。** 舊系統的爬蟲把網址寫死成 `_0` 頁（`fetch_monthly_revenue.py`），
+  從未請求 `_1`，所以舊系統沒有任何 KY 發行公司。
+- **證據留給 22-c。** 兩個來源只接受 `official`、不宣告 release rule，每個版本記
+  `unknown`。
+
+驗收：
+
+- 已發布的比較值完全照發布的樣子儲存，絕不與我們自己的序列對帳；2026M06/M07 這一對（1,846 家公司中 11 家不一致）是回歸 fixture（audit §7.3）
+- 兩次抓取之間的更正會產生 revision
+- `_1` 頁面的 KY 發行公司以新涵蓋出現
+- 沒有比較值的版本保留 22-a 之前的 hash
+- adapter 能解析整段期間的真實頁面
+
+驗收證據：`docs/step_reports/step-22-a-acceptance-report.md`。
+
+### Step 22-b — 歷史 backfill 與舊系統對帳
+
+狀態：**PLANNED**。依賴：Step 22-a。
+
+範圍內：兩個市場 × `_0`／`_1` 頁 × 2020M01 → 2026M08 的 backfill、月度涵蓋宣告，
+以及與舊系統 `monthly_revenue` 的對帳（單位換算後，每個差異都分類）。
+
 驗收：
 
 - 舊系統 `monthly_revenue` 已對帳
+- 兩個市場 × 兩頁的涵蓋完整
+- 每個月份的 `_0` 與 `_1` 頁沒有共同的公司（同一來源、同一月份不會有兩個不同的版本）
 - `_1` 頁面的 KY 發行公司以新涵蓋出現
-- 兩次抓取之間的更正會產生 revision
-- 已發布的比較值完全照發布的樣子儲存，絕不與我們自己的序列對帳；2026M06/M07 這一對（1,846 家公司中 11 家不一致）是回歸 fixture（audit §7.3）
-- 2026M02 起，每個首次看到的列在 Market PIT 下的解析時間，不早於其舊系統 22:45 執行的結束時間；重新抓取顯示被更正的列，在更正被抓到之前解析為首次抓取的值
-- 2020M01-2026M01 期間，`publish_time` 不是次月 10 日的列，在該日結束時解析；落在 10 日的列以 release rule 解析
-- 這段期間沒有任何一列會比 release rule 所定的時間更早解析
-- `revswarm` 已公告營收的交叉核對在匯入時執行，並記錄一致率；低於 2026-09-15 量測的 99.10% 時，匯入失敗
 
-範圍外：復原 2026M02 之前首次發布的值。
+### Step 22-c — 發布證據
+
+狀態：**PLANNED**。依賴：Step 22-b。
+
+範圍內：以 `legacy_archive` 匯入舊系統 `market.csv`，附加上述的 `press_report_bound`、
+`legacy_capture_bound` 與 release rule 證據；2026M02 起的首次抓取值作為觀察匯入。
+開工時要決定只在 `_1` 頁出現的 KY 發行公司用哪種證據（舊系統沒有它們的日期）。
+
+驗收：
+
+- 2026M02 起，每個首次看到的列在 Market PIT 下的解析時間，不早於其舊系統 22:45 執行的結束時間；重新抓取顯示被更正的列，在更正被抓到之前解析為首次抓取的值
+- 2020M01-2026M01 期間，`publish_time` 不是次月 10 日的列，在該日結束時解析；落在 10 日的列以 release rule 解析，永遠不早於 release rule（10 日落在週末時順延到下一個營業日）
+
+owner 於 2026-09-20 刪除兩條原驗收：「`revswarm` 已公告營收的交叉核對在匯入時執行」
+（revswarm 已把可靠的結果寫回 `market.csv`，這個 step 不需要 revswarm），以及
+「這段期間沒有任何一列會比 release rule 所定的時間更早解析」（已過時：它與
+`press_report_bound` 在公告日解析互相矛盾）。
 
 ## Step 23 — 財務報表（iXBRL）
 
