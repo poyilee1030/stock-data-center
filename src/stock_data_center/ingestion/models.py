@@ -12,6 +12,7 @@ from types import MappingProxyType
 from urllib.parse import urlencode
 
 from stock_data_center.institutional_financing.models import (
+    ForeignHoldingObservation,
     InstitutionalInvestorObservation,
     InstitutionalMarketSummaryObservation,
 )
@@ -216,6 +217,38 @@ class ParsedInstitutionalInvestor:
     market: str
     trade_date: date
     rows: tuple[InstitutionalInvestorRow, ...]
+    header_variant: str
+    source_fields: tuple[str, ...]
+
+    @property
+    def coverage_start(self) -> date | None:
+        return self.trade_date if self.rows else None
+
+    @property
+    def coverage_end(self) -> date | None:
+        return self.trade_date if self.rows else None
+
+
+@dataclass(frozen=True, slots=True)
+class ForeignHoldingRequest:
+    """Request one market's per-security foreign holding for one trade date."""
+
+    trade_date: date
+
+
+@dataclass(frozen=True, slots=True)
+class ForeignHoldingRow:
+    security_code: str
+    observation: ForeignHoldingObservation
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedForeignHolding:
+    """Every per-security foreign holding one market published for one trade date."""
+
+    market: str
+    trade_date: date
+    rows: tuple[ForeignHoldingRow, ...]
     header_variant: str
     source_fields: tuple[str, ...]
 

@@ -19,6 +19,11 @@ from stock_data_center.ingestion.adapters.daily_market import (
     TPExDailyMarketAdapter,
     TWSEDailyMarketAdapter,
 )
+from stock_data_center.ingestion.adapters.foreign_holding import (
+    ForeignHoldingAdapter,
+    MOPSForeignHoldingAdapter,
+    TWSEForeignHoldingAdapter,
+)
 from stock_data_center.ingestion.adapters.institutional_investor import (
     InstitutionalInvestorAdapter,
     TPExInstitutionalInvestorAdapter,
@@ -65,7 +70,9 @@ from stock_data_center.ingestion.adapters.whole_market_daily import (
 __all__ = [
     "CorporateActionListAdapter",
     "DailyMarketAdapter",
+    "ForeignHoldingAdapter",
     "InstitutionalInvestorAdapter",
+    "MOPSForeignHoldingAdapter",
     "InstitutionalMarketSummaryAdapter",
     "MarketIndexAdapter",
     "OfficialValuationAdapter",
@@ -78,6 +85,7 @@ __all__ = [
     "TPExETFSplitAdapter",
     "TPExExRightDailyAdapter",
     "TPExInstitutionalInvestorAdapter",
+    "TWSEForeignHoldingAdapter",
     "TPExInstitutionalMarketSummaryAdapter",
     "TPExListingHistoryAdapter",
     "TPExSecurityMetadataAdapter",

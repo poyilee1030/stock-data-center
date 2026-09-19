@@ -146,6 +146,24 @@ class InstitutionalFinancingWriter:
             lineage=lineage,
         )
 
+    def append_foreign_holdings(
+        self,
+        connection: Connection,
+        *,
+        source: str,
+        observations: Sequence[tuple[int, ForeignHoldingObservation]],
+        lineage: SourceLineageRef,
+    ) -> tuple[WrittenSourceVersion, ...]:
+        """Append a whole market-date of holdings, in the order given; set-based
+        for the reason `append_institutional_investors` is."""
+        return self._append_many(
+            connection,
+            spec=_SPECS["foreign_holding"],
+            source=source,
+            observations=observations,
+            lineage=lineage,
+        )
+
     def append_market_summary(
         self,
         connection: Connection,
