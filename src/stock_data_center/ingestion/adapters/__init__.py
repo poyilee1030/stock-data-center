@@ -45,6 +45,10 @@ from stock_data_center.ingestion.adapters.market_index import (
     TWSEMarketIndexAdapter,
     TWSETaiexHistoryAdapter,
 )
+from stock_data_center.ingestion.adapters.monthly_revenue import (
+    MOPSOtcMonthlyRevenueAdapter,
+    MOPSSiiMonthlyRevenueAdapter,
+)
 from stock_data_center.ingestion.adapters.official_valuation import (
     OfficialValuationAdapter,
     TPExOfficialValuationAdapter,
@@ -77,6 +81,8 @@ from stock_data_center.ingestion.adapters.whole_market_daily import (
 )
 
 __all__ = [
+    "MOPSOtcMonthlyRevenueAdapter",
+    "MOPSSiiMonthlyRevenueAdapter",
     "CorporateActionListAdapter",
     "DailyMarketAdapter",
     "ForeignHoldingAdapter",

@@ -15,6 +15,8 @@ import sqlalchemy as sa
 
 from stock_data_center.ingestion.adapters import (
     MOPSForeignHoldingAdapter,
+    MOPSOtcMonthlyRevenueAdapter,
+    MOPSSiiMonthlyRevenueAdapter,
     TPExDailyMarketAdapter,
     TPExDelistingHistoryAdapter,
     TPExETFReverseSplitAdapter,
@@ -81,7 +83,9 @@ from stock_data_center.ingestion.models import (
     InstitutionalMarketSummaryRequest,
     MarginTradingRequest,
     MarketIndexRequest,
+    MonthlyRevenueRequest,
     OfficialValuationRequest,
+    RevenuePage,
     SecuritiesLendingRequest,
     SecurityLifecycleRequest,
     SecurityMetadataRequest,
@@ -89,6 +93,7 @@ from stock_data_center.ingestion.models import (
     TradingCalendarRequest,
     WholeMarketDailyRequest,
 )
+from stock_data_center.ingestion.monthly_revenue import MonthlyRevenueImporter
 from stock_data_center.ingestion.official_valuation import (
     OfficialValuationImporter,
 )
@@ -101,6 +106,7 @@ from stock_data_center.ingestion.security_lifecycle import (
 from stock_data_center.ingestion.security_metadata import SecurityMetadataImporter
 from stock_data_center.ingestion.trading_calendar import TradingCalendarImporter
 from stock_data_center.ingestion.whole_market_daily import WholeMarketDailyImporter
+from stock_data_center.monthly_revenue.models import RevenuePeriod
 
 
 def _months(first: date, last: date):
@@ -232,6 +238,20 @@ def main(argv: list[str] | None = None) -> int:
     margin.add_argument("--min-interval-seconds", type=float, default=1.5)
     margin.add_argument("--import-id", type=UUID)
     margin.add_argument("--raw-root", type=Path, default=Path("data/raw"))
+    revenue = subparsers.add_parser(
+        "monthly-revenue",
+        help="import one market's MOPS monthly revenue page for one month",
+    )
+    revenue.add_argument(
+        "--source", choices=("mops_t21sc03_sii", "mops_t21sc03_otc"), required=True
+    )
+    revenue.add_argument("--period", required=True, help="Gregorian YYYY-MM")
+    revenue.add_argument(
+        "--page", choices=("domestic", "foreign"), required=True,
+        help="domestic is the _0 page; foreign is _1, the KY issuers",
+    )
+    revenue.add_argument("--import-id", type=UUID)
+    revenue.add_argument("--raw-root", type=Path, default=Path("data/raw"))
     lending = subparsers.add_parser(
         "securities-lending",
         help="import one market's per-security securities lending for one trade date",
@@ -613,6 +633,25 @@ def main(argv: list[str] | None = None) -> int:
                     import_id=import_id,
                     purpose=IngestPurpose(args.purpose),
                 )
+        elif args.command == "monthly-revenue":
+            importer = MonthlyRevenueImporter(
+                engine, raw_store=LocalRawArtifactStore(args.raw_root)
+            )
+            adapter = (
+                MOPSSiiMonthlyRevenueAdapter()
+                if args.source == "mops_t21sc03_sii"
+                else MOPSOtcMonthlyRevenueAdapter()
+            )
+            year, month = (int(part) for part in args.period.split("-"))
+            result = importer.run(
+                adapter=adapter,
+                request=MonthlyRevenueRequest(
+                    RevenuePeriod(year, month),
+                    RevenuePage.DOMESTIC if args.page == "domestic" else RevenuePage.FOREIGN,
+                ),
+                import_id=import_id,
+                purpose=IngestPurpose(args.purpose),
+            )
         elif args.command == "securities-lending":
             importer = SecuritiesLendingImporter(
                 engine, raw_store=LocalRawArtifactStore(args.raw_root)

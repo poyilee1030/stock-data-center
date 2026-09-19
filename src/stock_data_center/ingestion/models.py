@@ -27,6 +27,8 @@ from stock_data_center.market_reference.models import (
     MarketIndexObservation,
     OfficialValuationObservation,
 )
+from stock_data_center.monthly_revenue.ingestion import MonthlyRevenueObservation
+from stock_data_center.monthly_revenue.models import RevenuePeriod
 
 
 @dataclass(frozen=True, slots=True)
@@ -261,6 +263,48 @@ class ParsedMarginTrading:
     @property
     def coverage_end(self) -> date | None:
         return self.trade_date if self.rows else None
+
+
+class RevenuePage(str, Enum):
+    """The two MOPS t21sc03 pages of one market-month (audit §4.7)."""
+
+    DOMESTIC = "0"
+    FOREIGN = "1"
+
+
+@dataclass(frozen=True, slots=True)
+class MonthlyRevenueRequest:
+    """Request one market's monthly revenue page for one month."""
+
+    period: RevenuePeriod
+    page: RevenuePage
+
+
+@dataclass(frozen=True, slots=True)
+class MonthlyRevenueRow:
+    security_code: str
+    observation: MonthlyRevenueObservation
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedMonthlyRevenue:
+    """Every company row one page published for one month."""
+
+    market: str
+    period: RevenuePeriod
+    page: RevenuePage
+    rows: tuple[MonthlyRevenueRow, ...]
+    header_variant: str
+    source_fields: tuple[str, ...]
+    generated_on: str
+
+    @property
+    def coverage_start(self) -> date | None:
+        return date(self.period.year, self.period.month, 1) if self.rows else None
+
+    @property
+    def coverage_end(self) -> date | None:
+        return self.coverage_start
 
 
 @dataclass(frozen=True, slots=True)

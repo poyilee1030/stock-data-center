@@ -668,6 +668,39 @@ Summary of the new MOPS site's request types, read from the dispatcher in
 | `sii` | POSTs to `api/redirectToSiis` |
 | `url` | builds an old-site URL in the browser and makes no API call |
 
+#### Step 22-a findings (2026-09-20)
+
+Verified by live fetches of both markets' `_0` and `_1` pages for every January
+2020–2026 and 2026M08 (32 pages, every one parsed).
+
+- **Encoding.** Big5 as Microsoft writes it: strict `big5` rejects the pages
+  (0xF9 bytes), `cp950` reads them whole with no replacement character.
+- **Structure.** One table per industry, each headed `單位：千元`, then a
+  whole-market total table whose 備註 column is commented out. A company row
+  is 11 `<td>` cells; the totals (`合計`, `全部國內上市公司合計`) start with a
+  `<th>`. One header for the whole window. The page title names the market and
+  the ROC year-month (`上市公司115年7月份(累計與當月)營業收入統計表`), and is the
+  same on `_0` and `_1`; only the whole-market total row names the page
+  (`全部國內上市公司合計` / `全部國外上市公司合計`), on every page sampled.
+- **Values.** Percentages carry thousands separators (`4,533.33`); a blank
+  percentage has no base and is stored as NULL. 備註 is `-` when empty and is
+  stored verbatim.
+- **`_0` and `_1` are disjoint**, and `_0` lists no KY issuer (checked on the
+  same market's two pages for otc 2023M06 and sii 2026M07; 22-b checks every
+  month). The legacy scraper hard-codes `_0`
+  (`scraper/monthly/fetch_monthly_revenue.py`), which is why legacy has no KY
+  issuer.
+- **Non-answers.** A month not yet published answers a page reading 查無資料.
+  Under load the host once answered the 18 bytes `Unreachable Server` with
+  status 200, and HTTP 502 another time; the next request succeeded both times.
+- **Sources.** One per market, `mops_t21sc03_sii` and `mops_t21sc03_otc`: a
+  security moving market can appear on both markets' pages in one month
+  (legacy 5236, 2026M06).
+- **Corrections are visible across fetches.** Today's 2026M06 page already
+  carries the corrected values: 6441 廣錠 reads 10,948 千元 where legacy first
+  captured 13,094, so the §7.3 disagreement exists only between legacy's
+  first capture and today's pages.
+
 ### 4.8 Financial statements (iXBRL)
 
 MOPS `server-java/t164sb01`, one iXBRL HTML per `(CO_ID, SYEAR, SSEASON,

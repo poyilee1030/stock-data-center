@@ -54,6 +54,21 @@ class MonthlyRevenueObservation:
     period: RevenuePeriod
     revenue: Decimal
     currency: str
+    # The comparatives MOPS publishes in the same row (Step 22), stored exactly
+    # as published and never reconciled against our own series (audit §7.3).
+    # Amounts are in the currency's major unit, percentages as printed.
+    revenue_last_month: Decimal | None = None
+    revenue_last_year_month: Decimal | None = None
+    mom_pct: Decimal | None = None
+    yoy_pct: Decimal | None = None
+    cumulative_revenue: Decimal | None = None
+    cumulative_revenue_last_year: Decimal | None = None
+    cumulative_yoy_pct: Decimal | None = None
+    note: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.note == "":
+            raise ValueError("note must be nonempty when supplied")
 
     @classmethod
     def from_source(
@@ -112,8 +127,7 @@ class MonthlyRevenueWriter:
             "source": source,
             "revenue_year": observation.period.year,
             "revenue_month": observation.period.month,
-            "revenue": observation.revenue,
-            "currency": observation.currency,
+            **_business_values(observation),
             "business_content_hash": "0" * 64,
             "ingested_at": sa.func.statement_timestamp(),
             "raw_artifact_id": lineage.raw_artifact_id,
@@ -146,8 +160,10 @@ class MonthlyRevenueWriter:
                     == observation.period.year,
                     monthly_revenue_versions.c.revenue_month
                     == observation.period.month,
-                    monthly_revenue_versions.c.revenue == observation.revenue,
-                    monthly_revenue_versions.c.currency == observation.currency,
+                    *(
+                        monthly_revenue_versions.c[name].is_not_distinct_from(value)
+                        for name, value in _business_values(observation).items()
+                    ),
                 )
             ).mappings().one()
             written = _written(existing, created=False)
@@ -254,3 +270,12 @@ def _written(row: RowMapping, *, created: bool) -> WrittenRevenueVersion:
         ingested_at=row["ingested_at"],
         created=created,
     )
+
+
+def _business_values(observation: MonthlyRevenueObservation) -> dict[str, object]:
+    """The stored business columns: everything but the period."""
+    return {
+        field.name: getattr(observation, field.name)
+        for field in fields(observation)
+        if field.name != "period"
+    }
