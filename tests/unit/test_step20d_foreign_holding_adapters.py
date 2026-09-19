@@ -402,7 +402,6 @@ def test_qfii_is_its_own_tpex_source() -> None:
     assert adapter.dataset_code == "foreign_holding"
     assert adapter.source == "tpex_insti_qfii"
     assert adapter.market == "TPEx"
-    assert adapter.version == "tpex-insti-qfii:v1"
 
 
 def test_qfii_requests_the_date_as_json() -> None:
@@ -489,3 +488,15 @@ def test_qfii_a_declared_total_that_disagrees_fails_the_file() -> None:
     with pytest.raises(SourceDataError) as error:
         qfii(raw)
     assert error.value.reason_code == "schema_mismatch"
+
+
+def test_qfii_a_limit_reached_note_is_accepted_and_not_stored() -> None:
+    """Found by the backfill: 6497 carried 已達上限 from 2020-05-04 to
+    2020-08-24. Like 禁止投資 it is a flag with no contract column."""
+    raw = edit_qfii(QFII, lambda p: p["tables"][0]["data"][0].__setitem__(9, "已達上限"))
+    code = json.loads(QFII)["tables"][0]["data"][0][1]
+    assert one(qfii(raw), code).change_reason is None
+
+
+def test_qfii_the_adapter_version_records_the_limit_reached_note() -> None:
+    assert TPExInstiQfiiForeignHoldingAdapter.version == "tpex-insti-qfii:v2"

@@ -24,8 +24,9 @@ as its own history (CLAUDE.md §30). MOPS rebuilds a past date from today's
 security list, so a security delisted or moved to TWSE disappears from every
 past MOPS date; `insti/qfii` keeps it. `insti/qfii` in turn omits most ETFs and
 publishes no mainland limit, change reason or last-update date, which stay
-NULL for that source. Its 備註 is blank or 禁止投資, a flag with no contract
-column; any other note fails the file.
+NULL for that source. Its 備註 is blank, 禁止投資 (investment prohibited) or
+已達上限 (limit reached), flags with no contract column; any other note fails
+the file.
 
 No value is recomputed, and the security name, TWSE's ISIN and `insti/qfii`'s
 rank are not stored.
@@ -418,7 +419,8 @@ def _cell(text: str) -> str:
 
 
 
-_QFII_NOTES = frozenset({"", "禁止投資"})
+# 已達上限 found by the backfill: 6497, 2020-05-04 to 2020-08-24.
+_QFII_NOTES = frozenset({"", "禁止投資", "已達上限"})
 
 
 class TPExInstiQfiiForeignHoldingAdapter(ForeignHoldingAdapter):
@@ -426,7 +428,7 @@ class TPExInstiQfiiForeignHoldingAdapter(ForeignHoldingAdapter):
 
     source = "tpex_insti_qfii"
     market = "TPEx"
-    version = "tpex-insti-qfii:v1"
+    version = "tpex-insti-qfii:v2"
     endpoint = "https://www.tpex.org.tw/www/zh-tw/insti/qfii"
     variants = MappingProxyType({
         "insti_qfii_10": (

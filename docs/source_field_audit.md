@@ -378,7 +378,8 @@ sources.
   2026-09-19: `insti/qfii` is stored as a second TPEx source, `tpex_insti_qfii`,
   each source keeping its own history. For `insti/qfii` the mainland limit,
   change reason and last-update date are not published and stay NULL; its
-  `排行`, `名稱` and `備註` (blank or `禁止投資`) have no contract column.
+  `排行`, `名稱` and `備註` (blank, `禁止投資`, or `已達上限` — 6497 from
+  2020-05-04 to 2020-08-24) have no contract column.
 
 ### 4.5 Margin and securities lending
 
