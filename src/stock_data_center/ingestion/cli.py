@@ -14,12 +14,12 @@ from uuid import UUID, uuid4, uuid5
 import sqlalchemy as sa
 
 from stock_data_center.ingestion.adapters import (
+    MOPSForeignHoldingAdapter,
     TPExDailyMarketAdapter,
     TPExDelistingHistoryAdapter,
     TPExETFReverseSplitAdapter,
     TPExETFSplitAdapter,
     TPExExRightDailyAdapter,
-    MOPSForeignHoldingAdapter,
     TPExInstiQfiiForeignHoldingAdapter,
     TPExInstitutionalInvestorAdapter,
     TPExInstitutionalMarketSummaryAdapter,
