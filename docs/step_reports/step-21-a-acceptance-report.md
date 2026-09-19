@@ -14,7 +14,7 @@ contract 修正（見下文），downgrade 有防護。
 PIT 影響：沒有新的影響。兩個來源都遵循 `exchange_daily_settled@1`，資料集加入
 `DATASET_TARGETS`。依據：舊系統每日工作在交易日當天就存下 137 個 TWSE 和 136 個
 TPEx 檔案（檔案 mtime）；其餘約 1,490 個是 2026 年 1–2 月批次重抓的，與時間無關。
-規模：`src/` 改動 +622/−10 行，低於約 800 行的拆分門檻（`CLAUDE.md` §1）。另外提交
+規模：`src/` 改動 +653/−8 行，低於約 800 行的拆分門檻（`CLAUDE.md` §1）。另外提交
 一個對帳腳本和六個 fixture。
 
 ## 為什麼 Step 21 拆成兩部分
@@ -49,9 +49,10 @@ TWSE 自己的 MI_INDEX 註解寫著：「除境外指數股票型基金及外�
 恰好等於發行量的 25%（例如 2020-01-02：3,872 × 100 = 387,200，發行量 1,549,100 的
 25% 是 387,275）。
 
-依 owner 決定，adapter（TWSE v2）以明確的例外清單 `TWSE_LOT_SHARES = {"008201": 100}`
-換算，其餘證券以 1,000 股換算；清單附上證據，不在解析時從數值大小推斷（CLAUDE.md
-§72）。對帳持續做這項檢查。
+依 owner 決定，adapter 以明確的例外清單換算，其餘證券以 1,000 股換算；清單附上證據，
+不在解析時從數值大小推斷（CLAUDE.md §72）。每個例外都記錄證據涵蓋的日期
+（`TWSE_LOT_SHARES = {"008201": (100, 2020-01-02, 2022-07-08)}`，TWSE v3），範圍外
+出現同一代號時整個檔案以 `unverified_trading_unit` 失敗。對帳持續做這項檢查。
 
 其他比值偏離的證券（2832、3717、4572、4904、5904、6996）都**不是**交易單位的問題：
 它們的發行股數在附近期間變動了一倍以上（減資、面額變更，或外資持股來源單日發布錯誤
@@ -124,10 +125,10 @@ backfill 的過程：
 從零 migrate 的資料庫：
 
 ```text
-851 passed, 3 skipped, 1 warning
+854 passed, 3 skipped, 1 warning
 ```
 
-`main` 上的基準是 809 passed。差異是 42 個新測試：26 個 unit、16 個 integration。
+`main` 上的基準是 809 passed。差異是 45 個新測試：28 個 unit、17 個 integration。
 
 每個測試如何確認先失敗：
 
@@ -138,6 +139,8 @@ backfill 的過程：
   `release_rule` 洩漏），恢復後通過。
 - 例外清單與使用率：4 個 unit test 和 3 個 integration test 在修改之前失敗；「負的
   使用率仍然失敗」是防止倒退的測試，一開始就通過。
+- Code review 修正：3 個 unit test 和 1 個 integration test 在修改之前失敗（見下一節；
+  其中一個 unit test 取代原本沒有日期的例外清單測試）。
 
 `ruff check` 對新增和改動的檔案沒有回報新問題；`adapters/__init__.py` 未排序的
 `__all__` 在 `main` 上就已存在。
@@ -149,6 +152,26 @@ python scripts/reconcile_margin_trading.py \
     --database-url postgresql+psycopg://stockdc:stockdc@localhost:5432/stockdc_backfill \
     --legacy-database-url postgresql+psycopg://user:password@127.0.0.1:5419/stock_db
 ```
+
+## Code review（#34）
+
+四項發現都成立，都在本 step 範圍內修正：
+
+1. **（中）對帳的通過條件是黑名單。** 原本只排除 `legacy_only` 和 `value_differs`，
+   `legacy_file_missing` 或之後新增的分類不會讓對帳失敗。改為白名單 `EXPLAINED`：只有
+   已經證明的分類可以通過，其他一律失敗。`legacy_row_incomplete` 也收緊：只有在每個
+   不同的欄位在舊系統都是 NULL 時才算，否則歸為 `value_differs`。
+2. **（低）例外清單沒有日期。** 代號重新分配給別的證券時，會被靜默以 100 股換算、
+   差十倍。改為 `(股數, 起, 迄)`，範圍外以 `unverified_trading_unit` 讓整個檔案失敗；
+   adapter 升為 `twse-mi-margn:v3`。
+3. **（低）使用率沒有欄位上限。** 放寬為 ≥ 0 之後，超過 `NUMERIC(12,8)` 能存的值
+   （≥ 10,000）會在寫入時才失敗。模型加上上限 `9999.99999999`，在解析時就以
+   `invalid_numeric` 讓檔案失敗。
+4. **（低）例外清單不在設定指紋裡。** 修改清單不會改變 manifest 的指紋，續跑會混用
+   兩種換算。`_source_semantics` 加入 `lot_shares` 與 `default_lot_shares`。
+
+不需要重跑 backfill：008201 的所有日期都在它的範圍內，v3 的輸出和 v2 相同；只有
+設定指紋不同，所以之後的續跑要用新的 import id。
 
 ## 踩到的坑
 

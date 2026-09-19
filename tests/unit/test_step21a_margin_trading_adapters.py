@@ -289,11 +289,20 @@ def test_twse_every_other_security_converts_lots_of_one_thousand() -> None:
     assert int(one(twse(TWSE_2020, FIRST), "0050").margin_next_limit.value) == 171_750 * 1000
 
 
-def test_twse_the_lot_exceptions_are_explicit() -> None:
+def test_twse_the_lot_exceptions_are_explicit_and_dated() -> None:
     from stock_data_center.ingestion.adapters.margin_trading import TWSE_LOT_SHARES
 
-    assert dict(TWSE_LOT_SHARES) == {"008201": 100}
-    assert TWSEMarginTradingAdapter.version == "twse-mi-margn:v2"
+    assert dict(TWSE_LOT_SHARES) == {"008201": (100, date(2020, 1, 2), date(2022, 7, 8))}
+    assert TWSEMarginTradingAdapter.version == "twse-mi-margn:v3"
+
+
+def test_twse_a_lot_exception_code_outside_its_dates_fails_the_file() -> None:
+    """Review of #34: a code reused by a new 1,000-share security would
+    otherwise be stored ten times too small, and no check would see it."""
+    raw = mutate(TWSE, lambda p: p["tables"][1]["data"][0].__setitem__(0, "008201"))
+    with pytest.raises(SourceDataError) as error:
+        twse(raw)
+    assert error.value.reason_code == "unverified_trading_unit"
 
 
 def test_the_observation_accepts_a_utilization_above_one_hundred() -> None:
@@ -307,3 +316,13 @@ def test_the_observation_accepts_a_utilization_above_one_hundred() -> None:
     assert observation.margin_utilization_ratio == Decimal("103.1")
     with pytest.raises(ValueError):
         MarginTradingObservation(trade_date=DAY, margin_utilization_ratio=Decimal("-1"))
+
+
+
+def test_a_utilization_too_large_for_its_column_fails_the_file() -> None:
+    """Review of #34: the ratio columns are NUMERIC(12,8). A value that cannot be
+    stored must fail as data, not as a database error on every retry."""
+    raw = mutate(TPEX, lambda p: p["tables"][0]["data"][0].__setitem__(8, "10000"))
+    with pytest.raises(SourceDataError) as error:
+        tpex(raw)
+    assert error.value.reason_code == "invalid_numeric"

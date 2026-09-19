@@ -61,7 +61,10 @@ DATASET = "margin_trading"
 MARKETS = {"twse_mi_margn": ("TWSE", "sii"), "tpex_margin_balance": ("TPEx", "otc")}
 # Shares per lot for the listed exceptions (TWSE's note: offshore ETFs and
 # foreign secondary listings); every other security trades in lots of 1,000.
-LOT_SHARES = {"twse_mi_margn": dict(TWSE_LOT_SHARES), "tpex_margin_balance": {}}
+LOT_SHARES = {
+    "twse_mi_margn": {code: shares for code, (shares, _, _) in TWSE_LOT_SHARES.items()},
+    "tpex_margin_balance": {},
+}
 # Step 20-d's issued shares for the lot check, per market.
 ISSUED_SOURCE = {"TWSE": "twse_mi_qfiis", "TPEx": "mops_t13sa150_otc"}
 LEGACY = {
@@ -92,6 +95,14 @@ ARCHIVE_COLUMNS = {
     },
 }
 TAIPEI = ZoneInfo("Asia/Taipei")
+# The difference classes a proof stands behind.
+EXPLAINED = frozenset({
+    "legacy_captured_another_date:legacy_rows",
+    "legacy_file_matches_no_date_in_window:legacy_rows",
+    "value_differs:legacy_row_incomplete",
+    "value_differs:legacy_captured_before_settlement",
+    "value_differs:source_changed_after_legacy_capture",
+})
 
 
 def import_counts(connection, source: str, start: date, end: date) -> dict:
@@ -281,8 +292,12 @@ def classify_value(
     archive: Path, day: date, legacy_market: str, code: str, theirs: dict,
     ours_day: dict, cache: dict,
 ) -> str:
-    if any(value is None for value in theirs.values()):
+    differing = [name for name in FIELDS if ours_day[code][name] != theirs[name]]
+    if differing and all(theirs[name] is None for name in differing):
+        # Every difference is a value legacy lacks: its NULLs are the proof.
         return "value_differs:legacy_row_incomplete"
+    if any(value is None for value in theirs.values()):
+        return "value_differs"
     path = legacy_file(archive, day, legacy_market)
     if not path.exists():
         return "value_differs:legacy_file_missing"
@@ -473,10 +488,11 @@ def main(argv: list[str] | None = None) -> int:
         legacy_engine.dispose()
 
     print(json.dumps(report, ensure_ascii=False, indent=2, default=str))
+    # Only classes that were proven pass; anything else fails the run, including
+    # a class added later and forgotten here (review of #34).
     clean = all(
         entry["coverage"]["is_complete"]
-        and "legacy_only" not in entry["legacy_reconciliation"]["differences"]
-        and "value_differs" not in entry["legacy_reconciliation"]["differences"]
+        and set(entry["legacy_reconciliation"]["differences"]) <= EXPLAINED
         and not entry["legacy_reconciliation"]["roll_forward_failures"]
         and not entry["legacy_reconciliation"]["lot_check_examples_above_5"]
         for entry in report["sources"].values()

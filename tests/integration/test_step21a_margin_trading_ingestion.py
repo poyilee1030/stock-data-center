@@ -393,3 +393,17 @@ def test_the_cap_downgrade_restores_the_old_check_and_upgrade_relaxes_it(
             ]
     finally:
         engine.dispose()
+
+
+def test_the_manifest_records_the_lot_exceptions(isolated_database_url: str) -> None:
+    """Review of #34: the lot sizes are source semantics, so they belong in the
+    configuration fingerprint; editing the exception list changes it."""
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        described = MarginTradingImporter(engine)._source_semantics(TWSEMarginTradingAdapter())
+        assert described["lot_shares"] == {"008201": [100, "2020-01-02", "2022-07-08"]}
+        assert described["default_lot_shares"] == 1000
+        tpex = MarginTradingImporter(engine)._source_semantics(TPExMarginTradingAdapter())
+        assert tpex["lot_shares"] == {}
+    finally:
+        engine.dispose()

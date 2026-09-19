@@ -417,7 +417,10 @@ markets.
   next-day limit × 100 equals 25% of its issued units on all 612 of its dates.
   It was found by comparing every next-day limit with 25% of the issued shares
   Step 20-d stored; no other security departs from a 1,000-share lot except
-  where its issued shares moved at least twofold nearby.
+  where its issued shares moved at least twofold nearby. The adapter's
+  `TWSE_LOT_SHARES` records each exception with the dates its evidence covers;
+  the same code outside them fails its file as `unverified_trading_unit`
+  (`twse-mi-margn:v3`).
 - **Column order.** TPEx lists 券賣 before 券買 on the short side; TWSE repeats
   買進/賣出/前日餘額/今日餘額/次一營業日限額 for both sides.
 - **Utilization above 100.** TPEx published 資使用率 103.1% for 00989B on

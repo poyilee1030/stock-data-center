@@ -55,12 +55,15 @@ _ROC_OFFSET = 1911
 _LOTS = re.compile(r"\d{1,3}(?:,\d{3})*|\d+")
 _RATIOS = frozenset({"margin_utilization_ratio", "short_utilization_ratio"})
 
-# Securities whose TWSE trading unit is not 1,000 shares, within the v1 window.
+# Securities whose TWSE trading unit is not 1,000 shares: code -> (shares per
+# lot, first and last date the evidence covers). Outside those dates the code
+# fails its file instead of being converted: a code reused by a new security
+# would otherwise be stored ten times off (review of #34).
 TWSE_LOT_SHARES = MappingProxyType({
     # BP上證50, an offshore ETF (ISIN HK0000052297), listed until 2022-07-08.
     # Its next-day limit × 100 equals 25% of its issued units on all 612 of its
     # dates; × 1,000 would be ten times that.
-    "008201": 100,
+    "008201": (100, date(2020, 1, 2), date(2022, 7, 8)),
 })
 
 
@@ -75,8 +78,8 @@ class MarginTradingAdapter(ABC):
     variants: Mapping[str, tuple[str, ...]]
     # Observation field -> index into the published row.
     columns: Mapping[str, int]
-    # Shares per lot for the securities that do not trade in lots of 1,000.
-    lot_shares: Mapping[str, int] = MappingProxyType({})
+    # Shares per lot, with its dates, for securities not trading in lots of 1,000.
+    lot_shares: Mapping[str, tuple[int, date, date]] = MappingProxyType({})
 
     @abstractmethod
     def resource(self, request: MarginTradingRequest) -> SourceResource: ...
@@ -122,11 +125,12 @@ class MarginTradingAdapter(ABC):
                     f"{self.source} lists {code} twice for {request.trade_date.isoformat()}",
                 )
             seen.add(code)
+            lot = self._lot_size(code, request.trade_date)
             values = {
                 name: (
                     self._ratio(raw[index], number, name)
                     if name in _RATIOS
-                    else self._lots(raw[index], number, name, self.lot_shares.get(code))
+                    else self._lots(raw[index], number, name, lot)
                 )
                 for name, index in self.columns.items()
             }
@@ -144,6 +148,20 @@ class MarginTradingAdapter(ABC):
             header_variant=variant,
             source_fields=header,
         )
+
+    def _lot_size(self, code: str, day: date) -> int | None:
+        """Shares per lot where listed; None for the default lot of 1,000."""
+        exception = self.lot_shares.get(code)
+        if exception is None:
+            return None
+        shares, first, last = exception
+        if not first <= day <= last:
+            raise SourceDataError(
+                "unverified_trading_unit",
+                f"{self.source} lists {code} on {day.isoformat()}, outside the "
+                f"{first.isoformat()}..{last.isoformat()} its {shares}-share lot is proven for",
+            )
+        return shares
 
     def _text(self, value: object, number: int) -> str:
         if not isinstance(value, str):
@@ -196,7 +214,7 @@ class TWSEMarginTradingAdapter(MarginTradingAdapter):
 
     source = "twse_mi_margn"
     market = "TWSE"
-    version = "twse-mi-margn:v2"
+    version = "twse-mi-margn:v3"
     lot_shares = TWSE_LOT_SHARES
     endpoint = "https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN"
     variants = MappingProxyType({

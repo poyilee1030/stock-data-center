@@ -144,8 +144,9 @@ tests/
   `tpex_insti_qfii`；兩個來源各自保存、不合併。詳見
   `docs/step_reports/step-20-d-acceptance-report.md`。
 - 融資融券的「張」不一定是 1,000 股：TWSE 註明境外 ETF 和外國股票第二上市例外。
-  期間內只有 008201（一張 100 股），列在 adapter 的 `TWSE_LOT_SHARES`；對帳腳本會
-  對每一天檢查限額與發行股數，出現新的例外會失敗。
+  期間內只有 008201（一張 100 股，2020-01-02 → 2022-07-08），列在 adapter 的
+  `TWSE_LOT_SHARES`；同一代號在日期範圍外出現時整個檔案失敗。對帳腳本會對每一天
+  檢查限額與發行股數，出現新的例外會失敗。
 - 融資使用率可以超過 100%（單日買超限額，隔天才暫停），Step 21-a 已放寬 schema。
 - 回補續跑時，如果工作目錄的 git 狀態（乾淨或有未提交檔案）和原本那次不同，已完成的
   日期會因「import_id cannot be reused with changed configuration」而回報失敗；資料

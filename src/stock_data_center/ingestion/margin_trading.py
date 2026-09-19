@@ -76,7 +76,13 @@ class MarginTradingImporter(
             )
         return {
             "market": adapter.market,
-            "quantity_unit": "shares, from lots of 1,000",
+            "quantity_unit": "shares, from lots",
+            "default_lot_shares": 1000,
+            # Part of the fingerprint: editing the exception list changes it.
+            "lot_shares": {
+                code: [shares, first.isoformat(), last.isoformat()]
+                for code, (shares, first, last) in adapter.lot_shares.items()
+            },
             "columns": dict(adapter.columns),
             "utilization_ratio": "percent, as published; TWSE publishes none",
             "not_stored": "names, TPEx 資屬證金/券屬證金, status notes",
