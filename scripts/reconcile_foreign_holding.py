@@ -8,8 +8,12 @@ classified (CLAUDE.md §78).
 
 TPEx has two sources (migration f2b6d8a4c1e9): MOPS drops a security that is
 no longer listed from every past date, and TPEx's `insti/qfii` omits most ETFs.
-A legacy row one of them lacks is explained when the other has it on that
-date, and unexplained otherwise. `insti/qfii` rounds D where MOPS truncates it,
+A legacy row MOPS lacks is explained when MOPS no longer carries the security
+at all and insti/qfii has the row on that date; unexplained otherwise. A legacy
+date that disagrees with ours is blamed on legacy saving another date's file
+only when some other stored date reproduces its rows exactly, or, when none
+does, when our rows for that date are continuous with the neighbouring stored
+dates, which shows ours is right and legacy's file matches no date here. `insti/qfii` rounds D where MOPS truncates it,
 so a legacy row (saved from MOPS) differing only that way is its own class.
 
 Legacy `foreign_holding` stores six of the contract's nine values, as floats:
@@ -203,6 +207,56 @@ def rounded_only(ours: dict, theirs: dict) -> bool:
     )
 
 
+def agreement(ours_day: dict, theirs_day: dict, source: str) -> float:
+    """Share of the securities both hold whose compared values agree."""
+    present = [code for code in theirs_day if code in ours_day]
+    if not present:
+        return 0.0
+    return sum(
+        ours_day[code] == theirs_day[code]
+        or (source == "tpex_insti_qfii" and rounded_only(ours_day[code], theirs_day[code]))
+        for code in present
+    ) / len(present)
+
+
+def matching_date(
+    stored: dict, theirs_day: dict, source: str, *, exclude: date
+) -> tuple[date, float] | None:
+    """The stored date whose rows legacy's rows reproduce, if one does: every
+    shared security agrees and most of legacy's securities are shared."""
+    best: tuple[date, float] | None = None
+    for other_day, ours_day in stored.items():
+        if other_day == exclude:
+            continue
+        shared = sum(code in ours_day for code in theirs_day)
+        if shared < 0.9 * len(theirs_day):
+            continue
+        score = agreement(ours_day, theirs_day, source)
+        if score == 1.0 and (best is None or score > best[1]):
+            best = (other_day, score)
+    return best
+
+
+def neighbour_continuity(stored: dict, day: date) -> float | None:
+    """The lower of the shares of our securities whose issued shares equal the
+    previous and the next stored date's."""
+    days = sorted(stored)
+    index = days.index(day)
+    if index == 0 or index == len(days) - 1:
+        return None
+    ours = stored[day]
+    scores = []
+    for other in (days[index - 1], days[index + 1]):
+        shared = [code for code in ours if code in stored[other]]
+        if not shared:
+            return None
+        scores.append(sum(
+            ours[code]["issued_shares"] == stored[other][code]["issued_shares"]
+            for code in shared
+        ) / len(shared))
+    return min(scores)
+
+
 def legacy_value(name: str, value) -> object:
     if value is None:
         return None
@@ -274,6 +328,14 @@ def compare(connection, legacy, archive: Path, source: str, start: date, end: da
         if source in COMPANION else {}
     )
     ever_stored = {code for rows in stored.values() for code in rows}
+    first_traded = dict(connection.execute(sa.text(
+        """
+        SELECT s.security_code, min(v.trade_date)
+          FROM daily_price_versions v JOIN security s ON s.id = v.security_id
+         WHERE v.source = 'tpex_otc_quotes'
+         GROUP BY s.security_code
+        """
+    )).all()) if market == "TPEx" else {}
     companion_ever = {code for rows in companion.values() for code in rows}
     first_seen: dict[str, date] = {}
     for day_, rows in sorted(stored.items()):
@@ -334,28 +396,56 @@ def compare(connection, legacy, archive: Path, source: str, start: date, end: da
                     broken_examples.append({"date": day.isoformat(), "code": code,
                                             "identity": name})
         present = [code for code in theirs_day if code in ours_day]
-        agreeing = sum(
-            ours_day[code] == theirs_day[code]
-            or (source == "tpex_insti_qfii" and rounded_only(ours_day[code], theirs_day[code]))
-            for code in present
-        )
-        if present and agreeing / len(present) < 0.5:
-            wrong_dates[day.isoformat()] = {
-                "legacy_rows": len(theirs_day),
-                "agreement": round(agreeing / len(present), 4),
-            }
-            differences["legacy_captured_another_date:legacy_rows"] += len(theirs_day)
-            continue
+        agreeing = agreement(ours_day, theirs_day, source)
+        if present and agreeing < 0.5:
+            # Classified only once proven (review of #33): some other stored
+            # date must reproduce legacy's rows. Otherwise the rows are
+            # compared as usual and stay unexplained.
+            match = matching_date(stored, theirs_day, source, exclude=day)
+            if match is not None:
+                wrong_dates[day.isoformat()] = {
+                    "legacy_rows": len(theirs_day),
+                    "agreement_with_same_date": round(agreeing, 4),
+                    "reproduces_stored_date": match[0].isoformat(),
+                }
+                differences["legacy_captured_another_date:legacy_rows"] += len(theirs_day)
+                continue
+            # No stored date reproduces legacy's file. It is still blamed on
+            # legacy only when ours is shown right: our rows for the date are
+            # continuous with the neighbouring stored dates (the adapter already
+            # requires the response to echo the requested date).
+            continuity = neighbour_continuity(stored, day)
+            if continuity is not None and continuity >= 0.9:
+                wrong_dates[day.isoformat()] = {
+                    "legacy_rows": len(theirs_day),
+                    "agreement_with_same_date": round(agreeing, 4),
+                    "reproduces_stored_date": None,
+                    "ours_issued_equal_to_neighbours": round(continuity, 4),
+                }
+                differences["legacy_file_matches_no_date_in_window:legacy_rows"] += len(theirs_day)
+                continue
         for code, theirs in theirs_day.items():
             sample = {"date": day.isoformat(), "symbol": code}
             if code not in ours_day:
                 other = companion.get(day, {}).get(code)
-                if source == "mops_t13sa150_otc" and code not in ever_stored:
+                if (
+                    source == "mops_t13sa150_otc" and code not in ever_stored
+                    and other is not None
+                ):
                     # MOPS drops a security that is no longer listed on TPEx
-                    # from every past date (migration f2b6d8a4c1e9); insti/qfii
-                    # usually still has it on that date.
-                    sample["in_insti_qfii"] = other is not None
+                    # from every past date (migration f2b6d8a4c1e9); explained
+                    # only where insti/qfii has the row on that date (review of
+                    # #33: without the check, a row neither source has passed).
                     note("legacy_only:mops_omits_security_no_longer_listed", day, sample)
+                elif (
+                    source == "mops_t13sa150_otc" and code not in ever_stored
+                    and code in first_traded and day < first_traded[code]
+                ):
+                    # 5236: MOPS listed it the day before its first TPEx trade,
+                    # dropped it after it moved to TWSE, and insti/qfii starts at
+                    # the first trade. The first trade date is Step 17's prices.
+                    note("legacy_only:mops_omits_security_no_longer_listed_before_first_trade",
+                         day, sample)
                 elif (
                     source == "tpex_insti_qfii" and code in first_seen
                     and day < first_seen[code] and other is None
