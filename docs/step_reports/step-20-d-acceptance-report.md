@@ -1,6 +1,6 @@
 # Step 20-d 驗收報告
 
-狀態：IN REVIEW
+狀態：IN REVIEW (#33)
 
 範圍：外資持股。這個 step 新增 TWSE `fund/MI_QFIIS`（`twse_mi_qfiis`）和 MOPS
 `t13sa150_otc`（`mops_t13sa150_otc`）adapter，以及 backfill 期間依 owner 決定加入

@@ -1275,7 +1275,7 @@ Schema 影響：無。migration 新增 catalog、source、release rule 和涵蓋
 
 ### Step 20-d — 外資持股
 
-狀態：**IN REVIEW**。依賴：Step 20-c。
+狀態：**IN REVIEW** (#33)。依賴：Step 20-c。
 
 TWSE `MI_QFIIS`（`twse_mi_qfiis`）和 MOPS `t13sa150_otc`（`mops_t13sa150_otc`，
 POST，cp950 HTML，每個日期約 550 KB）寫入 `foreign_holding_versions`，每個欄位都
