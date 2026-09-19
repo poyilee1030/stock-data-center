@@ -161,6 +161,12 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
         artifact_origin: ArtifactOrigin = ArtifactOrigin.OFFICIAL_FETCH,
     ) -> ResourceImportResult:
         scope = self._source_scope(adapter, request, resource)
+        # A POST's URL does not identify its request (CLAUDE.md §71); record
+        # the whole request. A plain GET adds nothing, so no existing
+        # import's scope or fingerprint changes.
+        request_identity = resource.request_identity()
+        if request_identity is not None:
+            scope = {**scope, "request": request_identity}
         fingerprint = _fingerprint(
             {
                 "dataset_code": adapter.dataset_code,
