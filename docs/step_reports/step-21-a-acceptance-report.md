@@ -1,6 +1,6 @@
 # Step 21-a 驗收報告
 
-狀態：IN REVIEW (#34)
+狀態：MERGED (#34)
 
 範圍：融資融券。這個 step 新增 TWSE `marginTrading/MI_MARGN`（`twse_mi_margn`）和
 TPEx `margin/balance`（`tpex_margin_balance`）adapter、importer、source policy 與

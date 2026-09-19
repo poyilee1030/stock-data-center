@@ -392,12 +392,13 @@ Every `margin_trading_versions` quantity column is sourced. The utilization
 ratios exist for TPEx only; TWSE values are NULL.
 
 - SBL: TWSE `TWT93U` (15 columns, two header rows) and TPEx `margin_sbl`
-  (15 columns). Every `securities_lending_versions` column is sourced.
+  (15 columns), in shares. Every `securities_lending_versions` column is
+  sourced (Step 21-b findings below).
 
 TPEx new-site JSON, found 2026-09-17: `margin_bal` is also served as
 `www/zh-tw/margin/balance`, with the same 20 fields, and `margin_sbl` as
 `www/zh-tw/margin/sbl`, with the same 15 fields. Both answer 2020-01-02 and
-2026-09-11. Step 21 decides which endpoint to use.
+2026-09-11. Step 21 chose the JSON for both.
 
 #### Step 21-a findings (2026-09-19)
 
@@ -433,6 +434,57 @@ markets.
   repayment = balance.
 - **Not stored.** TPEx 資屬證金 and 券屬證金, and both exchanges' status notes
   (TWSE `O X @ % !`, TPEx codes such as `11 C`), have no contract column.
+
+#### Step 21-b findings (2026-09-19)
+
+Verified by live fetches across the window and the 2020-01-02 → 2026-09-11
+backfill of both markets.
+
+- **Endpoints.** TWSE `rwd/zh/marginTrading/TWT93U?date=YYYYMMDD&response=json`
+  (`twse_twt93u`); TPEx `www/zh-tw/margin/sbl?date=YYYY/MM/DD&response=json`
+  (`tpex_margin_sbl`), chosen over the legacy CSV. One header per market for
+  the whole window. TWSE groups its 15 fields as 股票 (2) / 融券 (6) /
+  借券賣出 (6) / 備註 (1) and ends with a codeless `合計` row; TPEx has no total
+  row. A closed date answers TWSE `stat` `OK` with no rows (and no `hints`),
+  and TPEx `stat` `ok` with an empty table.
+- **Units: shares, not lots.** TWSE `hints` reads `單位：股` on every trading
+  date. The TPEx JSON states no unit; the page that renders it declares
+  `subtitle2:"單位：股"`, and its 融券 group equals `margin/balance`'s `(張)`
+  columns × 1,000 row for row. Nothing is converted, so 21-a's trading-unit
+  exceptions do not apply: 008201's 融券 limit here is 387,275 shares, exactly
+  25% of its 1,549,100 issued units, where MI_MARGN publishes 3,872 lots of 100.
+- **Mapping.** `securities_lending_versions` takes the 借券賣出 group:
+  前日餘額 → `previous_balance`, 當日賣出 → `borrowed`, 當日還券 → `returned`,
+  當日調整 (TPEx 當日調整數額) → `adjustment`, 當日餘額 → `balance`,
+  次一營業日可限額 (TPEx 次一營業日可借券賣出限額) → `next_available_limit`,
+  and 備註 → `note`, stripped of its padding, blank as NULL (TWSE `X Y V % Z !`
+  combinations such as `XV!`). `next_limit` is the 融券 group's
+  次一營業日限額 (TPEx 限額): the short-sale limit in exact shares, which
+  `margin_trading.short_next_limit` holds only rounded down to whole lots.
+- **當日調整 is signed.** Positions moved between the ordinary, credit and
+  lending accounts, and error corrections (both exchanges' notes); the TWSE
+  market total on 2024-01-02 was −565,000.
+- **Roll-forward.** 前日餘額 + 當日賣出 − 當日還券 + 當日調整 = 當日餘額, the
+  formula both exchanges print, holds on every stored row of both markets.
+- **Not stored.** Names, the `合計` row, and the 融券 group's balances and
+  flows, which repeat `margin_trading`: the reconciliation re-reads every raw
+  file and finds them equal to the stored 21-a short side. A security the
+  margin table does not list appears here with an all-zero 融券 group; almost
+  all carry note `Y` (未取得信用交易資格: TWSE 6,276 of 6,289 rows, TPEx 38,575
+  of 38,576).
+- **Market moves.** On the evening before a security moves between TPEx and
+  TWSE, both lending tables list it with the same values (TWSE's note:
+  第二次更新時將納入原為上櫃次日將轉為上市交易之個股); its 融券 group is then in
+  the other market's margin table. Eleven such rows in the window (TWSE 10,
+  TPEx 1, the move from TWSE to TPEx of 6423 on 2026-01-21). Each source keeps
+  what it published.
+- **停止買賣 clears the balance.** On 21 TWSE rows with note `!` the balance
+  goes to zero with no 還券 or 調整 (capital reductions and delistings, e.g.
+  2409 and 3481 on 2022-09-29); the next date starts from zero. The
+  roll-forward check accepts only that pattern.
+- **Limits can disagree for a day.** 1721 on 2021-02-05: MI_MARGN already
+  shows the new limit (42,456 lots) while TWT93U shows 47,248,750 shares,
+  moving to 42,456,680 from the next trading date.
 
 Step 20-b settled the summary endpoints, verified 2026-09-18:
 
