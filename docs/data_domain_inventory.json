@@ -1363,7 +1363,7 @@
         "dataset_code": "securities_lending",
         "v1": true,
         "roadmap_pr": 21,
-        "reason": "TWSE TWT93U (15 columns, two header rows) and TPEx margin_sbl (15 columns). Audit 4.5 certifies every column of this table as sourced.",
+        "reason": "TWSE marginTrading/TWT93U (twse_twt93u) and TPEx margin/sbl (tpex_margin_sbl, the JSON of margin_sbl), both in shares (audit 4.5, Step 21-b).",
         "columns": {
           "security_id": {
             "coverage": "internal",
@@ -1373,7 +1373,7 @@
             "coverage": "sourced",
             "source_fields": [
               "report date of the requested TWT93U file",
-              "report date of the requested margin_sbl file"
+              "report date of the requested margin/sbl file"
             ],
             "audit_section": "4.5",
             "note": "One whole-market file per trade date."
@@ -1381,74 +1381,74 @@
           "previous_balance": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE TWT93U",
-              "TPEx margin_sbl"
+              "TWSE marginTrading/TWT93U 借券賣出 前日餘額",
+              "TPEx margin/sbl 借券賣出 前日餘額"
             ],
             "audit_section": "4.5",
-            "note": "Audit 4.5: every securities_lending_versions column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+            "note": "Audit 4.5, Step 21-b: 2020-01-02 onward in both markets; published in shares (TWSE hints 單位：股; TPEx page 單位：股), stored unconverted."
           },
           "borrowed": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE TWT93U",
-              "TPEx margin_sbl"
+              "TWSE marginTrading/TWT93U 借券賣出 當日賣出",
+              "TPEx margin/sbl 借券賣出 當日賣出"
             ],
             "audit_section": "4.5",
-            "note": "Audit 4.5: every securities_lending_versions column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+            "note": "Audit 4.5, Step 21-b: 2020-01-02 onward in both markets; published in shares (TWSE hints 單位：股; TPEx page 單位：股), stored unconverted."
           },
           "returned": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE TWT93U",
-              "TPEx margin_sbl"
+              "TWSE marginTrading/TWT93U 借券賣出 當日還券",
+              "TPEx margin/sbl 借券賣出 當日還券"
             ],
             "audit_section": "4.5",
-            "note": "Audit 4.5: every securities_lending_versions column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+            "note": "Audit 4.5, Step 21-b: 2020-01-02 onward in both markets; published in shares (TWSE hints 單位：股; TPEx page 單位：股), stored unconverted."
           },
           "balance": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE TWT93U",
-              "TPEx margin_sbl"
+              "TWSE marginTrading/TWT93U 借券賣出 當日餘額",
+              "TPEx margin/sbl 借券賣出 當日餘額"
             ],
             "audit_section": "4.5",
-            "note": "Audit 4.5: every securities_lending_versions column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+            "note": "Audit 4.5, Step 21-b: 2020-01-02 onward in both markets; published in shares (TWSE hints 單位：股; TPEx page 單位：股), stored unconverted."
           },
           "next_limit": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE TWT93U",
-              "TPEx margin_sbl"
+              "TWSE marginTrading/TWT93U 融券 次一營業日限額",
+              "TPEx margin/sbl 融券 限額"
             ],
             "audit_section": "4.5",
-            "note": "Audit 4.5: every securities_lending_versions column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+            "note": "Audit 4.5, Step 21-b: 2020-01-02 onward in both markets; published in shares (TWSE hints 單位：股; TPEx page 單位：股), stored unconverted. The short-sale limit in exact shares; margin_trading.short_next_limit holds it rounded down to whole lots."
           },
           "next_available_limit": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE TWT93U",
-              "TPEx margin_sbl"
+              "TWSE marginTrading/TWT93U 次一營業日可限額",
+              "TPEx margin/sbl 次一營業日可借券賣出限額"
             ],
             "audit_section": "4.5",
-            "note": "Audit 4.5: every securities_lending_versions column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+            "note": "Audit 4.5, Step 21-b: 2020-01-02 onward in both markets; published in shares (TWSE hints 單位：股; TPEx page 單位：股), stored unconverted."
           },
           "adjustment": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE TWT93U",
-              "TPEx margin_sbl"
+              "TWSE marginTrading/TWT93U 借券賣出 當日調整",
+              "TPEx margin/sbl 借券賣出 當日調整數額"
             ],
             "audit_section": "4.5",
-            "note": "Audit 4.5: every securities_lending_versions column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+            "note": "Audit 4.5, Step 21-b: 2020-01-02 onward in both markets; published in shares (TWSE hints 單位：股; TPEx page 單位：股), stored unconverted. Signed: positions moved between accounts and error corrections."
           },
           "note": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE TWT93U",
-              "TPEx margin_sbl"
+              "TWSE marginTrading/TWT93U 備註",
+              "TPEx margin/sbl 備註"
             ],
             "audit_section": "4.5",
-            "note": "Audit 4.5: every securities_lending_versions column is sourced. Source lots are multiplied by 1,000 before observation, storage, and hashing."
+            "note": "Audit 4.5, Step 21-b: status symbols as published (TWSE X/Y/V/%/Z/!), padding stripped, blank stored as NULL."
           }
         }
       },

@@ -16,6 +16,7 @@ from stock_data_center.institutional_financing.models import (
     InstitutionalInvestorObservation,
     InstitutionalMarketSummaryObservation,
     MarginTradingObservation,
+    SecuritiesLendingObservation,
 )
 from stock_data_center.provenance import ArtifactOrigin, IngestPurpose
 from stock_data_center.market_data import (
@@ -250,6 +251,38 @@ class ParsedMarginTrading:
     market: str
     trade_date: date
     rows: tuple[MarginTradingRow, ...]
+    header_variant: str
+    source_fields: tuple[str, ...]
+
+    @property
+    def coverage_start(self) -> date | None:
+        return self.trade_date if self.rows else None
+
+    @property
+    def coverage_end(self) -> date | None:
+        return self.trade_date if self.rows else None
+
+
+@dataclass(frozen=True, slots=True)
+class SecuritiesLendingRequest:
+    """Request one market's per-security securities lending for one trade date."""
+
+    trade_date: date
+
+
+@dataclass(frozen=True, slots=True)
+class SecuritiesLendingRow:
+    security_code: str
+    observation: SecuritiesLendingObservation
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedSecuritiesLending:
+    """Every per-security lending row one market published for one trade date."""
+
+    market: str
+    trade_date: date
+    rows: tuple[SecuritiesLendingRow, ...]
     header_variant: str
     source_fields: tuple[str, ...]
 

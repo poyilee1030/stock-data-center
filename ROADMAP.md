@@ -606,8 +606,8 @@ explicit out-of-scope work
 | 20-b | MERGED | 法人買賣市場彙總 |
 | 20-c | MERGED | 完整描述來源請求，以及每台主機的請求速率控管 |
 | 20-d | MERGED | 外資持股 |
-| 21-a | THIS STEP | 融資融券 |
-| 21-b | PLANNED | 借券 |
+| 21-a | MERGED | 融資融券 |
+| 21-b | THIS STEP | 借券 |
 | 22 | PLANNED | 月營收 |
 | 23 | PLANNED | 財務報表（iXBRL） |
 | 24 | PLANNED | TDCC 股權分散 |
@@ -1323,7 +1323,7 @@ POST，cp950 HTML，每個日期約 550 KB）寫入 `foreign_holding_versions`�
 
 ### Step 21-a — 融資融券
 
-狀態：**IN REVIEW** (#34)。依賴：Step 16、Step 17-c、Step 20-d（單位檢查用它的發行股數）。
+狀態：**MERGED** (#34)。依賴：Step 16、Step 17-c、Step 20-d（單位檢查用它的發行股數）。
 
 範圍內：TWSE `marginTrading/MI_MARGN`（`twse_mi_margn`）和 TPEx `margin/balance`
 （`tpex_margin_balance`，舊 `margin_bal` 頁面的 JSON，選它而不選 CSV）寫入
@@ -1351,11 +1351,40 @@ POST，cp950 HTML，每個日期約 550 KB）寫入 `foreign_holding_versions`�
 
 ### Step 21-b — 借券
 
-狀態：**PLANNED**。依賴：Step 21-a。
+狀態：**IN REVIEW** (#35)。依賴：Step 21-a（對帳用它的 `margin_trading` 融券欄位）。
 
-TWSE `TWT93U` 和 TPEx `margin/sbl`（舊 `margin_sbl` 頁面的 JSON）寫入
-`securities_lending_versions`，對帳舊系統 `margin_sbl`。開工時先查 TWT93U 的單位是股
-還是張，以及 21-a 找到的交易單位例外是否也適用。
+範圍內：TWSE `marginTrading/TWT93U`（`twse_twt93u`）和 TPEx `margin/sbl`
+（`tpex_margin_sbl`，舊 `margin_sbl` 頁面的 JSON，選它而不選 CSV）寫入
+`securities_lending_versions`。範圍內還有：importer、source policy 與涵蓋宣告、CLI
+`securities-lending`、2020-01-02 → 2026-09-11 的 backfill，以及與舊系統 `margin_sbl`
+的對帳。兩個來源都遵循 `exchange_daily_settled@1`。
+
+2026-09-19 定案（audit §4.5「Step 21-b findings」）：
+
+- **單位是股，不是張。** TWSE 每個交易日的 `hints` 都是 `單位：股`；TPEx 的 JSON 沒有
+  標示單位，但呈現它的頁面宣告 `單位：股`，而且它的融券欄位逐列等於 `margin/balance`
+  的張數 × 1,000。因此不做換算，21-a 的交易單位例外（008201 一張 100 股）也不適用：
+  這裡 008201 的融券限額是 387,275 股，恰好是發行量 1,549,100 的 25%。
+- **欄位對應。** 借券賣出組的 前日餘額、當日賣出、當日還券、當日調整（有正負）、
+  當日餘額、次一營業日可限額，以及備註（去掉空白，空白為 NULL）。`next_limit` 是
+  融券組的 次一營業日限額／限額：以股為單位的精確融券限額，`margin_trading` 只存到
+  整張（無條件捨去）。
+- **融券組不重複儲存。** 它的餘額與買賣和 21-a 的 `margin_trading` 相同；對帳腳本逐日
+  重讀 raw artifact 確認兩者相等，這也是 TPEx 單位的逐日證明。舊系統 `margin_sbl` 的
+  `margin_short_*` 對帳到 `margin_trading`。
+
+驗收：
+
+- 舊系統 `margin_sbl` 已對帳，每個差異都已分類
+- 兩個市場的涵蓋都完整
+- 每個儲存的列都滿足 前日餘額 + 當日賣出 − 當日還券 + 當日調整 = 當日餘額
+- 每個 raw 檔的融券組都等於儲存的 `margin_trading` 融券欄位
+
+範圍外的發現（排給之後修改 21-a adapter 的 step）：MI_MARGN 在 2022-07-11 →
+2022-08-10 仍列出 008201（值全為 0），超出 `TWSE_LOT_SHARES` 的證據範圍，所以用
+`twse-mi-margn:v3` 重抓這段日期時會整檔失敗；已存的資料正確。
+
+驗收證據：`docs/step_reports/step-21-b-acceptance-report.md`。
 
 ## Step 22 — 月營收
 

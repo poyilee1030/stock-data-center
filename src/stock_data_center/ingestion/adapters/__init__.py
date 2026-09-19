@@ -50,6 +50,10 @@ from stock_data_center.ingestion.adapters.official_valuation import (
     TPExOfficialValuationAdapter,
     TWSEOfficialValuationAdapter,
 )
+from stock_data_center.ingestion.adapters.securities_lending import (
+    TPExSecuritiesLendingAdapter,
+    TWSESecuritiesLendingAdapter,
+)
 from stock_data_center.ingestion.adapters.security_lifecycle import (
     SecurityLifecycleAdapter,
     TPExDelistingHistoryAdapter,
@@ -91,9 +95,11 @@ __all__ = [
     "TPExExRightDailyAdapter",
     "TPExInstiQfiiForeignHoldingAdapter",
     "TPExMarginTradingAdapter",
+    "TPExSecuritiesLendingAdapter",
     "TPExInstitutionalInvestorAdapter",
     "TWSEForeignHoldingAdapter",
     "TWSEMarginTradingAdapter",
+    "TWSESecuritiesLendingAdapter",
     "TPExInstitutionalMarketSummaryAdapter",
     "TPExListingHistoryAdapter",
     "TPExSecurityMetadataAdapter",
