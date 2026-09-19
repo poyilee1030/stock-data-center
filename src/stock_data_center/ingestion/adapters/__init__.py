@@ -35,6 +35,10 @@ from stock_data_center.ingestion.adapters.institutional_summary import (
     TPExInstitutionalMarketSummaryAdapter,
     TWSEInstitutionalMarketSummaryAdapter,
 )
+from stock_data_center.ingestion.adapters.margin_trading import (
+    TPExMarginTradingAdapter,
+    TWSEMarginTradingAdapter,
+)
 from stock_data_center.ingestion.adapters.market_index import (
     MarketIndexAdapter,
     TPExMarketIndexAdapter,
@@ -86,8 +90,10 @@ __all__ = [
     "TPExETFSplitAdapter",
     "TPExExRightDailyAdapter",
     "TPExInstiQfiiForeignHoldingAdapter",
+    "TPExMarginTradingAdapter",
     "TPExInstitutionalInvestorAdapter",
     "TWSEForeignHoldingAdapter",
+    "TWSEMarginTradingAdapter",
     "TPExInstitutionalMarketSummaryAdapter",
     "TPExListingHistoryAdapter",
     "TPExSecurityMetadataAdapter",

@@ -24,6 +24,7 @@ from stock_data_center.ingestion.adapters import (
     TPExInstitutionalInvestorAdapter,
     TPExInstitutionalMarketSummaryAdapter,
     TPExListingHistoryAdapter,
+    TPExMarginTradingAdapter,
     TPExMarketIndexAdapter,
     TPExOfficialValuationAdapter,
     TPExParValueChangeAdapter,
@@ -38,6 +39,7 @@ from stock_data_center.ingestion.adapters import (
     TWSEInstitutionalInvestorAdapter,
     TWSEInstitutionalMarketSummaryAdapter,
     TWSEListingHistoryAdapter,
+    TWSEMarginTradingAdapter,
     TWSEMarketIndexAdapter,
     TWSEOfficialValuationAdapter,
     TWSEParValueChangeAdapter,
@@ -63,6 +65,7 @@ from stock_data_center.ingestion.institutional_investor import (
 from stock_data_center.ingestion.institutional_summary import (
     InstitutionalMarketSummaryImporter,
 )
+from stock_data_center.ingestion.margin_trading import MarginTradingImporter
 from stock_data_center.ingestion.market_index import (
     MarketIndexImporter,
     TaiexHistoryImporter,
@@ -74,6 +77,7 @@ from stock_data_center.ingestion.models import (
     IngestPurpose,
     InstitutionalInvestorRequest,
     InstitutionalMarketSummaryRequest,
+    MarginTradingRequest,
     MarketIndexRequest,
     OfficialValuationRequest,
     SecurityLifecycleRequest,
@@ -208,6 +212,22 @@ def main(argv: list[str] | None = None) -> int:
     summary.add_argument("--min-interval-seconds", type=float, default=1.5)
     summary.add_argument("--import-id", type=UUID)
     summary.add_argument("--raw-root", type=Path, default=Path("data/raw"))
+    margin = subparsers.add_parser(
+        "margin-trading",
+        help="import one market's per-security margin trading for one trade date",
+    )
+    margin.add_argument(
+        "--source", choices=("twse_mi_margn", "tpex_margin_balance"), required=True
+    )
+    margin.add_argument("--trade-date", required=True, help="Gregorian YYYY-MM-DD")
+    margin.add_argument(
+        "--through",
+        help="optional Gregorian YYYY-MM-DD; import every published trading "
+        "date from --trade-date to it, driven by the Step 16 calendar",
+    )
+    margin.add_argument("--min-interval-seconds", type=float, default=1.5)
+    margin.add_argument("--import-id", type=UUID)
+    margin.add_argument("--raw-root", type=Path, default=Path("data/raw"))
     holding = subparsers.add_parser(
         "foreign-holding",
         help="import one market's per-security foreign holding for one trade date",
@@ -536,6 +556,40 @@ def main(argv: list[str] | None = None) -> int:
                 result = importer.run(
                     adapter=adapter,
                     request=InstitutionalMarketSummaryRequest(first),
+                    import_id=import_id,
+                    purpose=IngestPurpose(args.purpose),
+                )
+        elif args.command == "margin-trading":
+            importer = MarginTradingImporter(
+                engine, raw_store=LocalRawArtifactStore(args.raw_root)
+            )
+            adapter = (
+                TWSEMarginTradingAdapter()
+                if args.source == "twse_mi_margn"
+                else TPExMarginTradingAdapter()
+            )
+            first = date.fromisoformat(args.trade_date)
+            if args.through:
+                last = date.fromisoformat(args.through)
+                if last < first:
+                    parser.error("--through must not be before --trade-date")
+                base_import_id = args.import_id or default_base_import_id(
+                    args.source, first, last
+                )
+                backfill_report = WholeMarketDailyBackfill(
+                    importer, request_factory=MarginTradingRequest
+                ).run(
+                    adapter=adapter,
+                    start=first,
+                    end=last,
+                    base_import_id=base_import_id,
+                    purpose=IngestPurpose(args.purpose),
+                    min_interval_seconds=args.min_interval_seconds,
+                )
+            else:
+                result = importer.run(
+                    adapter=adapter,
+                    request=MarginTradingRequest(first),
                     import_id=import_id,
                     purpose=IngestPurpose(args.purpose),
                 )
