@@ -1351,7 +1351,7 @@ POST，cp950 HTML，每個日期約 550 KB）寫入 `foreign_holding_versions`�
 
 ### Step 21-b — 借券
 
-狀態：**IN REVIEW**。依賴：Step 21-a（對帳用它的 `margin_trading` 融券欄位）。
+狀態：**IN REVIEW** (#35)。依賴：Step 21-a（對帳用它的 `margin_trading` 融券欄位）。
 
 範圍內：TWSE `marginTrading/TWT93U`（`twse_twt93u`）和 TPEx `margin/sbl`
 （`tpex_margin_sbl`，舊 `margin_sbl` 頁面的 JSON，選它而不選 CSV）寫入

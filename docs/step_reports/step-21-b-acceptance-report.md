@@ -1,6 +1,6 @@
 # Step 21-b 驗收報告
 
-狀態：IN REVIEW
+狀態：IN REVIEW (#35)
 
 範圍：借券。這個 step 新增 TWSE `marginTrading/TWT93U`（`twse_twt93u`）和 TPEx
 `margin/sbl`（`tpex_margin_sbl`）adapter、importer、source policy 與涵蓋宣告、CLI
