@@ -20,9 +20,9 @@
 
 已完成並驗證的真實資料（2020-01-02 → 2026-09-11，逐筆與 legacy 對帳）：
 全市場日行情（Step 17）、市場指數與官方估值（Step 18）、交易所公司行動
-結果檔（Step 19）、三大法人個股買賣超（Step 20-a）。三大法人買賣金額彙總
-（Step 20-b）的回補與對帳已完成，正在審查中；外資持股（20-d，需要 20-c 的
-MOPS POST 請求與限速器）尚未開始。
+結果檔（Step 19）、三大法人個股買賣超與買賣金額彙總（Step 20-a、20-b）。
+MOPS 的 POST 請求與每台主機的限速器（Step 20-c）已合併。外資持股（Step 20-d，
+TWSE、MOPS 與 TPEx insti/qfii 三個來源）的回補與對帳已完成，正在審查中。
 
 ## 技術棧
 
@@ -136,6 +136,14 @@ tests/
   ADR-0020 接受的「更正 look-ahead」。另有 3 天 legacy 抓到舊的五列版面
   （合併的「外資」列），被它的解析器丟掉。詳見
   `docs/step_reports/step-20-b-acceptance-report.md`。
+- MOPS `t13sa150_otc`（上櫃外資持股）查詢過去的日期時，會用**今天**的證券清單
+  重建，所以已下市或轉到上市的證券在每個過去日期都不見了（生存者偏差）。
+  舊系統 2026 年 2 月抓的檔案也有同樣問題（49 支更早離開的普通股完全不在
+  legacy）。TPEx 的 `insti/qfii` 仍保留它們，因此存成第二個 TPEx 來源
+  `tpex_insti_qfii`；兩個來源各自保存、不合併。詳見
+  `docs/step_reports/step-20-d-acceptance-report.md`。
+- MOPS 偶爾回 `502 Bad Gateway`（Step 20-d 回補碰到 9 天）；該日期不寫入任何
+  東西，用同一個 import id 重跑即可補齊。
 - TWSE 回補時偶爾會回一頁 CDN 錯誤頁而不是 JSON（Step 20-a 碰到 12 天），
   該日期會以 `invalid_json` 隔離、保留原始檔；換新的 import id 重跑該區段
   即可補齊。

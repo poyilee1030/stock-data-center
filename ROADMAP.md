@@ -604,8 +604,8 @@ explicit out-of-scope work
 | 19-e | MERGED | ETF 分割與反分割結果資料 |
 | 20-a | MERGED | 個股法人買賣 |
 | 20-b | MERGED | 法人買賣市場彙總 |
-| 20-c | THIS STEP | 完整描述來源請求，以及每台主機的請求速率控管 |
-| 20-d | PLANNED | 外資持股 |
+| 20-c | MERGED | 完整描述來源請求，以及每台主機的請求速率控管 |
+| 20-d | THIS STEP | 外資持股 |
 | 21 | PLANNED | 融資融券與借券 |
 | 22 | PLANNED | 月營收 |
 | 23 | PLANNED | 財務報表（iXBRL） |
@@ -1256,7 +1256,7 @@ Schema 影響：無。migration 新增 catalog、source、release rule 和涵蓋
 
 ### Step 20-c — 完整描述來源請求，以及每台主機的請求速率控管
 
-狀態：**IN REVIEW** (#32)。依賴：Step 20 內沒有。Step 20-d 需要它。
+狀態：**MERGED** (#32)。依賴：Step 20 內沒有。Step 20-d 需要它。
 
 - **`SourceResource` 成為完整的請求。** MOPS `t13sa150_otc` 是帶表單 body 的 POST，回傳 big5，現有的 `HttpSourceFetcher` 無法表達：它只送 `GET`，而且固定帶 `Accept: application/json`。加上 method、body 和 headers，讓一個 resource 成為一次抓取的完整、可序列化描述——這也正是一個 job 需要的樣子。
 - **每台主機的速率控管器，注入到 fetcher 裡。** 四個 v1 PR（#20、#22、#23、#33）都會呼叫 `mopsov.twse.com.tw`，目前各自 sleep，彼此看不到對方。MOPS 在 2026-07-02 封鎖了舊 scraper，而舊系統 23:50 的 XBRL 時間窗已經會延誤到 03:00 的重試（audit §7.2）。每台主機一份配額，在同一個地方強制執行。
@@ -1275,11 +1275,37 @@ Schema 影響：無。migration 新增 catalog、source、release rule 和涵蓋
 
 ### Step 20-d — 外資持股
 
-狀態：**PLANNED**。依賴：Step 20-c。
+狀態：**IN REVIEW** (#33)。依賴：Step 20-c。
 
-TWSE `MI_QFIIS` 和 MOPS `t13sa150_otc`（POST，big5 HTML，每個日期約 550 KB）
-寫入 `foreign_holding_versions`，每個欄位都有來源。每個 MOPS 請求都經過 20-c
-的控管器。
+TWSE `MI_QFIIS`（`twse_mi_qfiis`）和 MOPS `t13sa150_otc`（`mops_t13sa150_otc`，
+POST，cp950 HTML，每個日期約 550 KB）寫入 `foreign_holding_versions`，每個欄位都
+有來源。每個 MOPS 請求都經過 20-c 的控管器。範圍內還有：importer、source policy
+與涵蓋宣告、CLI、2020-01-02 → 2026-09-11 的 backfill，以及與舊系統
+`foreign_holding` 的對帳。
+
+2026-09-19 定案（audit §4.4「Step 20-d findings」）：
+
+- **MOPS 回溯時有生存者偏差。** MOPS 以今天的證券清單重建每一個過去的日期：
+  5371、4130、3426、4987（2026-05..08 停止在 TPEx 交易）和 5236（2026-07-15
+  轉到 TWSE）在 2020 年起的每個 MOPS 日期都不見了，雖然舊系統 2026 年 2 月存下的
+  檔案有它們。舊系統本身也有同樣的偏差：49 支在 2026-02 之前離開 TPEx 的普通股
+  完全不在舊系統中。TPEx 自己的 `insti/qfii` 在過去日期仍列出這些證券。
+- **依 owner 決定，TPEx 有兩個來源。** `insti/qfii`（`tpex_insti_qfii`，GET JSON）
+  作為第二個 TPEx 來源，各自保存歷史、不合併（CLAUDE.md §30），由 migration
+  `f2b6d8a4c1e9` 宣告。MOPS 仍是 TPEx 宣告的涵蓋來源（`dataset_expected_coverage`
+  每個市場一個來源，而 MOPS 帶有每個欄位）。`insti/qfii` 缺少大部分 ETF，也沒有
+  發布陸資法令投資上限比率、異動原因和最近申報日期，這三欄在該來源保持 NULL。
+  消費端如何在兩個 TPEx 來源之間選擇，留給 Step 28 或另一份 ADR。
+- **異動原因是一組代碼。** 一格可以有多個代碼（TWSE 每個代碼一個連結，以
+  `<br>` 分隔；MOPS 把數字連在一起，如 `24`），儲存為遞增、逗號分隔（`2,4`）；
+  空白為 NULL。連結指向每月換 URL 的申報頁，不儲存，所以連結改變不是 revision。
+- **比率的算法因來源而異。** E 在每個來源都是 trunc(C / A, 2)；D 在 TWSE 和 MOPS
+  是 trunc(B / A, 2)，在 `insti/qfii` 是 round(B / A, 2)。B + C 永遠不超過
+  floor(A × F)，只有一個已命名的來源異常（`insti/qfii` 2026-04-07 的 6028）。
+
+四個部分合起來的驗收中，本部分負責：舊系統 `foreign_holding` 已對帳。
+
+驗收證據：`docs/step_reports/step-20-d-acceptance-report.md`。
 
 ## Step 21 — 融資融券與借券
 

@@ -626,7 +626,7 @@
         "dataset_code": "foreign_holding",
         "v1": true,
         "roadmap_pr": 20,
-        "reason": "TWSE fund/MI_QFIIS (12 columns) and TPEx MOPS t13sa150_otc (11 columns). Audit 4.4 certifies every column of this table as sourced.",
+        "reason": "TWSE fund/MI_QFIIS (twse_mi_qfiis, 12 fields, JSON) and MOPS t13sa150_otc (mops_t13sa150_otc, 11 columns, a POST answering cp950 HTML). Audit 4.4 certifies every column of this table as sourced for both markets. TPEx also has tpex_insti_qfii (www/zh-tw/insti/qfii, GET JSON), a second source kept as its own history: MOPS drops securities no longer listed from every past date, insti/qfii keeps them (audit 4.4, Step 20-d).",
         "columns": {
           "security_id": {
             "coverage": "internal",
@@ -644,83 +644,89 @@
           "issued_shares": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE fund/MI_QFIIS",
-              "TPEx MOPS t13sa150_otc"
+              "TWSE fund/MI_QFIIS 發行股數",
+              "MOPS t13sa150_otc 發行股數",
+              "TPEx insti/qfii 發行股數(A)"
             ],
             "audit_section": "4.4",
-            "note": "Audit 4.4: every foreign_holding_versions column is sourced. issued_shares is the only whole-market issued-share series for both markets and legacy consumers read it."
+            "note": "Audit 4.4, Step 20-d: 2020-01-02 onward in both markets; shares; TWSE hints 單位:股, the MOPS label is 股數."
           },
           "investable_shares": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE fund/MI_QFIIS",
-              "TPEx MOPS t13sa150_otc"
+              "TWSE fund/MI_QFIIS 外資及陸資尚可投資股數",
+              "MOPS t13sa150_otc 外資及陸資尚可投資股數",
+              "TPEx insti/qfii 僑外資及陸資尚可投資股數B=A*F-C"
             ],
             "audit_section": "4.4",
-            "note": "Audit 4.4: every foreign_holding_versions column is sourced. issued_shares is the only whole-market issued-share series for both markets and legacy consumers read it."
+            "note": "Audit 4.4, Step 20-d: 2020-01-02 onward in both markets; shares."
           },
           "held_shares": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE fund/MI_QFIIS",
-              "TPEx MOPS t13sa150_otc"
+              "TWSE fund/MI_QFIIS 全體外資及陸資持有股數",
+              "MOPS t13sa150_otc 全體外資及陸資持有股數",
+              "TPEx insti/qfii 僑外資及陸資持有股數(C)"
             ],
             "audit_section": "4.4",
-            "note": "Audit 4.4: every foreign_holding_versions column is sourced. issued_shares is the only whole-market issued-share series for both markets and legacy consumers read it."
+            "note": "Audit 4.4, Step 20-d: 2020-01-02 onward in both markets; shares."
           },
           "investable_ratio": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE fund/MI_QFIIS",
-              "TPEx MOPS t13sa150_otc"
+              "TWSE fund/MI_QFIIS 外資及陸資尚可投資比率",
+              "MOPS t13sa150_otc 外資及陸資尚可投資比率",
+              "TPEx insti/qfii 僑外資及陸資尚可投資比率(D=B/A), percent with a % sign, rounded not truncated"
             ],
             "audit_section": "4.4",
-            "note": "Audit 4.4: every foreign_holding_versions column is sourced. issued_shares is the only whole-market issued-share series for both markets and legacy consumers read it."
+            "note": "Audit 4.4, Step 20-d: 2020-01-02 onward in both markets; percent; trunc(investable / issued, 2), checked on every row."
           },
           "held_ratio": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE fund/MI_QFIIS",
-              "TPEx MOPS t13sa150_otc"
+              "TWSE fund/MI_QFIIS 全體外資及陸資持股比率",
+              "MOPS t13sa150_otc 全體外資及陸資持股比率",
+              "TPEx insti/qfii 僑外資及陸資持股比率(E=C/A), percent with a % sign"
             ],
             "audit_section": "4.4",
-            "note": "Audit 4.4: every foreign_holding_versions column is sourced. issued_shares is the only whole-market issued-share series for both markets and legacy consumers read it."
+            "note": "Audit 4.4, Step 20-d: 2020-01-02 onward in both markets; percent; trunc(held / issued, 2), checked on every row."
           },
           "foreign_legal_limit_ratio": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE fund/MI_QFIIS",
-              "TPEx MOPS t13sa150_otc"
+              "TWSE fund/MI_QFIIS 外資及陸資共用法令投資上限比率",
+              "MOPS t13sa150_otc 外資及陸資共用法令投資上限比率",
+              "TPEx insti/qfii 法令投資上限比率(F), percent with a % sign"
             ],
             "audit_section": "4.4",
-            "note": "Audit 4.4: every foreign_holding_versions column is sourced. issued_shares is the only whole-market issued-share series for both markets and legacy consumers read it."
+            "note": "Audit 4.4, Step 20-d: 2020-01-02 onward in both markets; percent."
           },
           "mainland_legal_limit_ratio": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE fund/MI_QFIIS",
-              "TPEx MOPS t13sa150_otc"
+              "TWSE fund/MI_QFIIS 陸資法令投資上限比率",
+              "MOPS t13sa150_otc 陸資法令投資上限比率"
             ],
             "audit_section": "4.4",
-            "note": "Audit 4.4: every foreign_holding_versions column is sourced. issued_shares is the only whole-market issued-share series for both markets and legacy consumers read it."
+            "note": "Audit 4.4, Step 20-d: 2020-01-02 onward in both markets; percent; no legacy column. Not published by tpex_insti_qfii, where it stays NULL."
           },
           "change_reason": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE fund/MI_QFIIS",
-              "TPEx MOPS t13sa150_otc"
+              "TWSE fund/MI_QFIIS 與前日異動原因(註)",
+              "MOPS t13sa150_otc 與前日異動原因(註)"
             ],
             "audit_section": "4.4",
-            "note": "Audit 4.4: every foreign_holding_versions column is sourced. issued_shares is the only whole-market issued-share series for both markets and legacy consumers read it."
+            "note": "Audit 4.4, Step 20-d: 2020-01-02 onward in both markets; the published code 2, 3, 4 or 5; blank (ordinary market trading, per the page note) is NULL; TWSE's link markup around the code is not stored; no legacy column. Not published by tpex_insti_qfii, where it stays NULL."
           },
           "source_last_update_date": {
             "coverage": "sourced",
             "source_fields": [
-              "TWSE fund/MI_QFIIS",
-              "TPEx MOPS t13sa150_otc"
+              "TWSE fund/MI_QFIIS 最近一次上市公司申報外資及陸資持股異動日期",
+              "MOPS t13sa150_otc 最近一次上櫃公司申報外資持股異動日期"
             ],
             "audit_section": "4.4",
-            "note": "Audit 4.4: every foreign_holding_versions column is sourced. issued_shares is the only whole-market issued-share series for both markets and legacy consumers read it."
+            "note": "Audit 4.4, Step 20-d: 2020-01-02 onward in both markets; ROC yyy/mm/dd + 1911; blank is NULL; no legacy column. Not published by tpex_insti_qfii, where it stays NULL."
           }
         }
       },
