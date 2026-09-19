@@ -1,32 +1,29 @@
-# Step 17-b Acceptance Report
+# Step 17-b 驗收報告
 
-Status: IN REVIEW
+狀態：IN REVIEW
 
-Scope: Whole-market daily-price import path
+範圍：全市場每日價格匯入路徑
 
-Schema impact: none. `daily_price_versions` already covers every sourced field.
-Migration `5e3b8d1a9c42` adds rows only: two `dataset_sources` with their
-accepted evidence types, their release-rule mappings, and the two `daily_price`
-expected-coverage declarations.
-PIT impact: none new — both sources follow `exchange_daily_settled@1`, the rule
-Step 15-c already applies to `daily_price`.
-`src/` changed by +633/−10 lines.
+Schema 影響：無。`daily_price_versions` 已涵蓋每個有來源的欄位。
+Migration `5e3b8d1a9c42` 只新增列：兩個 `dataset_sources` 及其可接受的證據類型、
+它們的 release rule 對應，以及兩個 `daily_price` 預期涵蓋宣告。
+PIT 影響：沒有新的影響——兩個來源都遵循 `exchange_daily_settled@1`，也就是
+Step 15-c 已經套用到 `daily_price` 的規則。
+`src/` 改動 +633/−10 行。
 
-## Baseline
+## 基準
 
-Step 17-a's parse, merged as #19, and its reconciliation: 4,423 legacy rows
-across five market-dates, zero differences. This step stores those same rows, so
-the same comparison is re-run against the **stored** versions rather than the
-parsed ones — a parse that was right and a write that loses something would
-otherwise look identical.
+Step 17-a 的解析（以 #19 合併）及其對帳：五個市場日共 4,423 列舊系統資料，差異
+為零。這個 step 儲存的是同樣的列，所以同樣的比較改為對照**已儲存**的版本重跑，
+而不是解析出的版本——否則一個正確的解析加上一個會遺失東西的寫入，看起來會一模
+一樣。
 
-Before this step, `daily_price` had two sources (`twse`, `tpex`) and no expected
-coverage declared; `dataset_expected_coverage` held only `trading_calendar`.
+在這個 step 之前，`daily_price` 有兩個來源（`twse`、`tpex`），沒有宣告任何預期
+涵蓋；`dataset_expected_coverage` 只有 `trading_calendar`。
 
-## Acceptance evidence
+## 驗收證據
 
-Live imports through the CLI into a database migrated from zero, one request
-each, purpose `gap_fill`:
+透過 CLI 實際匯入從零 migrate 的資料庫，每次一個請求，purpose 為 `gap_fill`：
 
 ```text
 twse_mi_index   2026-09-11  1,379 rows  1,379 created  1,379 evidence  variant allbut0999
@@ -37,21 +34,21 @@ tpex_otc_quotes 2020-04-30    885 rows    885 created    885 evidence  variant v
 total                       5,266 versions, 5 raw artifacts, one request each
 ```
 
-| Criterion | Result | Evidence |
+| 標準 | 結果 | 證據 |
 | --- | --- | --- |
-| One real trade date per market imports end to end, raw-first | PASS | Five market-dates above, covering all three TPEx header variants, each fetched live and stored through the Step 9 raw-first lifecycle: artifact captured and checkpointed before parsing, business rows written in the same transaction as the checkpoint completion. |
-| Stored values equal legacy `daily_quotes` | PASS | The same 4,423 legacy rows, compared against what is **in the database** rather than what the adapter returned: zero differences in open/high/low/close, volume, trade value and trade count, and no legacy-only row. |
-| Units survive the write | PASS | 2330 on 2026-09-11 stores `last_bid_volume = 1078`, and the manifest records `source_units.disclosed_volume = share` for TWSE against `lot_1000_shares` for TPEx. This is the #19 review finding, checked at the far end of the pipeline rather than only at the parse. |
-| Re-running the same date creates no revision | PASS | Second import of 2026-09-11: `created 0, deduplicated 1379`, evidence `created 0, deduplicated 1379`, one additional `raw_artifact_observations` row. The repeated fetch stays auditable without inventing a revision. |
-| Changed content creates a revision | PASS | Correcting one close in the payload produces exactly one new version; the other 1,378 deduplicate. |
-| No revision flapping with the Step 9 pilots | PASS | Distinct source codes. A regression asserts the imported rows carry only the whole-market source, and the two histories never share a `(security, trade_date)` row. |
-| A date the source has nothing for quarantines | PASS | 2024-07-24 raises `no_data_for_date`; the raw artifact is retained, no business row is written, and `import_quarantine.reason_code` carries the code — which is how 17-c will tell a benign skip from a real failure without re-deriving the calendar. |
-| Imported rows resolve under Market PIT | PASS | 2330 on 2026-09-11 resolves by `exchange_daily_settled@1` at 2026-09-11T19:00Z — 03:00 on 09-12, Asia/Taipei. |
-| Evidence follows the declared purpose | PASS | All 5,266 versions carry `release_rule` and nothing else: a `gap_fill` proves no first sighting. A `first_capture` run instead claims one `capture_bound` per created version. |
-| Expected coverage is declared | PASS | `daily_price/TWSE → twse_mi_index` and `daily_price/TPEx → tpex_otc_quotes`, cadence `trading_day`, window from 2020-01-02, both declaring the TWSE calendar Step 16 measured. |
-| The downgrade refuses to orphan history | PASS | With rows imported, `downgrade 4d9f2a6c8b17` raises `P0001` before mutating anything. Verified red by removing the guard and watching the regression fail. |
+| 每個市場一個真實交易日以 raw-first 方式端到端匯入 | PASS | 上面五個市場日，涵蓋全部三種 TPEx header 版本，每個都實際抓取，並透過 Step 9 raw-first 生命週期儲存：artifact 在解析之前被抓取並建立 checkpoint，業務列與 checkpoint 完成在同一個 transaction 中寫入。 |
+| 儲存的值與舊系統 `daily_quotes` 相同 | PASS | 同樣的 4,423 列舊系統資料，對照的是**資料庫中**的內容，而不是 adapter 回傳的內容：開高低收、成交量、成交金額和成交筆數差異為零，也沒有只在舊系統存在的列。 |
+| 單位在寫入後仍然正確 | PASS | 2330 在 2026-09-11 儲存 `last_bid_volume = 1078`，而 manifest 記錄 TWSE 的 `source_units.disclosed_volume = share`，對照 TPEx 的 `lot_1000_shares`。這是 #19 的 review 發現，在管線的最末端檢查，而不只是在解析時。 |
+| 重跑同一天不產生 revision | PASS | 第二次匯入 2026-09-11：`created 0, deduplicated 1379`，證據 `created 0, deduplicated 1379`，多一筆 `raw_artifact_observations` 列。重複的抓取仍可稽核，而不會捏造 revision。 |
+| 內容改變時產生 revision | PASS | 在 payload 中更正一個收盤價，恰好產生一個新版本；其餘 1,378 個去重。 |
+| 不會與 Step 9 pilot 來回產生 revision | PASS | 不同的 source code。一個回歸測試斷言匯入的列只帶有全市場來源，而且兩段歷史從不共用同一個 `(security, trade_date)` 列。 |
+| 來源沒有資料的日期被 quarantine | PASS | 2024-07-24 拋出 `no_data_for_date`；raw artifact 被保留，不寫入任何業務列，`import_quarantine.reason_code` 帶有這個 code——17-c 就是靠它區分無害的跳過與真正的失敗，而不必重新推導日曆。 |
+| 匯入的列在 Market PIT 下解析 | PASS | 2330 在 2026-09-11 的資料以 `exchange_daily_settled@1` 在 2026-09-11T19:00Z 解析——也就是 Asia/Taipei 09-12 的 03:00。 |
+| 證據依循宣告的 purpose | PASS | 全部 5,266 個版本都只帶 `release_rule`：`gap_fill` 無法證明首次看到。`first_capture` 執行則會為每個建立的版本宣稱一個 `capture_bound`。 |
+| 已宣告預期涵蓋 | PASS | `daily_price/TWSE → twse_mi_index` 和 `daily_price/TPEx → tpex_otc_quotes`，頻率 `trading_day`，時間窗從 2020-01-02 起，兩者都宣告使用 Step 16 量測過的 TWSE 日曆。 |
+| downgrade 拒絕讓歷史成為孤兒 | PASS | 有匯入的列時，`downgrade 4d9f2a6c8b17` 在修改任何東西之前拋出 `P0001`。以移除防護並看著回歸測試失敗，確認過它會失敗。 |
 
-Reconciliation against legacy `stock_db`, from the stored rows:
+與舊系統 `stock_db` 的對帳，取自已儲存的列：
 
 ```text
 2026-09-11 twse_mi_index    stored=1379 legacy=1092 diffs={}
@@ -62,88 +59,73 @@ Reconciliation against legacy `stock_db`, from the stored rows:
 total legacy rows compared: 4,423
 ```
 
-## Design decisions
+## 設計決策
 
-**Set-based writes, per-row rules.** A whole-market file is about 1,300
-securities, and the existing per-row path would issue roughly 4,000 statements
-per request — enough to make 17-c's ~3,300 requests impractical. Registration,
-version writes, evidence planning and evidence writes now take one or two
-statements each. What did **not** change is the part that matters: the database
-still generates `business_content_hash` and `ingested_at`, an unchanged
-observation still reuses its existing version, and the match back to that
-version is made on the business values the database hashes, never on a hash
-recomputed in Python. One trade date imports in about 1.9 s end to end.
+**集合式寫入，逐列規則。** 一個全市場檔案約 1,300 支證券，既有的逐列路徑每次請求
+會發出約 4,000 個陳述——足以讓 17-c 約 3,300 次請求變得不可行。註冊、版本寫入、
+證據規劃和證據寫入現在各只需要一兩個陳述。重要的部分**沒有**改變：資料庫仍然產生
+`business_content_hash` 和 `ingested_at`，未改變的觀察仍然重用既有的版本，而對應回
+那個版本是依據資料庫做 hash 的業務值，絕不是在 Python 中重新計算的 hash。一個交易日
+端到端匯入約 1.9 秒。
 
-**`ON CONFLICT DO NOTHING ... RETURNING`, not `DO UPDATE`.** The usual
-`xmax = 0` upsert trick would tell created from existing in one statement, but
-`immutable_daily_price` is a `BEFORE UPDATE OR DELETE` trigger: a no-op
-`DO UPDATE` would fire it and be rejected. The insert therefore returns only the
-rows it created, and the rest are read back and matched on their business values.
+**`ON CONFLICT DO NOTHING ... RETURNING`，而不是 `DO UPDATE`。** 常見的 `xmax = 0`
+upsert 技巧可以在一個陳述中區分新建和既有，但 `immutable_daily_price` 是
+`BEFORE UPDATE OR DELETE` trigger：一個什麼都不改的 `DO UPDATE` 也會觸發它並被拒絕。
+因此 insert 只回傳它建立的列，其餘的讀回並依業務值對應。
 
-**`plan_many` resolves the rule once.** The release rule and the accepted-type
-allowlist are constant for a `(dataset_code, source)`, and the rule instant is
-constant for the trade date all 1,300 rows share. Each version's already-proven
-capture is read in one grouped query rather than one per row. The decision
-itself is still `evidence_plan`, unchanged and shared with the per-row path — the
-batch is a different number of round trips, not a second policy.
+**`plan_many` 只解析一次規則。** 對一個 `(dataset_code, source)` 來說，release rule
+和可接受類型的允許清單是常數，而規則時刻對 1,300 列共用的交易日也是常數。每個版本
+已經證明的抓取以一次分組查詢讀取，而不是每列一次。決策本身仍是 `evidence_plan`，
+沒有改變，並與逐列路徑共用——批次處理只是往返次數不同，不是第二套政策。
 
-**The importer declares its own market.** `_source_semantics` records the market,
-both traded units and the disclosed-volume unit, so the configuration fingerprint
-changes if any of them ever does, and a resumed import with changed semantics is
-refused rather than silently mixed.
+**importer 宣告自己的市場。** `_source_semantics` 記錄市場、兩種交易單位和揭露量的
+單位，所以只要其中任何一個改變，設定 fingerprint 就會改變，語意改變的續跑匯入會被
+拒絕，而不是默默混在一起。
 
-## What this cost in existing tests
+## 這對既有測試的代價
 
-Step 16's coverage tests declared `daily_price/TWSE` coverage themselves, using
-the pilot source `twse`, under a comment reading *"Step 17 will ship this
-declaration with its adapter; here it is a fixture."* It does now, so those tests
-point at the real source codes. Five failed the moment the migration landed,
-which is the declaration doing its job: the fixture and the shipped declaration
-disagreed, and the shipped one won.
+Step 16 的涵蓋測試自己宣告了 `daily_price/TWSE` 的涵蓋，使用 pilot 來源 `twse`，
+並附上一段註解寫著 *「Step 17 will ship this declaration with its adapter; here it
+is a fixture.」*。現在確實出貨了，所以那些測試改指向真正的 source code。migration
+一加入就有五個失敗，這正是宣告在發揮作用：fixture 和出貨的宣告不一致，而出貨的那個
+勝出。
 
-## Verification
+## 驗證
 
-Database migrated from zero to `5e3b8d1a9c42`:
+從零 migrate 到 `5e3b8d1a9c42` 的資料庫：
 
 ```text
 421 passed, 3 skipped, 1 warning
 ```
 
-Baseline before this step: 409 (Step 17-a). The 12 integration tests added here
-are the difference — 11 written before the importer existed, and one more from
-the review below.
+本 step 之前的基準：409（Step 17-a）。差異就是這裡新增的 12 個 integration test——
+11 個在 importer 存在之前寫好，另一個來自下方的 review。
 
-Migration round trip on a clean database: `upgrade head` seeds six rows — two
-`dataset_sources`, two `dataset_release_rules`, two `dataset_expected_coverage` —
-`downgrade 4d9f2a6c8b17` removes exactly those and leaves the two pilot sources'
-allowlists untouched, `upgrade head` re-seeds. With history imported the
-downgrade refuses first.
+在乾淨資料庫上的 migration 往返：`upgrade head` 寫入六列初始資料——兩個
+`dataset_sources`、兩個 `dataset_release_rules`、兩個 `dataset_expected_coverage`——
+`downgrade 4d9f2a6c8b17` 恰好移除這些，兩個 pilot 來源的允許清單不動，`upgrade head`
+重新寫入。有匯入的歷史時，downgrade 會先拒絕。
 
-`ruff check` reports nothing new against `main` for every file touched.
+`ruff check` 對每個碰到的檔案，相對於 `main` 都沒有回報新問題。
 
-## Code-review findings
+## Code review 發現
 
-Four findings, all verified before anything changed; none was a false positive.
+四項發現，在改動任何東西之前都經過驗證；沒有一項是誤報。
 
-| # | Finding | Verified by | Disposition |
+| # | 發現 | 驗證方式 | 處置 |
 | --- | --- | --- | --- |
-| 1 | The multi-row observation insert binds ~21 parameters per row, so it exceeds PostgreSQL's 65,535-per-statement limit at roughly 3,100 rows | Compiled the real statement: exactly 21 parameters per row, so the ceiling is 3,120. A regression writing 4,000 observations failed with `number of parameters must be between 0 and 65535`. | **Fixed.** Every multi-row insert is now split by the parameters it actually binds, counted from the row itself, so adding a column cannot quietly move the cliff. The evidence insert had the same shape at 12 parameters per row — a ceiling of 5,461, which a `first_capture` run reaches at about 2,730 securities, since it plans two evidence rows per version. |
-| 2 | The manifest omits the `publication_time` key every other importer emits | Read: three importers emit it, nothing reads it — and for `daily_price` the constant `"unknown"` has been **false** since Step 15-c. | Fixed, but not by copying the constant. The manifest now reports the rule that actually decides availability time (`exchange_daily_settled@1`) plus the evidence types the run wrote. The same stale `"unknown"` in the Step 9 pilot importer is corrected with it: same dataset, same rule, and a manifest is an audit record. |
-| 3 | The coverage insert uses `ON CONFLICT DO NOTHING` while its sibling deliberately uses `DO UPDATE` to repair a pre-existing row | Read. No such row exists on `main`, but a declaration left pointing at a Step 9 pilot source would make the coverage report read the wrong history — silently. | Fixed. The upsert repairs the row. This migration is the authority for what `daily_price` coverage means. |
-| 4 | The migration docstring attributes the change to Step 17-a, which lists storage and evidence as out of scope, and the acceptance report says four rows where it seeds six | Counted: 2 + 2 + 2. | Fixed. Both were written while Step 17 was still one step. |
+| 1 | 多列觀察 insert 每列綁定約 21 個參數，所以約 3,100 列時會超過 PostgreSQL 每個陳述 65,535 個參數的上限 | 編譯實際的陳述：每列恰好 21 個參數，所以上限是 3,120。一個寫入 4,000 筆觀察的回歸測試以 `number of parameters must be between 0 and 65535` 失敗。 | **已修正。** 每個多列 insert 現在都依它實際綁定的參數分批，從列本身計算，所以新增欄位不會默默移動這道懸崖。證據 insert 也是同樣的形狀，每列 12 個參數——上限 5,461，而 `first_capture` 執行在約 2,730 支證券時就會碰到，因為它為每個版本規劃兩筆證據。 |
+| 2 | manifest 缺少其他每個 importer 都有的 `publication_time` key | 閱讀：三個 importer 輸出它，沒有任何東西讀取它——而對 `daily_price` 來說，常數 `"unknown"` 從 Step 15-c 起就是**錯的**。 | 已修正，但不是照抄那個常數。manifest 現在回報實際決定可取得時間的規則（`exchange_daily_settled@1`），以及這次執行寫入的證據類型。Step 9 pilot importer 中同樣過時的 `"unknown"` 也一併更正：同一個資料集、同一條規則，而 manifest 是稽核紀錄。 |
+| 3 | 涵蓋 insert 使用 `ON CONFLICT DO NOTHING`，而它的兄弟刻意使用 `DO UPDATE` 來修復既有的列 | 閱讀。`main` 上不存在這樣的列，但一個仍指向 Step 9 pilot 來源的宣告，會讓涵蓋報告讀錯歷史——而且是默默地。 | 已修正。upsert 會修復該列。這個 migration 是 `daily_price` 涵蓋意義的權威。 |
+| 4 | migration 的 docstring 把改動歸到 Step 17-a，而那一步把儲存和證據列為範圍外；驗收報告說四列，實際寫入六列 | 計數：2 + 2 + 2。 | 已修正。兩者都是在 Step 17 還是單一 step 時寫的。 |
 
-Finding 1 is the one that matters. It is latent rather than live — today's largest
-market-date is 1,379 rows — but it fails the import outright when the listed
-universe crosses the line, and 17-c is the step that would walk into it.
+真正重要的是第 1 項。它是潛在的而不是正在發生的——目前最大的市場日是 1,379 列——
+但上市範圍越過那條線時，它會讓匯入直接失敗，而 17-c 正是會踩進去的那個 step。
 
-## Scope exclusions confirmed
+## 已確認的範圍排除
 
-- No backfill: 17-c owns the date-range runner, the 2020-01-02 → 2026-09-11 run,
-  the committed reconciliation tool and the no-metadata report. The CLI here
-  imports one trade date per invocation.
-- The index sections of the TWSE artifact are untouched; Step 18 reuses the same
-  raw artifacts.
-- The Step 9 per-security pilots are unchanged and stay available for spot
-  checks.
-- No adjusted prices, and no readiness claim for returns or indicators: the
-  §51.4 gate still waits on corporate-action history.
+- 沒有 backfill：17-c 負責日期區間 runner、2020-01-02 → 2026-09-11 的執行、提交進
+  repo 的對帳工具，以及無 metadata 報告。這裡的 CLI 每次呼叫匯入一個交易日。
+- TWSE artifact 的指數區段沒有動；Step 18 重用同樣的 raw artifact。
+- Step 9 的個股 pilot 不變，仍可用於抽查。
+- 沒有還原價格，也不宣稱可用於報酬或指標：§51.4 的關卡仍在等待公司行動歷史。

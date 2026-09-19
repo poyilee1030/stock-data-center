@@ -1,6 +1,6 @@
 # Step 20-c 驗收報告
 
-Status: IN REVIEW (#32)
+狀態：IN REVIEW (#32)
 
 範圍：Step 20-d 需要的抓取層，分兩部分。
 

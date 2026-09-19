@@ -1,44 +1,43 @@
-# Step 12 Acceptance Report
+# Step 12 驗收報告
 
-Status: IN REVIEW
+狀態：IN REVIEW
 
-Scope: Harden Taiwan Corporate-Action Contract
+範圍：強化台灣公司行動契約
 
-## Acceptance evidence
+## 驗收證據
 
-| Criterion | Result | Evidence |
+| 標準 | 結果 | 證據 |
 | --- | --- | --- |
-| Explicit stock split and reverse split | PASS | `stock_split` and `reverse_split` require positive `old_shares`/`new_shares` with opposite DB-enforced directions. |
-| Distinct 盈餘配股 and 資本公積配股 | PASS | Separate action types and `earnings_stock_ratio` / `capital_surplus_stock_ratio` fields; regression verifies distinct stored rows and hashes. |
-| Explicit rights and capital reduction | PASS | `rights_issue` requires `rights_ratio`; capital reduction requires a decreasing old/new share pair plus a typed kind. Cash-refund reductions require positive per-share returned cash, while loss-offset kinds reject it. |
-| Safe migration lifecycle | PASS | Representable legacy history round-trips. New unrepresentable history raises SQLSTATE `P0001` before mutation. |
-| Impossible values rejected | PASS | Domain and PostgreSQL checks cover missing terms, zero/negative ratios, incomplete share pairs, invalid share direction, and date order. |
-| Hash completeness | PASS | The storage trigger hashes canonical revision JSON; none of the new semantic fields are excluded. Regressions distinguish legal stock-dividend categories and changes to capital-reduction kind/returned cash. |
-| Raw prices unchanged | PASS | Migration does not alter `daily_price_versions`; guarded-downgrade regression verifies raw OHLC values and hash byte-for-byte after failure. |
-| Representative permanent regressions | PASS | Cash dividend, earnings/capital-surplus stock dividend, split, reverse split, rights issue, capital reduction, and combined ex-right/ex-dividend semantics are covered. |
+| 明確的股票分割與反分割 | PASS | `stock_split` 和 `reverse_split` 要求正數的 `old_shares`／`new_shares`，且方向相反，由資料庫強制。 |
+| 區分盈餘配股與資本公積配股 | PASS | 分開的行動類型，以及 `earnings_stock_ratio`／`capital_surplus_stock_ratio` 欄位；回歸測試確認儲存的列和 hash 各自不同。 |
+| 明確的現金增資與減資 | PASS | `rights_issue` 要求 `rights_ratio`；減資要求遞減的新舊股數，並附上有型別的類別。退還現金的減資要求正數的每股退還金額，而彌補虧損類的減資則拒絕此欄位。 |
+| 安全的 migration 生命週期 | PASS | 可表示的舊歷史能完整往返。新的、無法表示的歷史會在修改之前拋出 SQLSTATE `P0001`。 |
+| 拒絕不可能的值 | PASS | 領域層和 PostgreSQL 的檢查涵蓋缺少的條件、零／負比率、不完整的股數對、錯誤的股數方向，以及日期順序。 |
+| Hash 完整性 | PASS | 儲存層的 trigger 對標準化的 revision JSON 做 hash；新的語意欄位都沒有被排除。回歸測試能區分法定的股票股利類別，以及減資類別／退還現金的改變。 |
+| 原始價格不變 | PASS | migration 不改動 `daily_price_versions`；受保護 downgrade 的回歸測試確認失敗之後，原始 OHLC 值和 hash 逐 byte 相同。 |
+| 具代表性的永久回歸測試 | PASS | 涵蓋現金股利、盈餘／資本公積配股、分割、反分割、現金增資、減資，以及除權息合併的語意。 |
 
-## Migration preservation evidence
+## Migration 保存證據
 
-The populated downgrade regression creates a cash-refund capital-reduction revision and its
-observation provenance, plus a raw daily OHLC revision. Attempting downgrade to
-`4d2a6f8c1e30` returns `P0001`. Alembic remains at `7c9e2a4b6d81`; the schema,
-event revision, observation row, and raw OHLC revision remain intact.
+有資料的 downgrade 回歸測試建立一筆退還現金的減資 revision 及其觀察 provenance，
+以及一筆原始每日 OHLC revision。嘗試 downgrade 到 `4d2a6f8c1e30` 會回傳 `P0001`。
+Alembic 仍停在 `7c9e2a4b6d81`；schema、事件 revision、觀察列和原始 OHLC revision
+都保持完整。
 
-## Verification
+## 驗證
 
-Clean PostgreSQL database:
+乾淨的 PostgreSQL 資料庫：
 
 ```text
 239 passed, 3 skipped
 ```
 
-The three skips are opt-in live official-endpoint tests from Step 11 and are
-outside this schema/domain-only PR. Alembic metadata drift check passed. One
-SQLAlchemy reflection warning is emitted for intentionally `NOT VALID`
-constraints that preserve pre-PR legacy rows while enforcing all new writes.
+三個 skip 是 Step 11 需要手動開啟的官方端點 live 測試，不在這個只涉及
+schema／領域的 PR 範圍內。Alembic metadata drift 檢查通過。有一個 SQLAlchemy
+reflection 警告，來自刻意設為 `NOT VALID` 的 constraint：它們保留 PR 之前的
+舊列，同時對所有新寫入強制執行。
 
-## Scope exclusions confirmed
+## 已確認的範圍排除
 
-Step 12 adds no external-source adapter, historical corporate-action backfill,
-price-jump inference, adjustment factor, adjusted price, total-return series,
-technical indicator, trading-calendar behavior, or Redis/cache work.
+Step 12 沒有新增外部來源 adapter、歷史公司行動 backfill、價格跳動推斷、還原
+因子、還原價格、總報酬序列、技術指標、交易日曆行為，也沒有任何 Redis／快取工作。

@@ -1,25 +1,23 @@
-# Step 18-b Acceptance Report
+# Step 18-b 驗收報告
 
-Status: IN REVIEW
+狀態：IN REVIEW
 
-Scope: Market-index import path and backfill
+範圍：市場指數匯入路徑與 backfill
 
-Schema impact: none. Migration `7a2c9e4d1b58` adds rows only: three
-`dataset_sources`, their release-rule mappings, and two `daily_price`-style
-expected-coverage declarations.
-PIT impact: none new — all three sources follow `exchange_daily_settled@1`.
-`src/` changed by +600/−22 lines, plus one committed script.
+Schema 影響：無。Migration `7a2c9e4d1b58` 只新增列：三個 `dataset_sources`、它們的
+release rule 對應，以及兩個 `daily_price` 形式的預期涵蓋宣告。
+PIT 影響：沒有新的影響——三個來源都遵循 `exchange_daily_settled@1`。
+`src/` 改動 +600/−22 行，另外提交一個腳本。
 
-## Baseline
+## 基準
 
-Legacy `stock_db.market_indices`, 2020-01-02 → 2026-09-11: 449,528 rows over
-1,627 dates, 366 distinct TWSE names and 43 TPEx names.
+舊系統 `stock_db.market_indices`，2020-01-02 → 2026-09-11：1,627 個日期共 449,528 列，
+366 個不同的 TWSE 名稱和 43 個 TPEx 名稱。
 
-Step 18-a's parse, merged as #22, with the identity finding it made:
-`(source, section, published name)`, because TPEx repeats 32 of its 34 names
-across its price and return sections.
+Step 18-a 的解析（以 #22 合併），及其 identity 發現：`(source, section, published name)`，
+因為 TPEx 的 34 個名稱中有 32 個在價格和報酬區段重複。
 
-## The run
+## 執行
 
 ```text
                      indices   dates        rows
@@ -31,137 +29,118 @@ twse_mi_5mins_hist         1   1,630       1,630
 evidence 478,629 release_rule    artifacts 5,046    data/raw 560 MB
 ```
 
-Both whole-list backfills: `imported 1627, resumed 0, failed 0, is_complete
-true`. The TAIEX run covers 81 months; its 1,630 dates exceed the window by the
-three September 2026 dates after the 11th.
+兩個整份清單的 backfill：`imported 1627, resumed 0, failed 0, is_complete true`。
+TAIEX 執行涵蓋 81 個月；它的 1,630 個日期比期間多出 2026 年 9 月 11 日之後的三天。
 
-## Acceptance evidence
+## 驗收證據
 
-| Criterion | Result | Evidence |
+| 標準 | 結果 | 證據 |
 | --- | --- | --- |
-| Legacy `market_indices` reconciles for both markets | PASS | TWSE: 365,342 rows compared, **23 differences**, all on two dates, explained below. TPEx: 51,623 compared, **zero differences**. |
-| Every difference is classified | PASS | Five classes, counted separately: `legacy_only` (23), legacy rows that are not indices at all (32,540), source-only return section (220 TWSE / 59,601 TPEx), source-only price section (213 / 0), and zero value disagreements. |
-| TAIEX close from `MI_5MINS_HIST` equals the `MI_INDEX` close | PASS | **1,627 dates compared, zero disagreements.** Both TWSE sources publish `發行量加權股價指數`; the cross-check joins them per date and reports rather than averages. |
-| TPEx return indices are new data, not a difference | PASS | We hold 95 TPEx indices — 43 price, 52 return — against legacy's 43, which are exactly the price section. The 59,601 source-only rows are the return series legacy never collected. |
-| A reprocess path, or the re-fetch stated plainly | PASS, by the second branch | No reprocess path was built, and the TWSE index files were fetched again. The reason is recorded in code and below; content addressing keeps the cost to the requests, not the storage. |
-| Coverage is complete | PASS | `expected 1627, observed 1627, missing [], unexpected [], is_complete true` for both markets, from the Step 16 validator. |
+| 舊系統 `market_indices` 在兩個市場都已對帳 | PASS | TWSE：比較 365,342 列，**23 個差異**，全在兩個日期，下文解釋。TPEx：比較 51,623 列，**差異為零**。 |
+| 每個差異都已分類 | PASS | 五個類別，分開計數：`legacy_only`（23）、根本不是指數的舊系統列（32,540）、只在來源的報酬區段（TWSE 220／TPEx 59,601）、只在來源的價格區段（213／0），以及零個數值不一致。 |
+| `MI_5MINS_HIST` 的 TAIEX 收盤等於 `MI_INDEX` 的收盤 | PASS | **比較 1,627 個日期，零個不一致。** 兩個 TWSE 來源都發布 `發行量加權股價指數`；交叉核對逐日把它們並列並回報，而不是取平均。 |
+| TPEx 報酬指數是新資料，不是差異 | PASS | 我們有 95 個 TPEx 指數——43 個價格、52 個報酬——而舊系統有 43 個，恰好就是價格區段。只在來源的 59,601 列是舊系統從未收集的報酬序列。 |
+| 重新處理的路徑，或直接說明需要重新抓取 | PASS，走第二種 | 沒有建立重新處理的路徑，TWSE 指數檔案重新抓取了一次。原因記錄在程式中和下文；以內容定址讓成本只在請求，而不在儲存。 |
+| 涵蓋完整 | PASS | 兩個市場都是 `expected 1627, observed 1627, missing [], unexpected [], is_complete true`，來自 Step 16 的驗證器。 |
 
-## Why the TWSE index files were fetched again
+## 為什麼 TWSE 指數檔案重新抓取了一次
 
-Step 18-a named `stored_resource_key()` so a reprocess path could read the bytes
-Step 17-c stored. Building that path was rejected here, for a reason worth
-recording: the lineage foreign key requires every version's
-`(raw_artifact_id, ingest_run_id)` to exist in `raw_artifact_observations`, and
-that table's `fetched_at` is *when we read from the source*. A reprocess run
-reads from disk. It would have to either invent a fetch instant or inherit the
-original one, and the second feeds ADR-0020's capture decision an instant this
-run did not produce. That is the class of change this repository has been bitten
-by before, and it is not worth an hour of requests.
+Step 18-a 指名了 `stored_resource_key()`，讓重新處理的路徑可以讀取 Step 17-c 儲存的
+bytes。這裡否決了建立那條路徑，理由值得記錄：lineage 的 foreign key 要求每個版本的
+`(raw_artifact_id, ingest_run_id)` 都存在於 `raw_artifact_observations`，而那張表的
+`fetched_at` 是*我們從來源讀取的時間*。重新處理的執行是從磁碟讀取。它要不捏造一個
+抓取時刻，要不就繼承原本的時刻，而後者會把一個不是這次執行產生的時刻餵給 ADR-0020 的
+抓取判斷。這個 repository 以前就被這類改動咬過，不值得為了省一小時的請求去做。
 
-Content addressing made the re-fetch nearly free. The re-fetched `MI_INDEX`
-bytes hash to the artifact already on disk, so `raw_artifacts` gained nothing for
-TWSE; only an observation row per date, which is honest — we did read TWSE
-again. TPEx `indexSummary` is a different endpoint, so those artifacts are new.
+以內容定址讓重新抓取幾乎沒有成本。重新抓取的 `MI_INDEX` bytes hash 到已經在磁碟上的
+artifact，所以 TWSE 的 `raw_artifacts` 沒有增加任何東西；只有每個日期一筆觀察列，而
+這是誠實的——我們確實又讀了一次 TWSE。TPEx `indexSummary` 是不同的端點，所以那些
+artifact 是新的。
 
-## Two defects the tests caught
+## 測試抓到的兩個缺陷
 
-**The batch writer's key was not unique.** It keyed created rows by the link
-column, which holds for one security per trade date but not for the TAIEX
-import: one index across 21 dates collapsed onto a single key, and each date's
-evidence was attached to whichever version came back last. The database caught
-it as `publication precedes source date`. The key is now the link column plus
-the identity fields.
+**批次 writer 的 key 不唯一。** 它以連結欄位作為新建列的 key，這對每個交易日一支證券
+成立，但對 TAIEX 匯入不成立：一個指數橫跨 21 個日期，全部坍縮到同一個 key，每個日期的
+證據被附到最後回來的那個版本上。資料庫以 `publication precedes source date` 抓到它。
+key 現在是連結欄位加上 identity 欄位。
 
-**The migration's downgrade deleted too much.** It removed every `market_index`
-source, including the `market_index/twse` row a Phase 8 fixture creates, which
-has ingest runs referencing it — a `RESTRICT` violation. It now deletes only the
-three sources it declared. Same shape as Step 17-b's review finding 3, one
-migration later.
+**migration 的 downgrade 刪太多了。** 它移除了每個 `market_index` 來源，包括 Phase 8
+fixture 建立的 `market_index/twse` 列，而那一列有 ingest run 參照——違反 `RESTRICT`。
+它現在只刪除自己宣告的三個來源。與 Step 17-b 的 review 發現 3 同一個形狀，只是晚了
+一個 migration。
 
-## A defect the live run caught
+## 實際執行抓到的一個缺陷
 
-**The month loop had the resume defect Step 17-c fixed for the date loop.** The
-TAIEX backfill died on a `ReadTimeout` at month 56 of 81, and re-running it
-re-fetched all 56 because the loop still minted a fresh `uuid4()` base. That is
-the same finding as #21's first, in the sibling loop — the variant that a fix
-applied in one place leaves behind. `month_import_id` now derives from a scope
-id, and one unreachable month is reported with a non-zero exit rather than
-ending the run.
+**月份迴圈有 Step 17-c 為日期迴圈修正過的續跑缺陷。** TAIEX backfill 在 81 個月中的
+第 56 個月因為 `ReadTimeout` 中止，而重跑時重新抓取了全部 56 個月，因為迴圈仍然產生
+新的 `uuid4()` base。這和 #21 的第一項發現相同，只是在兄弟迴圈裡——正是在一個地方
+套用的修正會遺留下來的那種變體。`month_import_id` 現在由範圍 id 推導，而一個無法抵達
+的月份以非零結束碼回報，而不是結束整個執行。
 
-## What the reconciliation had to learn about legacy
+## 對帳必須先了解的舊系統行為
 
-Two legacy behaviours had to be classified before the numbers meant anything,
-and both were found by looking at what did not match rather than by assuming.
+在數字有意義之前，必須先分類兩種舊系統行為，而兩者都是靠查看不吻合的部分找到的，
+而不是靠假設。
 
-**Legacy stored things that are not indices.** 32,540 rows are the
-`漲跌證券數合計` market-breadth table — `1.一般股票`, `12.公司債`, `13.ETN`,
-`證券合計(1+6+14+15)`, `持平`, `未成交`. Legacy's parser wrote them into
-`market_indices` alongside real indices. They are counted as their own class,
-never as a difference.
+**舊系統存了不是指數的東西。** 32,540 列是 `漲跌證券數合計` 市場寬度表——
+`1.一般股票`、`12.公司債`、`13.ETN`、`證券合計(1+6+14+15)`、`持平`、`未成交`。舊系統
+的 parser 把它們和真正的指數一起寫進 `market_indices`。它們被算作自己的類別，絕不算
+作差異。
 
-**Two legacy dates are short.** All 23 remaining `legacy_only` rows fall on
-2024-01-25 and 2026-02-09, where legacy holds 95 and 139 index rows against 277
-and 287 on the neighbouring dates. Those two legacy captures are incomplete —
-the same family as the 2026-03-27 daily-price case in Step 17-c. They are
-reported by date rather than explained away, because an unexplained row must not
-hide inside an expected class.
+**有兩個舊系統日期不完整。** 剩下的 23 個 `legacy_only` 列全部落在 2024-01-25 和
+2026-02-09，那兩天舊系統有 95 和 139 個指數列，而相鄰日期是 277 和 287。那兩次舊系統
+抓取是不完整的——和 Step 17-c 中 2026-03-27 的每日價格案例同一類。它們依日期回報，
+而不是被解釋掉，因為無法解釋的列不可以藏在預期的類別裡。
 
-The two feeds also need different matching rules, which one attempt got wrong
-before the numbers exposed it: TWSE names its return indices distinctly and
-legacy collected both sections, so a legacy name matches whichever section holds
-it; TPEx repeats one name in both and legacy kept only the price one, so
-matching must stay inside the price section. Sharing one rule produced 50,014
-false differences on TPEx.
+兩種資料也需要不同的比對規則，有一次嘗試在數字揭露之前就弄錯了：TWSE 為報酬指數取
+不同的名稱，而舊系統收集了兩個區段，所以舊系統的名稱與存放它的那個區段比對；TPEx 在
+兩個區段重複同一個名稱，而舊系統只保留價格那個，所以比對必須限定在價格區段內。共用
+一條規則在 TPEx 上產生了 50,014 個假差異。
 
-## Scope exclusion recorded in code
+## 記錄在程式中的範圍排除
 
-`market_index_metadata_versions` is **not** written. The database enforces that
-a version's ingest run carries that version's own `dataset_code`, so index
-metadata needs its own run, source policy and evidence — a second dataset's
-wiring for two columns audit §5 already records as derived values of ours rather
-than the source's. The published name lives in `market_index.index_code`, which
-is where identity reads it from anyway.
+**不**寫入 `market_index_metadata_versions`。資料庫強制一個版本的 ingest run 帶有該
+版本自己的 `dataset_code`，所以指數 metadata 需要自己的 run、source policy 和證據——
+為了 audit §5 已經記錄為我們自己的衍生值、而不是來源的值的兩個欄位，去接第二個資料集
+的線路。發布的名稱存在 `market_index.index_code` 中，identity 本來就是從那裡讀取。
 
-## Verification
+## 驗證
 
-Database migrated from zero:
+從零 migrate 的資料庫：
 
 ```text
 469 passed, 3 skipped, 1 warning
 ```
 
-Baseline before this step: 457. The 12 integration tests added here are the
-difference, and each was seen to fail first — 10 before the importers existed
-and 2 from the review, against the code as it was pushed.
+本 step 之前的基準：457。差異就是這裡新增的 12 個 integration test，每一個都確認過先
+失敗——10 個在 importer 存在之前，2 個來自 review，對照 push 時的程式。
 
-Migration round trip on a clean database: `upgrade head` seeds the catalog row,
-three sources, three rule mappings and two coverage declarations; `downgrade`
-removes exactly those, catalog row included; `upgrade head` re-seeds.
+在乾淨資料庫上的 migration 往返：`upgrade head` 寫入 catalog 列、三個來源、三個規則
+對應和兩個涵蓋宣告；`downgrade` 恰好移除這些，包括 catalog 列；`upgrade head` 重新
+寫入。
 
-`ruff check` reports nothing new against `main`.
+`ruff check` 相對於 `main` 沒有回報新問題。
 
-## Code-review findings
+## Code review 發現
 
-Six findings, all verified before anything changed; none was a false positive.
+六項發現，在改動任何東西之前都經過驗證；沒有一項是誤報。
 
-| # | Finding | Verified by | Disposition |
+| # | 發現 | 驗證方式 | 處置 |
 | --- | --- | --- | --- |
-| 1 | `taiex-history` crashes when **every** month fails: `result` and the trailing `import_id` are only assigned on success, so the reporting block reads a manifest that does not exist | A regression driving the CLI with a fetcher that always raises: `NoResultFound`, before `asdict(result)` could raise `UnboundLocalError`. | **Fixed.** An all-failed run prints its failures and exits 1. The failure path this step added did not survive its own worst case — the run that fails completely is exactly the one whose report matters. |
-| 2 | `append_index_metadata_snapshot` is dead code, and wrong if called: it collapses two observations of one index and returns a tuple whose length diverges from its input, which would break the `zip(..., strict=True)` evidence pattern | No caller anywhere in `src` or `tests`. | **Deleted.** ~60 untested lines for a dataset this step explicitly does not own (§67). The step that owns index metadata writes it, with tests. |
-| 3 | `_existing_rows` filters on source and entity but not period, unlike its daily-price twin | Read both. A `correction_check` re-run would load all 365,775 stored rows per date and scan ~1,340 candidates per observation. | Fixed. Scoped by the identity's period column. |
-| 4 | The downgrade guard counts versions, but the blocking foreign key is `ingest_runs → dataset_sources`; a quarantined date leaves a run with no version, so the guard passes and the DELETE fails partway | A regression quarantining a closed date then downgrading: sqlstate `23001`, a raw FK violation mid-mutation, where §81 wants a deliberate pre-mutation refusal. | Fixed. The guard counts ingest runs, manifests and versions, and now raises `P0001` before touching anything. |
-| 5 | Asymmetric downgrade: the upgrade creates the `dataset_catalog` row and the downgrade never removes it | Read. | Fixed. The downgrade removes it, but only once no source declares the dataset. |
-| 6 | The tolerance comment says "one hundredth" for `0.0001` | Read. | Fixed. |
+| 1 | **每個**月份都失敗時，`taiex-history` 會當掉：`result` 和最後的 `import_id` 只在成功時才賦值，所以回報區塊會讀一個不存在的 manifest | 一個回歸測試用永遠拋出錯誤的 fetcher 驅動 CLI：在 `asdict(result)` 拋出 `UnboundLocalError` 之前就發生 `NoResultFound`。 | **已修正。** 全部失敗的執行會印出它的失敗並以 1 結束。這個 step 新增的失敗路徑沒能撐過它自己的最壞情況——完全失敗的執行，正是它的報告最重要的那一次。 |
+| 2 | `append_index_metadata_snapshot` 是死碼，而且被呼叫的話是錯的：它把同一個指數的兩筆觀察合併，回傳的 tuple 長度與輸入不同，會破壞 `zip(..., strict=True)` 的證據模式 | `src` 或 `tests` 中任何地方都沒有呼叫者。 | **已刪除。** 約 60 行沒有測試的程式，屬於這個 step 明確不擁有的資料集（§67）。擁有指數 metadata 的 step 會寫它，並附上測試。 |
+| 3 | `_existing_rows` 依來源和實體過濾，卻沒有依期間過濾，不像它的每日價格雙胞胎 | 閱讀兩者。一次 `correction_check` 重跑會每個日期載入全部 365,775 個已儲存的列，每筆觀察掃描約 1,340 個候選。 | 已修正。以 identity 的期間欄位界定範圍。 |
+| 4 | downgrade 防護計算的是版本數，但擋住的 foreign key 是 `ingest_runs → dataset_sources`；一個被 quarantine 的日期會留下一個沒有版本的 run，所以防護通過，而 DELETE 做到一半失敗 | 一個回歸測試先 quarantine 一個休市日再 downgrade：sqlstate `23001`，修改到一半時的原始 FK 違規，而 §81 要的是修改前刻意的拒絕。 | 已修正。防護計算 ingest run、manifest 和版本，現在會在碰任何東西之前拋出 `P0001`。 |
+| 5 | 不對稱的 downgrade：upgrade 建立了 `dataset_catalog` 列，downgrade 卻從不移除它 | 閱讀。 | 已修正。downgrade 會移除它，但只在沒有任何來源宣告這個資料集之後。 |
+| 6 | 容差的註解對 `0.0001` 寫的是「百分之一」 | 閱讀。 | 已修正。 |
 
-Finding 1 is the one that matters, and it is pointed: this step *added* the
-per-month failure path in response to a live `ReadTimeout`, and the path was
-untested against the case where nothing succeeds.
+真正重要的是第 1 項，而且一針見血：這個 step 為了因應實際的 `ReadTimeout`，*新增*了
+逐月的失敗路徑，而那條路徑沒有針對全部失敗的情況測試過。
 
-## Scope exclusions confirmed
+## 已確認的範圍排除
 
-- Official valuation is 18-c's.
-- Index trade value stays NULL: no inspected source publishes it.
-- OTC index OHLC stays NULL for past dates — `openapi/v1/tpex_index` takes no
-  parameters and always answers the current month (audit §4.2).
-- No index-rename linking. A renamed index is a new identity until official
-  evidence says otherwise.
+- 官方估值屬於 18-c。
+- 指數成交金額保持 NULL：檢查過的來源都沒有發布。
+- 過去日期的櫃買指數 OHLC 保持 NULL——`openapi/v1/tpex_index` 不接受參數，永遠回答
+  當月（audit §4.2）。
+- 沒有指數更名連結。改名的指數在官方證據另有說明之前是新的 identity。
