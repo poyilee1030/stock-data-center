@@ -1426,7 +1426,7 @@ publish_time == the 10th of the next month  ->  release_rule
 
 ### Step 22-a — 比較值 schema 與 MOPS adapter
 
-狀態：**IN REVIEW**。依賴：Step 4 契約、Step 11。
+狀態：**IN REVIEW** (#36)。依賴：Step 4 契約、Step 11。
 
 範圍內：migration `d4a7f2c9b8e1`（比較值欄位、兩個來源的宣告）、MOPS `t21sc03`
 adapter（`mops_t21sc03_sii`、`mops_t21sc03_otc`，各含 `_0`／`_1` 頁）、importer、

@@ -1,6 +1,6 @@
 # Step 22-a 驗收報告
 
-狀態：IN REVIEW
+狀態：IN REVIEW (#36)
 
 範圍：月營收的第一部分，已發布比較值的 schema 與 MOPS adapter。這個 step 新增：
 
