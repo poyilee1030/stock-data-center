@@ -74,6 +74,13 @@ INVESTABLE_ROUNDING = {
     "mops_t13sa150_otc": ROUND_DOWN,
     "tpex_insti_qfii": ROUND_HALF_UP,
 }
+# Published rows that break the source's own B = A×F − C, listed one by one so
+# that a new one fails the run. Stored as published; nothing is recomputed.
+KNOWN_SOURCE_ANOMALIES = {
+    # insti/qfii kept B at 25,000,000 while C rose to 1,000; MOPS published
+    # B = 24,999,000 for the same date.
+    ("tpex_insti_qfii", "2026-04-07", "6028"): "above_cap",
+}
 # The other TPEx source, whose rows explain what one of them lacks.
 COMPANION = {"mops_t13sa150_otc": "tpex_insti_qfii", "tpex_insti_qfii": "mops_t13sa150_otc"}
 SHARES = ("issued_shares", "investable_shares", "held_shares")
@@ -266,6 +273,12 @@ def compare(connection, legacy, archive: Path, source: str, start: date, end: da
         stored_by_date(connection, COMPANION[source], start, end)
         if source in COMPANION else {}
     )
+    ever_stored = {code for rows in stored.values() for code in rows}
+    companion_ever = {code for rows in companion.values() for code in rows}
+    first_seen: dict[str, date] = {}
+    for day_, rows in sorted(stored.items()):
+        for code in rows:
+            first_seen.setdefault(code, day_)
     columns = ", ".join(LEGACY.values())
     legacy_by_date: dict[date, dict[str, dict]] = {}
     for row in legacy.execute(
@@ -282,6 +295,7 @@ def compare(connection, legacy, archive: Path, source: str, start: date, end: da
             name: legacy_value(name, row[column]) for name, column in LEGACY.items()
         }
 
+    ever_in_legacy = {code for rows in legacy_by_date.values() for code in rows}
     differences: Counter[str] = Counter()
     by_date: dict[str, Counter[str]] = {}
     examples: dict[str, list[dict]] = {}
@@ -290,6 +304,7 @@ def compare(connection, legacy, archive: Path, source: str, start: date, end: da
     broken: Counter[str] = Counter()
     broken_examples: list[dict] = []
     withheld = 0
+    known_anomalies: list[dict] = []
     differing_fields: Counter[str] = Counter()
     cache: dict = {}
     compared = 0
@@ -310,12 +325,20 @@ def compare(connection, legacy, archive: Path, source: str, start: date, end: da
             failed, below = arithmetic(row, source)
             withheld += below
             for name in failed:
+                if KNOWN_SOURCE_ANOMALIES.get((source, day.isoformat(), code)) == name:
+                    known_anomalies.append({"date": day.isoformat(), "code": code,
+                                            "identity": name})
+                    continue
                 broken[name] += 1
                 if len(broken_examples) < 10:
                     broken_examples.append({"date": day.isoformat(), "code": code,
                                             "identity": name})
         present = [code for code in theirs_day if code in ours_day]
-        agreeing = sum(ours_day[code] == theirs_day[code] for code in present)
+        agreeing = sum(
+            ours_day[code] == theirs_day[code]
+            or (source == "tpex_insti_qfii" and rounded_only(ours_day[code], theirs_day[code]))
+            for code in present
+        )
         if present and agreeing / len(present) < 0.5:
             wrong_dates[day.isoformat()] = {
                 "legacy_rows": len(theirs_day),
@@ -327,12 +350,22 @@ def compare(connection, legacy, archive: Path, source: str, start: date, end: da
             sample = {"date": day.isoformat(), "symbol": code}
             if code not in ours_day:
                 other = companion.get(day, {}).get(code)
-                if other is None:
-                    note("legacy_only", day, sample)
-                elif source == "mops_t13sa150_otc":
-                    # MOPS drops a security that is no longer listed from every
-                    # past date; insti/qfii still has it (migration f2b6d8a4c1e9).
+                if source == "mops_t13sa150_otc" and code not in ever_stored:
+                    # MOPS drops a security that is no longer listed on TPEx
+                    # from every past date (migration f2b6d8a4c1e9); insti/qfii
+                    # usually still has it on that date.
+                    sample["in_insti_qfii"] = other is not None
                     note("legacy_only:mops_omits_security_no_longer_listed", day, sample)
+                elif (
+                    source == "tpex_insti_qfii" and code in first_seen
+                    and day < first_seen[code] and other is None
+                ):
+                    # Legacy (MOPS) listed 5236 on 2021-07-28, the day before its
+                    # first trade; insti/qfii starts at the first trade, and MOPS
+                    # dropped 5236 after it moved to TWSE.
+                    note("legacy_only:before_security_first_appears_in_source", day, sample)
+                elif other is None:
+                    note("legacy_only", day, sample)
                 else:
                     # insti/qfii omits most ETFs; MOPS lists them (audit 4.4).
                     note("legacy_only:qfii_omits_security_listed_in_mops", day, sample)
@@ -342,6 +375,26 @@ def compare(connection, legacy, archive: Path, source: str, start: date, end: da
             differing = [name for name in LEGACY if ours[name] != theirs[name]]
             if differing and source == "tpex_insti_qfii" and rounded_only(ours, theirs):
                 note("investable_ratio_rounded_not_truncated", day, sample)
+                continue
+            mops_row = companion.get(day, {}).get(code) if source == "tpex_insti_qfii" else None
+            if mops_row is None and source == "tpex_insti_qfii" and code not in companion_ever:
+                # MOPS no longer carries the security; legacy's archived MOPS
+                # page for the date stands in for it.
+                path = legacy_file(archive, day, legacy_market)
+                if path.exists():
+                    if path not in cache:
+                        cache[path] = legacy_file_rows(path, legacy_market)
+                    mops_row = cache[path].get(code)
+            if differing and mops_row is not None and all(
+                mops_row[name] == theirs[name] for name in LEGACY
+            ):
+                # Legacy's file is a MOPS page and equals the MOPS row: the two
+                # TPEx sources disagree on this date. Both are stored; nothing
+                # is merged (CLAUDE.md §30).
+                sample.update({name: {"ours": str(ours[name]), "legacy": str(theirs[name])}
+                               for name in differing})
+                note("value_differs:qfii_disagrees_with_mops_same_date", day, sample)
+                differing_fields.update(differing)
                 continue
             if differing:
                 sample.update({
@@ -353,8 +406,14 @@ def compare(connection, legacy, archive: Path, source: str, start: date, end: da
                 differing_fields.update(differing)
         for code in ours_day:
             if code not in theirs_day:
-                source_only["common_stock" if len(code) == 4 and code.isdigit()
-                            else "etf_or_other_instrument"] += 1
+                if code not in ever_in_legacy:
+                    # Never in legacy at all: instruments legacy did not keep,
+                    # and TPEx securities that left before legacy's 2026-02
+                    # MOPS fetch (the same survivorship, one fetch earlier).
+                    source_only["security_absent_from_legacy_entirely"] += 1
+                else:
+                    source_only["common_stock" if len(code) == 4 and code.isdigit()
+                                else "etf_or_other_instrument"] += 1
 
     return {
         "market": market,
@@ -373,6 +432,7 @@ def compare(connection, legacy, archive: Path, source: str, start: date, end: da
         "differing_fields": dict(differing_fields),
         "arithmetic_failures": dict(broken),
         "arithmetic_examples": broken_examples,
+        "known_source_anomalies": known_anomalies,
         "capacity_withheld_rows": withheld,
     }
 
