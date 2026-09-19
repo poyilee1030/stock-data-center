@@ -314,3 +314,61 @@ def test_mops_a_page_that_is_not_the_table_fails_as_unusable() -> None:
     with pytest.raises(SourceDataError) as error:
         mops(page.encode("cp950"))
     assert error.value.reason_code == "unusable_response"
+
+
+def test_twse_a_zero_last_update_date_means_no_filing_yet() -> None:
+    """Found by the backfill: a newly listed security that has not filed yet
+    gets the JSON integer 0 in the last-update column (4581 on 2020-03-06,
+    00875 on 2020-03-27 and 03-30). MOPS leaves the same cell blank."""
+    raw = mutate(TWSE, lambda p: p["data"][0].__setitem__(11, 0))
+    code = json.loads(TWSE)["data"][0][0]
+    assert one(twse(raw), code).source_last_update_date is None
+
+
+def test_twse_any_other_non_text_value_still_fails_the_file() -> None:
+    for column, value in ((11, 1), (3, 0), (10, 0)):
+        raw = mutate(TWSE, lambda p, c=column, v=value: p["data"][0].__setitem__(c, v))
+        with pytest.raises(SourceDataError) as error:
+            twse(raw)
+        assert error.value.reason_code == "schema_mismatch"
+
+
+def test_twse_the_adapter_version_records_the_zero_date_rule() -> None:
+    assert TWSEForeignHoldingAdapter.version == "twse-mi-qfiis:v2"
+
+
+def test_twse_several_linked_reasons_store_every_code() -> None:
+    """Found by the backfill (2303 on 2020-05-15): two links separated by
+    <br>. Both markets store the codes ascending, comma-separated."""
+    two = (
+        " <a href='https://mopsov.twse.com.tw/mops/web/t98sb02' target=_blank>2</a><br>"
+        " <a href=' https://mopsov.twse.com.tw/server-java/t98sb03?step=1&TYPEK=sii"
+        "&colorchg=1&kind=3&co_id=2303&date=10905' target=_blank>4</a>"
+    )
+    raw = mutate(TWSE, lambda p: p["data"][0].__setitem__(10, two))
+    code = json.loads(TWSE)["data"][0][0]
+    assert one(twse(raw), code).change_reason == "2,4"
+
+
+def test_mops_concatenated_reasons_store_every_code() -> None:
+    # 5483 on 2020-04-06 published `24`; every code is a single digit. MOPS
+    # wraps the codes in a link, as TWSE does.
+    cell = b"target='new_doc'>2</a>"
+    assert cell in MOPS
+    raw = MOPS.replace(cell, b"target='new_doc'>24</a>", 1)
+    parsed = mops(raw)
+    assert "2,4" in {row.observation.change_reason for row in parsed.rows}
+
+
+@pytest.mark.parametrize("published", ["29", "22", "2 x"])
+def test_mops_a_reason_that_is_not_distinct_known_codes_fails(published: str) -> None:
+    cell = b"target='new_doc'>2</a>"
+    assert cell in MOPS
+    raw = MOPS.replace(cell, f"target='new_doc'>{published}</a>".encode("cp950"), 1)
+    with pytest.raises(SourceDataError) as error:
+        mops(raw)
+    assert error.value.reason_code == "unrecognised_value"
+
+
+def test_mops_the_adapter_version_records_the_multi_code_rule() -> None:
+    assert MOPSForeignHoldingAdapter.version == "mops-t13sa150-otc:v2"

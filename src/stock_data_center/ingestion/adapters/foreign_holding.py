@@ -12,11 +12,12 @@ One whole-market table per trade date, in shares and percent:
   big5 — a handful of security names use characters only cp950 maps. Every
   request goes through the per-host governor of Step 20-c.
 
-`與前日異動原因` is a code: blank, 2, 3, 4 or 5, each defined in the page's own
-note. Blank means an ordinary market-trade change and is stored as NULL. TWSE
-wraps some codes in a link to a filing page whose URL moves every month; the
-link is presentation, and only the code is stored, so a moved link is not a
-revision. Any other value fails the file.
+`與前日異動原因` holds codes 2, 3, 4 and 5, each defined in the page's own
+note; blank means an ordinary market-trade change and is stored as NULL. A
+cell may carry several codes, stored ascending and comma-separated (`2,4`).
+Both sources wrap codes in links to filing pages whose URLs move every month;
+the links are presentation and only the codes are stored, so a moved link is
+not a revision. Anything else fails the file.
 
 No value is recomputed, and the security name and TWSE's ISIN are not stored:
 security metadata owns them.
@@ -51,7 +52,7 @@ _ROC_OFFSET = 1911
 _SHARES = re.compile(r"\d{1,3}(?:,\d{3})*|\d+")
 _RATIO = re.compile(r"\d+(?:\.\d+)?")
 _ROC_DATE = re.compile(r"(\d{2,3})/(\d{2})/(\d{2})")
-_REASON_CODES = frozenset({"2", "3", "4", "5"})
+_REASON_CODES = frozenset("2345")
 _TAG = re.compile(r"<[^>]*>")
 
 # Observation field -> position among the value cells that follow code and name.
@@ -166,15 +167,27 @@ class ForeignHoldingAdapter(ABC):
         return Decimal(text)
 
     def _reason(self, value: object, number: int, code: str) -> str | None:
-        text = html.unescape(_TAG.sub("", self._text(value, number, code))).strip()
-        if not text:
+        """Every published code, ascending and comma-separated: `2`, `2,4`.
+
+        A cell may carry several codes. TWSE puts one link per code on its own
+        line (`2<br>4`); MOPS runs them together (`24`). Each code is one digit
+        from 2 to 5, so both read the same, and a digit outside that set or a
+        repeated one fails the file.
+        """
+        text = html.unescape(_TAG.sub(" ", self._text(value, number, code)))
+        digits = "".join(text.split())
+        if not digits:
             return None
-        if text not in _REASON_CODES:
+        if (
+            not digits.isdigit()
+            or not set(digits) <= _REASON_CODES
+            or len(set(digits)) != len(digits)
+        ):
             raise SourceDataError(
                 "unrecognised_value",
                 f"{self.source} row {number} ({code}) change reason {value!r}",
             )
-        return text
+        return ",".join(sorted(digits))
 
     def _roc_date(self, value: object, number: int, code: str) -> date | None:
         text = self._text(value, number, code)
@@ -201,7 +214,7 @@ class TWSEForeignHoldingAdapter(ForeignHoldingAdapter):
 
     source = "twse_mi_qfiis"
     market = "TWSE"
-    version = "twse-mi-qfiis:v1"
+    version = "twse-mi-qfiis:v2"
     endpoint = "https://www.twse.com.tw/rwd/zh/fund/MI_QFIIS"
     unit_hint = "單位:股"
     variants = MappingProxyType({
@@ -274,8 +287,15 @@ class TWSEForeignHoldingAdapter(ForeignHoldingAdapter):
                     "schema_mismatch", f"TWSE row {number} has an invalid shape"
                 )
             code = self._text(raw[0], number, "?")
+            cells = list(raw[3:])
+            # A security that has not filed yet gets the integer 0 as its
+            # last-update date (4581 on 2020-03-06, found by the backfill);
+            # MOPS leaves the same cell blank. Only that exact value is read
+            # as "no date": anything else not text still fails the file.
+            if cells[-1] == 0 and type(cells[-1]) is int:
+                cells[-1] = ""
             # Skip name and ISIN: security metadata owns both.
-            table.append((code, raw[3:]))
+            table.append((code, cells))
         return ParsedForeignHolding(
             market=self.market,
             trade_date=request.trade_date,
@@ -298,7 +318,7 @@ class MOPSForeignHoldingAdapter(ForeignHoldingAdapter):
 
     source = "mops_t13sa150_otc"
     market = "TPEx"
-    version = "mops-t13sa150-otc:v1"
+    version = "mops-t13sa150-otc:v2"
     endpoint = "https://mopsov.twse.com.tw/server-java/t13sa150_otc"
     encoding = "cp950"
     variants = MappingProxyType({
