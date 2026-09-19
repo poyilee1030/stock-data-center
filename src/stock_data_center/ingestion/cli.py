@@ -29,6 +29,7 @@ from stock_data_center.ingestion.adapters import (
     TPExOfficialValuationAdapter,
     TPExParValueChangeAdapter,
     TPExReductionAdapter,
+    TPExSecuritiesLendingAdapter,
     TPExSecurityMetadataAdapter,
     TPExWholeMarketDailyAdapter,
     TWSEDailyMarketAdapter,
@@ -44,6 +45,7 @@ from stock_data_center.ingestion.adapters import (
     TWSEOfficialValuationAdapter,
     TWSEParValueChangeAdapter,
     TWSEReductionAdapter,
+    TWSESecuritiesLendingAdapter,
     TWSESecurityMetadataAdapter,
     TWSETaiexHistoryAdapter,
     TWSETradingCalendarAdapter,
@@ -80,6 +82,7 @@ from stock_data_center.ingestion.models import (
     MarginTradingRequest,
     MarketIndexRequest,
     OfficialValuationRequest,
+    SecuritiesLendingRequest,
     SecurityLifecycleRequest,
     SecurityMetadataRequest,
     TaiexHistoryRequest,
@@ -90,6 +93,7 @@ from stock_data_center.ingestion.official_valuation import (
     OfficialValuationImporter,
 )
 from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
+from stock_data_center.ingestion.securities_lending import SecuritiesLendingImporter
 from stock_data_center.ingestion.security_lifecycle import (
     SecurityLifecycleImporter,
     reconcile_security_transfers,
@@ -228,6 +232,22 @@ def main(argv: list[str] | None = None) -> int:
     margin.add_argument("--min-interval-seconds", type=float, default=1.5)
     margin.add_argument("--import-id", type=UUID)
     margin.add_argument("--raw-root", type=Path, default=Path("data/raw"))
+    lending = subparsers.add_parser(
+        "securities-lending",
+        help="import one market's per-security securities lending for one trade date",
+    )
+    lending.add_argument(
+        "--source", choices=("twse_twt93u", "tpex_margin_sbl"), required=True
+    )
+    lending.add_argument("--trade-date", required=True, help="Gregorian YYYY-MM-DD")
+    lending.add_argument(
+        "--through",
+        help="optional Gregorian YYYY-MM-DD; import every published trading "
+        "date from --trade-date to it, driven by the Step 16 calendar",
+    )
+    lending.add_argument("--min-interval-seconds", type=float, default=1.5)
+    lending.add_argument("--import-id", type=UUID)
+    lending.add_argument("--raw-root", type=Path, default=Path("data/raw"))
     holding = subparsers.add_parser(
         "foreign-holding",
         help="import one market's per-security foreign holding for one trade date",
@@ -590,6 +610,40 @@ def main(argv: list[str] | None = None) -> int:
                 result = importer.run(
                     adapter=adapter,
                     request=MarginTradingRequest(first),
+                    import_id=import_id,
+                    purpose=IngestPurpose(args.purpose),
+                )
+        elif args.command == "securities-lending":
+            importer = SecuritiesLendingImporter(
+                engine, raw_store=LocalRawArtifactStore(args.raw_root)
+            )
+            adapter = (
+                TWSESecuritiesLendingAdapter()
+                if args.source == "twse_twt93u"
+                else TPExSecuritiesLendingAdapter()
+            )
+            first = date.fromisoformat(args.trade_date)
+            if args.through:
+                last = date.fromisoformat(args.through)
+                if last < first:
+                    parser.error("--through must not be before --trade-date")
+                base_import_id = args.import_id or default_base_import_id(
+                    args.source, first, last
+                )
+                backfill_report = WholeMarketDailyBackfill(
+                    importer, request_factory=SecuritiesLendingRequest
+                ).run(
+                    adapter=adapter,
+                    start=first,
+                    end=last,
+                    base_import_id=base_import_id,
+                    purpose=IngestPurpose(args.purpose),
+                    min_interval_seconds=args.min_interval_seconds,
+                )
+            else:
+                result = importer.run(
+                    adapter=adapter,
+                    request=SecuritiesLendingRequest(first),
                     import_id=import_id,
                     purpose=IngestPurpose(args.purpose),
                 )

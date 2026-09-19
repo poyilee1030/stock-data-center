@@ -41,6 +41,7 @@ DATASET_TARGETS = {
     "institutional_market_summary": "institutional_market_summary_version_id",
     "foreign_holding": "foreign_holding_version_id",
     "margin_trading": "margin_trading_version_id",
+    "securities_lending": "securities_lending_version_id",
 }
 from stock_data_center.evidence.plan import PlannedEvidence, evidence_plan
 from stock_data_center.evidence.release_rules import ReleaseRuleService

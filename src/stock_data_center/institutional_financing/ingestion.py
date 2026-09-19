@@ -235,6 +235,24 @@ class InstitutionalFinancingWriter:
             lineage=lineage,
         )
 
+    def append_securities_lendings(
+        self,
+        connection: Connection,
+        *,
+        source: str,
+        observations: Sequence[tuple[int, SecuritiesLendingObservation]],
+        lineage: SourceLineageRef,
+    ) -> tuple[WrittenSourceVersion, ...]:
+        """Append a whole market-date of lending rows, in the order given; set-based
+        for the reason `append_institutional_investors` is."""
+        return self._append_many(
+            connection,
+            spec=_SPECS["securities_lending"],
+            source=source,
+            observations=observations,
+            lineage=lineage,
+        )
+
     def append_publication_evidence(
         self,
         connection: Connection,
