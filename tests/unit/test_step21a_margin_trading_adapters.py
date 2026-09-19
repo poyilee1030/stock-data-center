@@ -244,8 +244,16 @@ def test_tpex_a_declared_total_that_disagrees_fails_the_file() -> None:
     assert error.value.reason_code == "schema_mismatch"
 
 
-def test_tpex_a_utilization_above_one_hundred_fails_the_file() -> None:
-    raw = mutate(TPEX, lambda p: p["tables"][0]["data"][0].__setitem__(8, "100.01"))
+def test_tpex_a_utilization_above_one_hundred_is_stored_as_published() -> None:
+    """Found by the backfill: 00989B on 2026-07-14 bought 15,568 lots against a
+    15,113-lot limit in one day; the stop applies from the next business day,
+    so TPEx published 103.1%."""
+    raw = mutate(TPEX, lambda p: p["tables"][0]["data"][0].__setitem__(8, "103.1"))
+    assert tpex(raw).rows[0].observation.margin_utilization_ratio == Decimal("103.1")
+
+
+def test_tpex_a_negative_utilization_still_fails_the_file() -> None:
+    raw = mutate(TPEX, lambda p: p["tables"][0]["data"][0].__setitem__(8, "-0.1"))
     with pytest.raises(SourceDataError) as error:
         tpex(raw)
     assert error.value.reason_code == "invalid_numeric"
@@ -260,3 +268,42 @@ def test_tpex_the_same_security_twice_fails_the_file() -> None:
     with pytest.raises(SourceDataError) as error:
         tpex(mutate(TPEX, duplicate))
     assert error.value.reason_code == "duplicate_security"
+
+
+
+# ---- trading units that are not 1,000 shares --------------------------------
+#
+# TWSE's own note (MI_INDEX): 除境外指數股票型基金及外國股票第二上市外，餘交易
+# 單位皆為千股. 008201 BP上證50, an offshore ETF (ISIN HK0000052297), trades in
+# lots of 100: its next-day limit × 100 is 25% of its issued units on all 612 of
+# its dates (2020-01-02 → 2022-07-08), where × 1,000 would be 10 times that.
+
+
+def test_twse_008201_converts_its_lots_of_one_hundred() -> None:
+    observation = one(twse(TWSE_2020, FIRST), "008201")
+    assert int(observation.margin_next_limit.value) == 3_872 * 100
+    assert int(observation.margin_balance.value) == 1 * 100
+
+
+def test_twse_every_other_security_converts_lots_of_one_thousand() -> None:
+    assert int(one(twse(TWSE_2020, FIRST), "0050").margin_next_limit.value) == 171_750 * 1000
+
+
+def test_twse_the_lot_exceptions_are_explicit() -> None:
+    from stock_data_center.ingestion.adapters.margin_trading import TWSE_LOT_SHARES
+
+    assert dict(TWSE_LOT_SHARES) == {"008201": 100}
+    assert TWSEMarginTradingAdapter.version == "twse-mi-margn:v2"
+
+
+def test_the_observation_accepts_a_utilization_above_one_hundred() -> None:
+    from stock_data_center.institutional_financing.models import (
+        MarginTradingObservation,
+    )
+
+    observation = MarginTradingObservation(
+        trade_date=DAY, margin_utilization_ratio=Decimal("103.1")
+    )
+    assert observation.margin_utilization_ratio == Decimal("103.1")
+    with pytest.raises(ValueError):
+        MarginTradingObservation(trade_date=DAY, margin_utilization_ratio=Decimal("-1"))

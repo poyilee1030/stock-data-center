@@ -278,14 +278,10 @@ class MarginTradingObservation:
                 )
             if value is not None and value.value < 0:
                 raise ValueError(f"{name} must not be negative")
+        # No upper bound: the stop applies from the next business day, so one
+        # day's buying can overshoot the limit (TPEx 00989B, 2026-07-14: 103.1%).
         for name in ("margin_utilization_ratio", "short_utilization_ratio"):
-            _validate_decimal(
-                name,
-                getattr(self, name),
-                scale=8,
-                nonnegative=True,
-                maximum=Decimal("100"),
-            )
+            _validate_decimal(name, getattr(self, name), scale=8, nonnegative=True)
 
 
 @dataclass(frozen=True, slots=True)

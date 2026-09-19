@@ -10,11 +10,17 @@ One whole-market table per trade date, in lots:
 - TPEx `www/zh-tw/margin/balance`, the JSON of the legacy `margin_bal` page
   (audit §4.5), 20 fields labelled `(張)`. Its short side lists 券賣 before 券買.
 
-A lot is 1,000 shares for every security here. That is checked against the
-source, not assumed from magnitude (CLAUDE.md §72): both exchanges stop margin at
-25% of listed shares, and the next-day limit × 1,000 equals 25% of the issued
-shares Step 20-d stored for most securities, with no cluster at another
-multiple. The reconciliation repeats the check on every date.
+A lot is 1,000 shares except where TWSE's own note says otherwise: 除境外指數
+股票型基金及外國股票第二上市外，餘交易單位皆為千股 (MI_INDEX). The exceptions
+this window holds are listed in `TWSE_LOT_SHARES`, each with its evidence;
+nothing is inferred from magnitude at parse time (CLAUDE.md §72). Both exchanges
+stop margin at 25% of listed shares, so the reconciliation compares every
+next-day limit with 25% of the issued shares Step 20-d stored, which is how
+008201 was found; a new exception fails that check until it is listed here.
+
+A utilization ratio is stored as published, above 100 included: the stop takes
+effect on the next business day, so one day's buying can overshoot the limit
+(00989B, 2026-07-14: 103.1%).
 
 Not stored: names, TPEx's 資屬證金 and 券屬證金, and both exchanges' status
 notes (`O` 停止融資, `X` 停止融券, …), which have no contract column. The raw
@@ -49,6 +55,14 @@ _ROC_OFFSET = 1911
 _LOTS = re.compile(r"\d{1,3}(?:,\d{3})*|\d+")
 _RATIOS = frozenset({"margin_utilization_ratio", "short_utilization_ratio"})
 
+# Securities whose TWSE trading unit is not 1,000 shares, within the v1 window.
+TWSE_LOT_SHARES = MappingProxyType({
+    # BP上證50, an offshore ETF (ISIN HK0000052297), listed until 2022-07-08.
+    # Its next-day limit × 100 equals 25% of its issued units on all 612 of its
+    # dates; × 1,000 would be ten times that.
+    "008201": 100,
+})
+
 
 class MarginTradingAdapter(ABC):
     """One market's per-security margin trading for one trade date."""
@@ -61,6 +75,8 @@ class MarginTradingAdapter(ABC):
     variants: Mapping[str, tuple[str, ...]]
     # Observation field -> index into the published row.
     columns: Mapping[str, int]
+    # Shares per lot for the securities that do not trade in lots of 1,000.
+    lot_shares: Mapping[str, int] = MappingProxyType({})
 
     @abstractmethod
     def resource(self, request: MarginTradingRequest) -> SourceResource: ...
@@ -110,7 +126,7 @@ class MarginTradingAdapter(ABC):
                 name: (
                     self._ratio(raw[index], number, name)
                     if name in _RATIOS
-                    else self._lots(raw[index], number, name)
+                    else self._lots(raw[index], number, name, self.lot_shares.get(code))
                 )
                 for name, index in self.columns.items()
             }
@@ -136,15 +152,16 @@ class MarginTradingAdapter(ABC):
             )
         return value
 
-    def _lots(self, value: object, number: int, field: str):
+    def _lots(self, value: object, number: int, field: str, lot_shares: int | None):
         text = self._text(value, number).strip()
         if not _LOTS.fullmatch(text):
             raise SourceDataError(
                 "unrecognised_value", f"{self.source} row {number} {field} is {value!r}"
             )
-        return SourceShareQuantity(
-            Decimal(text.replace(",", "")), QuantityScale.LOT
-        ).to_canonical()
+        lots = Decimal(text.replace(",", ""))
+        if lot_shares is None:
+            return SourceShareQuantity(lots, QuantityScale.LOT).to_canonical()
+        return SourceShareQuantity(lots * lot_shares, QuantityScale.SHARE).to_canonical()
 
     def _ratio(self, value: object, number: int, field: str) -> Decimal:
         text = self._text(value, number).strip()
@@ -179,7 +196,8 @@ class TWSEMarginTradingAdapter(MarginTradingAdapter):
 
     source = "twse_mi_margn"
     market = "TWSE"
-    version = "twse-mi-margn:v1"
+    version = "twse-mi-margn:v2"
+    lot_shares = TWSE_LOT_SHARES
     endpoint = "https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN"
     variants = MappingProxyType({
         "mi_margn_16": (

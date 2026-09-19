@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
 
@@ -315,5 +316,80 @@ def test_a_reimport_does_not_append_the_rule_a_late_first_capture_withheld(
                 "WHERE dataset_code = 'margin_trading' GROUP BY 1"
             )).all())
         assert counts == {"capture_bound": 920}
+    finally:
+        engine.dispose()
+
+
+UTILIZATION_PREVIOUS = "a4c8e2f6b1d3"
+
+
+def over_one_hundred() -> bytes:
+    payload = json.loads(TPEX)
+    payload["tables"][0]["data"][0][8] = "103.1"
+    return json.dumps(payload, ensure_ascii=False).encode("utf-8")
+
+
+def test_a_utilization_above_one_hundred_is_stored(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """00989B, 2026-07-14: TPEx published 103.1%. Step 7's 0-100 cap had no
+    source behind it; the stop applies from the next business day."""
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        result, _ = run(engine, tmp_path, adapter=TPExMarginTradingAdapter(),
+                        content=over_one_hundred())
+        assert result.business_versions_created == 920
+        with engine.connect() as connection:
+            assert connection.scalar(sa.text(
+                "SELECT max(margin_utilization_ratio) FROM margin_trading_versions"
+            )) == Decimal("103.1")
+    finally:
+        engine.dispose()
+
+
+def test_the_cap_downgrade_refuses_a_stored_ratio_above_one_hundred(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    from alembic import command
+    from conftest import alembic_config, alembic_head
+    from sqlalchemy.exc import DBAPIError
+
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        run(engine, tmp_path, adapter=TPExMarginTradingAdapter(), content=over_one_hundred())
+        with pytest.raises(DBAPIError) as blocked:
+            command.downgrade(alembic_config(isolated_database_url), UTILIZATION_PREVIOUS)
+        assert blocked.value.orig.sqlstate == "P0001"
+        with engine.connect() as connection:
+            assert connection.scalar(
+                sa.text("SELECT version_num FROM alembic_version")
+            ) == alembic_head()
+    finally:
+        engine.dispose()
+
+
+def test_the_cap_downgrade_restores_the_old_check_and_upgrade_relaxes_it(
+    isolated_database_url: str,
+) -> None:
+    from alembic import command
+    from conftest import alembic_config
+
+    config = alembic_config(isolated_database_url)
+    engine = sa.create_engine(isolated_database_url)
+    query = sa.text(
+        "SELECT conname FROM pg_constraint WHERE conrelid = 'margin_trading_versions'::regclass "
+        "AND conname LIKE 'ck_margin_trading_versions_margin_trading_ratios%'"
+    )
+    try:
+        command.downgrade(config, UTILIZATION_PREVIOUS)
+        with engine.connect() as connection:
+            assert connection.scalars(query).all() == [
+                "ck_margin_trading_versions_margin_trading_ratios_percent"
+            ]
+        command.upgrade(config, "head")
+        with engine.connect() as connection:
+            assert connection.scalars(query).all() == [
+                "ck_margin_trading_versions_margin_trading_ratios_nonnegative"
+            ]
     finally:
         engine.dispose()

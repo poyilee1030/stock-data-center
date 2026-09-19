@@ -1154,9 +1154,9 @@ margin_trading_versions = sa.Table(
         name="margin_trading_quantities_nonnegative",
     ),
     sa.CheckConstraint(
-        "(margin_utilization_ratio IS NULL OR margin_utilization_ratio BETWEEN 0 AND 100) AND "
-        "(short_utilization_ratio IS NULL OR short_utilization_ratio BETWEEN 0 AND 100)",
-        name="margin_trading_ratios_percent",
+        "(margin_utilization_ratio IS NULL OR margin_utilization_ratio >= 0) AND "
+        "(short_utilization_ratio IS NULL OR short_utilization_ratio >= 0)",
+        name="margin_trading_ratios_nonnegative",
     ),
 )
 
