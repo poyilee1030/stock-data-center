@@ -101,7 +101,7 @@ Each required criterion must be PASS/FAIL with concrete evidence.
 
 ## Current Step Sequence
 
-ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–18, 19-a through 19-e, 20-a through 20-d, 21-a and 21-b as MERGED and labels Step 22-a as `THIS STEP` (a contextual marker, not an additional status value):
+ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–18, 19-a through 19-e, 20-a through 20-d, 21-a, 21-b and 22-a as MERGED and labels Step 22-b as `THIS STEP` (a contextual marker, not an additional status value):
 
 ```text
 Step 11  authoritative security lifecycle history        MERGED
@@ -129,8 +129,8 @@ Step 20-c complete source requests + MOPS rate governor MERGED
 Step 20-d foreign holding (MI_QFIIS + MOPS + insti/qfii) MERGED
 Step 21-a margin trading                               MERGED
 Step 21-b securities lending                           MERGED
-Step 22-a monthly revenue: comparatives + MOPS adapter  THIS STEP
-Step 22-b monthly revenue: backfill + reconciliation    PLANNED
+Step 22-a monthly revenue: comparatives + MOPS adapter  MERGED
+Step 22-b monthly revenue: backfill + reconciliation    THIS STEP
 Step 22-c monthly revenue: publication evidence         PLANNED
 Step 23  financial statements (iXBRL)                   PLANNED
 Step 24  TDCC distribution                             PLANNED

@@ -701,6 +701,50 @@ Verified by live fetches of both markets' `_0` and `_1` pages for every January
   captured 13,094, so the §7.3 disagreement exists only between legacy's
   first capture and today's pages.
 
+#### Step 22-b findings (2026-09-20)
+
+The full history is imported: 2020M01–2026M08, both markets, both pages, 320
+pages, 150,641 rows (`mops_t21sc03_sii` 82,859, `mops_t21sc03_otc` 67,782).
+Coverage is 80 of 80 months in each market. Two pages answered HTTP 502 and
+succeeded on a rerun with a new import id; no page quarantined, and no month
+of the window answers 查無資料.
+
+- **The two pages never share a company.** Every one of the 160 stored
+  market-months was re-parsed from its raw artifacts and intersected: zero
+  shared companies. `_1` holds 94 issuers in 上市 and 30 in 上櫃 over the
+  window (6,647 and 2,304 rows), all of them new coverage — legacy has none.
+- **The source rewrites its own history by issuer status.** `t21sc03` is
+  regenerated, and a month's page lists the issuers that hold that status
+  *now*. 540 legacy rows (230 上市, 310 上櫃) are for issuers that appear on no
+  month's page of either market. Three of them, checked by hand on 2026-09-20
+  for 2020M01: 2867 三商壽 and 6806 森崴能源 are on the `pub` page, and 3454
+  晶睿 is on none of `sii`, `otc`, `rotc` or `pub`. `pub` and `rotc` are
+  outside the v1 universe by owner decision, so these rows are not a gap in
+  what v1 covers. The mirror image is 1,257 rows we hold for months before the
+  issuer was listed, which legacy had no page to read.
+- **A market change shows up on both sides.** 77 rows are ours under 上市 where
+  legacy filed them under 上櫃, and 78 the other way round.
+- **Legacy's own decoding differs from the page's.** 98 notes differ from ours
+  without the page having changed: 22 where legacy collapsed runs of
+  whitespace, 69 where its decoding lost bytes (`不銹鋼`'s 銹 is `F9 D7`, which
+  strict big5 rejects), one where it read the same bytes as another character
+  (`‧` and `•` are both `A1 45`), and 6 where the page's literal `NA` became
+  NULL. 11 further rows are months legacy simply missed for an issuer it holds
+  on both sides.
+- **Corrections after legacy's capture are the bulk of the value
+  differences.** 166 rows' 當月營收 differ with the next month's 上月營收
+  agreeing with ours. 986 further comparatives are restatements those
+  corrections explain, 3 are comparatives that disagree with the month they
+  restate while ours agrees, 2 are legacy cumulatives that do not follow
+  legacy's own rows (1611 2026M05: legacy holds 341,881 where its own 338,195
+  + 86,945 is our 425,140), and 4 are percentages following amounts already
+  explained.
+- **Sixteen rows have no mechanical proof** and are named individually in
+  `scripts/reconcile_monthly_revenue.py` (`KNOWN_LATE_REPUBLICATION`): 2425
+  and 1235 rewrote their 備註, 2887 台新新光金 and 2608 restated their 去年
+  columns, 6692, 4402 and 6101 replaced their 備註. All sixteen are 2026
+  months, the tail legacy captured most recently, and none changes 當月營收.
+
 ### 4.8 Financial statements (iXBRL)
 
 MOPS `server-java/t164sb01`, one iXBRL HTML per `(CO_ID, SYEAR, SSEASON,

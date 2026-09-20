@@ -605,6 +605,11 @@ monthly_revenue_versions = sa.Table(
     sa.CheckConstraint("currency ~ '^[A-Z]{3}$'", name="currency_format"),
     sa.CheckConstraint("note IS NULL OR note <> ''", name="note_nonempty"),
 )
+sa.Index(
+    "ix_monthly_revenue_versions_period",
+    monthly_revenue_versions.c.revenue_period,
+    monthly_revenue_versions.c.source,
+)
 
 monthly_revenue_version_observations = sa.Table(
     "monthly_revenue_version_observations",

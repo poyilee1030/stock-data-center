@@ -608,8 +608,8 @@ explicit out-of-scope work
 | 20-d | MERGED | 外資持股 |
 | 21-a | MERGED | 融資融券 |
 | 21-b | MERGED | 借券 |
-| 22-a | THIS STEP | 月營收：比較值 schema 與 MOPS adapter |
-| 22-b | PLANNED | 月營收：歷史 backfill 與舊系統對帳 |
+| 22-a | MERGED | 月營收：比較值 schema 與 MOPS adapter |
+| 22-b | THIS STEP | 月營收：歷史 backfill 與舊系統對帳 |
 | 22-c | PLANNED | 月營收：發布證據 |
 | 23 | PLANNED | 財務報表（iXBRL） |
 | 24 | PLANNED | TDCC 股權分散 |
@@ -1426,7 +1426,7 @@ publish_time == the 10th of the next month  ->  release_rule
 
 ### Step 22-a — 比較值 schema 與 MOPS adapter
 
-狀態：**IN REVIEW** (#36)。依賴：Step 4 契約、Step 11。
+狀態：**MERGED** (#36)。依賴：Step 4 契約、Step 11。
 
 範圍內：migration `d4a7f2c9b8e1`（比較值欄位、兩個來源的宣告）、MOPS `t21sc03`
 adapter（`mops_t21sc03_sii`、`mops_t21sc03_otc`，各含 `_0`／`_1` 頁）、importer、
@@ -1456,10 +1456,24 @@ CLI `monthly-revenue`。
 
 ### Step 22-b — 歷史 backfill 與舊系統對帳
 
-狀態：**PLANNED**。依賴：Step 22-a。
+狀態：**IN REVIEW**。依賴：Step 22-a。
 
 範圍內：兩個市場 × `_0`／`_1` 頁 × 2020M01 → 2026M08 的 backfill、月度涵蓋宣告，
 以及與舊系統 `monthly_revenue` 的對帳（單位換算後，每個差異都分類）。
+
+2026-09-20 定案（audit §4.7「Step 22-b findings」）：
+
+- **月度涵蓋宣告。** migration `b7e4c1a95d38` 為兩個市場各宣告一列，cadence 是
+  `calendar_month`，period 欄位是新的 `revenue_period`——由 `revenue_year` 與
+  `revenue_month` 生成，不是另外寫入的一份副本。宣告需要一個 `calendar_market`，
+  但月報表不是按交易日發布的；兩列都填 `TWSE`，而決定不查日曆的是 cadence。
+- **一個月份由哪一頁補齊都算涵蓋。** `_1` 不是另一個資料集，某個月份沒有任何外國
+  發行公司也不該讀成缺口。頁層級的結果由 backfill 報告與 manifest 記錄。
+- **來源會按發行公司的現況重寫自己的歷史。** `t21sc03` 是重新產生的：某個月份的
+  頁面列出的是**現在**具備該身分的發行公司。已經離開兩個市場的發行公司，連 2020 年
+  的頁面上都不再出現，即使舊系統當時記錄過它。這些列不是我們涵蓋範圍內的缺口，
+  因為 `pub`／`rotc` 依 owner 決定不在 v1 範圍內。
+- **未發布的月份回報 `no_data`，與失敗分開計數。** 重跑能修好的是失敗，不是未發布。
 
 驗收：
 
