@@ -43,7 +43,11 @@ DATASET_TARGETS = {
     "margin_trading": "margin_trading_version_id",
     "securities_lending": "securities_lending_version_id",
 }
-from stock_data_center.evidence.plan import PlannedEvidence, evidence_plan
+from stock_data_center.evidence.plan import (
+    PlannedEvidence,
+    archive_evidence_plan,
+    evidence_plan,
+)
 from stock_data_center.evidence.release_rules import ReleaseRuleService
 from stock_data_center.provenance import IngestPurpose
 
@@ -133,6 +137,53 @@ class EvidencePolicyService:
 
 
 @dataclass(frozen=True, slots=True)
+class ArchivePlanner:
+    """One month's archive policy, resolved once and then pure.
+
+    Unlike `BoundEvidencePolicy.plan`, an evidence type the source does not
+    accept is an error rather than a quiet downgrade to `unknown`: this path
+    writes nothing else, so a silent downgrade would look like a successful
+    import that proved nothing.
+    """
+
+    dataset_code: str
+    source: str
+    accepted: frozenset[str]
+    # Absent when this month has no row sitting on the statutory day: the
+    # rule's business-day shift asks the calendar, and asking it for a month
+    # nothing claims would refuse an import that claims nothing.
+    rule_instant: datetime | None = None
+    rule_source: str | None = None
+
+    def plan(
+        self,
+        *,
+        bound_at: datetime,
+        proves_first_capture: bool,
+        bound_is_the_rule_day: bool,
+    ) -> tuple[PlannedEvidence, ...]:
+        planned = archive_evidence_plan(
+            bound_at=bound_at,
+            evidence_source=self.evidence_source(bound_at),
+            proves_first_capture=proves_first_capture,
+            rule_instant=self.rule_instant,
+            rule_source=self.rule_source,
+            bound_is_the_rule_day=bound_is_the_rule_day,
+        )
+        unaccepted = sorted({item.evidence_type for item in planned} - self.accepted)
+        if unaccepted:
+            raise UnacceptedEvidenceTypeError(
+                f"{self.dataset_code}/{self.source} does not accept {unaccepted}; "
+                "add them to accepted_evidence_types in the same migration"
+            )
+        return planned
+
+    @staticmethod
+    def evidence_source(bound_at: datetime) -> str:
+        return f"legacy market.csv {bound_at.date().isoformat()}"
+
+
+@dataclass(frozen=True, slots=True)
 class BoundEvidencePolicy:
     """One dataset source's policy, resolved once."""
 
@@ -173,6 +224,44 @@ class BoundEvidencePolicy:
             proven_capture_at=self._stored_capture(connection, version_id),
         )
         return self._filter(planned)
+
+    def archive_planner(
+        self,
+        connection: Connection,
+        *,
+        period: date,
+        rule_id: str,
+        rule_version: int,
+        needs_rule: bool = True,
+    ) -> ArchivePlanner:
+        """Resolve the rule once for a whole month's archive rows (Step 22-c).
+
+        The rule is named by the caller rather than read from
+        `dataset_release_rules`: the archive covers the rows legacy fetched,
+        and declaring the rule on the source would hand the same instant to
+        every row legacy never saw — the KY issuers among them, which is the
+        look-ahead that step exists to avoid.
+
+        Resolved once, because a month's rows all share the period, and
+        resolving it per row asks the calendar the same question a thousand
+        times.
+        """
+        if not needs_rule:
+            return ArchivePlanner(
+                dataset_code=self.dataset_code,
+                source=self.source,
+                accepted=self.accepted,
+            )
+        resolved = self.rules.resolve(
+            connection, rule_id=rule_id, version=rule_version, period=period
+        )
+        return ArchivePlanner(
+            dataset_code=self.dataset_code,
+            source=self.source,
+            accepted=self.accepted,
+            rule_instant=resolved.published_at,
+            rule_source=resolved.evidence_source,
+        )
 
     def plan_many(
         self,

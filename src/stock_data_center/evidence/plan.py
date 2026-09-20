@@ -113,6 +113,73 @@ def evidence_plan(
     return tuple(items)
 
 
+def archive_evidence_plan(
+    *,
+    bound_at: datetime,
+    evidence_source: str,
+    proves_first_capture: bool,
+    rule_instant: datetime | None = None,
+    rule_source: str | None = None,
+    bound_is_the_rule_day: bool = False,
+) -> tuple[PlannedEvidence, ...]:
+    """What one legacy-archive row proves about when its month was public.
+
+    The archive holds two different things, and the window decides which
+    (audit §7.1, §7.4):
+
+    * **2026M02 onward** the date is the legacy 22:45 job's own first sighting
+      and the value beside it is what it saw, so the row proves a
+      `legacy_capture_bound` — the same shape as a capture bound, one rank
+      lower because the sighting is someone else's and dated to the day.
+    * **before that** the date is an announcement date recovered from a news
+      article, which proves the filing was public that day: a
+      `press_report_bound`. A row still sitting on the statutory day of the
+      month cannot be told from the fallback by value alone, so it claims the
+      rule instead, which is never earlier than the rule and moves with it
+      when the deadline falls on a closed day.
+
+    `bound_at` is the end of the archive's day in the market timezone: the
+    archive dates rows to the day, and the end of it is the earliest instant
+    that is certainly not before the sighting or the article.
+    """
+    if bound_at.tzinfo is None:
+        raise ValueError("bound_at must be timezone-aware (CLAUDE.md §34)")
+    if proves_first_capture:
+        return (
+            PlannedEvidence(
+                evidence_type="legacy_capture_bound",
+                evidence_kind="assertion",
+                published_at=bound_at,
+                quality_rank=EVIDENCE_RANKS["legacy_capture_bound"],
+                evidence_source=evidence_source,
+            ),
+        )
+    if bound_is_the_rule_day:
+        if rule_instant is None:
+            raise ValueError(
+                "a row left on the statutory day needs the rule instant it claims"
+            )
+        _require_rule_attribution(rule_source)
+        return (
+            PlannedEvidence(
+                evidence_type="release_rule",
+                evidence_kind="assertion",
+                published_at=rule_instant,
+                quality_rank=EVIDENCE_RANKS["release_rule"],
+                evidence_source=rule_source,  # type: ignore[arg-type]
+            ),
+        )
+    return (
+        PlannedEvidence(
+            evidence_type="press_report_bound",
+            evidence_kind="assertion",
+            published_at=bound_at,
+            quality_rank=EVIDENCE_RANKS["press_report_bound"],
+            evidence_source=evidence_source,
+        ),
+    )
+
+
 def _require_rule_attribution(rule_source: str | None) -> None:
     """Rule evidence names `rule_id@version` or it is not written.
 

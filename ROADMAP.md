@@ -609,8 +609,8 @@ explicit out-of-scope work
 | 21-a | MERGED | 融資融券 |
 | 21-b | MERGED | 借券 |
 | 22-a | MERGED | 月營收：比較值 schema 與 MOPS adapter |
-| 22-b | THIS STEP | 月營收：歷史 backfill 與舊系統對帳 |
-| 22-c | PLANNED | 月營收：發布證據 |
+| 22-b | MERGED | 月營收：歷史 backfill 與舊系統對帳 |
+| 22-c | THIS STEP | 月營收：發布證據 |
 | 23 | PLANNED | 財務報表（iXBRL） |
 | 24 | PLANNED | TDCC 股權分散 |
 | 25 | PLANNED | 還原價格 |
@@ -1456,7 +1456,7 @@ CLI `monthly-revenue`。
 
 ### Step 22-b — 歷史 backfill 與舊系統對帳
 
-狀態：**IN REVIEW** (#37)。依賴：Step 22-a。
+狀態：**MERGED** (#37)。依賴：Step 22-a。
 
 範圍內：兩個市場 × `_0`／`_1` 頁 × 2020M01 → 2026M08 的 backfill、月度涵蓋宣告，
 以及與舊系統 `monthly_revenue` 的對帳（單位換算後，每個差異都分類）。
@@ -1487,11 +1487,23 @@ CLI `monthly-revenue`。
 
 ### Step 22-c — 發布證據
 
-狀態：**PLANNED**。依賴：Step 22-b。
+狀態：**IN REVIEW** (#38)。依賴：Step 22-b。
 
 範圍內：以 `legacy_archive` 匯入舊系統 `market.csv`，附加上述的 `press_report_bound`、
 `legacy_capture_bound` 與 release rule 證據；2026M02 起的首次抓取值作為觀察匯入。
-開工時要決定只在 `_1` 頁出現的 KY 發行公司用哪種證據（舊系統沒有它們的日期）。
+
+2026-09-20 owner 決策（audit §7.5）：
+
+- **只在 `_1` 頁出現的 KY／外國發行公司留 `unknown`。** 舊系統寫死 `_0` 網址，檔案裡
+  一列都沒有它們，所以沒有任何東西可以證明它們何時公開。上市 95 家、上櫃 30 家（含
+  DR）在 Market PIT 下看不到，直到 Step 27 前向抓取給出真正的 `capture_bound`。
+  因此 release rule **不宣告在來源上**，只由 archive importer 對「日期落在法定 10 日」
+  的列逐列引用；宣告在來源上會讓每一個舊系統沒抓過的列都拿到同一個法定時刻。
+- **166 列已證實在舊系統抓取後被更正的列，照樣附上復原的公告日期。** 我們手上只有
+  更正後的值（還原首次發布值是範圍外），所以這些列會從公告日就可見，比實際更正早。
+  影響已量化（140,963 列中的 166 列），寫進 audit §4.7 與驗收報告。
+
+範圍外：復原 2026M02 之前首次發布的值。
 
 驗收：
 
