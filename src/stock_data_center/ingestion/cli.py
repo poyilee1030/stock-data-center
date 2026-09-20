@@ -14,6 +14,7 @@ from uuid import UUID, uuid4, uuid5
 import sqlalchemy as sa
 
 from stock_data_center.ingestion.adapters import (
+    LegacyMonthlyRevenueArchiveAdapter,
     MOPSForeignHoldingAdapter,
     MOPSOtcMonthlyRevenueAdapter,
     MOPSSiiMonthlyRevenueAdapter,
@@ -53,6 +54,9 @@ from stock_data_center.ingestion.adapters import (
     TWSETradingCalendarAdapter,
     TWSEWholeMarketDailyAdapter,
 )
+from stock_data_center.ingestion.adapters.monthly_revenue_archive import (
+    DEFAULT_ARCHIVE_ROOT as ARCHIVE_ROOT,
+)
 from stock_data_center.ingestion.backfill import (
     CorporateActionBackfill,
     MonthlyRevenueBackfill,
@@ -84,6 +88,7 @@ from stock_data_center.ingestion.models import (
     InstitutionalMarketSummaryRequest,
     MarginTradingRequest,
     MarketIndexRequest,
+    MonthlyRevenueArchiveRequest,
     MonthlyRevenueRequest,
     OfficialValuationRequest,
     RevenuePage,
@@ -95,6 +100,9 @@ from stock_data_center.ingestion.models import (
     WholeMarketDailyRequest,
 )
 from stock_data_center.ingestion.monthly_revenue import MonthlyRevenueImporter
+from stock_data_center.ingestion.monthly_revenue_archive import (
+    MonthlyRevenueArchiveImporter,
+)
 from stock_data_center.ingestion.official_valuation import (
     OfficialValuationImporter,
 )
@@ -108,6 +116,14 @@ from stock_data_center.ingestion.security_metadata import SecurityMetadataImport
 from stock_data_center.ingestion.trading_calendar import TradingCalendarImporter
 from stock_data_center.ingestion.whole_market_daily import WholeMarketDailyImporter
 from stock_data_center.monthly_revenue.models import RevenuePeriod
+
+
+def _revenue_periods(first: RevenuePeriod, last: RevenuePeriod):
+    """Every month from `first` to `last`, inclusive."""
+    year, month = first.year, first.month
+    while (year, month) <= (last.year, last.month):
+        yield RevenuePeriod(year, month)
+        year, month = (year + 1, 1) if month == 12 else (year, month + 1)
 
 
 def _months(first: date, last: date):
@@ -265,6 +281,29 @@ def main(argv: list[str] | None = None) -> int:
         "interchangeable for resuming",
     )
     revenue.add_argument("--raw-root", type=Path, default=Path("data/raw"))
+    archive = subparsers.add_parser(
+        "monthly-revenue-archive",
+        help="attach the legacy archive's publication evidence for one month",
+    )
+    archive.add_argument(
+        "--source", choices=("mops_t21sc03_sii", "mops_t21sc03_otc"), required=True
+    )
+    archive.add_argument("--period", required=True, help="Gregorian YYYY-MM")
+    archive.add_argument(
+        "--through",
+        help="optional Gregorian YYYY-MM; read every month from --period to it",
+    )
+    archive.add_argument(
+        "--archive-root", type=Path, default=ARCHIVE_ROOT,
+        help="the legacy monthly_revenue archive root (ROADMAP §14: it stays "
+        "outside this repository)",
+    )
+    archive.add_argument(
+        "--import-id", type=UUID,
+        help="one month's import id; with --through it is the base the "
+        "per-month ids are derived from",
+    )
+    archive.add_argument("--raw-root", type=Path, default=Path("data/raw"))
     lending = subparsers.add_parser(
         "securities-lending",
         help="import one market's per-security securities lending for one trade date",
@@ -420,6 +459,7 @@ def main(argv: list[str] | None = None) -> int:
 
         import_id = args.import_id or uuid4()
         calendar_runs: list = []
+        archive_results: list = []
         backfill_report = None
         month_failures: list[dict] = []
         if args.command == "daily-market":
@@ -692,6 +732,39 @@ def main(argv: list[str] | None = None) -> int:
                     import_id=import_id,
                     purpose=IngestPurpose(args.purpose),
                 )
+        elif args.command == "monthly-revenue-archive":
+            importer = MonthlyRevenueArchiveImporter(
+                engine, raw_store=LocalRawArtifactStore(args.raw_root)
+            )
+            year, month = (int(part) for part in args.period.split("-"))
+            first_period = RevenuePeriod(year, month)
+            through_year, through_month = (
+                (int(part) for part in args.through.split("-"))
+                if args.through
+                else (first_period.year, first_period.month)
+            )
+            last_period = RevenuePeriod(through_year, through_month)
+            if last_period < first_period:
+                parser.error("--through must not be before --period")
+            base_import_id = args.import_id or default_base_import_id(
+                f"{args.source}:archive",
+                date(first_period.year, first_period.month, 1),
+                date(last_period.year, last_period.month, 1),
+            )
+            for period in _revenue_periods(first_period, last_period):
+                month_id = uuid5(
+                    base_import_id,
+                    f"{args.source}:{period.year:04d}-{period.month:02d}",
+                )
+                month_result = importer.run(
+                    adapter=LegacyMonthlyRevenueArchiveAdapter(
+                        args.source, archive_root=args.archive_root
+                    ),
+                    request=MonthlyRevenueArchiveRequest(period),
+                    import_id=month_id,
+                    purpose=IngestPurpose(args.purpose),
+                )
+                archive_results.append((period, month_id, month_result))
         elif args.command == "securities-lending":
             importer = SecuritiesLendingImporter(
                 engine, raw_store=LocalRawArtifactStore(args.raw_root)
@@ -940,6 +1013,39 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
             return 0 if backfill_report.is_complete else 1
+
+        if archive_results:
+            # One manifest per month, like any range run: the archive's own
+            # counts (rows it skipped, notes legacy mangled) are the report.
+            with engine.connect() as connection:
+                months = [
+                    {
+                        "period": f"{period.year:04d}-{period.month:02d}",
+                        "import_id": str(month_id),
+                        "status": importer.manifest(connection, month_id).status,
+                        "rows": month_result.normalized_rows,
+                        "business_versions_created": (
+                            month_result.business_versions_created
+                        ),
+                        "evidence_created": month_result.publication_evidence_created,
+                        "reconciliation": dict(
+                            importer.manifest(connection, month_id).reconciliation
+                        ),
+                    }
+                    for period, month_id, month_result in archive_results
+                ]
+            print(
+                json.dumps(
+                    {
+                        "archive": {
+                            "base_import_id": str(base_import_id),
+                            "months": months,
+                        }
+                    },
+                    ensure_ascii=False, indent=2, default=str,
+                )
+            )
+            return 0
 
         if month_failures and not calendar_runs:
             # Every month failed, so there is no manifest to read and no

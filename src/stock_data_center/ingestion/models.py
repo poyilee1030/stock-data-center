@@ -18,7 +18,6 @@ from stock_data_center.institutional_financing.models import (
     MarginTradingObservation,
     SecuritiesLendingObservation,
 )
-from stock_data_center.provenance import ArtifactOrigin, IngestPurpose
 from stock_data_center.market_data import (
     DailyPriceObservation,
     SecurityMetadataObservation,
@@ -29,6 +28,9 @@ from stock_data_center.market_reference.models import (
 )
 from stock_data_center.monthly_revenue.ingestion import MonthlyRevenueObservation
 from stock_data_center.monthly_revenue.models import RevenuePeriod
+
+# Re-exported: adapters and importers import the origin from here.
+from stock_data_center.provenance import ArtifactOrigin, IngestPurpose  # noqa: F401
 
 
 @dataclass(frozen=True, slots=True)
@@ -278,6 +280,42 @@ class MonthlyRevenueRequest:
 
     period: RevenuePeriod
     page: RevenuePage
+
+
+@dataclass(frozen=True, slots=True)
+class MonthlyRevenueArchiveRequest:
+    """Request the legacy archive's `market.csv` for one month (Step 22-c)."""
+
+    period: RevenuePeriod
+
+
+@dataclass(frozen=True, slots=True)
+class MonthlyRevenueArchiveRow:
+    """One legacy row: what it held, and the day legacy's file dates it."""
+
+    security_code: str
+    observation: MonthlyRevenueObservation
+    captured_on: date
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedMonthlyRevenueArchive:
+    """One market's rows out of one archive file."""
+
+    market: str
+    period: RevenuePeriod
+    rows: tuple[MonthlyRevenueArchiveRow, ...]
+    header_variant: str
+    source_fields: tuple[str, ...]
+    source_rows: int
+
+    @property
+    def coverage_start(self) -> date | None:
+        return date(self.period.year, self.period.month, 1) if self.rows else None
+
+    @property
+    def coverage_end(self) -> date | None:
+        return self.coverage_start
 
 
 @dataclass(frozen=True, slots=True)

@@ -43,7 +43,11 @@ DATASET_TARGETS = {
     "margin_trading": "margin_trading_version_id",
     "securities_lending": "securities_lending_version_id",
 }
-from stock_data_center.evidence.plan import PlannedEvidence, evidence_plan
+from stock_data_center.evidence.plan import (
+    PlannedEvidence,
+    archive_evidence_plan,
+    evidence_plan,
+)
 from stock_data_center.evidence.release_rules import ReleaseRuleService
 from stock_data_center.provenance import IngestPurpose
 
@@ -173,6 +177,57 @@ class BoundEvidencePolicy:
             proven_capture_at=self._stored_capture(connection, version_id),
         )
         return self._filter(planned)
+
+    def plan_archive(
+        self,
+        connection: Connection,
+        *,
+        period: date,
+        bound_at: datetime,
+        evidence_source: str,
+        proves_first_capture: bool,
+        bound_is_the_rule_day: bool = False,
+        rule_id: str | None = None,
+        rule_version: int | None = None,
+    ) -> tuple[PlannedEvidence, ...]:
+        """Plan one archive row's evidence (Step 22-c).
+
+        The rule is named by the caller rather than read from
+        `dataset_release_rules`: the archive covers the rows legacy fetched,
+        and declaring the rule on the source would hand the same instant to
+        every row legacy never saw — the KY issuers among them, which is the
+        look-ahead this step exists to avoid.
+
+        Unlike `plan`, an evidence type the source does not accept is an
+        error here rather than a quiet downgrade to `unknown`: this path
+        writes nothing else, so a silent downgrade would look like a
+        successful import that proved nothing.
+        """
+        rule_instant = None
+        rule_source = None
+        if bound_is_the_rule_day and not proves_first_capture:
+            if rule_id is None or rule_version is None:
+                raise ValueError("a rule-bound row needs the rule it claims")
+            resolved = self.rules.resolve(
+                connection, rule_id=rule_id, version=rule_version, period=period
+            )
+            rule_instant = resolved.published_at
+            rule_source = resolved.evidence_source
+        planned = archive_evidence_plan(
+            bound_at=bound_at,
+            evidence_source=evidence_source,
+            proves_first_capture=proves_first_capture,
+            rule_instant=rule_instant,
+            rule_source=rule_source,
+            bound_is_the_rule_day=bound_is_the_rule_day,
+        )
+        unaccepted = sorted({item.evidence_type for item in planned} - self.accepted)
+        if unaccepted:
+            raise UnacceptedEvidenceTypeError(
+                f"{self.dataset_code}/{self.source} does not accept {unaccepted}; "
+                "add them to accepted_evidence_types in the same migration"
+            )
+        return planned
 
     def plan_many(
         self,
