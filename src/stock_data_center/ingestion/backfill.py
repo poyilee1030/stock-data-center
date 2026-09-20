@@ -594,10 +594,14 @@ class MonthlyRevenueBackfillReport:
     def is_complete(self) -> bool:
         """Every page asked for was stored.
 
-        A `no_data` page counts against it as a failure does. The two are
-        reported apart because only one of them a rerun can fix, but neither
-        is coverage, and a walk that silently called a missing month complete
-        would be the coverage gap Step 16 exists to surface.
+        This is the run's own completeness, not the dataset's coverage. A
+        `no_data` page counts against it as a failure does: the run asked for
+        a page and did not get one, which the operator should see. Whether the
+        *month* is covered is the Step 16 validator's to say, and it answers
+        per month rather than per page — a month either page answered is
+        covered, and a month with no foreign issuer is not a gap.
+
+        The two are reported apart because only one of them a rerun can fix.
         """
         return all(item.status in ("imported", "resumed") for item in self.results)
 

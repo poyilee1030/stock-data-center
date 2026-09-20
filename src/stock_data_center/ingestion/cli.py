@@ -258,7 +258,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     # MOPS is paced by the per-host governor (3 s) whatever this says.
     revenue.add_argument("--min-interval-seconds", type=float, default=3.0)
-    revenue.add_argument("--import-id", type=UUID)
+    revenue.add_argument(
+        "--import-id", type=UUID,
+        help="one page's import id; with --through or --page both it is the "
+        "base the per-page ids are derived from, so the two are not "
+        "interchangeable for resuming",
+    )
     revenue.add_argument("--raw-root", type=Path, default=Path("data/raw"))
     lending = subparsers.add_parser(
         "securities-lending",

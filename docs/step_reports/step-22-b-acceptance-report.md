@@ -134,6 +134,34 @@ python scripts/reconcile_monthly_revenue.py \
 
 `ruff check` 對新增與改動的檔案沒有回報問題。
 
+## Code review（#37）
+
+review 沒有找到 crasher，也沒有 PIT／identity 退化，列出五項 low severity。逐項回核後：
+
+1. **`is_complete` 把 `no_data` 算成不完整，與 ROADMAP 的「某月沒有外國發行公司不是
+   缺口」互相矛盾。** 觀察正確、推論不成立：那是兩個問題。`is_complete` 說的是「這次
+   執行有沒有拿到它要的每一頁」，判斷缺口的是 Step 16 的涵蓋報告，它以**月份**回答，
+   而整合測試 `test_the_coverage_report_counts_a_month_either_page_answered` 斷言的
+   正是後者。一次執行向來源要了一頁而沒拿到，操作者應該看到。行為不改，把這個區分寫進
+   `MonthlyRevenueBackfillReport.is_complete` 的 docstring 與 ROADMAP。
+2. **對帳腳本要求 `months_with_both_pages == months_scanned`，分不出「該月沒有 KY
+   發行公司」與「`_1` 從未匯入」。** 成立，已修：頁掃描現在同時讀隔離的 checkpoint，
+   用它自己的 `no_data_for_period` 把兩者分開，`clean` 改看新的
+   `months_missing_a_page`。報告另外列出
+   `months_the_source_publishes_no_page_for`。
+3. **`Path(storage_uri).read_bytes()` 繞過完整性驗證。** 成立，已修：改用
+   `LocalRawArtifactStore.read(expected_digest=…, expected_byte_size=…)`，與
+   `reconcile_institutional_investors.py` 一致。重跑通過，代表 320 個 raw artifact
+   的大小與 SHA-256 都與 PostgreSQL 相符——這是本來沒有的證據。新增 `--raw-root`。
+4. **視窗最後一個月無法證明 stale。** 成立，已修：`stored()` 多載入 `--end` 之後一個
+   月，只供查表；計數與分類仍只走視窗內的月份（`window_keys`）。
+5. **`--page both` 未帶 `--through` 時 `--import-id` 變成 base id。** 成立，屬人因
+   陷阱而非正確性問題（衍生 id 仍然穩定、provenance 仍可稽核）；在 `--import-id` 的
+   說明文字裡寫明兩者不可互換，行為不改。
+
+修正後重跑對帳：結束碼仍為 0，每一個分類的列數與修正前完全相同
+（`months_missing_a_page` 與 `months_the_source_publishes_no_page_for` 皆為空）。
+
 ## 踩到的坑
 
 - **`alembic check` 只在從零 migrate 的資料庫上抓得到漏宣告的索引。** 全套測試

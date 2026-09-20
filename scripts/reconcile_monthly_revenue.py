@@ -12,7 +12,10 @@ Three things this dataset needs that a daily one does not:
   foreign/KY, and the same company must never be on both: one source would
   then hold two versions of one logical key for one month and they would
   alternate (CLAUDE.md §30). Every stored month's pages are re-parsed from
-  their raw artifacts and intersected.
+  their raw artifacts — read through the store, which checks size and SHA-256
+  first — and intersected. A month is complete when each of its two pages is
+  either stored or quarantined as 查無資料; a month with no foreign issuer is
+  not the same as a page nobody asked for.
 - **KY is new coverage, not a difference.** The legacy scraper hard-coded the
   `_0` URL (`scraper/monthly/fetch_monthly_revenue.py`), so legacy holds no
   foreign issuer at all. A row we hold and legacy does not is
@@ -46,7 +49,8 @@ Proof for a value difference, in the order tried:
   byte strict big5 rejects and cp950 reads).
 - `value_differs:legacy_capture_stale` — the next month's page publishes this
   issuer's 上月營收 and it equals ours, not legacy's. The source's own later
-  page carries our value.
+  page carries our value. One month past `--end` is loaded for this lookup, so
+  the window's last month can be proven like any other.
 - `value_differs:restated_by_a_correction` — a comparative whose inputs include
   a month proven stale above. A corrected 當月營收 restates that row's own
   percentages and note, the next month's 上月營收 and 上月比較增減, the year's
@@ -101,6 +105,7 @@ from stock_data_center.ingestion.adapters import (
     MOPSSiiMonthlyRevenueAdapter,
 )
 from stock_data_center.ingestion.models import MonthlyRevenueRequest, RevenuePage
+from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
 from stock_data_center.monthly_revenue.models import RevenuePeriod
 
 DATASET = "monthly_revenue"
@@ -417,31 +422,52 @@ def differs(ours, theirs, *, thousand: bool) -> bool:
     return Decimal(ours) != as_decimal(theirs, thousand=thousand)
 
 
-def page_scan(connection, source: str, adapter_class, months: list[str]) -> dict:
-    """Every stored month's pages, re-parsed from their raw artifacts."""
+def page_scan(connection, source: str, adapter_class, months: list[str],
+              raw_root: Path) -> dict:
+    """Every month's pages, re-parsed from raw artifacts this verifies first.
+
+    A month is complete when each page is either stored or answered 查無資料:
+    the source publishes no `_1` page for a month with no foreign issuer, and
+    that is not the same thing as a page nobody ever asked for. The two are
+    told apart by the quarantine's own reason code, not by absence.
+    """
     rows = connection.execute(
         sa.text(
             """
-            SELECT DISTINCT ON (c.resource_key) c.resource_key, r.storage_uri
+            SELECT DISTINCT ON (c.resource_key)
+                   c.resource_key, c.status, c.error_code,
+                   r.storage_uri, r.raw_artifact_hash, r.byte_size
               FROM import_checkpoints c
               JOIN import_manifests m ON m.import_id = c.import_id
               JOIN raw_artifacts r ON r.id = c.last_raw_artifact_id
              WHERE m.dataset_code = :dataset AND m.source = :source
-               AND c.status = 'succeeded'
+               AND c.status IN ('succeeded', 'quarantined')
              ORDER BY c.resource_key, c.updated_at DESC
             """
         ),
         {"dataset": DATASET, "source": source},
     ).all()
     adapter = adapter_class()
+    # Verified, as `reconcile_institutional_investors.py` reads them: the
+    # §30 evidence this scan produces must not rest on unchecked bytes.
+    store = LocalRawArtifactStore(raw_root)
     by_month: dict[str, dict[str, set[str]]] = {}
-    for resource_key, storage_uri in rows:
+    unpublished: dict[str, list[str]] = {}
+    for resource_key, status, error_code, storage_uri, digest, size in rows:
         _, _, period_text, page_value = resource_key.split(":")
         if period_text not in months:
             continue
+        if status == "quarantined":
+            if error_code == "no_data_for_period":
+                unpublished.setdefault(period_text, []).append(page_value)
+            continue
         year, month = (int(part) for part in period_text.split("-"))
         parsed = adapter.parse(
-            Path(storage_uri).read_bytes(),
+            store.read(
+                storage_uri=storage_uri,
+                expected_digest=digest,
+                expected_byte_size=size,
+            ),
             MonthlyRevenueRequest(
                 RevenuePeriod(year, month), RevenuePage(page_value)
             ),
@@ -454,9 +480,23 @@ def page_scan(connection, source: str, adapter_class, months: list[str]) -> dict
         for month, pages in by_month.items()
         if len(pages) == 2 and pages["0"] & pages["1"]
     }
+    missing = {
+        month: sorted(
+            page for page in ("0", "1")
+            if page not in by_month.get(month, {})
+            and page not in unpublished.get(month, ())
+        )
+        for month in months
+    }
     return {
         "months_scanned": len(by_month),
         "months_with_both_pages": sum(1 for p in by_month.values() if len(p) == 2),
+        "months_the_source_publishes_no_page_for": {
+            month: sorted(pages) for month, pages in sorted(unpublished.items())
+        },
+        "months_missing_a_page": {
+            month: pages for month, pages in sorted(missing.items()) if pages
+        },
         "domestic_rows": sum(len(p.get("0", ())) for p in by_month.values()),
         "foreign_rows": sum(len(p.get("1", ())) for p in by_month.values()),
         "months_with_a_company_on_both_pages": overlaps,
@@ -484,8 +524,16 @@ def compare(connection, legacy_connection, source: str, start: RevenuePeriod,
     differing_fields: Counter[str] = Counter()
     examples: dict[str, list[dict]] = {}
     compared = 0
-    ever_in_ours = {code for rows in ours.values() for code in rows}
-    ever_in_other_ours = {code for rows in other_ours.values() for code in rows}
+    # Counted and searched over the window only: the extra month is there to
+    # be looked up, not to be reported on.
+    window_keys = {(p.year, p.month) for p in month_keys}
+    ever_in_ours = {
+        code for key, rows in ours.items() if key in window_keys for code in rows
+    }
+    ever_in_other_ours = {
+        code for key, rows in other_ours.items() if key in window_keys
+        for code in rows
+    }
     # The first month legacy holds for an issuer, in either of its markets: a
     # row of ours older than that is the source filing revenue from before the
     # issuer was listed, which legacy had no page to read it from.
@@ -654,7 +702,9 @@ def compare(connection, legacy_connection, source: str, start: RevenuePeriod,
     return {
         "market": market,
         "legacy_market": legacy_market,
-        "stored_rows": sum(len(rows) for rows in ours.values()),
+        "stored_rows": sum(
+            len(rows) for key, rows in ours.items() if key in window_keys
+        ),
         "legacy_rows": sum(len(rows) for rows in theirs.values()),
         "compared_rows": compared,
         "differences": dict(sorted(differences.items())),
@@ -669,6 +719,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--legacy-database-url", default=os.getenv("LEGACY_DATABASE_URL"))
     parser.add_argument("--start", default="2020-01")
     parser.add_argument("--end", default="2026-08")
+    parser.add_argument("--raw-root", type=Path, default=Path("data/raw"))
     args = parser.parse_args(argv)
     if not args.database_url or not args.legacy_database_url:
         parser.error("--database-url and --legacy-database-url are required")
@@ -686,11 +737,18 @@ def main(argv: list[str] | None = None) -> int:
     try:
         with engine.connect() as connection, legacy_engine.connect() as legacy:
             scans = {
-                source: page_scan(connection, source, adapter_class, months)
+                source: page_scan(
+                    connection, source, adapter_class, months, args.raw_root
+                )
                 for source, (_, _, adapter_class, _) in MARKETS.items()
             }
+            # One month past the window, for lookups only: the proof that a
+            # value is stale is the *next* month's 上月營收, so the window's
+            # last month has none to appeal to if the load stops with it.
+            lookup_end = month_end((end.year, end.month))
             ours_by_source = {
-                source: stored(connection, source, *window) for source in MARKETS
+                source: stored(connection, source, window[0], lookup_end)
+                for source in MARKETS
             }
             priced = first_priced(connection)
             for source, (market, _, _, _) in MARKETS.items():
@@ -731,8 +789,7 @@ def main(argv: list[str] | None = None) -> int:
     clean = all(
         entry["coverage"]["is_complete"]
         and not entry["page_scan"]["months_with_a_company_on_both_pages"]
-        and entry["page_scan"]["months_with_both_pages"]
-        == entry["page_scan"]["months_scanned"]
+        and not entry["page_scan"]["months_missing_a_page"]
         and set(entry["legacy_reconciliation"]["differences"]) <= EXPLAINED
         for entry in report["sources"].values()
     )
