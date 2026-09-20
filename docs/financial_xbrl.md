@@ -136,3 +136,60 @@ Legacy summary rows can migrate only when exactly one same-filing numeric fact
 matches their value/unit and the legacy metric code explicitly identifies a
 quarter, accumulated/YTD, or annual basis. The migration aborts instead of
 guessing for ambiguous metrics such as an unqualified `basic_eps`.
+
+## Step 23-a: reading a MOPS document
+
+`stock_data_center.financials.ixbrl` turns one `t164sb01` response into a
+`ParsedIXBRLReport`: the filing's own header, its `XBRLContext` objects, its
+unit identities, and its `ix:nonFraction` facts with the statement row each was
+printed in. It writes nothing and fetches nothing; Steps 23-b and 23-c add the
+adapters, the import path and the evidence.
+
+The documents are rendered HTML with the instance inlined, and they are not
+well-formed XML, so the parser reads them as text with case-insensitive
+patterns. The measured source facts behind each rule are in
+`docs/source_field_audit.md` §4.8.
+
+- **Encoding is cp950.** MOPS declares `charset=big5`, but byte `0xA1E3` is the
+  Microsoft `～` U+FF5E, not Big5's `∼` U+223C. Archived copies are the same
+  document re-encoded as UTF-8, so UTF-8 is tried first and cp950 second.
+- **Concepts are Clark notation**, resolved through the document's own `xmlns`
+  declarations. An undeclared prefix fails closed. The single re-serialized
+  document that lowercased its prefix declarations is resolved
+  case-insensitively only when exactly one declared prefix matches, and the
+  repair is recorded on the report.
+- **Header values are enumerations.** `ReportType`, `ReportCategory`, `Market`
+  and `IndustrySector` are parsed into enums; an unknown value is an error, not
+  a passthrough. `is_financial_industry` covers the four financial taxonomies —
+  `Miscellaneous industry merging` is not one of them. `market_code` is `sii` or
+  `otc` and `None` for the emerging, public and non-public filers the archive
+  also holds.
+- **A unit is read, never guessed.** A ratio unit that the parser cannot read as
+  a ratio is an error, because falling back to its first measure would label
+  earnings per share as a currency. A repeated context or unit id is accepted
+  only when the two declarations are identical.
+- **The transformation is checked.** Only `ixt:numdotdecimal` is implemented;
+  `ixt:numcommadecimal` reads the same text the other way round, so an
+  unimplemented `format`, or a numeric fact with none, fails closed.
+- **Scale and sign are applied, never inferred.** `scale="3"` on a printed
+  `89,680,417` is 89,680,417,000; `sign="-"` negates. Facts whose context or
+  unit the document never defined fail closed.
+- **Narrative `escape="true"` blocks are counted, not returned as facts.** They
+  are whole HTML notes; whether any of them is stored is a Step 23-b decision.
+- **A cell with no number is reported, never invented.** A short placeholder
+  (`-`, `無`, `註二`) keeps its fact with `value=None` and `is_placeholder`; a
+  paragraph of narrative written into the numeric element is counted in
+  `malformed_numeric_facts` and is not a fact. Both are visible to the importer
+  instead of being absorbed. `NaN` and `Infinity` are not amounts and are
+  refused outright: `NaN != NaN` would break business-content identity.
+
+### `mops-xbrl-context-role:v1`
+
+This is the versioned source-role rule the section above requires of a real
+adapter. A current period is a dimensionless duration context of this entity
+ending on the filing's period end. Within that: the fiscal-year start means
+year-to-date, or annual in Q4; the quarter start means the single quarter; a Q1
+document's one current context is the single quarter. Everything else —
+including every prior-year comparative, every instant, and every dimensional
+context — is `other`, which `classify_eps_period_basis` refuses. The rule never
+reads a role out of a duration's length.

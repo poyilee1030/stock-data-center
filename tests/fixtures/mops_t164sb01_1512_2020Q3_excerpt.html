@@ -1,0 +1,528 @@
+<html>
+<head>
+<META HTTP-EQUIV='Content-Type' CONTENT='text/html; charset=big5'>
+<?xml version="1.0" encoding="UTF-8"?> 
+<html xmlns="http://www.w3.org/1999/xhtml"
+xmlns:ifrs-full="http://xbrl.ifrs.org/taxonomy/2017-03-09/ifrs-full"
+xmlns:iso4217="http://www.xbrl.org/2003/iso4217"
+xmlns:link="http://www.xbrl.org/2003/linkbase"
+xmlns:xbrldi="http://xbrl.org/2006/xbrldi"
+xmlns:xbrldt="http://xbrl.org/2005/xbrldt"
+xmlns:xbrli="http://www.xbrl.org/2003/instance"
+xmlns:xlink="http://www.w3.org/1999/xlink"
+xmlns:ix="http://www.xbrl.org/2013/inlineXBRL"
+xmlns:ixt="http://www.xbrl.org/inlineXBRL/transformation/2015-02-26"
+xmlns:tifrs-SCF="http://www.xbrl.org/tifrs/scf/2020-06-30"
+xmlns:tifrs-ar="http://www.xbrl.org/tifrs/ar/2020-06-30"
+xmlns:tifrs-bsci-ci="http://www.xbrl.org/tifrs/bsci/ci/2020-06-30"
+xmlns:tifrs-es="http://www.xbrl.org/tifrs/es/2020-06-30"
+xmlns:tifrs-notes="http://www.xbrl.org/tifrs/notes/2020-06-30">
+<head> 
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" /> 
+	<title> 1512 2020Q3 Financial report</title> 
+	<script src="https://code.jquery.com/jquery-3.2.1.min.js" type="text/javascript"></script> 
+	<script type="text/javascript"> 
+		/*<![CDATA[*/ 
+		function showChineseReport() { 
+			$(".zh").show();
+			$(".en").hide();
+		}
+		function showEnglishReport() {
+			$(".en").show();
+			$(".zh").hide();
+		}
+		$(document).ready(function() { 
+			if (location.search.indexOf("?") != -1 && 
+			location.search.split("?")[1].split("=")[1] == "en") 
+				showEnglishReport(); 
+			else 
+				showChineseReport(); 
+		});	
+		/*]]>*/ 
+	</script> 
+	<style type="text/css"> 
+		body,html {height: 100%;} 
+		body {font-size: 15px;font-family: Arial;color: #000;background: #4E5869;margin: 0;padding: 0;background-color: #FFF;} 
+		td,th {border: 1px solid #dddddd;padding: 5px;color: #333;background-color: #FFF;} 
+		th#t1 {color: #165c98 !important;} 
+		ul,ol,dl {padding: 0;margin: 0;} 
+		h3 {color: #165c98;font-size: 18px;} 
+		pre {font-size: 15px;font-family: Arial;} 
+		.container {width: 100%;background: #FFF;margin: 0 auto;background-color: #999;} 
+		.header {text-align: center;background: #165c98;margin-right: auto;color: #fff;} 
+		.header > div:first-of-type {position: absolute;right: 15px;top: 15px;} 
+		.header > div:nth-of-type(2) {font-size: 25px;text-align: center;line-height: 35px;} 
+		.header a {text-decoration: none;margin:0 10px;color: #ffffff;} 
+		.nav {float: left;width: 200px;height: calc(100% - 85px);overflow: auto;background: #fff;padding-bottom: 15px;} 
+		.nav > div {padding: 10px;color: #165c98;font-size: 20px;font-weight: bold;} 
+		.nav > ul {list-style: none;border-top: 1px solid #666;margin-bottom: 15px;} 
+		.nav > ul li{border-bottom: 1px solid #666;} 
+		.nav > ul a{padding: 5px 2px 5px 10px;display: block;text-decoration: none;background: #fff;color: #333;} 
+		.nav > ul a:hover{background: #165c98;color: #fff;} 
+		.content {width: calc(100% - 200px);height: calc(100% - 70px); float: left;background: #efefef;overflow: auto;} 
+		.content > div[id*="link"] {height: 15px;} 
+		.content table {border-collapse: collapse;margin: 0 20px;} 
+		.content ul, 
+		.content ol {padding: 15px 10px 10px 15px;} 
+		.content table tr th {background: #7fcef5;color: #165c98;} 
+		.content table tr:first-child th {background: #165c98;color: #fff;font-size: 15px;text-align: left;} 
+		.content table tr:nth-of-type(odd) > td {background-color: #d3edfa;} 
+		.title {font-size: 18px;font-weight: bold;margin-left: 20px;} 
+		.rptidx {color: #000;margin-left: 20px;} 
+		.amt {text-align: right} 
+		.note {font-family: 細明體} 
+		@media print{ 
+			.header a{display: none;} 
+			.nav{display: none;} 
+			.content{width: 100%;height:auto;float: inherit;overflow: inherit;background: #fff!important;} 
+			.content table{width: 100%!important;margin: 0;} 
+			body{color: #000;} 
+			td,th{color: #000;border: 1px solid #000;} 
+		} 
+	</style> 
+</head> 
+<body> 
+	<div style="display:none"> 
+		<ix:header> 
+			<ix:hidden> 
+				<ix:nonNumeric name="tifrs-notes:CompanyID" contextRef="From20200101To20200930">1512</ix:nonNumeric> 
+				<ix:nonNumeric name="tifrs-notes:CompanyChineseName" contextRef="From20200101To20200930">瑞利企業股份有限公司</ix:nonNumeric> 
+				<ix:nonNumeric name="tifrs-notes:CompanyEnglishName" contextRef="From20200101To20200930">JUI LI ENTERPRISE CO., LTD.</ix:nonNumeric> 
+				<ix:nonNumeric name="tifrs-notes:Year" contextRef="From20200101To20200930">2020</ix:nonNumeric> 
+				<ix:nonNumeric name="tifrs-notes:Quarter" contextRef="From20200101To20200930">3</ix:nonNumeric> 
+				<ix:nonNumeric name="tifrs-notes:ReportType" contextRef="From20200101To20200930">Financial report (general)</ix:nonNumeric> 
+				<ix:nonNumeric name="tifrs-notes:ReportCategory" contextRef="From20200101To20200930">Consolidated report</ix:nonNumeric> 
+				<ix:nonNumeric name="tifrs-notes:Market" contextRef="From20200101To20200930">Listed company</ix:nonNumeric> 
+				<ix:nonNumeric name="tifrs-notes:IndustrySector" contextRef="From20200101To20200930">Commercial and industrial</ix:nonNumeric> 
+			</ix:hidden> 
+			<ix:references>
+				<link:schemaRef xlink:href="tifrs-ci-cr-2020-06-30.xsd" xlink:type="simple"/>
+			</ix:references>
+			<ix:resources>
+<xbrli:context id="AsOf20200101_EquityAttributableToOwnersOfParentMember"> 
+					<xbrli:entity> 
+						<xbrli:identifier scheme="http://www.twse.com.tw">1512</xbrli:identifier> 
+					</xbrli:entity> 
+					<xbrli:period> 
+						<xbrli:instant>2020-01-01</xbrli:instant> 
+					</xbrli:period> 
+					<xbrli:scenario> 
+						<xbrldi:explicitMember dimension="ifrs-full:ComponentsOfEquityAxis">ifrs-full:EquityAttributableToOwnersOfParentMember</xbrldi:explicitMember> 
+					</xbrli:scenario> 
+				</xbrli:context>
+<xbrli:context id="AsOf20200101_TotalEquityMember"> 
+					<xbrli:entity> 
+						<xbrli:identifier scheme="http://www.twse.com.tw">1512</xbrli:identifier> 
+					</xbrli:entity> 
+					<xbrli:period> 
+						<xbrli:instant>2020-01-01</xbrli:instant> 
+					</xbrli:period> 
+					<xbrli:scenario> 
+						<xbrldi:explicitMember dimension="ifrs-full:ComponentsOfEquityAxis">tifrs-es:TotalEquityMember</xbrldi:explicitMember> 
+					</xbrli:scenario> 
+				</xbrli:context>
+<xbrli:context id="AsOf20200101_OrdinaryShareMember"> 
+					<xbrli:entity> 
+						<xbrli:identifier scheme="http://www.twse.com.tw">1512</xbrli:identifier> 
+					</xbrli:entity> 
+					<xbrli:period> 
+						<xbrli:instant>2020-01-01</xbrli:instant> 
+					</xbrli:period> 
+					<xbrli:scenario> 
+						<xbrldi:explicitMember dimension="ifrs-full:ComponentsOfEquityAxis">tifrs-es:OrdinaryShareMember</xbrldi:explicitMember> 
+					</xbrli:scenario> 
+				</xbrli:context>
+<xbrli:context id="From20190701To20190930"> 
+					<xbrli:entity> 
+						<xbrli:identifier scheme="http://www.twse.com.tw">1512</xbrli:identifier> 
+					</xbrli:entity> 
+					<xbrli:period> 
+						<xbrli:startDate>2019-07-01</xbrli:startDate> 
+						<xbrli:endDate>2019-09-30</xbrli:endDate> 
+					</xbrli:period> 
+				</xbrli:context>
+<xbrli:context id="From20200101To20200930"> 
+					<xbrli:entity> 
+						<xbrli:identifier scheme="http://www.twse.com.tw">1512</xbrli:identifier> 
+					</xbrli:entity> 
+					<xbrli:period> 
+						<xbrli:startDate>2020-01-01</xbrli:startDate> 
+						<xbrli:endDate>2020-09-30</xbrli:endDate> 
+					</xbrli:period> 
+				</xbrli:context>
+<xbrli:context id="AsOf20191231"> 
+					<xbrli:entity> 
+						<xbrli:identifier scheme="http://www.twse.com.tw">1512</xbrli:identifier> 
+					</xbrli:entity> 
+					<xbrli:period> 
+						<xbrli:instant>2019-12-31</xbrli:instant> 
+					</xbrli:period> 
+				</xbrli:context>
+<xbrli:context id="AsOf20200101_IssuedCapitalMember"> 
+					<xbrli:entity> 
+						<xbrli:identifier scheme="http://www.twse.com.tw">1512</xbrli:identifier> 
+					</xbrli:entity> 
+					<xbrli:period> 
+						<xbrli:instant>2020-01-01</xbrli:instant> 
+					</xbrli:period> 
+					<xbrli:scenario> 
+						<xbrldi:explicitMember dimension="ifrs-full:ComponentsOfEquityAxis">ifrs-full:IssuedCapitalMember</xbrldi:explicitMember> 
+					</xbrli:scenario> 
+				</xbrli:context>
+<xbrli:context id="AsOf20190930"> 
+					<xbrli:entity> 
+						<xbrli:identifier scheme="http://www.twse.com.tw">1512</xbrli:identifier> 
+					</xbrli:entity> 
+					<xbrli:period> 
+						<xbrli:instant>2019-09-30</xbrli:instant> 
+					</xbrli:period> 
+				</xbrli:context>
+<xbrli:context id="AsOf20200101_SpecialReserveMember"> 
+					<xbrli:entity> 
+						<xbrli:identifier scheme="http://www.twse.com.tw">1512</xbrli:identifier> 
+					</xbrli:entity> 
+					<xbrli:period> 
+						<xbrli:instant>2020-01-01</xbrli:instant> 
+					</xbrli:period> 
+					<xbrli:scenario> 
+						<xbrldi:explicitMember dimension="ifrs-full:ComponentsOfEquityAxis">tifrs-es:SpecialReserveMember</xbrldi:explicitMember> 
+					</xbrli:scenario> 
+				</xbrli:context>
+<xbrli:context id="AsOf20200101_OtherEquityInterestMember"> 
+					<xbrli:entity> 
+						<xbrli:identifier scheme="http://www.twse.com.tw">1512</xbrli:identifier> 
+					</xbrli:entity> 
+					<xbrli:period> 
+						<xbrli:instant>2020-01-01</xbrli:instant> 
+					</xbrli:period> 
+					<xbrli:scenario> 
+						<xbrldi:explicitMember dimension="ifrs-full:ComponentsOfEquityAxis">ifrs-full:OtherEquityInterestMember</xbrldi:explicitMember> 
+					</xbrli:scenario> 
+				</xbrli:context>
+<xbrli:context id="AsOf20200101_ReserveOfGainsAndLossesOnFinancialAssetsMeasuredAtFairValueThroughOtherComprehensiveIncomeMember"> 
+					<xbrli:entity> 
+						<xbrli:identifier scheme="http://www.twse.com.tw">1512</xbrli:identifier> 
+					</xbrli:entity> 
+					<xbrli:period> 
+						<xbrli:instant>2020-01-01</xbrli:instant> 
+					</xbrli:period> 
+					<xbrli:scenario> 
+						<xbrldi:explicitMember dimension="ifrs-full:ComponentsOfEquityAxis">ifrs-full:ReserveOfGainsAndLossesOnFinancialAssetsMeasuredAtFairValueThroughOtherComprehensiveIncomeMember</xbrldi:explicitMember> 
+					</xbrli:scenario> 
+				</xbrli:context>
+<xbrli:context id="From20200701To20200930"> 
+					<xbrli:entity> 
+						<xbrli:identifier scheme="http://www.twse.com.tw">1512</xbrli:identifier> 
+					</xbrli:entity> 
+					<xbrli:period> 
+						<xbrli:startDate>2020-07-01</xbrli:startDate> 
+						<xbrli:endDate>2020-09-30</xbrli:endDate> 
+					</xbrli:period> 
+				</xbrli:context>
+<xbrli:context id="AsOf20200101_RetainedEarningsMember"> 
+					<xbrli:entity> 
+						<xbrli:identifier scheme="http://www.twse.com.tw">1512</xbrli:identifier> 
+					</xbrli:entity> 
+					<xbrli:period> 
+						<xbrli:instant>2020-01-01</xbrli:instant> 
+					</xbrli:period> 
+					<xbrli:scenario> 
+						<xbrldi:explicitMember dimension="ifrs-full:ComponentsOfEquityAxis">ifrs-full:RetainedEarningsMember</xbrldi:explicitMember> 
+					</xbrli:scenario> 
+				</xbrli:context>
+<xbrli:context id="AsOf20200930"> 
+					<xbrli:entity> 
+						<xbrli:identifier scheme="http://www.twse.com.tw">1512</xbrli:identifier> 
+					</xbrli:entity> 
+					<xbrli:period> 
+						<xbrli:instant>2020-09-30</xbrli:instant> 
+					</xbrli:period> 
+				</xbrli:context>
+<xbrli:context id="AsOf20200101_UnappropriatedRetainedEarningsAccumulatedDeficitMember"> 
+					<xbrli:entity> 
+						<xbrli:identifier scheme="http://www.twse.com.tw">1512</xbrli:identifier> 
+					</xbrli:entity> 
+					<xbrli:period> 
+						<xbrli:instant>2020-01-01</xbrli:instant> 
+					</xbrli:period> 
+					<xbrli:scenario> 
+						<xbrldi:explicitMember dimension="ifrs-full:ComponentsOfEquityAxis">tifrs-es:UnappropriatedRetainedEarningsAccumulatedDeficitMember</xbrldi:explicitMember> 
+					</xbrli:scenario> 
+				</xbrli:context>
+<xbrli:context id="AsOf20200101_CapitalReserveMember"> 
+					<xbrli:entity> 
+						<xbrli:identifier scheme="http://www.twse.com.tw">1512</xbrli:identifier> 
+					</xbrli:entity> 
+					<xbrli:period> 
+						<xbrli:instant>2020-01-01</xbrli:instant> 
+					</xbrli:period> 
+					<xbrli:scenario> 
+						<xbrldi:explicitMember dimension="ifrs-full:ComponentsOfEquityAxis">ifrs-full:CapitalReserveMember</xbrldi:explicitMember> 
+					</xbrli:scenario> 
+				</xbrli:context>
+<xbrli:context id="AsOf20200101_ReserveOfExchangeDifferencesOnTranslationMember"> 
+					<xbrli:entity> 
+						<xbrli:identifier scheme="http://www.twse.com.tw">1512</xbrli:identifier> 
+					</xbrli:entity> 
+					<xbrli:period> 
+						<xbrli:instant>2020-01-01</xbrli:instant> 
+					</xbrli:period> 
+					<xbrli:scenario> 
+						<xbrldi:explicitMember dimension="ifrs-full:ComponentsOfEquityAxis">ifrs-full:ReserveOfExchangeDifferencesOnTranslationMember</xbrldi:explicitMember> 
+					</xbrli:scenario> 
+				</xbrli:context>
+<xbrli:context id="From20190101To20190930"> 
+					<xbrli:entity> 
+						<xbrli:identifier scheme="http://www.twse.com.tw">1512</xbrli:identifier> 
+					</xbrli:entity> 
+					<xbrli:period> 
+						<xbrli:startDate>2019-01-01</xbrli:startDate> 
+						<xbrli:endDate>2019-09-30</xbrli:endDate> 
+					</xbrli:period> 
+				</xbrli:context>
+<xbrli:unit id="TWD"> 
+					<xbrli:measure>iso4217:TWD</xbrli:measure> 
+				</xbrli:unit>
+<xbrli:unit id="Shares"> 
+					<xbrli:measure>xbrli:shares</xbrli:measure> 
+				</xbrli:unit>
+<xbrli:unit id="EarningsPerShare"> 
+					<xbrli:divide> 
+						<xbrli:unitNumerator> 
+							<xbrli:measure>iso4217:TWD</xbrli:measure> 
+						</xbrli:unitNumerator> 
+						<xbrli:unitDenominator> 
+							<xbrli:measure>xbrli:shares</xbrli:measure> 
+						</xbrli:unitDenominator> 
+					</xbrli:divide> 
+				</xbrli:unit>
+<xbrli:unit id="Pure"> 
+					<xbrli:measure>xbrli:pure</xbrli:measure> 
+				</xbrli:unit>
+</ix:resources> 
+		</ix:header> 
+	</div> 
+	
+<body>
+<table>
+<tr><th colspan="5"><span class="zh">資產負債表</span><span class="en">Balance Sheet</span></th></tr>
+<tr> 
+						<th><span class="zh">代號</span><span class="en">Code</span></th> 
+						<th><span class="zh">會計項目</span><span class="en">Accounting Title</span></th> 
+						<th><span class="zh">2020年9月30日</span><span class="en">2020/9/30</span></th> 
+						<th><span class="zh">2019年12月31日</span><span class="en">2019/12/31</span></th> 
+						<th><span class="zh">2019年9月30日</span><span class="en">2019/9/30</span></th> 
+					</tr>
+<tr><th colspan="6"><span class="zh">綜合損益表</span><span class="en">Statement of Comprehensive Income</span></th></tr>
+<tr> 
+						<th><span class="zh">代號</span><span class="en">Code</span></th> 
+						<th><span class="zh">會計項目</span><span class="en">Accounting Title</span></th> 
+						<th><span class="zh">2020年7月1日至9月30日</span><span class="en">2020/7/1To9/30</span></th> 
+						<th><span class="zh">2019年7月1日至9月30日</span><span class="en">2019/7/1To9/30</span></th> 
+						<th><span class="zh">2020年1月1日至9月30日</span><span class="en">2020/1/1To9/30</span></th> 
+						<th><span class="zh">2019年1月1日至9月30日</span><span class="en">2019/1/1To9/30</span></th> 
+					</tr>
+<tr><th colspan="4"><span class="zh">現金流量表</span><span class="en">Statements of Cash Flows</span></th></tr>
+<tr> 
+						<th><span class="zh">代號</span><span class="en">Code</span></th> 
+						<th><span class="zh">會計項目</span><span class="en">Accounting Title</span></th> 
+						<th><span class="zh">2020年1月1日至9月30日</span><span class="en">2020/1/1To9/30</span></th> 
+						<th><span class="zh">2019年1月1日至9月30日</span><span class="en">2019/1/1To9/30</span></th> 
+					</tr>
+<tr> 
+						<th colspan="32"> 
+							<span class="zh">當期權益變動表</span><span class="en">Statements of Change in Equity</span> 
+						</th> 
+					</tr>
+<tr> 
+						<th colspan='2' rowspan='2'></th> 
+						<th>3110</th>
+						<th>3100</th>
+						<th>3200</th>
+						<th>3320</th>
+						<th>3350</th>
+						<th>3300</th>
+						<th>3410</th>
+						<th>3420</th>
+						<th>3400</th>
+						<th>31XX</th>
+						<th>3XXX</th>
+					</tr>
+<tr> 
+						<td style="text-align:center">9750</td> 
+						<td><span class="zh">　基本每股盈餘合計</span><span class="en">　Total basic earnings per share</span></td>
+						<td class="amt"><pre>(<ix:nonFraction name="ifrs-full:BasicEarningsLossPerShare" contextRef="From20200701To20200930" format="ixt:numdotdecimal" scale="0" sign="-" decimals="2" unitRef="EarningsPerShare">0.10</ix:nonFraction>)</pre></td>
+						<td class="amt"><pre>(<ix:nonFraction name="ifrs-full:BasicEarningsLossPerShare" contextRef="From20190701To20190930" format="ixt:numdotdecimal" scale="0" sign="-" decimals="2" unitRef="EarningsPerShare">0.28</ix:nonFraction>)</pre></td>
+						<td class="amt"><pre>(<ix:nonFraction name="ifrs-full:BasicEarningsLossPerShare" contextRef="From20200101To20200930" format="ixt:numdotdecimal" scale="0" sign="-" decimals="2" unitRef="EarningsPerShare">0.45</ix:nonFraction>)</pre></td>
+						<td class="amt"><pre>(<ix:nonFraction name="ifrs-full:BasicEarningsLossPerShare" contextRef="From20190101To20190930" format="ixt:numdotdecimal" scale="0" sign="-" decimals="2" unitRef="EarningsPerShare">0.48</ix:nonFraction>)</pre></td>
+					</tr>
+<tr> 
+						<td style="text-align:center">1150</td> 
+						<td><span class="zh">　　應收票據淨額</span><span class="en">　　Notes receivable, net</span></td>
+						<td class="amt"><pre><ix:nonFraction name="tifrs-bsci-ci:NotesReceivableNet" contextRef="AsOf20200930" format="ixt:numdotdecimal" scale="3" decimals="-3" unitRef="TWD">30,497</ix:nonFraction> </pre></td>
+						<td class="amt"><pre><ix:nonFraction name="tifrs-bsci-ci:NotesReceivableNet" contextRef="AsOf20191231" format="ixt:numdotdecimal" scale="3" decimals="-3" unitRef="TWD">82,631</ix:nonFraction> </pre></td>
+						<td class="amt"><pre><ix:nonFraction name="tifrs-bsci-ci:NotesReceivableNet" contextRef="AsOf20190930" format="ixt:numdotdecimal" scale="3" decimals="-3" unitRef="TWD">73,499</ix:nonFraction> </pre></td>
+					</tr>
+<tr> 
+						<td style="text-align:center">A31130</td> 
+						<td><span class="zh">　　　　應收票據（增加）減少</span><span class="en">　　　　Decrease (increase) in notes receivable</span></td>
+						<td class="amt"><pre><ix:nonFraction name="tifrs-SCF:DecreaseIncreaseInNotesReceivable" contextRef="From20200101To20200930" format="ixt:numdotdecimal" scale="3" decimals="-3" unitRef="TWD">52,144</ix:nonFraction> </pre></td>
+						<td class="amt"><pre><ix:nonFraction name="tifrs-SCF:DecreaseIncreaseInNotesReceivable" contextRef="From20190101To20190930" format="ixt:numdotdecimal" scale="3" decimals="-3" unitRef="TWD">17,555</ix:nonFraction> </pre></td>
+					</tr>
+<tr>
+						<ix:tuple name="tifrs-notes:FinancialStatementAccountAndAmount">
+						<td style="text-align:left"><pre><ix:nonNumeric name="tifrs-notes:FinancialStatementAccount2" contextRef="AsOf20200930" escape="true">應收票據 - 按攤銷後成本衡量總帳面金額</ix:nonNumeric></pre></td>
+						<td style="text-align:right"><pre><ix:nonFraction name="tifrs-notes:Amount2" contextRef="AsOf20200930" format="ixt:numdotdecimal" scale="3" decimals="-3" unitRef="TWD">30,497</ix:nonFraction> </pre></td>
+						<td style="text-align:right"><pre><ix:nonFraction name="tifrs-notes:Amount2" contextRef="AsOf20191231" format="ixt:numdotdecimal" scale="3" decimals="-3" unitRef="TWD">82,631</ix:nonFraction> </pre></td>
+						<td style="text-align:right"><pre><ix:nonFraction name="tifrs-notes:Amount2" contextRef="AsOf20190930" format="ixt:numdotdecimal" scale="3" decimals="-3" unitRef="TWD">73,499</ix:nonFraction> </pre></td>
+						</ix:tuple>
+					</tr>
+<tr>
+						<ix:tuple name="tifrs-notes:FinancialStatementAccountAndAmount">
+						<td style="text-align:left"><pre><ix:nonNumeric name="tifrs-notes:FinancialStatementAccount2" contextRef="AsOf20200930" escape="true">說明</ix:nonNumeric></pre></td>
+						<td style="text-align:right"><pre><ix:nonFraction name="tifrs-notes:Amount2" contextRef="AsOf20200930" format="ixt:numdotdecimal" scale="3" decimals="-3" unitRef="TWD">(一)	應收票據
+ 　　於資產負債表日，合併公司之應收票據帳齡皆為未逾期且未認列備抵損失。 　
+(二)	應收帳款
+ 　　合併公司對於商品銷售之授信期間，零件為60至120天，模具則依合約約定收款。合併公司採行之政策係僅與信譽卓著之對象進行交易並使用其他公開可取得之財務資訊及彼此交易記錄對主要客戶進行評估。 　　為減輕信用風險，合併公司管理
+     階層指派專責人員負責授信額度之決定、授信核准及其他監控程序以確保逾期應收款項之回收已採取適當行動。此外，合併公司於資產負債表日會逐一複核應收款項之可回收金額以確保無法回收之應收款項已提列適當減損損失。據此，合併公司
+     管理階層認為合併公司之信用風險已顯著減少。
+ 　　合併公司按存續期間預期信用損失認列應收帳款之備抵損失。存續期間預期信用損失係使用準備矩陣計算，其考量客戶過去違約紀錄與現時財務狀況。合併公司之信用損失進一步依銷售零件及模具之收款特性區分，並以應收帳款逾期帳齡訂定預
+     期信用損失率。合併公司依準備矩陣衡量應收帳款之備抵損失如下：  
+1.	109年9月30日 
+零件銷售
+ 	                             未逾期		  逾期1～30天		逾期31～60天		逾期61～90天		逾期91～120天		逾期121～360天		逾期超過360天		      合計
+預期信用損失率（％）	              0.01		     0.1		     0.5		      1		               3		    10～30		    50～100
+總帳面金額			$	179,667	        $	6,481		$	278		$	99		$	-		$	12,729		$	9,003		$	208,257
+備抵損失（存續期間預期信用損失）(	    503	)	(	    6 )		           -			 -			-		(	 2,184	)	(	6,405	)	(	  9,098	)
+攤銷後成本			$	179,164		$	6,475		$	278		$	99		$	-		$	10,545		$	2,598		$	199,159
+
+模具銷售
+ 	                             未逾期		  逾期1～90天		逾期91～120天		逾期120～360天		逾期超過360天		      合計 
+預期信用損失率（％）	              0.01		     0.01		       3		     5~10		    15～100		 			
+總帳面金額			$	121,170		$	-		$	-		$	33,482		$	52,307		$	206,959
+備抵損失（存續期間預期信用損失）(	     13	)		-			-		(	 4,805	)	(	47,032	)	(	 51,850	)
+攤銷後成本			$	121,157		$	-		$	-		$	28,677		$	 5,275		$	155,109
+
+2.	108年12月31日 
+零件銷售
+ 	                             未逾期		  逾期1～30天		逾期31～60天		逾期61～90天		逾期91～120天		逾期121～360天		逾期超過360天		      合計
+預期信用損失率（％）	              0.01		     0.1		     0.5		      1		               3		    10～30		    50～100
+總帳面金額			$	272,951		$	13,104		$	11,596		$	58		$	1,998		$	3,177		$	5,928	         $	308,812
+備抵損失（存續期間預期信用損失）(	     27	)	(	    13	)	(	    58	)	(	 1  )		(	   60	)	(	  881	)	(	5,259	)	(	  6,299	)
+攤銷後成本			$	272,924		$	13,091		$	11,538		$	57		$	1,938		$	2,296		$	  669		$	302,513
+
+模具銷售
+ 	                             未逾期		  逾期1～90天		逾期91～120天		逾期120～360天		逾期超過360天		      合計
+預期信用損失率（％）	              0.01		     0.01		       3		     5~10		    15～100
+總帳面金額			$	76,473		$	19,472		$	9,010		$	5,508		$	47,697		$	158,160
+備抵損失（存續期間預期信用損失）(	     8	)	(	     2	)	(	  270	)	(	  529	)	(	46,642	)	(	 47,451	)
+攤銷後成本			$	76,465		$	19,470		$	8,740		$	4,979		$	 1,055		$	110,709
+3.	108年9月30日 
+零件銷售
+ 	                             未逾期		  逾期1～30天		逾期31～60天		逾期61～90天		逾期91～120天		逾期121～360天		逾期超過360天		      合計
+預期信用損失率（％）	              0.01		     0.1		     0.5		      1		               3		    10～30		    50～100
+總帳面金額			$	314,477		$	9,640		$	1,454		$	589		$	77		$	7,422		$	7,132		$	340,791
+備抵損失（存續期間預期信用損失）(	     32	)	(	    7	)	(	    7	)	(	  6	)	(	 2	)	(	1,723	)	(	3,838	)	(	  5,615	)
+攤銷後成本			$	314,445		$	9,633		$	1,447		$	583		$	75		$	5,699		$	3,294		$	 335,17
+
+模具銷售
+                                     未逾期		  逾期1～90天		逾期91～120天		逾期120～360天		逾期超過360天		      合計
+預期信用損失率（％）	              0.01		     0.01		       3		     5~10		    15～10
+總帳面金額			$	117,725		$	14,685		$	-		$	4,709		$	46,459		$	183,578
+備抵損失（存續期間預期信用損失）(	     12	)	(	     1	)		-	        (	  409	)	(	26,348	)	(	 26,770	)
+攤銷後成本			$	117,713		$	14,684	        $	-		$	4,300	        $	20,111		$	156,808
+
+應收帳款及其他應收款備抵損失之變動資訊如下： 
+ 		                    109年1月1日至9月30日		                            108年1月1日至9月30日
+ 		   應收帳款		  其他應收款		     合計		    應收帳款		  其他應收款		     合計
+期初餘額        $	53,750		$	3,120	       $	56,870	       $	31,220		$	3,120		$	34,340
+加：本期提列	         7,585			    -			 7,585			 1,370		            -			 1,370
+外幣換算差額	(	   387	)		    -		(	   387	)	(	   205	)		    -		(	   205	)
+期末餘額        $	60,948		$	3,120		$	64,068		$	32,385		$	3,120		$	35,505</ix:nonFraction> </pre></td>
+						<td style="text-align:right"><pre><ix:nonFraction name="tifrs-notes:Amount2" contextRef="AsOf20191231" format="ixt:numdotdecimal" scale="3" decimals="-3" unitRef="TWD">0</ix:nonFraction> </pre></td>
+						<td style="text-align:right"><pre><ix:nonFraction name="tifrs-notes:Amount2" contextRef="AsOf20190930" format="ixt:numdotdecimal" scale="3" decimals="-3" unitRef="TWD">0</ix:nonFraction> </pre></td>
+						</ix:tuple>
+					</tr>
+<tr>
+						<th style="text-align:left" colspan='1'>說明</th>
+						<td colspan='5' style="text-align:left"><pre class="note"><ix:nonNumeric name="tifrs-notes:ScheduleOfTradeAndOtherReceivables" contextRef="AsOf20200930" escape="true">(一)	應收票據
+ 　　於資產負債表日，合併公司之應收票據帳齡皆為未逾期且未認列備抵損失。 　
+(二)	應收帳款
+ 　　合併公司對於商品銷售之授信期間，零件為60至120天，模具則依合約約定收款。合併公司採行之政策係僅與信譽卓著之對象進行交易並使用其他公開可取得之財務資訊及彼此交易記錄對主要客戶進行評估。 　　為減輕信用風險，合併公司管理
+     階層指派專責人員負責授信額度之決定、授信核准及其他監控程序以確保逾期應收款項之回收已採取適當行動。此外，合併公司於資產負債表日會逐一複核應收款項之可回收金額以確保無法回收之應收款項已提列適當減損損失。據此，合併公司
+     管理階層認為合併公司之信用風險已顯著減少。
+ 　　合併公司按存續期間預期信用損失認列應收帳款之備抵損失。存續期間預期信用損失係使用準備矩陣計算，其考量客戶過去違約紀錄與現時財務狀況。合併公司之信用損失進一步依銷售零件及模具之收款特性區分，並以應收帳款逾期帳齡訂定預
+     期信用損失率。合併公司依準備矩陣衡量應收帳款之備抵損失如下：  
+1.	109年9月30日 
+零件銷售
+ 	                             未逾期		  逾期1～30天		逾期31～60天		逾期61～90天		逾期91～120天		逾期121～360天		逾期超過360天		      合計
+預期信用損失率（％）	              0.01		     0.1		     0.5		      1		               3		    10～30		    50～100
+總帳面金額			$	179,667	        $	6,481		$	278		$	99		$	-		$	12,729		$	9,003		$	208,257
+備抵損失（存續期間預期信用損失）(	    503	)	(	    6 )		           -			 -			-		(	 2,184	)	(	6,405	)	(	  9,098	)
+攤銷後成本			$	179,164		$	6,475		$	278		$	99		$	-		$	10,545		$	2,598		$	199,159
+
+模具銷售
+ 	                             未逾期		  逾期1～90天		逾期91～120天		逾期120～360天		逾期超過360天		      合計 
+預期信用損失率（％）	              0.01		     0.01		       3		     5~10		    15～100		 			
+總帳面金額			$	121,170		$	-		$	-		$	33,482		$	52,307		$	206,959
+備抵損失（存續期間預期信用損失）(	     13	)		-			-		(	 4,805	)	(	47,032	)	(	 51,850	)
+攤銷後成本			$	121,157		$	-		$	-		$	28,677		$	 5,275		$	155,109
+
+2.	108年12月31日 
+零件銷售
+ 	                             未逾期		  逾期1～30天		逾期31～60天		逾期61～90天		逾期91～120天		逾期121～360天		逾期超過360天		      合計
+預期信用損失率（％）	              0.01		     0.1		     0.5		      1		               3		    10～30		    50～100
+總帳面金額			$	272,951		$	13,104		$	11,596		$	58		$	1,998		$	3,177		$	5,928	         $	308,812
+備抵損失（存續期間預期信用損失）(	     27	)	(	    13	)	(	    58	)	(	 1  )		(	   60	)	(	  881	)	(	5,259	)	(	  6,299	)
+攤銷後成本			$	272,924		$	13,091		$	11,538		$	57		$	1,938		$	2,296		$	  669		$	302,513
+
+模具銷售
+ 	                             未逾期		  逾期1～90天		逾期91～120天		逾期120～360天		逾期超過360天		      合計
+預期信用損失率（％）	              0.01		     0.01		       3		     5~10		    15～100
+總帳面金額			$	76,473		$	19,472		$	9,010		$	5,508		$	47,697		$	158,160
+備抵損失（存續期間預期信用損失）(	     8	)	(	     2	)	(	  270	)	(	  529	)	(	46,642	)	(	 47,451	)
+攤銷後成本			$	76,465		$	19,470		$	8,740		$	4,979		$	 1,055		$	110,709
+3.	108年9月30日 
+零件銷售
+ 	                             未逾期		  逾期1～30天		逾期31～60天		逾期61～90天		逾期91～120天		逾期121～360天		逾期超過360天		      合計
+預期信用損失率（％）	              0.01		     0.1		     0.5		      1		               3		    10～30		    50～100
+總帳面金額			$	314,477		$	9,640		$	1,454		$	589		$	77		$	7,422		$	7,132		$	340,791
+備抵損失（存續期間預期信用損失）(	     32	)	(	    7	)	(	    7	)	(	  6	)	(	 2	)	(	1,723	)	(	3,838	)	(	  5,615	)
+攤銷後成本			$	314,445		$	9,633		$	1,447		$	583		$	75		$	5,699		$	3,294		$	 335,17
+
+模具銷售
+                                     未逾期		  逾期1～90天		逾期91～120天		逾期120～360天		逾期超過360天		      合計
+預期信用損失率（％）	              0.01		     0.01		       3		     5~10		    15～10
+總帳面金額			$	117,725		$	14,685		$	-		$	4,709		$	46,459		$	183,578
+備抵損失（存續期間預期信用損失）(	     12	)	(	     1	)		-	        (	  409	)	(	26,348	)	(	 26,770	)
+攤銷後成本			$	117,713		$	14,684	        $	-		$	4,300	        $	20,111		$	156,808
+
+應收帳款及其他應收款備抵損失之變動資訊如下： 
+ 		                    109年1月1日至9月30日		                            108年1月1日至9月30日
+ 		   應收帳款		  其他應收款		     合計		    應收帳款		  其他應收款		     合計
+期初餘額        $	53,750		$	3,120	       $	56,870	       $	31,220		$	3,120		$	34,340
+加：本期提列	         7,585			    -			 7,585			 1,370		            -			 1,370
+外幣換算差額	(	   387	)		    -		(	   387	)	(	   205	)		    -		(	   205	)
+期末餘額        $	60,948		$	3,120		$	64,068		$	32,385		$	3,120		$	35,505</ix:nonNumeric></pre></td>
+					</tr>
+<tr> 
+						<td>A1</td> 
+						<td> 
+							<span class="zh">期初餘額</span> 
+							<span class="en">　Equity at beginning of period</span> 
+						</td> 
+						<td class="amt"><pre><ix:nonFraction name="ifrs-full:Equity" contextRef="AsOf20200101_OrdinaryShareMember" format="ixt:numdotdecimal" scale="3" decimals="-3" unitRef="TWD">2,200,025</ix:nonFraction> </pre></td>
+						<td class="amt"><pre><ix:nonFraction name="ifrs-full:Equity" contextRef="AsOf20200101_IssuedCapitalMember" format="ixt:numdotdecimal" scale="3" decimals="-3" unitRef="TWD">2,200,025</ix:nonFraction> </pre></td>
+						<td class="amt"><pre><ix:nonFraction name="ifrs-full:Equity" contextRef="AsOf20200101_CapitalReserveMember" format="ixt:numdotdecimal" scale="3" decimals="-3" unitRef="TWD">718</ix:nonFraction> </pre></td>
+						<td class="amt"><pre><ix:nonFraction name="ifrs-full:Equity" contextRef="AsOf20200101_SpecialReserveMember" format="ixt:numdotdecimal" scale="3" decimals="-3" unitRef="TWD">164,267</ix:nonFraction> </pre></td>
+						<td class="amt"><pre>(<ix:nonFraction name="ifrs-full:Equity" contextRef="AsOf20200101_UnappropriatedRetainedEarningsAccumulatedDeficitMember" format="ixt:numdotdecimal" scale="3" sign="-" decimals="-3" unitRef="TWD">1,989,924</ix:nonFraction>)</pre></td>
+						<td class="amt"><pre>(<ix:nonFraction name="ifrs-full:Equity" contextRef="AsOf20200101_RetainedEarningsMember" format="ixt:numdotdecimal" scale="3" sign="-" decimals="-3" unitRef="TWD">1,825,657</ix:nonFraction>)</pre></td>
+						<td class="amt"><pre>(<ix:nonFraction name="ifrs-full:Equity" contextRef="AsOf20200101_ReserveOfExchangeDifferencesOnTranslationMember" format="ixt:numdotdecimal" scale="3" sign="-" decimals="-3" unitRef="TWD">120,407</ix:nonFraction>)</pre></td>
+						<td class="amt"><pre><ix:nonFraction name="ifrs-full:Equity" contextRef="AsOf20200101_ReserveOfGainsAndLossesOnFinancialAssetsMeasuredAtFairValueThroughOtherComprehensiveIncomeMember" format="ixt:numdotdecimal" scale="3" decimals="-3" unitRef="TWD">0</ix:nonFraction> </pre></td>
+						<td class="amt"><pre>(<ix:nonFraction name="ifrs-full:Equity" contextRef="AsOf20200101_OtherEquityInterestMember" format="ixt:numdotdecimal" scale="3" sign="-" decimals="-3" unitRef="TWD">120,407</ix:nonFraction>)</pre></td>
+						<td class="amt"><pre><ix:nonFraction name="ifrs-full:Equity" contextRef="AsOf20200101_EquityAttributableToOwnersOfParentMember" format="ixt:numdotdecimal" scale="3" decimals="-3" unitRef="TWD">254,679</ix:nonFraction> </pre></td>
+						<td class="amt"><pre><ix:nonFraction name="ifrs-full:Equity" contextRef="AsOf20200101_TotalEquityMember" format="ixt:numdotdecimal" scale="3" decimals="-3" unitRef="TWD">254,679</ix:nonFraction> </pre></td>
+					</tr>
+</table>
+</body>
+</html>
