@@ -1,6 +1,6 @@
 # Step 23-a 驗收報告
 
-狀態：IN REVIEW
+狀態：IN REVIEW (#39)
 
 範圍：財務報表的第一部分，iXBRL parser 與文件契約。這個 step 新增：
 

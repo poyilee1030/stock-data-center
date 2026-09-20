@@ -1550,7 +1550,7 @@ owner 於 2026-09-20 刪除兩條原驗收：「`revswarm` 已公告營收的交
 
 ### Step 23-a — iXBRL parser 與文件契約
 
-狀態：**THIS STEP**。依賴：Step 5 契約。
+狀態：**IN REVIEW** (#39)。依賴：Step 5 契約。
 
 範圍內：`financials/ixbrl.py` 的純解析層，輸入是一份 `t164sb01` 回應的原始 bytes，輸出
 是已正規化的 header、`XBRLContext`、unit identity、`ix:nonFraction` 事實，以及
