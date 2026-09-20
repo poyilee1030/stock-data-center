@@ -105,3 +105,25 @@ def test_the_file_is_located_by_month_under_the_archive_root() -> None:
     assert resource.resource_key == (
         "mops_t21sc03_sii:monthly_revenue_archive:2021-03"
     )
+
+
+def test_a_non_finite_amount_fails_the_whole_file() -> None:
+    """`NaN` parses as a Decimal, PostgreSQL stores it, and a hash would cover it.
+
+    The legacy file is a Python scraper's output, so `NaN` and `Infinity` are
+    real inputs rather than hypothetical ones (review of #38).
+    """
+    for text in (b"NaN", b"Infinity", b"1e9"):
+        broken = WINDOW_A.replace(b",9779716,", b",%s," % text, 1)
+        with pytest.raises(SourceDataError) as error:
+            parse(broken, source="mops_t21sc03_sii", period=MARCH)
+        assert error.value.reason_code == "unrecognised_value"
+
+
+def test_a_date_with_anything_after_it_fails_the_whole_file() -> None:
+    broken = WINDOW_A.replace(b",20210409\r\n", b",20210409T00:00:00\r\n", 1)
+    if broken == WINDOW_A:
+        broken = WINDOW_A.replace(b",20210409\n", b",20210409T00:00:00\n", 1)
+    with pytest.raises(SourceDataError) as error:
+        parse(broken, source="mops_t21sc03_sii", period=MARCH)
+    assert error.value.reason_code == "unrecognised_value"

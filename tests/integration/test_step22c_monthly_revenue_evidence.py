@@ -590,6 +590,46 @@ def test_rerunning_the_archive_import_adds_no_evidence_revision(
         engine.dispose()
 
 
+def test_rerunning_a_first_capture_month_reports_no_new_evidence(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """The 2026M02-onward window has its own versions, and the count knows it.
+
+    A corrected row's evidence hangs on the version the writer returned, not
+    on the official one, so reading only the official versions' evidence
+    before the loop would report a rerun's deduplicated rows as newly created
+    (review of #38) — an idempotency claim (CLAUDE.md §76, §78) that the
+    manifest would then contradict exactly in this window.
+    """
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        import_official(
+            engine, tmp_path, adapter=MOPSOtcMonthlyRevenueAdapter(),
+            content=OTC_JUNE_PAGE, period=JUNE,
+        )
+        root = archive_root(tmp_path, month=JUNE, content=ARCHIVE_B)
+        first, _ = import_archive(
+            engine, tmp_path, source="mops_t21sc03_otc", period=JUNE, root=root
+        )
+        assert first.business_versions_created == 1
+        assert first.publication_evidence_created > 0
+        repeated, _ = import_archive(
+            engine, tmp_path, source="mops_t21sc03_otc", period=JUNE, root=root
+        )
+        assert repeated.business_versions_created == 0
+        assert repeated.publication_evidence_created == 0
+        assert repeated.publication_evidence_deduplicated == first.evidence_observations
+        with engine.connect() as connection:
+            assert connection.scalar(
+                sa.text(
+                    "SELECT count(*) FROM publication_evidence "
+                    "WHERE evidence_type = 'legacy_capture_bound'"
+                )
+            ) == first.evidence_observations
+    finally:
+        engine.dispose()
+
+
 def test_the_manifest_records_the_archive_it_read(
     isolated_database_url: str, tmp_path: Path
 ) -> None:

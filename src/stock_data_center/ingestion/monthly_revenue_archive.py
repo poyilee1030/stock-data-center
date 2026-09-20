@@ -35,6 +35,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from datetime import UTC, date, datetime, time
+from difflib import SequenceMatcher
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -160,12 +161,33 @@ def same_published_note(ours: str | None, theirs: str | None) -> bool:
     theirs_text = WHITESPACE.sub(" ", theirs)
     if ours_text == theirs_text:
         return True
-    if "�" in theirs:
+    if _differs_only_where_legacy_lost_bytes(ours_text, theirs_text):
         return True
     try:
         return ours_text.encode("cp950") == theirs_text.encode("cp950")
     except UnicodeEncodeError:
         return False
+
+
+def _differs_only_where_legacy_lost_bytes(ours: str, theirs: str) -> bool:
+    """Every block the two texts disagree on is one legacy could not decode.
+
+    A replacement character anywhere is not enough on its own: an issuer can
+    rewrite a note that legacy also mangled, and treating that as the same
+    text would put today's wording on a version dated to legacy's capture —
+    the look-ahead this step exists to avoid. So the unmangled fragments have
+    to match, in order, and only the mangled ones may differ.
+    """
+    if "�" not in theirs:
+        return False
+    for tag, _, _, start, end in SequenceMatcher(
+        a=ours, b=theirs, autojunk=False
+    ).get_opcodes():
+        if tag == "equal":
+            continue
+        if "�" not in theirs[start:end]:
+            return False
+    return True
 
 
 class MonthlyRevenueArchiveImporter(
@@ -274,13 +296,13 @@ class MonthlyRevenueArchiveImporter(
         evidence_seen = 0
         evidence_ids: set[int] = set()
         claimed: set[str] = set()
-        # Read once what is already there, so the new rows can be counted
-        # honestly: the writer returns an id whether it inserted or found one.
-        existing_evidence = self._existing_evidence(
-            connection,
-            source=adapter.source,
-            version_ids={row["id"] for row in held.values()},
-        )
+
+        # First decide what each row targets, writing this window's versions.
+        # The evidence a corrected row carries hangs on the version the writer
+        # returned, which is not the official one, so what is already stored
+        # cannot be read until those versions exist — reading only the official
+        # ones would count a rerun's deduplicated evidence as newly created.
+        targets: list[tuple[object, int]] = []
         for row in parsed.rows:
             security_id = known.get(row.security_code)
             official = held.get(security_id) if security_id else None
@@ -304,12 +326,18 @@ class MonthlyRevenueArchiveImporter(
                     observation=observation,
                     lineage=revenue_lineage,
                 )
-                version_id = written.version_id
+                targets.append((row, written.version_id))
                 created += written.created
                 deduplicated += not written.created
             else:
-                version_id = official["id"]
+                targets.append((row, official["id"]))
 
+        existing_evidence = self._existing_evidence(
+            connection,
+            source=adapter.source,
+            version_ids={version_id for _, version_id in targets},
+        )
+        for row, version_id in targets:
             for planned in planner.plan(
                 bound_at=end_of_day(row.captured_on),
                 proves_first_capture=first_capture_window,

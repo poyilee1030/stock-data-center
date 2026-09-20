@@ -102,7 +102,12 @@ def stored_evidence(connection, source: str) -> dict:
                 ON e.monthly_revenue_version_id = v.id
              WHERE v.source = :source
              ORDER BY s.security_code, v.revenue_year, v.revenue_month,
-                      e.quality_rank DESC, e.id
+                      -- DESC is NULLS FIRST in PostgreSQL, and the LEFT JOIN
+                      -- gives a NULL rank to a version carrying no evidence.
+                      -- Without NULLS LAST such a version — the corrected one
+                      -- of a 2026M02+ row, say — would outrank its sibling's
+                      -- real evidence and report a good month as a failure.
+                      e.quality_rank DESC NULLS LAST, e.id
             """
         ),
         {"source": source},
@@ -152,7 +157,14 @@ def check(connection, *, source: str, dates: dict, evidence: dict, rules) -> dic
                 fail("first_capture_type", key, str(row["evidence_type"]))
             elif row["published_at"] != expected_bound:
                 fail("first_capture_instant", key, str(row["published_at"]))
-            elif row["published_at"] < _run_start(captured_on):
+            # Checked on its own, not as another `elif`: the acceptance claim is
+            # that no row resolves before the 22:45 run that saw it, and a
+            # branch that can only run when the instant already equals the end
+            # of the day proves nothing.
+            if (
+                row["published_at"] is not None
+                and row["published_at"] < _run_start(captured_on)
+            ):
                 fail("earlier_than_the_2245_run", key, str(row["published_at"]))
         elif captured_on == rule_day:
             counts["rule_bound_rows"] += 1
@@ -168,7 +180,10 @@ def check(connection, *, source: str, dates: dict, evidence: dict, rules) -> dic
                 fail("rule_bound_type", key, str(row["evidence_type"]))
             elif row["published_at"] != instant:
                 fail("rule_bound_instant", key, str(row["published_at"]))
-            elif row["published_at"] < end_of_day(rule_day):
+            if (
+                row["published_at"] is not None
+                and row["published_at"] < end_of_day(rule_day)
+            ):
                 fail("earlier_than_the_rule", key, str(row["published_at"]))
         else:
             counts["press_report_rows"] += 1

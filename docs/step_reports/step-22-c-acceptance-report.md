@@ -116,10 +116,11 @@ python scripts/verify_monthly_revenue_evidence.py --database-url …
 從零 migrate 的資料庫：
 
 ```text
-976 passed, 3 skipped, 2 warnings in 418.10s
+984 passed, 3 skipped, 2 warnings in 419.05s
 ```
 
-其中 25 條是這個 step 新增的：15 個 integration、10 個 unit。
+其中 33 條是這個 step 新增的：16 個 integration、17 個 unit（含 code review 後
+補的 8 條回歸）。
 
 每個測試如何確認先失敗：
 
@@ -132,6 +133,41 @@ python scripts/verify_monthly_revenue_evidence.py --database-url …
   時 `UnacceptedEvidenceTypeError` 讓 4 條失敗、downgrade guard 未加時 1 條失敗。
 
 `ruff check` 對新增與改動的檔案沒有回報問題。
+
+## Code review（#38）
+
+review 列出 6 項（3 medium、3 low）。逐項回核後全部成立，全部已修，並各留一條回歸：
+
+1. **`_existing_evidence` 只讀官方版本的 id，2026M02 起的窗口會把重跑的去重證據算成新建。**
+   成立且只在這個 step 新增的窗口上成立：被更正列的證據掛在 `append_revenue` 回傳的版本上，
+   那個版本不在 `held` 裡。manifest 因此在重跑時報 `publication_evidence_created > 0`，
+   與 §76／§78 的冪等陳述矛盾。改成兩段式：先決定每一列的目標版本（必要時寫入），
+   再一次讀出這些版本既有的證據，最後才寫。回歸
+   `test_rerunning_a_first_capture_month_reports_no_new_evidence` 在修正前紅（`assert 1 == 0`）。
+   真實資料重跑 2026M02–M08 共 14 次匯入：新版本 0、新證據 0。
+2. **`same_published_note` 只要 legacy 備註含 U+FFFD 就回 True。** 成立，是這個 step 最該修的
+   一項：發行公司改寫過、而 legacy 的副本剛好也有亂碼位元組時，會把今天的字裝進一個
+   帶 `legacy_capture_bound`（時間是 legacy 擷取日）的版本——正是這個 step 要防的 look-ahead。
+   改成用 `difflib` 逐段比對：兩邊不一致的每一段，legacy 那側都必須含 U+FFFD，未被替換的
+   片段必須照順序相符。新增 5 條 unit test，其中「改寫＋亂碼」那條修正前回 True。
+   真實資料以新規則重跑：9 列（上市 8、上櫃 1）仍判為同一段文字，沒有任何新版本，
+   代表這 9 列確實都是解碼瑕疵而不是改寫。
+3. **`_amount` 接受 `NaN`／`Infinity`。** 成立：`Decimal("NaN")` 解得動，PostgreSQL 的
+   NUMERIC 存得下，而 legacy 檔就是 Python scraper 產的。改成與官方 adapter 一樣先過
+   regex `fullmatch`。回歸涵蓋 `NaN`、`Infinity`、`1e9`。
+4. **驗證腳本的 `quality_rank DESC` 在 PostgreSQL 是 NULLS FIRST。** 成立但**目前是潛伏的**：
+   每個版本都帶著 22-a／22-b 寫的 `official`（rank 0）列，所以 LEFT JOIN 實際上不會產生
+   NULL rank——全庫查過，沒有任何版本是零證據列。已加 `NULLS LAST`；修正前後的計數完全相同
+   （見下），證實這一項沒有汙染過驗收數字。
+5. **`earlier_than_the_2245_run` 是走不到的 `elif`。** 成立：它只在時刻已經等於當日結束時才
+   會跑，不可能更早。驗收報告宣稱量測了這個不變式，所以改成獨立檢查（「不早於 rule」那條
+   同樣改成獨立）。修正後重跑仍然 0 失敗。
+6. **`_captured_on` 忽略第 8 字元之後的內容。** 成立：`20210409T00:00:00` 會被靜默接受。
+   改成先要求 `\d{8}` 全比對。
+
+修正後重跑驗證腳本：結束碼仍為 0，四類的列數與修正前**完全相同**
+（上市 21,418／47,189／6,888／230，上櫃 18,507／40,365／5,978／388），
+抽樣 400 列仍全數通過。
 
 ## 踩到的坑
 

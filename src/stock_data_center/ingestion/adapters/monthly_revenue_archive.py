@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import csv
 import io
+import re
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -63,6 +64,12 @@ AMOUNTS = {
     "revenue_acc": "cumulative_revenue",
     "revenue_acc_last_year": "cumulative_revenue_last_year",
 }
+# The legacy file is written by a Python scraper, so `NaN` and `Infinity` are
+# real inputs: `Decimal()` parses both, PostgreSQL's NUMERIC stores NaN, and a
+# business revision would end up hashing one. Only a plain decimal is a value.
+NUMBER = re.compile(r"-?(?:\d{1,3}(?:,\d{3})*|\d+)(?:\.\d+)?")
+DATE8 = re.compile(r"\d{8}")
+
 PERCENTS = {
     "mom_pct": "mom_pct",
     "yoy_pct": "yoy_pct",
@@ -194,9 +201,14 @@ class LegacyMonthlyRevenueArchiveAdapter:
         value = (text or "").strip()
         if not value:
             return None
+        if not NUMBER.fullmatch(value):
+            raise SourceDataError(
+                "unrecognised_value",
+                f"{self.source} archive row {number} {column} is {text!r}",
+            )
         try:
             return Decimal(value.replace(",", ""))
-        except InvalidOperation as error:
+        except InvalidOperation as error:  # pragma: no cover - the regex ran first
             raise SourceDataError(
                 "unrecognised_value",
                 f"{self.source} archive row {number} {column} is {text!r}",
@@ -207,6 +219,12 @@ class LegacyMonthlyRevenueArchiveAdapter:
 
     def _captured_on(self, text: str, number: int) -> date:
         value = (text or "").strip()
+        if not DATE8.fullmatch(value):
+            raise SourceDataError(
+                "unrecognised_value",
+                f"{self.source} archive row {number} publish_time is {text!r}; "
+                "the legacy file writes it as YYYYMMDD",
+            )
         try:
             return date(int(value[:4]), int(value[4:6]), int(value[6:8]))
         except (ValueError, IndexError) as error:
