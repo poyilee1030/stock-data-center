@@ -1456,7 +1456,7 @@ CLI `monthly-revenue`。
 
 ### Step 22-b — 歷史 backfill 與舊系統對帳
 
-狀態：**IN REVIEW**。依賴：Step 22-a。
+狀態：**IN REVIEW** (#37)。依賴：Step 22-a。
 
 範圍內：兩個市場 × `_0`／`_1` 頁 × 2020M01 → 2026M08 的 backfill、月度涵蓋宣告，
 以及與舊系統 `monthly_revenue` 的對帳（單位換算後，每個差異都分類）。

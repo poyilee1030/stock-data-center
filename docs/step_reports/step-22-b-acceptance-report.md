@@ -1,6 +1,6 @@
 # Step 22-b 驗收報告
 
-狀態：IN REVIEW
+狀態：IN REVIEW (#37)
 
 範圍：月營收的第二部分，歷史 backfill 與舊系統對帳。這個 step 新增：
 
