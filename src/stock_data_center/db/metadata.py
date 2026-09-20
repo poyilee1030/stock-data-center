@@ -567,6 +567,14 @@ monthly_revenue_versions = sa.Table(
     sa.Column("source", sa.String(64), nullable=False),
     sa.Column("revenue_year", sa.SmallInteger(), nullable=False),
     sa.Column("revenue_month", sa.SmallInteger(), nullable=False),
+    # The month as a date, generated rather than written, so the coverage
+    # report (Step 22-b) has one period column and nothing can disagree with
+    # the year and month it came from.
+    sa.Column(
+        "revenue_period",
+        sa.Date(),
+        sa.Computed("make_date(revenue_year, revenue_month, 1)", persisted=True),
+    ),
     sa.Column("revenue", sa.Numeric(24, 4), nullable=False),
     sa.Column("currency", sa.String(3), nullable=False),
     # Published comparatives, as published (Step 22-a, audit §7.3).
@@ -596,6 +604,11 @@ monthly_revenue_versions = sa.Table(
     sa.CheckConstraint("revenue_month BETWEEN 1 AND 12", name="month_range"),
     sa.CheckConstraint("currency ~ '^[A-Z]{3}$'", name="currency_format"),
     sa.CheckConstraint("note IS NULL OR note <> ''", name="note_nonempty"),
+)
+sa.Index(
+    "ix_monthly_revenue_versions_period",
+    monthly_revenue_versions.c.revenue_period,
+    monthly_revenue_versions.c.source,
 )
 
 monthly_revenue_version_observations = sa.Table(

@@ -130,6 +130,9 @@ class MOPSMonthlyRevenueAdapter:
     dataset_code = "monthly_revenue"
     source: str
     market: str
+    # The URL segment (`sii`/`otc`) names the page; the coverage declaration
+    # names the exchange, as every other dataset's does.
+    coverage_market: str
     market_title: str
     version: str
     variants = MappingProxyType({"t21sc03_11": _HEADER})
@@ -294,6 +297,7 @@ class MOPSSiiMonthlyRevenueAdapter(MOPSMonthlyRevenueAdapter):
 
     source = "mops_t21sc03_sii"
     market = "sii"
+    coverage_market = "TWSE"
     market_title = "上市"
     version = "mops-t21sc03-sii:v2"
 
@@ -303,5 +307,6 @@ class MOPSOtcMonthlyRevenueAdapter(MOPSMonthlyRevenueAdapter):
 
     source = "mops_t21sc03_otc"
     market = "otc"
+    coverage_market = "TPEx"
     market_title = "上櫃"
     version = "mops-t21sc03-otc:v2"

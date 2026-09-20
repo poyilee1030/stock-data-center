@@ -1274,6 +1274,10 @@
             "audit_section": "4.7",
             "note": "The page is requested by year and month; there is no row-level period column."
           },
+          "revenue_period": {
+            "coverage": "internal",
+            "note": "Step 22-b: the month as a date, generated from revenue_year and revenue_month, so the calendar-month coverage report has one period column."
+          },
           "revenue": {
             "coverage": "sourced",
             "source_fields": [
