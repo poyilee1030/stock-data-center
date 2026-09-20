@@ -41,7 +41,11 @@ from zoneinfo import ZoneInfo
 import sqlalchemy as sa
 from sqlalchemy import Connection, Engine
 
-from stock_data_center.db.metadata import monthly_revenue_versions, security
+from stock_data_center.db.metadata import (
+    monthly_revenue_versions,
+    publication_evidence,
+    security,
+)
 from stock_data_center.evidence import EvidencePolicyService
 from stock_data_center.ingestion.adapters.monthly_revenue_archive import (
     LegacyMonthlyRevenueArchiveAdapter,
@@ -243,8 +247,18 @@ class MonthlyRevenueArchiveImporter(
         revenue_lineage = RevenueLineageRef(
             lineage.raw_artifact_id, lineage.ingest_run_id
         )
-        bound = self._policy.bind(
+        rule_day = statutory_day(period)
+        planner = self._policy.bind(
             connection, dataset_code=adapter.dataset_code, source=adapter.source
+        ).archive_planner(
+            connection,
+            period=date(period.year, period.month, 1),
+            rule_id=STATUTORY_RULE[0],
+            rule_version=STATUTORY_RULE[1],
+            # Only a month with a row still on the statutory day claims the
+            # rule, and only then is the calendar asked.
+            needs_rule=not first_capture_window
+            and any(row.captured_on == rule_day for row in parsed.rows),
         )
 
         known = self._known_securities(
@@ -254,13 +268,19 @@ class MonthlyRevenueArchiveImporter(
             connection, source=adapter.source, period=period,
             security_ids=set(known.values()),
         )
-        rule_day = statutory_day(period)
-
         created = deduplicated = 0
         skipped: list[str] = []
         mangled_notes = 0
-        evidence_created = evidence_seen = 0
+        evidence_seen = 0
+        evidence_ids: set[int] = set()
         claimed: set[str] = set()
+        # Read once what is already there, so the new rows can be counted
+        # honestly: the writer returns an id whether it inserted or found one.
+        existing_evidence = self._existing_evidence(
+            connection,
+            source=adapter.source,
+            version_ids={row["id"] for row in held.values()},
+        )
         for row in parsed.rows:
             security_id = known.get(row.security_code)
             official = held.get(security_id) if security_id else None
@@ -272,8 +292,8 @@ class MonthlyRevenueArchiveImporter(
                 continue
             if first_capture_window:
                 observation = row.observation
-                if same_published_note(official["note"], observation.note) and (
-                    official["note"] != observation.note
+                if official["note"] != observation.note and same_published_note(
+                    official["note"], observation.note
                 ):
                     observation = _with_note(observation, official["note"])
                     mangled_notes += 1
@@ -290,38 +310,29 @@ class MonthlyRevenueArchiveImporter(
             else:
                 version_id = official["id"]
 
-            for planned in bound.plan_archive(
-                connection,
-                period=date(period.year, period.month, 1),
+            for planned in planner.plan(
                 bound_at=end_of_day(row.captured_on),
-                evidence_source=(
-                    f"legacy market.csv {period.year}M{period.month:02d} "
-                    f"{row.captured_on.isoformat()}"
-                ),
                 proves_first_capture=first_capture_window,
                 bound_is_the_rule_day=row.captured_on == rule_day,
-                rule_id=STATUTORY_RULE[0],
-                rule_version=STATUTORY_RULE[1],
             ):
-                before = self._evidence_count(connection, version_id)
-                self._writer.append_publication_evidence(
-                    connection,
-                    source=adapter.source,
-                    version_id=version_id,
-                    observation=MonthlyRevenuePublication(
-                        evidence_kind=planned.evidence_kind,  # type: ignore[arg-type]
-                        published_at=planned.published_at,
-                        evidence_source=planned.evidence_source,
-                        evidence_type=planned.evidence_type,
-                        quality_rank=planned.quality_rank,
-                    ),
-                    lineage=revenue_lineage,
+                evidence_ids.add(
+                    self._writer.append_publication_evidence(
+                        connection,
+                        source=adapter.source,
+                        version_id=version_id,
+                        observation=MonthlyRevenuePublication(
+                            evidence_kind=planned.evidence_kind,  # type: ignore[arg-type]
+                            published_at=planned.published_at,
+                            evidence_source=planned.evidence_source,
+                            evidence_type=planned.evidence_type,
+                            quality_rank=planned.quality_rank,
+                        ),
+                        lineage=revenue_lineage,
+                    )
                 )
                 evidence_seen += 1
-                evidence_created += (
-                    self._evidence_count(connection, version_id) - before
-                )
                 claimed.add(planned.evidence_type)
+        evidence_created = len(evidence_ids - existing_evidence)
 
         return BusinessWriteResult(
             business_versions_created=created,
@@ -417,12 +428,21 @@ class MonthlyRevenueArchiveImporter(
         return held
 
     @staticmethod
-    def _evidence_count(connection: Connection, version_id: int) -> int:
-        from stock_data_center.db.metadata import publication_evidence
-
-        return connection.scalar(
-            sa.select(sa.func.count()).select_from(publication_evidence).where(
-                publication_evidence.c.monthly_revenue_version_id == version_id
+    def _existing_evidence(
+        connection: Connection, *, source: str, version_ids: set[int]
+    ) -> set[int]:
+        """Evidence ids these versions already carry, read in one query."""
+        if not version_ids:
+            return set()
+        return set(
+            connection.scalars(
+                sa.select(publication_evidence.c.id).where(
+                    publication_evidence.c.dataset_code == "monthly_revenue",
+                    publication_evidence.c.source == source,
+                    publication_evidence.c.monthly_revenue_version_id.in_(
+                        sorted(version_ids)
+                    ),
+                )
             )
         )
 

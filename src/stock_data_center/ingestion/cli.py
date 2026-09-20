@@ -756,14 +756,26 @@ def main(argv: list[str] | None = None) -> int:
                     base_import_id,
                     f"{args.source}:{period.year:04d}-{period.month:02d}",
                 )
-                month_result = importer.run(
-                    adapter=LegacyMonthlyRevenueArchiveAdapter(
-                        args.source, archive_root=args.archive_root
-                    ),
-                    request=MonthlyRevenueArchiveRequest(period),
-                    import_id=month_id,
-                    purpose=IngestPurpose(args.purpose),
-                )
+                try:
+                    month_result = importer.run(
+                        adapter=LegacyMonthlyRevenueArchiveAdapter(
+                            args.source, archive_root=args.archive_root
+                        ),
+                        request=MonthlyRevenueArchiveRequest(period),
+                        import_id=month_id,
+                        purpose=IngestPurpose(args.purpose),
+                    )
+                except Exception as error:  # noqa: BLE001 - reported, not swallowed
+                    # One unreadable month says nothing about the next, and
+                    # ending the run would discard every month that worked.
+                    month_failures.append(
+                        {
+                            "period": f"{period.year:04d}-{period.month:02d}",
+                            "import_id": str(month_id),
+                            "detail": f"{type(error).__name__}: {error}",
+                        }
+                    )
+                    continue
                 archive_results.append((period, month_id, month_result))
         elif args.command == "securities-lending":
             importer = SecuritiesLendingImporter(
@@ -1040,12 +1052,16 @@ def main(argv: list[str] | None = None) -> int:
                         "archive": {
                             "base_import_id": str(base_import_id),
                             "months": months,
+                            **(
+                                {"month_failures": month_failures}
+                                if month_failures else {}
+                            ),
                         }
                     },
                     ensure_ascii=False, indent=2, default=str,
                 )
             )
-            return 0
+            return 1 if month_failures else 0
 
         if month_failures and not calendar_runs:
             # Every month failed, so there is no manifest to read and no

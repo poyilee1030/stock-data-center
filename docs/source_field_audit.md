@@ -1536,3 +1536,58 @@ one, not revisions.
 which is what Market PIT needs. It does not recover the first-published
 *value*: the headline figure is rounded to 0.01億, enough to detect that a
 correction happened but not to restore the original 千元 number.
+
+### 7.5 What the archive was actually made to prove (Step 22-c)
+
+Measured 2026-09-20 on the whole window, 2020M01–2026M08, both markets:
+140,963 archive rows against 150,757 stored versions.
+
+| Claim | 上市 | 上櫃 |
+| --- | ---: | ---: |
+| `press_report_bound`, at the end of the recovered announcement day | 47,189 | 40,365 |
+| `release_rule`, for a row still on the statutory 10th | 21,418 | 18,507 |
+| `legacy_capture_bound`, 2026M02 onward | 6,888 | 5,978 |
+| archive rows with no version to carry them | 230 | 388 |
+
+140,345 of 150,757 versions now resolve under Market PIT. What the remaining
+10,412 are is the point of the step:
+
+- **8,952 belong to issuers no archive month holds.** 95 上市 and 30 上櫃 codes
+  appear on the official foreign page and in no archive month, because the
+  legacy scraper hard-coded the `_0` URL. Nothing proves when they were
+  published, so they keep `unknown` (owner decision, 2026-09-20). Giving them
+  the statutory rule would have been look-ahead: the first-seen data for
+  2026M02 onward shows 13–311 domestic issuers a month filing after the 10th,
+  and a foreign issuer is not more likely to be early. This is why the rule is
+  named by the archive importer for the rows that claim it, and is *not*
+  declared on the source: a declaration would hand the same instant to every
+  row legacy never saw.
+- **The other 1,460 are rows the archive holds for an issuer it does have, and
+  mostly the corrected versions of 2026M02 onward** (1,088 of them fall in that
+  window). Where the issuer
+  corrected a row after legacy captured it, the archive's first-captured value
+  is its own version and resolves; the corrected one has nothing proving when
+  it became public, so it waits for a capture. Step 22-b imported today's
+  pages as `gap_fill`, which proves nothing about publication (ADR-0020 §2),
+  so for those rows the proof has to come from a later `correction_check` run
+  — Step 27's forward capture.
+
+Two consequences are accepted and recorded rather than fixed:
+
+- **The 166 corrected rows of 2020M01–2026M01 resolve from their announcement
+  date.** We hold only the corrected value there (restoring the first-published
+  one is out of scope, ROADMAP Step 22), so the recovered date lands on it and
+  makes it visible earlier than the correction was. 166 rows of 140,963, and
+  the 2026M02-onward window is free of it because both the date and the value
+  are legacy's own capture there.
+- **System PIT answers the first-captured value for a corrected 2026M02+ row.**
+  The archive version was ingested last, and System PIT reports the latest
+  revision by ingestion time — which is what actually happened, because
+  `ingested_at` is storage-generated and the archive really was read today
+  (CLAUDE.md §23, §74).
+
+A note legacy mangled is not a new version. Step 22-b measured the four ways
+its copy differs from the page with no issuer rewrite (§4.7); a 2026M02-onward
+row differing only that way dedups onto the official version and carries the
+capture bound, rather than forking a version whose Market-PIT answer would be
+the mangled text. 15 rows across the window.

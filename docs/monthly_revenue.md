@@ -104,3 +104,33 @@ that has since left both markets is missing from the 2020 page too, even though
 legacy recorded it then. Those rows are outside the v1 universe (`pub` and
 `rotc` are rejected at the adapter boundary), not a gap in what v1 covers; the
 reconciliation names them rather than hiding them.
+
+
+## Publication evidence (Step 22-c)
+
+The official pages carry no publication instant, so Steps 22-a and 22-b wrote
+`unknown` on every version and Market PIT saw nothing. The evidence comes from
+the legacy `market.csv`, imported as `legacy_archive` bytes in two windows
+(audit §7.1, §7.4, §7.5):
+
+| Window | What the file holds | What is claimed |
+| --- | --- | --- |
+| 2020M01–2026M01 | a recovered announcement date beside today's corrected value | `press_report_bound` at the end of that day; the statutory rule where the date is still the 10th |
+| 2026M02 onward | the legacy 22:45 job's own first-seen date and the value it saw | `legacy_capture_bound` at the end of that day, on a version of that value |
+
+The bound is the end of the archive's day in market time: the file dates rows
+to the day, and a bound that is slightly late is safe where an early one is
+not.
+
+The statutory rule (`monthly_revenue_statutory@1`) is named by the archive
+importer for the rows whose recovered date is the unshifted 10th. It is
+deliberately not declared on the source: a declaration would hand the same
+instant to every version the official importer writes, including the `_1`
+foreign and KY issuers the archive never held. Those keep `unknown` until
+Step 27's forward capture proves a real one.
+
+A correction the issuer made after legacy captured the row is a separate
+version, and it stays Market-PIT invisible until a run that is the first to
+see it records a `capture_bound`. Before that, Market PIT answers the value
+that was public at the time, which is the point of importing the first
+captures at all.
