@@ -106,7 +106,7 @@ MARKET_CODES: Mapping[SourceMarket, str] = MappingProxyType(
 QUARTER_END = {1: (3, 31), 2: (6, 30), 3: (9, 30), 4: (12, 31)}
 QUARTER_START_MONTH = {1: 1, 2: 4, 3: 7, 4: 10}
 
-_XMLNS = re.compile(r'xmlns:([A-Za-z0-9._-]+)\s*=\s*"([^"]+)"')
+_XMLNS = re.compile(r'xmlns:([A-Za-z0-9._-]+)\s*=\s*"([^"]+)"', re.I)
 _HEADER_FACT = re.compile(
     r"<ix:nonNumeric\b[^>]*\bname\s*=\s*\"tifrs-notes:(\w+)\"[^>]*>(.*?)</ix:nonNumeric>",
     re.I | re.S,
@@ -126,6 +126,7 @@ _EXPLICIT = re.compile(
 )
 _UNSUPPORTED_CONTEXT = re.compile(r"<xbrldi:typedMember|<xbrli:segment|<xbrli:forever", re.I)
 _MEASURE = re.compile(r"<xbrli:measure\b[^>]*>(.*?)</xbrli:measure>", re.I | re.S)
+_HAS_DIVIDE = re.compile(r"<xbrli:divide|<xbrli:unitNumerator|<xbrli:unitDenominator", re.I)
 _DIVIDE = re.compile(
     r"<xbrli:unitNumerator\b(.*?)</xbrli:unitNumerator>\s*"
     r"<xbrli:unitDenominator\b(.*?)</xbrli:unitDenominator>",
@@ -146,6 +147,12 @@ _TAG = re.compile(r"<[^>]*>", re.S)
 #: narrative, which is not a fact at all. The boundary is length, because that
 #: is the only thing that separates them in the source.
 PLACEHOLDER_MAX_LENGTH = 8
+
+#: The only `format` in the archive. It reads `1,234.56` the way this parser
+#: does. `ixt:numcommadecimal` reads the same text the other way round and
+#: `ixt:zerodash` turns a dash into a real zero, so an unimplemented
+#: transformation is refused rather than read with the wrong one.
+IMPLEMENTED_FORMATS = frozenset({"ixt:numdotdecimal"})
 
 
 def _text(value: str) -> str:
@@ -195,6 +202,7 @@ class ParsedFact:
     scale: int
     sign: str | None
     decimals: str | None
+    format: str
     account_code: str | None
     label_zh: str | None
     label_en: str | None
@@ -219,14 +227,22 @@ class ParsedIXBRLReport:
     parser_version: str = MOPS_IXBRL_PARSER_VERSION
 
 
-def decode_ixbrl_document(raw: bytes) -> str:
-    """Decode a response or an archived copy of one.
+def decode_ixbrl_document(raw: bytes, *, encoding: str | None = None) -> str:
+    """Decode a response, or an archived copy of one.
 
-    The official response is cp950. The legacy archive holds the same document
-    re-encoded as UTF-8, so UTF-8 is tried first: Big5/cp950 Chinese text is not
-    valid UTF-8, which makes the two unambiguous in practice.
+    The official response is cp950; the legacy archive holds the same document
+    re-encoded as UTF-8. A caller that knows which it is holding should say so:
+    `encoding` is then the only codec tried, and a document that does not decode
+    is an error instead of a silent fallback. Without it, UTF-8 is tried first
+    and cp950 second, which separates the two in practice because Chinese cp950
+    text is not valid UTF-8.
     """
 
+    if encoding is not None:
+        try:
+            return raw.decode(encoding)
+        except UnicodeDecodeError as error:
+            raise IXBRLParseError(f"document is not {encoding}") from error
     try:
         return raw.decode("utf-8")
     except UnicodeDecodeError:
@@ -235,6 +251,17 @@ def decode_ixbrl_document(raw: bytes) -> str:
         return raw.decode(SOURCE_ENCODING)
     except UnicodeDecodeError as error:  # pragma: no cover - defensive
         raise IXBRLParseError(f"document is neither UTF-8 nor {SOURCE_ENCODING}") from error
+
+
+def _parse_namespaces(text: str) -> dict[str, str]:
+    namespaces: dict[str, str] = {}
+    for prefix, uri in _XMLNS.findall(text):
+        declared = namespaces.setdefault(prefix, uri)
+        if declared != uri:
+            raise IXBRLParseError(
+                f"prefix {prefix!r} is declared as both {declared!r} and {uri!r}"
+            )
+    return namespaces
 
 
 def _enum_value(enum: type[Enum], field: str, raw: str) -> Enum:
@@ -362,7 +389,11 @@ def _parse_contexts(
             )
         else:
             raise IXBRLParseError(f"context {context_id} has no usable period")
-        contexts[context_id] = context
+        declared = contexts.setdefault(context_id, context)
+        if declared != context:
+            raise IXBRLParseError(
+                f"context {context_id} is declared twice with different content"
+            )
     if not contexts:
         raise IXBRLParseError("document defines no xbrli:context")
     return contexts
@@ -374,20 +405,28 @@ def _parse_units(text: str) -> dict[str, str]:
         identity = _ID.search(body)
         if identity is None:
             raise IXBRLParseError("xbrli:unit without an id")
-        divide = _DIVIDE.search(body)
-        if divide is not None:
+        unit_id = identity.group(1)
+        if _HAS_DIVIDE.search(body):
+            # A ratio unit must be read as a ratio. Falling back to the first
+            # measure would quietly label earnings per share as a currency.
+            divide = _DIVIDE.search(body)
+            if divide is None:
+                raise IXBRLParseError(f"unit {unit_id} divides in a shape this parser cannot read")
             numerator = _MEASURE.search(divide.group(1))
             denominator = _MEASURE.search(divide.group(2))
             if numerator is None or denominator is None:
-                raise IXBRLParseError(f"unit {identity.group(1)} divides without measures")
-            units[identity.group(1)] = (
-                f"{_text(numerator.group(1))}/{_text(denominator.group(1))}"
+                raise IXBRLParseError(f"unit {unit_id} divides without measures")
+            identity_text = f"{_text(numerator.group(1))}/{_text(denominator.group(1))}"
+        else:
+            measure = _MEASURE.search(body)
+            if measure is None:
+                raise IXBRLParseError(f"unit {unit_id} has no measure")
+            identity_text = _text(measure.group(1))
+        declared = units.setdefault(unit_id, identity_text)
+        if declared != identity_text:
+            raise IXBRLParseError(
+                f"unit {unit_id} is declared twice, as {declared!r} and {identity_text!r}"
             )
-            continue
-        measure = _MEASURE.search(body)
-        if measure is None:
-            raise IXBRLParseError(f"unit {identity.group(1)} has no measure")
-        units[identity.group(1)] = _text(measure.group(1))
     if not units:
         raise IXBRLParseError("document defines no xbrli:unit")
     return units
@@ -399,7 +438,11 @@ def _row_labels(row: str) -> tuple[str | None, str | None, str | None]:
         return None, None, None
     code = _text(cells[0])
     account_code = code if re.fullmatch(r"[0-9A-Z]{4,6}", code) else None
-    labels = dict(_SPAN.findall(row))
+    # The first pair is the account's own label. A header row can carry
+    # several, and taking the last one would label the fact with a column head.
+    labels: dict[str, str] = {}
+    for kind, value in _SPAN.findall(row):
+        labels.setdefault(kind, value)
     return (
         account_code,
         _text(labels["zh"]) if "zh" in labels else None,
@@ -413,7 +456,15 @@ class _NotANumber(Exception):
 
 def _parse_value(raw_text: str, scale: int, sign: str | None) -> Decimal | None:
     cleaned = _text(raw_text).replace(",", "").replace(" ", "")
-    if cleaned.startswith("(") and cleaned.endswith(")"):
+    parenthesised = cleaned.startswith("(") and cleaned.endswith(")")
+    if parenthesised:
+        if sign:
+            # Parentheses and sign="-" are two conventions for one minus. No
+            # archive document prints a parenthesised amount at all, so rather
+            # than guess which one the filer meant, refuse the combination.
+            raise IXBRLParseError(
+                f"amount uses both parentheses and sign={sign!r}: {raw_text!r}"
+            )
         cleaned = "-" + cleaned[1:-1]
     try:
         value = Decimal(cleaned)
@@ -421,6 +472,10 @@ def _parse_value(raw_text: str, scale: int, sign: str | None) -> Decimal | None:
         if len(cleaned) <= PLACEHOLDER_MAX_LENGTH:
             return None
         raise _NotANumber from None
+    if not value.is_finite():
+        # Decimal accepts NaN and Infinity. Neither is an amount, and NaN would
+        # break business-content identity and deduplication downstream.
+        raise IXBRLParseError(f"amount is not finite: {raw_text!r}")
     if sign == "-":
         value = -value
     elif sign:
@@ -440,13 +495,20 @@ def _parse_facts(
     facts: list[ParsedFact] = []
     malformed = 0
     row_index = 0
+    # A statement row holds about ten amount cells, so its labels are read once
+    # per row rather than once per fact.
+    cached_row = -1
+    cached_labels: tuple[str | None, str | None, str | None] = (None, None, None)
     for match in _NONFRACTION.finditer(text):
         while row_index < len(rows) and rows[row_index][1] <= match.start():
             row_index += 1
         in_row = row_index < len(rows) and rows[row_index][0] <= match.start()
-        account_code, label_zh, label_en = (
-            _row_labels(rows[row_index][2]) if in_row else (None, None, None)
-        )
+        if not in_row:
+            account_code, label_zh, label_en = None, None, None
+        else:
+            if row_index != cached_row:
+                cached_row, cached_labels = row_index, _row_labels(rows[row_index][2])
+            account_code, label_zh, label_en = cached_labels
 
         attributes = {
             name.lower(): value for name, value in _ATTR.findall(match.group(1))
@@ -467,6 +529,16 @@ def _parse_facts(
             raise IXBRLParseError(f"fact references undefined context {context_ref}")
         if unit_ref not in units:
             raise IXBRLParseError(f"fact references undefined unit {unit_ref}")
+        transformation = attributes.get("format")
+        if not transformation:
+            raise IXBRLParseError(
+                f"numeric fact {concept} has no format attribute"
+            )
+        if transformation not in IMPLEMENTED_FORMATS:
+            raise IXBRLParseError(
+                f"fact {concept} uses transformation {transformation}, "
+                "which this parser does not implement"
+            )
         scale_text = attributes.get("scale", "0")
         try:
             scale = int(scale_text)
@@ -491,6 +563,7 @@ def _parse_facts(
                 scale=scale,
                 sign=attributes.get("sign"),
                 decimals=attributes.get("decimals"),
+                format=transformation,
                 account_code=account_code,
                 label_zh=label_zh,
                 label_en=label_en,
@@ -500,11 +573,19 @@ def _parse_facts(
     return tuple(facts), malformed
 
 
-def parse_ixbrl_report(raw: bytes | str) -> ParsedIXBRLReport:
-    """Read one `t164sb01` document into its header, contexts, units and facts."""
+def parse_ixbrl_report(
+    raw: bytes | str, *, encoding: str | None = None
+) -> ParsedIXBRLReport:
+    """Read one `t164sb01` document into its header, contexts, units and facts.
 
-    text = decode_ixbrl_document(raw) if isinstance(raw, bytes) else raw
-    namespaces = dict(_XMLNS.findall(text))
+    A caller that knows whether these bytes are an official cp950 response or a
+    UTF-8 archive copy passes `encoding`; see `decode_ixbrl_document`.
+    """
+
+    text = (
+        decode_ixbrl_document(raw, encoding=encoding) if isinstance(raw, bytes) else raw
+    )
+    namespaces = _parse_namespaces(text)
     repairs: set[str] = set()
     header = _parse_header(text)
     contexts = _parse_contexts(text, namespaces, repairs)
@@ -571,10 +652,10 @@ def classify_context_role(
         elif context.period_start == quarter_start:
             role = SourcePeriodRole.CURRENT_SINGLE_QUARTER
 
-    assert context.period_start is not None or context.instant_date is not None
     start = context.period_start if context.period_type == "duration" else context.instant_date
     end = context.period_end if context.period_type == "duration" else context.instant_date
-    assert start is not None and end is not None
+    if start is None or end is None:
+        raise IXBRLParseError(f"context {context_ref} has no dates to classify")
     return SourceContextClassification(
         source_context_ref=context_ref,
         classifier_rule=MOPS_CONTEXT_ROLE_RULE,

@@ -477,3 +477,151 @@ def test_a_footnote_marker_where_an_amount_belongs_is_a_placeholder() -> None:
 
     assert marks, "the fixture keeps the 註二 row"
     assert all(fact.value is None and fact.is_placeholder for fact in marks)
+
+
+# --- review of #39: what the parser must refuse to accept -----------------
+#
+# Each case below was measured over all 45,324 archive documents before it was
+# made an error, so none of them rejects a real filing: no NaN or infinity, no
+# format other than `ixt:numdotdecimal`, no conflicting xmlns declaration, no
+# parenthesised amount, no duplicate unit id, and exactly one duplicate context
+# id — whose two definitions are identical.
+
+
+def test_a_not_a_number_amount_is_refused_rather_than_stored() -> None:
+    mutated = CEMENT_Q1.replace(b">89,680,417</ix:nonFraction>", b">NaN</ix:nonFraction>")
+
+    with pytest.raises(IXBRLParseError, match="finite"):
+        parse_ixbrl_report(mutated)
+
+
+def test_an_infinite_amount_is_refused() -> None:
+    mutated = CEMENT_Q1.replace(b">89,680,417</ix:nonFraction>", b">Infinity</ix:nonFraction>")
+
+    with pytest.raises(IXBRLParseError, match="finite"):
+        parse_ixbrl_report(mutated)
+
+
+def test_two_contexts_with_one_id_and_different_periods_fail_closed() -> None:
+    duplicate = (
+        b'<xbrli:context id="AsOf20250331"><xbrli:entity><xbrli:identifier '
+        b'scheme="http://www.twse.com.tw">1101</xbrli:identifier></xbrli:entity>'
+        b"<xbrli:period><xbrli:instant>1900-01-01</xbrli:instant></xbrli:period>"
+        b"</xbrli:context>"
+    )
+    mutated = CEMENT_Q1.replace(
+        b'<xbrli:context id="AsOf20250331">', duplicate + b'<xbrli:context id="AsOf20250331">', 1
+    )
+
+    with pytest.raises(IXBRLParseError, match="AsOf20250331"):
+        parse_ixbrl_report(mutated)
+
+
+def test_the_same_context_declared_twice_identically_is_accepted() -> None:
+    # 2886 2025Q4 declares AsOf20241231 twice, character for character the same.
+    import re as _re
+
+    body = _re.search(
+        rb'<xbrli:context id="AsOf20250331">.*?</xbrli:context>', CEMENT_Q1, _re.S
+    ).group(0)
+    mutated = CEMENT_Q1.replace(body, body + body, 1)
+
+    report = parse_ixbrl_report(mutated)
+
+    assert report.contexts["AsOf20250331"].instant_date == date(2025, 3, 31)
+
+
+def test_two_units_with_one_id_and_different_measures_fail_closed() -> None:
+    mutated = CEMENT_Q1.replace(
+        b'<xbrli:unit id="TWD">',
+        b'<xbrli:unit id="TWD"><xbrli:measure>iso4217:USD</xbrli:measure></xbrli:unit>'
+        b'<xbrli:unit id="TWD">',
+        1,
+    )
+
+    with pytest.raises(IXBRLParseError, match="TWD"):
+        parse_ixbrl_report(mutated)
+
+
+def test_a_divide_unit_the_parser_cannot_read_is_not_downgraded_to_its_numerator() -> None:
+    # Reversing numerator and denominator must not silently make EPS a currency.
+    mutated = CEMENT_Q1.replace(b"<xbrli:unitNumerator>", b"<xbrli:unitDenominator>", 1).replace(
+        b"</xbrli:unitNumerator>", b"</xbrli:unitDenominator>", 1
+    )
+
+    with pytest.raises(IXBRLParseError, match="EarningsPerShare"):
+        parse_ixbrl_report(mutated)
+
+
+def test_a_transformation_format_the_parser_does_not_implement_fails_closed() -> None:
+    # ixt:numcommadecimal reads 1.234,56 the other way round. Accepting it
+    # silently would turn a decimal point into a thousands separator.
+    mutated = CEMENT_Q1.replace(b'format="ixt:numdotdecimal"', b'format="ixt:numcommadecimal"', 1)
+
+    with pytest.raises(IXBRLParseError, match="numcommadecimal"):
+        parse_ixbrl_report(mutated)
+
+
+def test_a_numeric_fact_without_a_format_fails_closed() -> None:
+    # The 132 format-less nonFraction elements in the archive all have an empty
+    # unitRef and are already classified as prose; a real amount must say how to
+    # read it.
+    mutated = CEMENT_Q1.replace(b'format="ixt:numdotdecimal" scale="3" decimals="-3" unitRef="TWD">89,680,417',
+                                b'scale="3" decimals="-3" unitRef="TWD">89,680,417', 1)
+
+    with pytest.raises(IXBRLParseError, match="format"):
+        parse_ixbrl_report(mutated)
+
+
+def test_the_format_is_kept_on_the_fact() -> None:
+    fact = find(parse_ixbrl_report(CEMENT_Q1), "CashAndCashEquivalents", "AsOf20250331")
+
+    assert fact.format == "ixt:numdotdecimal"
+
+
+def test_one_prefix_declared_twice_with_different_uris_fails_closed() -> None:
+    mutated = CEMENT_Q1.replace(
+        b'xmlns:ifrs-full="', b'xmlns:ifrs-full="http://example.invalid/other" xmlns:ifrs-full="', 1
+    )
+
+    with pytest.raises(IXBRLParseError, match="ifrs-full"):
+        parse_ixbrl_report(mutated)
+
+
+def test_an_uppercase_xmlns_declaration_is_still_a_declaration() -> None:
+    mutated = CEMENT_Q1.replace(b'xmlns:ifrs-full=', b'XMLNS:ifrs-full=', 1)
+
+    report = parse_ixbrl_report(mutated)
+
+    assert f"{{{IFRS}}}CashAndCashEquivalents" in {
+        fact.concept_qname for fact in report.facts
+    }
+
+
+def test_parentheses_and_a_negative_sign_together_are_refused() -> None:
+    # No archive document prints a parenthesised amount at all. Applying both
+    # conventions would negate twice, so the combination fails closed instead.
+    mutated = CEMENT_Q1.replace(
+        b'sign="-" decimals="-3" unitRef="TWD">732,459',
+        b'sign="-" decimals="-3" unitRef="TWD">(732,459)',
+        1,
+    )
+
+    with pytest.raises(IXBRLParseError, match="sign"):
+        parse_ixbrl_report(mutated)
+
+
+def test_the_label_comes_from_the_first_span_pair_in_the_row() -> None:
+    report = parse_ixbrl_report(CEMENT_Q1)
+    fact = find(report, "CashAndCashEquivalents", "AsOf20250331")
+
+    assert fact.label_zh == "現金及約當現金"
+    assert fact.label_en == "Cash and cash equivalents"
+
+
+def test_the_caller_can_state_the_encoding_instead_of_letting_it_be_sniffed() -> None:
+    assert decode_ixbrl_document(CEMENT_Q1_OFFICIAL, encoding="cp950") == CEMENT_Q1.decode("utf-8")
+    assert parse_ixbrl_report(CEMENT_Q1, encoding="utf-8").header.company_id == "1101"
+
+    with pytest.raises(IXBRLParseError, match="utf-8"):
+        decode_ixbrl_document(CEMENT_Q1_OFFICIAL, encoding="utf-8")

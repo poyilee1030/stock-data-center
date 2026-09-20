@@ -8,14 +8,14 @@
   header、`XBRLContext`、unit identity、`ix:nonFraction` 事實，以及
   `mops-xbrl-context-role:v1`
 - `scripts/scan_xbrl_archive.py`：用同一支 parser 掃真實檔案庫的證據工具
-- 十二個 fixture 與 `tests/unit/test_step23a_ixbrl_parser.py`（41 個測試）
+- 十二個 fixture 與 `tests/unit/test_step23a_ixbrl_parser.py`（55 個測試）
 
 **沒有**來源宣告、migration、抓取、寫入。資料庫裡仍然沒有任何財務報表資料，
 要到 23-c 才有。
 
 Schema 影響：無。PIT 影響：無（沒有任何版本或證據被寫入）。
 
-規模：`src/` +562／−0 行，低於約 800 行的拆分門檻（`CLAUDE.md` §1）。另外提交一支
+規模：`src/` +654／−0 行，低於約 800 行的拆分門檻（`CLAUDE.md` §1）。另外提交一支
 201 行的腳本、458 行測試與十二個 fixture（共約 360 KB）。
 
 ## 為什麼 Step 23 拆成三部分
@@ -88,7 +88,7 @@ owner 於 2026-09-20 決定。檔案庫是 45,324 份文件、26 GB，一份報�
 | 金額格裡不是數字時不猜成 0 | PASS | `test_a_dash_printed_where_an_amount_belongs_is_kept_as_a_placeholder`、`test_a_footnote_marker_where_an_amount_belongs_is_a_placeholder`、`test_a_whole_note_pasted_into_an_amount_cell_is_prose_not_a_fact`、`test_a_non_fraction_the_filer_used_for_prose_is_not_a_fact` |
 | 掃描腳本在真實檔案庫上跑完並記錄分布 | PASS | 見下方全量掃描輸出，45,321／45,324 |
 
-測試：`pytest tests/unit` 594 passed；`pytest tests/integration` 431 passed、3 skipped
+測試：`pytest tests/unit` 608 passed；`pytest tests/integration` 431 passed、3 skipped
 （live-source，需 `RUN_LIVE_SOURCE_TESTS=1`）。
 沒有 migration，所以沒有 alembic 檢查項。
 
@@ -208,6 +208,55 @@ facts per document min 262 max 8,414 mean 913
 513 份文件只有 `current_year_to_date` 沒有單季欄位（Q2／Q3 只印累計數），
 classifier 照實反映，不補一個不存在的單季 context。
 
+## 對 #39 審查意見的處理
+
+審查提了 10 項。每一項在改成 fail-closed 之前，先對全部 45,324 份文件量過會不會擋掉
+真實文件（`scratchpad` 的探測腳本；數字寫進 audit §4.8）：
+
+| 條件 | 全檔出現次數 |
+| --- | ---: |
+| 金額是 `NaN` 或 `Infinity` | 0 |
+| `format` 不是 `ixt:numdotdecimal` | 0 |
+| 數值事實沒有 `format` | 132，全部是 `unitRef=""` 的 prose（早已被擋） |
+| 同一 prefix 宣告成兩個 URI | 0 |
+| 大寫 `XMLNS:` | 0 |
+| 括號負數（不論有無 `sign`） | 0 |
+| 重複的 `xbrli:unit` id | 0 |
+| 重複的 `xbrli:context` id | **1**（2886 2025Q4 的 `AsOf20241231`，兩份定義逐字相同） |
+| 嚴格 pattern 讀不出來的 `xbrli:divide` | 0 |
+| 一列有多組 `class="zh"` 且含 fact | 0 |
+
+處理：
+
+1. **NaN／Infinity**（實測屬實：`value=Decimal('NaN')`、`is_placeholder=False`、不計入
+   malformed）→ `is_finite()` 不成立就 raise。`NaN != NaN` 會破壞 §24 的
+   business content hash 與 §26 的 dedup。
+2. **重複 id 靜默覆蓋**（實測屬實）→ 內容不同 raise；逐字相同接受（2886 那份的行為
+   有測試釘住）。unit 同樣處理。
+3. **`xbrli:divide` 退化成單一 measure** → 只要出現 divide/numerator/denominator 就
+   必須讀成比率，讀不出來 raise。否則 EPS 會被標成 `iso4217:TWD`。
+4. **`format` 不驗證** → 必填且限 `ixt:numdotdecimal`，並存進 `ParsedFact.format`。
+   23-b 的 forward capture 一旦遇到 `ixt:numcommadecimal` 會反向解讀小數點。
+5. **`_XMLNS` 缺 `re.I`、不檢查衝突** → 兩者都補。
+6. **括號負數與 `sign="-"` 併用會二次取負** → raise。附帶事實：全檔 0 次括號負數，
+   所以那段括號處理本來就沒有來源支持。
+7. **`dict(_SPAN.findall(row))` 取最後一組** → 改取第一組。全檔沒有「含 fact 且多組
+   zh span」的列，所以目前沒有實際影響，但取第一組才是對的。
+8. **`_row_labels` 每個 fact 重跑** → 每列算一次。
+9. **編碼嗅探**（部分同意）→ 加 `encoding=` 參數，指定了就只試那一個、失敗即報錯；
+   預設仍是嗅探。原則採納，但「UTF-8 只是機率性排除 cp950」言過其實：整份 2 MB
+   中文 cp950 文件通過 UTF-8 strict 解碼實務上不會發生。
+10. **用 `assert` 驗證** → `ixbrl.py` 改成 `IXBRLParseError`。`classification.py`
+    那兩個是 Step 5 既有程式，不在本 PR 範圍。
+
+改完重跑全量掃描，結果與改之前**完全相同**：45,321／45,324 解析成功，同樣三份 2855
+失敗，13 個佔位符、140 段 prose、41,397,846 個事實。新的 fail-closed 沒有擋掉任何
+真實文件。
+
+這批測試同樣先紅後綠（12 紅 → 實作 → 綠）。其中兩個測試的第一版 mutation 沒打中
+程式路徑（`<xbrli:unitNumerator-x>` 的 `\b` 仍然匹配；`sign` 屬性順序寫錯），
+改成真的會觸發的 mutation 之後，再用停用防護的方式確認會紅。
+
 ## 已知限制與刻意延後
 
 - **敘述性區塊沒有解析成事實。** `escape="true"` 的 `ix:nonNumeric` 是整段 HTML 附註，
@@ -215,4 +264,5 @@ classifier 照實反映，不補一個不存在的單季 context。
 - **沒有跨文件的檢查。** 同一 `(year, quarter, symbol)` 不重複、檔名與 header 一致
   這兩件事由掃描腳本驗證，尚未變成 importer 的不變條件——那屬於 23-b。
 - **`prefix_case_repairs` 目前只有記錄。** 由 23-b 決定要接受還是隔離。
+- **括號負數沒有來源支持。** 全檔 0 次；那段處理保留，但與 `sign` 併用時 fail closed。
 - **教學章**：這個 repo 不產出 `docs/stepNN.html`，所以 `cold-read` 不適用。

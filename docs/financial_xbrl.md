@@ -164,6 +164,13 @@ patterns. The measured source facts behind each rule are in
   `Miscellaneous industry merging` is not one of them. `market_code` is `sii` or
   `otc` and `None` for the emerging, public and non-public filers the archive
   also holds.
+- **A unit is read, never guessed.** A ratio unit that the parser cannot read as
+  a ratio is an error, because falling back to its first measure would label
+  earnings per share as a currency. A repeated context or unit id is accepted
+  only when the two declarations are identical.
+- **The transformation is checked.** Only `ixt:numdotdecimal` is implemented;
+  `ixt:numcommadecimal` reads the same text the other way round, so an
+  unimplemented `format`, or a numeric fact with none, fails closed.
 - **Scale and sign are applied, never inferred.** `scale="3"` on a printed
   `89,680,417` is 89,680,417,000; `sign="-"` negates. Facts whose context or
   unit the document never defined fail closed.
@@ -173,7 +180,8 @@ patterns. The measured source facts behind each rule are in
   (`-`, `無`, `註二`) keeps its fact with `value=None` and `is_placeholder`; a
   paragraph of narrative written into the numeric element is counted in
   `malformed_numeric_facts` and is not a fact. Both are visible to the importer
-  instead of being absorbed.
+  instead of being absorbed. `NaN` and `Infinity` are not amounts and are
+  refused outright: `NaN != NaN` would break business-content identity.
 
 ### `mops-xbrl-context-role:v1`
 

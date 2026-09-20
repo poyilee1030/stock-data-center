@@ -855,6 +855,30 @@ corpus was parsed to size them:
   still says `unitRef="TWD" scale="3"`). These are not facts. Length is the
   only thing in the source that separates them from a placeholder.
 
+**What the parser refuses, measured before it was made an error.** The review of
+PR #39 asked for several fail-closed checks; each was first measured over the
+whole corpus, so none of them rejects a real filing:
+
+| Condition | Occurrences in 45,324 documents |
+| --- | ---: |
+| `NaN` or `Infinity` in an amount | 0 |
+| a `format` other than `ixt:numdotdecimal` | 0 |
+| a numeric fact with no `format` | 132, all of them the empty-`unitRef` prose above |
+| one prefix declared with two different URIs | 0 |
+| an uppercase `XMLNS:` declaration | 0 |
+| a parenthesised amount, with or without `sign` | 0 |
+| a duplicate `xbrli:unit` id | 0 |
+| a duplicate `xbrli:context` id | **1** — 2886 2025Q4 declares `AsOf20241231` twice, character for character the same |
+| a `xbrli:divide` the strict pattern cannot read | 0 |
+| a statement row with more than one `class="zh"` label and a fact | 0 |
+
+So a repeated context or unit id is accepted only when the two declarations are
+identical, and refused when they differ; everything else in the table is an
+error. Parentheses deserve a note of their own: no archive document prints a
+parenthesised amount at all, so that branch rests on no source evidence, and
+combining it with `sign="-"` — two conventions for one minus — is refused rather
+than resolved by guessing.
+
 **Three documents genuinely fail, all of them 2855.** 2021Q3 and 2021Q4
 reference `AsOf20210331`, and 2022Q4 references `AsOf2022121` — a mistyped
 date — and neither context is defined anywhere in the document. Failing closed
