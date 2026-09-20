@@ -1487,7 +1487,7 @@ CLI `monthly-revenue`。
 
 ### Step 22-c — 發布證據
 
-狀態：**IN REVIEW**。依賴：Step 22-b。
+狀態：**IN REVIEW** (#38)。依賴：Step 22-b。
 
 範圍內：以 `legacy_archive` 匯入舊系統 `market.csv`，附加上述的 `press_report_bound`、
 `legacy_capture_bound` 與 release rule 證據；2026M02 起的首次抓取值作為觀察匯入。

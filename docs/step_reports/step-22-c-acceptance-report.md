@@ -1,6 +1,6 @@
 # Step 22-c 驗收報告
 
-狀態：IN REVIEW
+狀態：IN REVIEW (#38)
 
 範圍：月營收的第三部分，發布證據。22-a／22-b 寫入的版本都只帶 `unknown`，Market PIT
 看不到任何一列；這個 step 從舊系統 `market.csv` 把證據補上。新增：
