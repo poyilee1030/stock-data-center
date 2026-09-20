@@ -23,8 +23,12 @@
 結果檔（Step 19）、三大法人個股買賣超與買賣金額彙總（Step 20-a、20-b）。
 MOPS 的 POST 請求與每台主機的限速器（Step 20-c）、外資持股（Step 20-d，TWSE、
 MOPS 與 TPEx insti/qfii 三個來源）、融資融券與借券（Step 21-a、21-b）已合併。
-月營收拆成 22-a（比較值 schema 與 MOPS adapter，審查中）、22-b（backfill 與對帳）、
-22-c（發布證據）；22-a 寫入的版本只有 System PIT 可見，直到 22-c 附加證據。
+月營收的三部分 22-a（比較值 schema 與 MOPS adapter）、22-b（backfill 與對帳）、
+22-c（發布證據）都已合併：150,757 個版本中的 140,345 個在 Market PIT 下可見。
+
+財務報表（iXBRL）同樣拆成三部分：23-a 是 parser 與文件契約（本 step，只有解析，
+不寫入資料庫）、23-b 是官方與檔案庫 adapter 及匯入路徑、23-c 是全量 backfill 與對帳。
+在 23-c 之前，資料庫裡沒有任何財務報表資料。
 
 ## 技術棧
 

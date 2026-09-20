@@ -770,6 +770,90 @@ it cannot meet CLAUDE.md §33. Its own `urlList` points back to
 which legacy fetched with a plain GET. At most, the JSON could serve Step 23 as
 a cross-check.
 
+
+#### Step 23-a findings (2026-09-20)
+
+Measured with `scripts/scan_xbrl_archive.py` over **all 45,324 archive
+documents**, and with one live fetch of `t164sb01?step=1&CO_ID=1101&SYEAR=2025&SSEASON=1&REPORT_ID=C`.
+
+**The header describes the filing, and it agrees with the file name.**
+`<ix:header>` carries `tifrs-notes:CompanyID`, `Year`, `Quarter`, `ReportType`,
+`ReportCategory`, `Market`, `IndustrySector`, `CompanyChineseName` and
+`CompanyEnglishName`. Every one of the 45,324 documents has all of them, and in
+every one the company, year and quarter equal the ones in the file name and
+directory. There is no duplicate `(year, quarter, symbol)`: 26 quarters, 2020Q1
+to 2026Q2, 1,857 symbols. `<ix:references>` adds a `link:schemaRef` such as
+`tifrs-ci-cr-2020-06-30.xsd`, whose middle segment is the industry taxonomy and
+whose `cr`/`ir` marks consolidated or individual.
+
+| Field | Values |
+| --- | --- |
+| `ReportType` | `Financial report (general)` 45,023; `Financial Report (retrospective - material)` 240; `Financial report (retrospective)` 34; `Financial report (first time adoption)` 27 |
+| `ReportCategory` | `Consolidated report` 40,994; `Individual report` 4,329; one document breaks the value across a line |
+| `Market` | `Listed company` 23,583; `Over-the-counter` 20,074; `Emerging stock market` 779; `Emerging Stock Company (Applying for listing on TWSE/GTSM)` 544; `Public company` 320; `Non-public company` 24 |
+| `IndustrySector` | `Commercial and industrial` 44,312; `Financial holding` 278; `Broker-dealer` 252; `Banking and savings institution` 251; `Insurance` 126; `Miscellaneous industry merging` 104; one breaks across a line |
+
+**The financial industries to exclude are four, not five.** 907 documents are
+`Financial holding`, `Broker-dealer`, `Banking and savings institution` or
+`Insurance`. `Miscellaneous industry merging` is **not** one of them: its filers
+are 1409, 1718, 2207 and 2905, and the legacy `quarterly_reports_xbrl` holds 52
+quarters for each of them, so the legacy parser read them fine. Meanwhile 2801,
+2855 and 2881 have no legacy rows at all, which is the exclusion legacy achieved
+by only understanding the general-industry account table (`KNOWN_ISSUES.md`).
+
+**1,667 documents are outside the v1 universe.** Emerging, public and
+non-public filers appear in the archive because the legacy scraper's
+`active_stocks.txt` included them. v1 is sii and otc only, so they are rejected
+at the adapter boundary rather than stored.
+
+**The encoding is cp950, not big5.** The response declares
+`charset=big5` in a `<META>` tag and sends no charset in the `Content-type`
+header. Byte `0xA1E3` is `～` U+FF5E under cp950 and `∼` U+223C under Python's
+`big5`. The legacy archive used the cp950 mapping. The proof is exact: the
+official response for 1101 2025Q1 fetched on 2026-09-20 is 1,955,768 bytes, and
+decoding it with cp950 yields a string **identical, character for character**,
+to the 1,927,903-character archived UTF-8 document. That is also the first data
+point for Step 23-c's archive-vs-official sample gate: for this document the
+February 2026 archive copy and today's response are the same document.
+
+**Uniform instance structure.** Across the corpus the only units are
+`iso4217:TWD`, `xbrli:shares`, `xbrli:pure` and the `iso4217:TWD/xbrli:shares`
+divide; the only `format` is `ixt:numdotdecimal`; the only `scale` values are
+`3` (thousands, the statements' unit), `0` and `-2`; `sign="-"` is common; there
+is no `xsi:nil`, no typed dimension, no `<xbrli:segment>` and no forever period.
+Dimensions appear only as `<xbrldi:explicitMember>` inside `<xbrli:scenario>`.
+Amounts are printed with thousands separators, so `scale="3"` on `89,680,417`
+means 89,680,417,000 TWD.
+
+**One document was re-serialized by the filer's own browser.** 1519 2021Q2 is
+the single document with uppercase tags (`<DIV>`, `<TR>`) and lowercase
+attribute names; it still contains a `file:///C:/Users/…` link. The lowercasing
+turned `xmlns:tifrs-SCF` into `xmlns:tifrs-scf` while two fact names kept
+`tifrs-SCF:`, and it broke `Consolidated report` and `Commercial and industrial`
+across a line. The parser is therefore case-insensitive throughout, normalizes
+whitespace inside header values, and resolves a prefix case-insensitively only
+when exactly one declared prefix matches — recording every such repair on the
+parsed report rather than silently accepting it.
+
+**Volume.** A document holds between a few hundred and about 4,400
+`ix:nonFraction` facts, plus `escape="true"` narrative blocks that are whole
+HTML notes, not values. Statement amounts and narrative blocks are therefore
+separate storage questions for Step 23-b.
+
+**The account code lives in the row, not in the fact.** Each statement row is
+`<td>1100</td><td><span class="zh">現金及約當現金</span><span class="en">Cash and
+cash equivalents</span></td>` followed by one amount cell per context. The
+legacy `*_xbrl` tables are keyed by that 會計科目代碼, so the parser keeps the
+code and both labels with each fact; this is what makes Step 23-c's
+code ↔ concept QName reconciliation possible without storing a codebook.
+
+**EPS period roles.** `mops-xbrl-context-role:v1` finds exactly the roles the
+statements print: Q1 documents carry only a single-quarter current context, Q2
+and Q3 carry a single-quarter and a year-to-date one, and Q4 carries the
+full-year one. Prior-year comparatives share the same concepts and differ only
+by context, which is why role assignment reads the context, never the value's
+position or a duration's length.
+
 ### 4.9 TDCC shareholding distribution
 
 - OpenData `getOD.ashx?id=1-5`: 資料日期, 證券代號, 持股分級, 人數, 股數,

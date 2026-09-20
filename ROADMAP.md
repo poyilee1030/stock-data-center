@@ -610,8 +610,10 @@ explicit out-of-scope work
 | 21-b | MERGED | 借券 |
 | 22-a | MERGED | 月營收：比較值 schema 與 MOPS adapter |
 | 22-b | MERGED | 月營收：歷史 backfill 與舊系統對帳 |
-| 22-c | THIS STEP | 月營收：發布證據 |
-| 23 | PLANNED | 財務報表（iXBRL） |
+| 22-c | MERGED | 月營收：發布證據 |
+| 23-a | THIS STEP | 財務報表：iXBRL parser 與文件契約 |
+| 23-b | PLANNED | 財務報表：官方 adapter、檔案庫 adapter 與匯入路徑 |
+| 23-c | PLANNED | 財務報表：全量 backfill、抽樣關卡與對帳 |
 | 24 | PLANNED | TDCC 股權分散 |
 | 25 | PLANNED | 還原價格 |
 | 26 | PLANNED | 標準衍生 v1（移植舊系統計算程式） |
@@ -1487,7 +1489,7 @@ CLI `monthly-revenue`。
 
 ### Step 22-c — 發布證據
 
-狀態：**IN REVIEW** (#38)。依賴：Step 22-b。
+狀態：**MERGED** (#38)。依賴：Step 22-b。
 
 範圍內：以 `legacy_archive` 匯入舊系統 `market.csv`，附加上述的 `press_report_bound`、
 `legacy_capture_bound` 與 release rule 證據；2026M02 起的首次抓取值作為觀察匯入。
@@ -1517,7 +1519,7 @@ owner 於 2026-09-20 刪除兩條原驗收：「`revswarm` 已公告營收的交
 
 ## Step 23 — 財務報表（iXBRL）
 
-狀態：**PLANNED**。依賴：Step 5 契約、Step 11。
+狀態：**拆成三部分**（owner 於 2026-09-20 決定；理由見下）。依賴：Step 5 契約、Step 11。
 
 來源契約（audit §4.8）：MOPS `t164sb01`，每個 (security, year, quarter, report type) 一份文件，從 2020Q1 起。
 
@@ -1533,14 +1535,99 @@ owner 於 2026-09-20 刪除兩條原驗收：「`revswarm` 已公告營收的交
 
 這取代了完整的 45,000 次請求重新抓取；以 2026-07-02 MOPS 封鎖後被迫採用的 3 秒間隔，那需要約 38 小時，而且有再次被封鎖的風險。
 
+### 為什麼拆成三部分
+
+檔案庫是 45,324 份文件、26 GB，一份報表有 1,300–7,800 個 `ix:nonFraction`。parser、
+兩個來源的匯入路徑、全量 backfill 與對帳放在一個 PR 遠超過 §19 的約 800 行門檻，而
+接縫是現成的：
+
+- **23-a** 只有解析：一份 iXBRL 文件 → header、context、unit、fact 與 EPS 期間角色。
+  沒有來源宣告、沒有 migration、沒有寫入，所以它自己成立——它是一支有測試、有檔案庫
+  實測證據、但還沒有消費者的 parser。
+- **23-b** 才把它接上兩個來源與 importer；此時版本只帶 `unknown` 證據（只有 System PIT
+  看得到，偏晚不偏早），與 22-a 的情況相同。
+- **23-c** 才跑全量 backfill、抽樣關卡與舊系統對帳。
+
+### Step 23-a — iXBRL parser 與文件契約
+
+狀態：**THIS STEP**。依賴：Step 5 契約。
+
+範圍內：`financials/ixbrl.py` 的純解析層，輸入是一份 `t164sb01` 回應的原始 bytes，輸出
+是已正規化的 header、`XBRLContext`、unit identity、`ix:nonFraction` 事實，以及
+`mops-xbrl-context-role:v1`（Step 5 `docs/financial_xbrl.md` 要求真實 adapter 必須實作
+並永久測試的那條版本化規則）。另含一支掃描檔案庫的證據腳本。
+
+2026-09-20 對全部 45,324 份檔案庫文件實測的來源事實（audit §4.8）：
+
+- header 事實 `tifrs-notes:` 的 `CompanyID`、`Year`、`Quarter`、`ReportType`、
+  `ReportCategory`、`Market`、`IndustrySector` 每一份都有，且與檔名、目錄完全一致
+  （0 例外），(year, quarter, symbol) 沒有重複。
+- `IndustrySector` 有六個值。金融業是 `Financial holding` 278、`Broker-dealer` 252、
+  `Banking and savings institution` 251、`Insurance` 126，共 907 份要排除。
+  `Miscellaneous industry merging` 104 份**不是**金融業，舊系統
+  `quarterly_reports_xbrl` 有 1409／1718／2207／2905 各 52 季，所以它在範圍內。
+- `Market` 有六個值：`Listed company` 23,583、`Over-the-counter` 20,074，其餘
+  1,667 份是興櫃、公開發行、非公開發行——不在 v1 的 sii／otc 宇宙內，在邊界擋掉。
+- `ReportCategory` 是 `Consolidated report` 40,994 與 `Individual report` 4,329，
+  兩者對同一 (symbol, quarter) 互斥。
+- 空白變體真的存在：1 份把 `Consolidated \r\nreport` 與 `Commercial \r\nand industrial`
+  斷行（1519 2021Q2），同一份也是全大寫標籤與小寫屬性名的唯一一份文件。
+  parser 因此一律 case-insensitive，並把 header 值的內部空白正規化。
+- unit 只有四種：`TWD`、`Shares`、`Pure`、`EarningsPerShare`（TWD/shares 的 divide）。
+  `format` 只有 `ixt:numdotdecimal`，`scale` 只有 `3`／`0`／`-2`，`sign="-"` 常見，
+  整個檔案庫沒有任何 `nil="true"`。
+- **編碼是 cp950，不是 big5。** MOPS 宣告 `charset=big5`，但 `0xA1E3` 在這些文件裡是
+  Microsoft 對映的 `～`(U+FF5E)；用 Python 的 `big5` 解會得到 `∼`(U+223C)。
+  2026-09-20 實測：1101 2025Q1 的官方回應以 cp950 解碼後，與檔案庫那一份 UTF-8
+  文件**逐字元完全相同**（1,927,903 字元，0 差異）。這同時是 23-c 抽樣關卡的第一個
+  資料點。
+
+`mops-xbrl-context-role:v1`：只有無維度、entity 等於本公司、結束於申報期末的 duration
+context 才是當期。Q1 起始於 1/1 的那一個是 `current_single_quarter`；Q2／Q3 起始於季初
+是 `current_single_quarter`、起始於 1/1 是 `current_year_to_date`；Q4 起始於 1/1 是
+`current_full_year`。其餘（去年同期、帶維度、instant）一律 `other`，交給 Step 5 的
+`classify_eps_period_basis` 拒絕。
+
+範圍外：來源宣告、migration、任何資料庫寫入、抓取、backfill、對帳。
+
+驗收：
+
+- 每一種實測到的來源變體都有 fixture 與測試：大寫標籤／小寫屬性、斷行的 header 值、
+  個體報表、金融業、興櫃、帶維度的 context、`sign="-"`、`scale="3"`／`-2`
+- cp950 與 big5 的差異有回歸測試，錯誤的 codec 會讓測試紅
+- 未知的 `IndustrySector`／`Market`／`ReportCategory` 值 fail closed，不猜
+- QName 以 Clark notation 產出，prefix 由文件自己的 xmlns 宣告解析
+- EPS 期間角色由 `mops-xbrl-context-role:v1` 判定並通過 Step 5 的
+  `classify_eps_period_basis`；日期長短本身不足以授權任何角色
+- 掃描腳本在真實檔案庫上跑完並記錄分布，與 audit §4.8 的數字一致
+
+### Step 23-b — 官方 adapter、檔案庫 adapter 與匯入路徑
+
+狀態：**PLANNED**。依賴：Step 23-a、Step 11。
+
+範圍內：`mops_t164sb01` 官方 adapter（`REPORT_ID` C→A fallback、3 秒間隔、raw-first）、
+`legacy_archive` 檔案庫 adapter、importer、CLI，以及來源宣告 migration。此時證據是
+`unknown`。金融業與非 sii／otc 文件在邊界擋掉並計數。
+
+驗收：
+
+- 報表類別（合併或個別）被保留
+- Step 5 的 EPS 契約成立
+- 匯入後，沒有任何金融業發行公司有財務報表版本
+- 同一份文件重複匯入不產生假版本，provenance 仍可稽核
+
+### Step 23-c — 全量 backfill、抽樣關卡與對帳
+
+狀態：**PLANNED**。依賴：Step 23-b。
+
+範圍內：2020Q1–2026Q2 全量匯入、檔案庫對官方的抽樣比較、發布證據（2025Q4 起的
+`legacy_capture_bound`，其餘 release rule），以及舊系統對帳。
+
 驗收：
 
 - 舊系統 `*_xbrl` 和 `quarterly_reports_xbrl` 的值透過會計科目代碼 ↔ concept QName 對帳
-- 報表類別（合併或個別）被保留
-- Step 5 的 EPS 契約成立
 - 檔案庫與官方的抽樣比較已執行，不一致率記錄在 audit
 - 2025Q4 起，每日工作的抓取在 Market PIT 下的解析時間不早於其舊系統抓取界限
-- 匯入後，沒有任何金融業發行公司有財務報表版本
 
 範圍外：金融業發行公司；復原 2025Q4 之前修正前的原始申報。
 
