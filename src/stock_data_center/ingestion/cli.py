@@ -55,6 +55,7 @@ from stock_data_center.ingestion.adapters import (
 )
 from stock_data_center.ingestion.backfill import (
     CorporateActionBackfill,
+    MonthlyRevenueBackfill,
     WholeMarketDailyBackfill,
     default_base_import_id,
     month_import_id,
@@ -247,9 +248,16 @@ def main(argv: list[str] | None = None) -> int:
     )
     revenue.add_argument("--period", required=True, help="Gregorian YYYY-MM")
     revenue.add_argument(
-        "--page", choices=("domestic", "foreign"), required=True,
-        help="domestic is the _0 page; foreign is _1, the KY issuers",
+        "--through",
+        help="optional Gregorian YYYY-MM; import every month from --period to it",
     )
+    revenue.add_argument(
+        "--page", choices=("domestic", "foreign", "both"), required=True,
+        help="domestic is the _0 page; foreign is _1, the KY issuers; both "
+        "walks the two, which is what a history backfill wants",
+    )
+    # MOPS is paced by the per-host governor (3 s) whatever this says.
+    revenue.add_argument("--min-interval-seconds", type=float, default=3.0)
     revenue.add_argument("--import-id", type=UUID)
     revenue.add_argument("--raw-root", type=Path, default=Path("data/raw"))
     lending = subparsers.add_parser(
@@ -643,15 +651,42 @@ def main(argv: list[str] | None = None) -> int:
                 else MOPSOtcMonthlyRevenueAdapter()
             )
             year, month = (int(part) for part in args.period.split("-"))
-            result = importer.run(
-                adapter=adapter,
-                request=MonthlyRevenueRequest(
-                    RevenuePeriod(year, month),
-                    RevenuePage.DOMESTIC if args.page == "domestic" else RevenuePage.FOREIGN,
-                ),
-                import_id=import_id,
-                purpose=IngestPurpose(args.purpose),
-            )
+            first_period = RevenuePeriod(year, month)
+            pages = {
+                "domestic": (RevenuePage.DOMESTIC,),
+                "foreign": (RevenuePage.FOREIGN,),
+                "both": (RevenuePage.DOMESTIC, RevenuePage.FOREIGN),
+            }[args.page]
+            if args.through or len(pages) > 1:
+                through_year, through_month = (
+                    (int(part) for part in args.through.split("-"))
+                    if args.through
+                    else (first_period.year, first_period.month)
+                )
+                last_period = RevenuePeriod(through_year, through_month)
+                if last_period < first_period:
+                    parser.error("--through must not be before --period")
+                base_import_id = args.import_id or default_base_import_id(
+                    args.source,
+                    date(first_period.year, first_period.month, 1),
+                    date(last_period.year, last_period.month, 1),
+                )
+                backfill_report = MonthlyRevenueBackfill(importer).run(
+                    adapter=adapter,
+                    start=first_period,
+                    end=last_period,
+                    base_import_id=base_import_id,
+                    purpose=IngestPurpose(args.purpose),
+                    min_interval_seconds=args.min_interval_seconds,
+                    pages=pages,
+                )
+            else:
+                result = importer.run(
+                    adapter=adapter,
+                    request=MonthlyRevenueRequest(first_period, pages[0]),
+                    import_id=import_id,
+                    purpose=IngestPurpose(args.purpose),
+                )
         elif args.command == "securities-lending":
             importer = SecuritiesLendingImporter(
                 engine, raw_store=LocalRawArtifactStore(args.raw_root)

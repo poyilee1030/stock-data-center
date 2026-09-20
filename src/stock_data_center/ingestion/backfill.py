@@ -20,18 +20,25 @@ from stock_data_center.coverage import ExpectedCoverageService
 from stock_data_center.ingestion.adapters.corporate_action import (
     CorporateActionListAdapter,
 )
+from stock_data_center.ingestion.adapters.monthly_revenue import (
+    MOPSMonthlyRevenueAdapter,
+)
 from stock_data_center.ingestion.adapters.whole_market_daily import (
     WholeMarketDailyAdapter,
 )
 from stock_data_center.ingestion.corporate_action import CorporateActionImporter
 from stock_data_center.ingestion.models import (
     CorporateActionRangeRequest,
+    MonthlyRevenueRequest,
     ResourceQuarantinedError,
+    RevenuePage,
     SourceDataError,
     WholeMarketDailyRequest,
 )
+from stock_data_center.ingestion.monthly_revenue import MonthlyRevenueImporter
 from stock_data_center.ingestion.whole_market_daily import WholeMarketDailyImporter
 from stock_data_center.market_calendar import TradingCalendarService
+from stock_data_center.monthly_revenue.models import RevenuePeriod
 from stock_data_center.provenance import IngestPurpose
 
 
@@ -518,3 +525,258 @@ def _days_between(start: date, end: date) -> list[date]:
 
     span = (end - start).days
     return [start + timedelta(days=offset) for offset in range(span + 1)]
+
+
+def revenue_page_import_id(
+    base: UUID, source: str, period: RevenuePeriod, page: RevenuePage
+) -> UUID:
+    """The per-(month, page) equivalent, for the monthly-revenue walk.
+
+    Same reason as `date_import_id`: 80 months × 2 pages is 160 checkpoints
+    per market, and a run that dies at month 56 resumes by being run again.
+    """
+    return uuid5(base, f"{source}:{period.year:04d}-{period.month:02d}:{page.value}")
+
+
+@dataclass(frozen=True, slots=True)
+class RevenuePageResult:
+    """What happened to one market-month's page."""
+
+    period: RevenuePeriod
+    page: RevenuePage
+    import_id: UUID
+    status: str
+    rows: int = 0
+    created: int = 0
+    deduplicated: int = 0
+    reason_code: str | None = None
+    detail: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class MonthlyRevenueBackfillReport:
+    source: str
+    market: str
+    start: RevenuePeriod
+    end: RevenuePeriod
+    pages: tuple[RevenuePage, ...]
+    results: tuple[RevenuePageResult, ...]
+
+    @property
+    def imported(self) -> int:
+        return sum(1 for item in self.results if item.status == "imported")
+
+    @property
+    def resumed(self) -> int:
+        return sum(1 for item in self.results if item.status == "resumed")
+
+    @property
+    def failed(self) -> int:
+        return sum(1 for item in self.results if item.status == "failed")
+
+    @property
+    def no_data(self) -> int:
+        return sum(1 for item in self.results if item.status == "no_data")
+
+    @property
+    def rows(self) -> int:
+        return sum(item.rows for item in self.results)
+
+    @property
+    def created(self) -> int:
+        return sum(item.created for item in self.results)
+
+    @property
+    def deduplicated(self) -> int:
+        return sum(item.deduplicated for item in self.results)
+
+    @property
+    def is_complete(self) -> bool:
+        """Every page asked for was stored.
+
+        A `no_data` page counts against it as a failure does. The two are
+        reported apart because only one of them a rerun can fix, but neither
+        is coverage, and a walk that silently called a missing month complete
+        would be the coverage gap Step 16 exists to surface.
+        """
+        return all(item.status in ("imported", "resumed") for item in self.results)
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "source": self.source,
+            "market": self.market,
+            "start": f"{self.start.year:04d}-{self.start.month:02d}",
+            "end": f"{self.end.year:04d}-{self.end.month:02d}",
+            "pages": [page.value for page in self.pages],
+            "requested_pages": len(self.results),
+            "imported": self.imported,
+            "resumed": self.resumed,
+            "failed": self.failed,
+            "no_data": self.no_data,
+            "rows": self.rows,
+            "business_versions_created": self.created,
+            "business_versions_deduplicated": self.deduplicated,
+            "is_complete": self.is_complete,
+            "failures": [
+                {
+                    "period": f"{item.period.year:04d}-{item.period.month:02d}",
+                    "page": item.page.value,
+                    "import_id": str(item.import_id),
+                    "reason_code": item.reason_code,
+                    "detail": item.detail,
+                }
+                for item in self.results
+                if item.status == "failed"
+            ],
+            "no_data_pages": [
+                {
+                    "period": f"{item.period.year:04d}-{item.period.month:02d}",
+                    "page": item.page.value,
+                    "reason_code": item.reason_code,
+                }
+                for item in self.results
+                if item.status == "no_data"
+            ],
+        }
+
+
+class MonthlyRevenueBackfill:
+    """Import every month of one market's revenue history, page by page.
+
+    No calendar is consulted: a monthly filing is due on a day of the month,
+    not on a trading day, and the declaration says so with
+    `cadence = 'calendar_month'`. What the declaration does decide, exactly as
+    it does for the daily walks, is the window — importing outside it writes
+    months the coverage validator would report as `unexpected` forever.
+    """
+
+    def __init__(
+        self,
+        importer: MonthlyRevenueImporter,
+        *,
+        expected: ExpectedCoverageService | None = None,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
+        self._importer = importer
+        self._expected = expected or ExpectedCoverageService()
+        self._sleep = sleep
+
+    def run(
+        self,
+        *,
+        adapter: MOPSMonthlyRevenueAdapter,
+        start: RevenuePeriod,
+        end: RevenuePeriod,
+        base_import_id: UUID,
+        purpose: IngestPurpose = IngestPurpose.UNSPECIFIED,
+        min_interval_seconds: float = 3.0,
+        pages: tuple[RevenuePage, ...] | None = None,
+        git_commit: str | None = None,
+    ) -> MonthlyRevenueBackfillReport:
+        if start > end:
+            raise ValueError("start must not be after end")
+        wanted = tuple(pages) if pages else (RevenuePage.DOMESTIC, RevenuePage.FOREIGN)
+        with self._importer.engine.connect() as connection:
+            declaration = self._expected.declaration(
+                connection,
+                dataset_code=adapter.dataset_code,
+                market=adapter.coverage_market,
+            )
+        first = date(start.year, start.month, 1)
+        last = date(end.year, end.month, 1)
+        if first < declaration.window_start or (
+            declaration.window_end is not None and last > declaration.window_end
+        ):
+            raise ValueError(
+                f"{first.isoformat()}..{last.isoformat()} reaches outside the "
+                f"declared coverage window for {adapter.dataset_code}/"
+                f"{adapter.coverage_market} "
+                f"({declaration.window_start.isoformat()}.."
+                f"{declaration.window_end.isoformat() if declaration.window_end else 'open'})"
+            )
+
+        results: list[RevenuePageResult] = []
+        requested_source = False
+        for period in _periods_between(start, end):
+            for page in wanted:
+                # Throttled on what the host feels, not on what the
+                # checkpoint table does: a resumed page makes no request.
+                if requested_source:
+                    self._sleep(min_interval_seconds)
+                result = self._one_page(
+                    adapter=adapter,
+                    period=period,
+                    page=page,
+                    base_import_id=base_import_id,
+                    purpose=purpose,
+                    git_commit=git_commit,
+                )
+                requested_source = result.status != "resumed"
+                results.append(result)
+        return MonthlyRevenueBackfillReport(
+            source=adapter.source,
+            market=adapter.coverage_market,
+            start=start,
+            end=end,
+            pages=wanted,
+            results=tuple(results),
+        )
+
+    def _one_page(
+        self,
+        *,
+        adapter: MOPSMonthlyRevenueAdapter,
+        period: RevenuePeriod,
+        page: RevenuePage,
+        base_import_id: UUID,
+        purpose: IngestPurpose,
+        git_commit: str | None,
+    ) -> RevenuePageResult:
+        import_id = revenue_page_import_id(base_import_id, adapter.source, period, page)
+        try:
+            result = self._importer.run(
+                adapter=adapter,
+                request=MonthlyRevenueRequest(period, page),
+                import_id=import_id,
+                purpose=purpose,
+                git_commit=git_commit,
+            )
+        except ResourceQuarantinedError as error:
+            reason = _reason_code(error)
+            # `no_data_for_period` is the source saying it has not published
+            # this market-month; every other quarantine is a page this run
+            # could not read. Rerunning fixes the second kind and not the
+            # first, so they are counted apart — and neither is coverage.
+            return RevenuePageResult(
+                period=period,
+                page=page,
+                import_id=import_id,
+                status="no_data" if reason == "no_data_for_period" else "failed",
+                reason_code=reason,
+                detail=str(error),
+            )
+        except Exception as error:  # noqa: BLE001 - reported, not swallowed
+            return RevenuePageResult(
+                period=period,
+                page=page,
+                import_id=import_id,
+                status="failed",
+                reason_code="operational_error",
+                detail=f"{type(error).__name__}: {error}",
+            )
+        return RevenuePageResult(
+            period=period,
+            page=page,
+            import_id=import_id,
+            status="resumed" if result.resumed_from_checkpoint else "imported",
+            rows=result.normalized_rows,
+            created=result.business_versions_created,
+            deduplicated=result.business_versions_deduplicated,
+        )
+
+
+def _periods_between(start: RevenuePeriod, end: RevenuePeriod):
+    year, month = start.year, start.month
+    while (year, month) <= (end.year, end.month):
+        yield RevenuePeriod(year, month)
+        year, month = (year + 1, 1) if month == 12 else (year, month + 1)
