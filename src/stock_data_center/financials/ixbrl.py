@@ -13,6 +13,14 @@ guess: an unknown header value, an undeclared namespace prefix, a fact pointing
 at a context or unit the document never defined, and a context shape MOPS has
 never emitted each raise `IXBRLParseError` instead of being normalized away.
 
+Two filer defects are common enough to be part of the contract rather than
+errors, and both are reported rather than absorbed: a cell that prints `-` or
+`無` where an amount belongs keeps its fact with no value and
+`is_placeholder`, because a dash is neither zero nor `xsi:nil`; and an
+`ix:nonFraction` with an empty `unitRef`, which some filing tools use for a
+narrative 重大事項 answer, is counted in `malformed_numeric_facts` and is not a
+fact.
+
 Scope: this module only reads a document. Fetching, storage, source declarations
 and publication evidence belong to Steps 23-b and 23-c.
 """
@@ -131,6 +139,14 @@ _CELL = re.compile(r"<td\b[^>]*>(.*?)</td>", re.I | re.S)
 _SPAN = re.compile(r"<span\b[^>]*\bclass\s*=\s*\"(zh|en)\"[^>]*>(.*?)</span>", re.I | re.S)
 _TAG = re.compile(r"<[^>]*>", re.S)
 
+#: A cell that holds no number holds one of two things, and the whole archive
+#: shows both: a short placeholder such as `-`, `無` or a footnote marker `註二`,
+#: which is neither zero nor `xsi:nil` and so keeps its fact without a value;
+#: or, when a filing tool misuses the numeric element, a whole paragraph of
+#: narrative, which is not a fact at all. The boundary is length, because that
+#: is the only thing that separates them in the source.
+PLACEHOLDER_MAX_LENGTH = 8
+
 
 def _text(value: str) -> str:
     """Strip markup and collapse the whitespace a re-serialized page inserts."""
@@ -174,7 +190,7 @@ class ParsedFact:
     context_ref: str
     unit_ref: str
     unit_identity: str
-    value: Decimal
+    value: Decimal | None
     raw_text: str
     scale: int
     sign: str | None
@@ -182,6 +198,8 @@ class ParsedFact:
     account_code: str | None
     label_zh: str | None
     label_en: str | None
+    #: The source printed a placeholder such as `-` instead of a number.
+    is_placeholder: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -193,6 +211,9 @@ class ParsedIXBRLReport:
     units: Mapping[str, str]
     facts: tuple[ParsedFact, ...]
     note_block_count: int
+    #: `ix:nonFraction` elements with no unit: prose the filer's tool wrote into
+    #: the numeric element. They are not facts, and they are not silently lost.
+    malformed_numeric_facts: int = 0
     #: Prefix spellings resolved case-insensitively, as `used->declared`.
     prefix_case_repairs: tuple[str, ...] = ()
     parser_version: str = MOPS_IXBRL_PARSER_VERSION
@@ -386,14 +407,20 @@ def _row_labels(row: str) -> tuple[str | None, str | None, str | None]:
     )
 
 
-def _parse_value(raw_text: str, scale: int, sign: str | None) -> Decimal:
+class _NotANumber(Exception):
+    """The cell holds narrative, not an amount."""
+
+
+def _parse_value(raw_text: str, scale: int, sign: str | None) -> Decimal | None:
     cleaned = _text(raw_text).replace(",", "").replace(" ", "")
     if cleaned.startswith("(") and cleaned.endswith(")"):
         cleaned = "-" + cleaned[1:-1]
     try:
         value = Decimal(cleaned)
-    except Exception as error:  # Decimal raises InvalidOperation
-        raise IXBRLParseError(f"unusable numeric fact: {raw_text!r}") from error
+    except Exception:  # Decimal raises InvalidOperation
+        if len(cleaned) <= PLACEHOLDER_MAX_LENGTH:
+            return None
+        raise _NotANumber from None
     if sign == "-":
         value = -value
     elif sign:
@@ -408,9 +435,10 @@ def _parse_facts(
     contexts: Mapping[str, XBRLContext],
     units: Mapping[str, str],
     repairs: set[str],
-) -> tuple[ParsedFact, ...]:
+) -> tuple[tuple[ParsedFact, ...], int]:
     rows = [(match.start(), match.end(), match.group(0)) for match in _ROW.finditer(text)]
     facts: list[ParsedFact] = []
+    malformed = 0
     row_index = 0
     for match in _NONFRACTION.finditer(text):
         while row_index < len(rows) and rows[row_index][1] <= match.start():
@@ -426,8 +454,15 @@ def _parse_facts(
         concept = attributes.get("name")
         context_ref = attributes.get("contextref")
         unit_ref = attributes.get("unitref")
-        if not concept or not context_ref or not unit_ref:
-            raise IXBRLParseError(f"ix:nonFraction without name, context or unit: {attributes}")
+        if not concept or not context_ref:
+            raise IXBRLParseError(
+                f"ix:nonFraction without name or context: {attributes}"
+            )
+        if not unit_ref:
+            # Some filing tools answer a narrative 重大事項 question inside an
+            # ix:nonFraction with an empty unitRef. It is prose, not an amount.
+            malformed += 1
+            continue
         if context_ref not in contexts:
             raise IXBRLParseError(f"fact references undefined context {context_ref}")
         if unit_ref not in units:
@@ -439,13 +474,19 @@ def _parse_facts(
             raise IXBRLParseError(f"unusable scale: {scale_text!r}") from error
 
         raw_text = _text(match.group(2))
+        try:
+            value = _parse_value(raw_text, scale, attributes.get("sign"))
+        except _NotANumber:
+            # A filing tool wrote a whole note into the numeric element.
+            malformed += 1
+            continue
         facts.append(
             ParsedFact(
                 concept_qname=_clark(concept, namespaces, repairs),
                 context_ref=context_ref,
                 unit_ref=unit_ref,
                 unit_identity=units[unit_ref],
-                value=_parse_value(raw_text, scale, attributes.get("sign")),
+                value=value,
                 raw_text=raw_text,
                 scale=scale,
                 sign=attributes.get("sign"),
@@ -453,9 +494,10 @@ def _parse_facts(
                 account_code=account_code,
                 label_zh=label_zh,
                 label_en=label_en,
+                is_placeholder=value is None,
             )
         )
-    return tuple(facts)
+    return tuple(facts), malformed
 
 
 def parse_ixbrl_report(raw: bytes | str) -> ParsedIXBRLReport:
@@ -468,7 +510,7 @@ def parse_ixbrl_report(raw: bytes | str) -> ParsedIXBRLReport:
     contexts = _parse_contexts(text, namespaces, repairs)
     units = _parse_units(text)
 
-    facts = _parse_facts(
+    facts, malformed = _parse_facts(
         text, namespaces=namespaces, contexts=contexts, units=units, repairs=repairs
     )
 
@@ -484,6 +526,7 @@ def parse_ixbrl_report(raw: bytes | str) -> ParsedIXBRLReport:
         units=MappingProxyType(units),
         facts=facts,
         note_block_count=len(_NOTE_BLOCK.findall(text)),
+        malformed_numeric_facts=malformed,
         prefix_case_repairs=tuple(sorted(repairs)),
     )
 

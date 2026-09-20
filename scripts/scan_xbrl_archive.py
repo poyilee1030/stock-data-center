@@ -22,7 +22,7 @@ import re
 import sys
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -54,6 +54,8 @@ class DocumentScan:
     fact_count: int = 0
     context_count: int = 0
     note_block_count: int = 0
+    placeholder_facts: int = 0
+    malformed_numeric_facts: int = 0
     units: tuple[str, ...] = ()
     scales: tuple[int, ...] = ()
     prefix_case_repairs: tuple[str, ...] = ()
@@ -91,6 +93,8 @@ def scan_document(path: Path) -> DocumentScan:
         fact_count=len(report.facts),
         context_count=len(report.contexts),
         note_block_count=report.note_block_count,
+        placeholder_facts=sum(1 for fact in report.facts if fact.is_placeholder),
+        malformed_numeric_facts=report.malformed_numeric_facts,
         units=tuple(sorted(set(report.units.values()))),
         scales=tuple(sorted({fact.scale for fact in report.facts})),
         prefix_case_repairs=report.prefix_case_repairs,
@@ -156,6 +160,13 @@ def report(scans: list[DocumentScan]) -> None:
     for scan in mismatched[:20]:
         print(f"  {Path(scan.path).name}")
 
+    placeholders = sum(scan.placeholder_facts for scan in parsed)
+    malformed = sum(scan.malformed_numeric_facts for scan in parsed)
+    print(f"\nplaceholder facts  {placeholders:,} "
+          f"in {sum(1 for s in parsed if s.placeholder_facts):,} documents")
+    print(f"prose in nonFraction {malformed:,} "
+          f"in {sum(1 for s in parsed if s.malformed_numeric_facts):,} documents")
+
     facts = sum(scan.fact_count for scan in parsed)
     notes = sum(scan.note_block_count for scan in parsed)
     print(f"\nnumeric facts      {facts:,}")
@@ -187,7 +198,7 @@ def main() -> int:
     report(scans)
     if args.json:
         args.json.write_text(
-            json.dumps([scan.__dict__ for scan in scans], ensure_ascii=False)
+            json.dumps([asdict(scan) for scan in scans], ensure_ascii=False)
         )
         print(f"\nwrote {args.json}")
     return 1 if any(scan.error for scan in scans) else 0

@@ -417,3 +417,63 @@ def test_the_lowercased_prefix_is_resolved_and_recorded_not_silently_accepted() 
 
 def test_a_document_with_no_prefix_case_defect_records_no_repair() -> None:
     assert parse_ixbrl_report(CEMENT_Q1).prefix_case_repairs == ()
+
+
+# --- what filers print where a number belongs -----------------------------
+
+DASH = fixture("3543_2020Q2_excerpt")
+NARRATIVE_NONFRACTION = fixture("1570_2026Q1_excerpt")
+
+
+def test_a_dash_printed_where_an_amount_belongs_is_kept_as_a_placeholder() -> None:
+    # 3543 2020Q2 prints `-` in an endorsement amount cell that still declares
+    # unitRef="TWD". A dash is not zero and not `xsi:nil`, so the fact is kept
+    # with no value and the printed text preserved.
+    report = parse_ixbrl_report(DASH)
+    placeholders = [fact for fact in report.facts if fact.value is None]
+
+    assert placeholders, "the fixture keeps the dash row"
+    for fact in placeholders:
+        assert fact.raw_text in {"-", "－", "null", "無", "註"}
+        assert fact.is_placeholder is True
+        assert fact.unit_identity == "iso4217:TWD"
+
+
+def test_a_non_fraction_the_filer_used_for_prose_is_not_a_fact() -> None:
+    # 1570 2026Q1 writes its 重大事項 answers as <ix:nonFraction unitRef="">無此情形</…>.
+    assert b'unitRef=""' in NARRATIVE_NONFRACTION
+
+    report = parse_ixbrl_report(NARRATIVE_NONFRACTION)
+
+    assert report.malformed_numeric_facts == 1
+    assert all(fact.unit_ref for fact in report.facts)
+    assert not any("無此情形" in fact.raw_text for fact in report.facts)
+
+
+def test_a_document_with_neither_defect_reports_neither() -> None:
+    report = parse_ixbrl_report(CEMENT_Q1)
+
+    assert report.malformed_numeric_facts == 0
+    assert all(fact.value is not None for fact in report.facts)
+
+
+PROSE_IN_AMOUNT = fixture("1512_2020Q3_excerpt")
+FOOTNOTE_MARK = fixture("2492_2026Q2_excerpt")
+
+
+def test_a_whole_note_pasted_into_an_amount_cell_is_prose_not_a_fact() -> None:
+    # 1512 2020Q3 puts 2,475 characters of receivables narrative into a
+    # `tifrs-notes:Amount2` element that still declares unitRef="TWD".
+    report = parse_ixbrl_report(PROSE_IN_AMOUNT)
+
+    assert report.malformed_numeric_facts >= 1
+    assert not any(len(fact.raw_text) > 40 for fact in report.facts)
+
+
+def test_a_footnote_marker_where_an_amount_belongs_is_a_placeholder() -> None:
+    # 2492 2026Q2 answers a mainland-investment ceiling with 註二.
+    report = parse_ixbrl_report(FOOTNOTE_MARK)
+    marks = [fact for fact in report.facts if fact.raw_text == "註二"]
+
+    assert marks, "the fixture keeps the 註二 row"
+    assert all(fact.value is None and fact.is_placeholder for fact in marks)

@@ -835,10 +835,32 @@ whitespace inside header values, and resolves a prefix case-insensitively only
 when exactly one declared prefix matches — recording every such repair on the
 parsed report rather than silently accepting it.
 
-**Volume.** A document holds between a few hundred and about 4,400
-`ix:nonFraction` facts, plus `escape="true"` narrative blocks that are whole
-HTML notes, not values. Statement amounts and narrative blocks are therefore
-separate storage questions for Step 23-b.
+**Volume.** A document holds between 262 and 8,414 `ix:nonFraction` facts,
+913 on average: **41,397,846** across the archive, plus 13,344,559
+`escape="true"` narrative blocks that are whole HTML notes, not values.
+Statement amounts and narrative blocks are therefore separate storage questions
+for Step 23-b, and 41 million rows is the number 23-c has to plan for.
+
+**What filers write where a number belongs.** Two defects recur, and the whole
+corpus was parsed to size them:
+
+- **A short placeholder**: `-`, `無`, `null`, or a footnote marker such as
+  `註二` (2492 2026Q2), in a cell that still declares `unitRef="TWD"`. 13 facts
+  in 10 documents. A dash is not zero and not `xsi:nil`, so the fact is kept
+  with no value and the printed text preserved.
+- **A whole paragraph**: a filing tool writes narrative into the numeric
+  element. 140 in 87 documents, either with an empty `unitRef` (1570 2026Q1
+  answers 重大或有負債 with `無此情形`) or with a real one (1512 2020Q3 pastes
+  2,475 characters of receivables narrative into `tifrs-notes:Amount2`, which
+  still says `unitRef="TWD" scale="3"`). These are not facts. Length is the
+  only thing in the source that separates them from a placeholder.
+
+**Three documents genuinely fail, all of them 2855.** 2021Q3 and 2021Q4
+reference `AsOf20210331`, and 2022Q4 references `AsOf2022121` — a mistyped
+date — and neither context is defined anywhere in the document. Failing closed
+is correct: the amounts cannot be placed in time. 2855 is a broker-dealer, so
+these documents are outside v1 anyway. Everything else parses: **45,321 of
+45,324**.
 
 **The account code lives in the row, not in the fact.** Each statement row is
 `<td>1100</td><td><span class="zh">現金及約當現金</span><span class="en">Cash and

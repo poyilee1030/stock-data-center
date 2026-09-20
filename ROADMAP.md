@@ -1599,7 +1599,10 @@ context 才是當期。Q1 起始於 1/1 的那一個是 `current_single_quarter`
 - QName 以 Clark notation 產出，prefix 由文件自己的 xmlns 宣告解析
 - EPS 期間角色由 `mops-xbrl-context-role:v1` 判定並通過 Step 5 的
   `classify_eps_period_basis`；日期長短本身不足以授權任何角色
-- 掃描腳本在真實檔案庫上跑完並記錄分布，與 audit §4.8 的數字一致
+- 金額格裡不是數字時，短的佔位符（`-`、`無`、`註二`）留下沒有值的事實，整段敘述
+  計為 `malformed_numeric_facts`，兩者都不猜成 0
+- 掃描腳本在真實檔案庫上跑完並記錄分布，與 audit §4.8 的數字一致：45,324 份中
+  45,321 份解析成功，失敗的 3 份都是 2855 引用了文件裡不存在的 context
 
 ### Step 23-b — 官方 adapter、檔案庫 adapter 與匯入路徑
 

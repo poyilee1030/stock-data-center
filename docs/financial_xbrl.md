@@ -169,6 +169,11 @@ patterns. The measured source facts behind each rule are in
   unit the document never defined fail closed.
 - **Narrative `escape="true"` blocks are counted, not returned as facts.** They
   are whole HTML notes; whether any of them is stored is a Step 23-b decision.
+- **A cell with no number is reported, never invented.** A short placeholder
+  (`-`, `無`, `註二`) keeps its fact with `value=None` and `is_placeholder`; a
+  paragraph of narrative written into the numeric element is counted in
+  `malformed_numeric_facts` and is not a fact. Both are visible to the importer
+  instead of being absorbed.
 
 ### `mops-xbrl-context-role:v1`
 
