@@ -612,7 +612,7 @@ explicit out-of-scope work
 | 22-b | MERGED | 月營收：歷史 backfill 與舊系統對帳 |
 | 22-c | MERGED | 月營收：發布證據 |
 | 23-a | MERGED | 財務報表：iXBRL parser 與文件契約 |
-| 23-b | THIS STEP | 財務報表：官方 adapter、檔案庫 adapter 與匯入路徑 |
+| 23-b | IN REVIEW | 財務報表：官方 adapter、檔案庫 adapter 與匯入路徑 |
 | 23-c | PLANNED | 財務報表：全量 backfill、抽樣關卡與對帳 |
 | 24 | PLANNED | TDCC 股權分散 |
 | 25 | PLANNED | 還原價格 |
@@ -1606,7 +1606,7 @@ context 才是當期。Q1 起始於 1/1 的那一個是 `current_single_quarter`
 
 ### Step 23-b — 官方 adapter、檔案庫 adapter 與匯入路徑
 
-狀態：**THIS STEP**。依賴：Step 23-a、Step 11。
+狀態：**IN REVIEW** (#40)。依賴：Step 23-a、Step 11。
 
 範圍內：`mops_t164sb01` 官方 adapter（`REPORT_ID` C→A fallback、3 秒間隔、raw-first）、
 `legacy_archive` 檔案庫 adapter、importer、CLI，以及來源宣告 migration。此時證據是

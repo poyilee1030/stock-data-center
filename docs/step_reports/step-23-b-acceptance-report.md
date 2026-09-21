@@ -1,6 +1,6 @@
 # Step 23-b 驗收報告
 
-狀態：THIS STEP
+狀態：IN REVIEW (#40)
 
 範圍：財務報表的第二部分，兩個 adapter 與匯入路徑。這個 step 新增：
 
