@@ -25,6 +25,14 @@ lands in one of four buckets:
 - `no_longer_served` — MOPS answers `檔案不存在!` for both REPORT_IDs. The
   document existed when the archive was written and the endpoint no longer
   offers it, which is the archive doing the job it is kept for.
+- `unmappable_source_byte` — the official response carries a byte pair in
+  Big5's user-defined area (`0x84 0x50` observed) that neither cp950 nor
+  big5hkscs maps, so the document fails to decode and the parser fails closed.
+  The archive's copy is not byte-faithful there either: the legacy scraper
+  decoded with replacement, so it holds U+FFFD followed by `P`. Both observed
+  occurrences are inside narrative note text, outside the three statements, so
+  no stored value depends on the character. Measured, not inferred — see
+  audit §4.8.
 
 Only a document that cannot be explained at all counts against the gate. The
 threshold is on `unexplained`, which is a document whose official response is
@@ -122,6 +130,12 @@ def compare(
     except SourceDataError as error:
         if error.reason_code == "no_such_report":
             return SampleResult(period, code, report_id, "no_longer_served", None)
+        if error.reason_code == "unreadable_document":
+            unmappable = _unmappable_byte(fetched.content)
+            if unmappable is not None:
+                return SampleResult(
+                    period, code, report_id, "unmappable_source_byte", unmappable
+                )
         return SampleResult(period, code, report_id, "unexplained", error.reason_code)
 
     if decode_ixbrl_document(fetched.content) == decode_ixbrl_document(
@@ -137,6 +151,26 @@ def compare(
         "corrected_since_capture",
         f"{archived.filing_key} -> {official.filing_key}",
     )
+
+
+def _unmappable_byte(content: bytes) -> str | None:
+    """Where a Big5 user-defined byte pair stops the decode, if that is why.
+
+    Reported rather than worked around. A codec that guessed at a
+    user-defined character would be inventing source content, and the document
+    fails closed as it should (CLAUDE.md §84).
+    """
+
+    for encoding in ("cp950", "big5hkscs"):
+        try:
+            content.decode(encoding)
+        except UnicodeDecodeError as error:
+            pair = content[error.start : error.start + 2]
+            if len(pair) == 2 and 0x81 <= pair[0] <= 0xA0:
+                return f"{encoding} cannot map {pair.hex(' ')} at byte {error.start}"
+        else:
+            return None
+    return None
 
 
 def main(argv: list[str] | None = None) -> int:

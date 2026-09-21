@@ -34,6 +34,7 @@ from stock_data_center.ingestion.corporate_action import CorporateActionImporter
 from stock_data_center.ingestion.financial_filing import (
     FinancialFilingArchiveImporter,
 )
+from stock_data_center.ingestion.lifecycle import current_git_commit
 from stock_data_center.financials.models import FilingPeriod
 from stock_data_center.ingestion.models import (
     CorporateActionRangeRequest,
@@ -955,6 +956,12 @@ class FinancialFilingArchiveBackfill:
             date(start.report_year, start.report_quarter * 3 - 2, 1),
             date(end.report_year, end.report_quarter * 3 - 2, 1),
         )
+        # Stamped once for the whole walk. `RawFirstImporter.run` otherwise
+        # asks git per document, and reusing an import id whose manifest holds
+        # a different commit is refused as changed configuration — so a commit
+        # made while a 45,000-document walk is running would split the run's
+        # manifests in two and make it unresumable.
+        git_commit = git_commit or current_git_commit()
         periods = tuple(_quarters_between(start, end))
         results: list[FilingDocumentResult] = []
         for period in periods:

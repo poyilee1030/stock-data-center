@@ -231,6 +231,7 @@ def compare_values(
 
 def reconcile_quarter(
     *,
+    label: str,
     mine: dict,
     units: dict,
     theirs: dict,
@@ -248,8 +249,21 @@ def reconcile_quarter(
       The 1,040 cash-flow subtotals (`AA0000`, `AB0000`, `AC0100`–`AC0500`) are
       real rows the documents print and legacy dropped (Step 23-b).
 
+    Two more, found by running this against `stock_db` rather than by reading
+    it:
+
+    * legacy holds no row at all for two filings — 1519 2021Q2 and 6243 2023Q3.
+      1519 2021Q2 is the document whose header values are line-broken
+      (`Consolidated \r\nreport`, audit §4.8), which legacy's regex converter
+      could not read;
+    * **the Q4 single quarter is not in the document.** The annual report
+      prints the full year and the prior year; legacy's Oct–December figures
+      are `accumulated` minus the previous quarter's, which is derived data
+      (Step 26), not a value the source printed.
+
     Anything else unmatched is a finding.
     """
+    fourth_quarter = label.endswith("Q4")
     held = {key[0] for key in mine}
     for key, values in mine.items():
         if len(values) > 1:
@@ -258,11 +272,12 @@ def reconcile_quarter(
             continue
         legacy_values = theirs.get(key)
         if legacy_values is None:
-            name = (
-                "absent_from_legacy:inside_legacy_codebook"
-                if key[2] in codebook
-                else "absent_from_legacy:outside_legacy_codebook"
-            )
+            if key[0] not in {row[0] for row in theirs}:
+                name = "absent_from_legacy:filing_absent_from_legacy"
+            elif key[2] in codebook:
+                name = "absent_from_legacy:inside_legacy_codebook"
+            else:
+                name = "absent_from_legacy:outside_legacy_codebook"
             classes[name] += 1
             _example(examples, name, list(key), limit=10)
             continue
@@ -294,11 +309,12 @@ def reconcile_quarter(
         )
     for key in theirs:
         if key not in mine:
-            name = (
-                "absent_from_ours:row_missing_from_a_filing_we_hold"
-                if key[0] in held
-                else "absent_from_ours:filing_outside_v1_scope"
-            )
+            if key[0] not in held:
+                name = "absent_from_ours:filing_outside_v1_scope"
+            elif fourth_quarter and key[1] == "income_statement" and key[3] == "quarter":
+                name = "absent_from_ours:legacy_derived_the_q4_single_quarter"
+            else:
+                name = "absent_from_ours:row_missing_from_a_filing_we_hold"
             classes[name] += 1
             _example(examples, name, list(key), limit=10)
 
@@ -406,7 +422,8 @@ def main(argv: list[str] | None = None) -> int:
             )
             before = sum(fact_classes.values())
             reconcile_quarter(
-                mine=mine, units=units, theirs=theirs, codebook=codebook,
+                label=label, mine=mine, units=units, theirs=theirs,
+                codebook=codebook,
                 classes=fact_classes, examples=fact_examples,
             )
             rows = legacy.execute(
@@ -466,7 +483,9 @@ def main(argv: list[str] | None = None) -> int:
             "identical",
             "identical:share_count_legacy_consumers_scale",
             "absent_from_ours:filing_outside_v1_scope",
+            "absent_from_ours:legacy_derived_the_q4_single_quarter",
             "absent_from_legacy:outside_legacy_codebook",
+            "absent_from_legacy:filing_absent_from_legacy",
         }
     )
     return 0 if unexplained == 0 else 1

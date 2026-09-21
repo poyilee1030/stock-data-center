@@ -549,3 +549,51 @@ def test_the_cli_walks_the_archive_and_reports_its_manifest(
             "mops_t164sb01", date(2026, 1, 1), date(2026, 1, 1)
         )
     )
+
+
+def test_the_walk_stamps_one_commit_on_every_document(
+    isolated_database_url: str, tmp_path: Path, monkeypatch
+) -> None:
+    """A commit made mid-walk must not split the run's manifests.
+
+    `RawFirstImporter.run` asks git per resource. A 45,000-document walk takes
+    hours, and a manifest whose `git_commit` disagrees with the run's is
+    refused as changed configuration — so a commit landing at document 30,000
+    would make the run unresumable from either end. The runner takes the commit
+    once instead.
+    """
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        root = tmp_path / "xbrl"
+        for code, content in (("1101", CEMENT_2026Q1), ("1102", CEMENT_2026Q1)):
+            archive_file(
+                root, period="2026Q1", code=code,
+                content=content, mtime=DAILY_CAPTURE,
+            )
+        commits = iter(["commit-before", "commit-after", "commit-later"])
+        monkeypatch.setattr(
+            "stock_data_center.ingestion.backfill.current_git_commit",
+            lambda: next(commits),
+        )
+        backfill = FinancialFilingArchiveBackfill(
+            FinancialFilingArchiveImporter(
+                engine, raw_store=LocalRawArtifactStore(tmp_path / "raw")
+            ),
+            archive_root=root,
+        )
+        report = backfill.run(
+            start=FilingPeriod(2026, 1),
+            end=FilingPeriod(2026, 1),
+            purpose=IngestPurpose.GAP_FILL,
+        )
+        assert report.documents == 2
+        with engine.connect() as connection:
+            stamped = connection.scalars(
+                sa.text(
+                    "SELECT DISTINCT git_commit FROM import_manifests"
+                    " WHERE dataset_code = 'financial_filing'"
+                )
+            ).all()
+        assert stamped == ["commit-before"]
+    finally:
+        engine.dispose()

@@ -1000,7 +1000,41 @@ bound and just as certainly not before the sighting.
 
 **The sample gate.** `scripts/sample_official_vs_archive.py` draws a seeded
 stratified sample — 10 documents from each of the 26 quarters — and compares
-each archived copy with what `t164sb01` serves today, decoded as cp950. SAMPLE_GATE_RESULT
+each archived copy with what `t164sb01` serves today, decoded as cp950. Run
+2026-09-21 with `--seed 23 --per-quarter 10`:
+
+| Verdict | Documents |
+| --- | ---: |
+| `identical`, character for character | 249 |
+| `unmappable_source_byte` | 2 |
+| excluded at the v1 boundary, not fetched | 9 |
+| `corrected_since_capture` | 0 |
+| `no_longer_served` | 0 |
+| `same_filing` (differs outside the statements) | 0 |
+
+249 of the 251 comparable documents are byte-for-byte today's official
+response. Nothing in the sample had been corrected since the archive was
+written and nothing had stopped being served.
+
+**Some official documents carry a byte no codec maps, and the archive's copy
+of them is lossy.** The two exceptions are 6470 2025Q1 and 5315 2026Q1, and
+they fail the same way: the official response contains the byte pair
+`0x84 0x50`, which is in Big5's user-defined area and which neither `cp950`
+nor `big5hkscs` maps, so the document fails to decode and the parser fails
+closed. The legacy scraper decoded with replacement, so the archived copy holds
+U+FFFD followed by `P` at that spot — which is why the two can never compare
+`identical`.
+
+Measured over the whole archive: **717 of the 45,324 documents hold a U+FFFD,
+2,994 occurrences in all, and none of them is inside the three statements** —
+every one is in narrative text, and none is in a cell holding an
+`ix:nonFraction`. No stored value depends on the character.
+
+The consequence is for the *official* path, not this backfill: re-fetching one
+of those documents quarantines it as `unreadable_document`. That is fail-closed
+and correct — a codec that guessed at a user-defined character would be
+inventing source content — but Step 27's forward capture has to handle it, and
+ROADMAP records it there.
 
 **Legacy parity is a filter, not a parse.** The reconciliation lines legacy's
 row identity up with ours as follows, and the mapping is not symmetric:
