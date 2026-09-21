@@ -154,17 +154,23 @@ class ArchivePlanner:
     # nothing claims would refuse an import that claims nothing.
     rule_instant: datetime | None = None
     rule_source: str | None = None
+    # Which archive this planner speaks for. Evidence is append-only and the
+    # resolver breaks ties on rank and `recorded_at`, so the one place a reader
+    # learns which file a bound came from is this label.
+    evidence_label: str = "legacy market.csv"
 
     def plan(
         self,
         *,
-        bound_at: datetime,
+        bound_at: datetime | None,
         proves_first_capture: bool,
         bound_is_the_rule_day: bool,
     ) -> tuple[PlannedEvidence, ...]:
         planned = archive_evidence_plan(
             bound_at=bound_at,
-            evidence_source=self.evidence_source(bound_at),
+            evidence_source=(
+                self.evidence_source(bound_at) if bound_at is not None else ""
+            ),
             proves_first_capture=proves_first_capture,
             rule_instant=self.rule_instant,
             rule_source=self.rule_source,
@@ -178,9 +184,8 @@ class ArchivePlanner:
             )
         return planned
 
-    @staticmethod
-    def evidence_source(bound_at: datetime) -> str:
-        return f"legacy market.csv {bound_at.date().isoformat()}"
+    def evidence_source(self, bound_at: datetime) -> str:
+        return f"{self.evidence_label} {bound_at.date().isoformat()}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -233,6 +238,7 @@ class BoundEvidencePolicy:
         rule_id: str,
         rule_version: int,
         needs_rule: bool = True,
+        evidence_label: str = "legacy market.csv",
     ) -> ArchivePlanner:
         """Resolve the rule once for a whole month's archive rows (Step 22-c).
 
@@ -251,6 +257,7 @@ class BoundEvidencePolicy:
                 dataset_code=self.dataset_code,
                 source=self.source,
                 accepted=self.accepted,
+                evidence_label=evidence_label,
             )
         resolved = self.rules.resolve(
             connection, rule_id=rule_id, version=rule_version, period=period
@@ -261,6 +268,7 @@ class BoundEvidencePolicy:
             accepted=self.accepted,
             rule_instant=resolved.published_at,
             rule_source=resolved.evidence_source,
+            evidence_label=evidence_label,
         )
 
     def plan_many(

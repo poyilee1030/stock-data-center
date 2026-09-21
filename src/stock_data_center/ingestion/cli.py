@@ -6,6 +6,7 @@ import argparse
 import re
 import json
 import os
+import sys
 import time
 from dataclasses import asdict
 from datetime import date, timedelta
@@ -69,6 +70,8 @@ from stock_data_center.ingestion.adapters.monthly_revenue_archive import (
 )
 from stock_data_center.ingestion.backfill import (
     CorporateActionBackfill,
+    FilingDocumentResult,
+    FinancialFilingArchiveBackfill,
     MonthlyRevenueBackfill,
     WholeMarketDailyBackfill,
     default_base_import_id,
@@ -133,6 +136,7 @@ from stock_data_center.ingestion.security_lifecycle import (
 from stock_data_center.ingestion.security_metadata import SecurityMetadataImporter
 from stock_data_center.ingestion.trading_calendar import TradingCalendarImporter
 from stock_data_center.ingestion.whole_market_daily import WholeMarketDailyImporter
+from stock_data_center.financials.models import FilingPeriod
 from stock_data_center.monthly_revenue.models import RevenuePeriod
 
 
@@ -152,6 +156,17 @@ def _months(first: date, last: date):
 
 
 _FILING_PERIOD = re.compile(r"(\d{4})Q([1-4])")
+
+
+def _filing_progress(result: FilingDocumentResult) -> None:
+    """One line per document, on stderr so it never joins the manifest."""
+    print(
+        f"{result.period_label} {result.security_code} {result.status}"
+        + (f" {result.reason_code}" if result.reason_code else "")
+        + (f" facts={result.facts}" if result.facts else ""),
+        file=sys.stderr,
+        flush=True,
+    )
 
 
 def _filing_period(parser: argparse.ArgumentParser, value: str) -> tuple[int, int]:
@@ -493,6 +508,32 @@ def main(argv: list[str] | None = None) -> int:
     )
     filing_archive.add_argument("--import-id", type=UUID)
     filing_archive.add_argument("--raw-root", type=Path, default=Path("data/raw"))
+    filing_backfill = subparsers.add_parser(
+        "financial-filing-backfill",
+        help="import every archived filing in a range of quarters",
+    )
+    filing_backfill.add_argument(
+        "--period", required=True, help="first quarter, YYYYQn"
+    )
+    filing_backfill.add_argument(
+        "--through", help="last quarter, YYYYQn (default: --period)"
+    )
+    filing_backfill.add_argument(
+        "--archive-root", type=Path, default=XBRL_ARCHIVE_ROOT,
+        help="the legacy xbrl archive root (ROADMAP §14: it stays outside "
+        "this repository)",
+    )
+    filing_backfill.add_argument(
+        "--import-id", type=UUID,
+        help="the run identity; derived from the range when omitted, so "
+        "rerunning the same command resumes it",
+    )
+    filing_backfill.add_argument("--raw-root", type=Path, default=Path("data/raw"))
+    filing_backfill.add_argument(
+        "--progress", action="store_true",
+        help="print one line per document to stderr; a 45,000-document walk "
+        "that only reports at the end reports nothing when it is killed",
+    )
     subparsers.add_parser(
         "security-transfer-reconciliation",
         help="recompute final transfer matching from canonical TWSE/TPEx histories",
@@ -890,6 +931,35 @@ def main(argv: list[str] | None = None) -> int:
                     purpose=IngestPurpose(args.purpose),
                     artifact_origin=ArtifactOrigin.LEGACY_ARCHIVE,
                 )
+        elif args.command == "financial-filing-backfill":
+            first_period = FilingPeriod(*_filing_period(parser, args.period))
+            last_period = (
+                FilingPeriod(*_filing_period(parser, args.through))
+                if args.through
+                else first_period
+            )
+            if (last_period.report_year, last_period.report_quarter) < (
+                first_period.report_year,
+                first_period.report_quarter,
+            ):
+                parser.error("--through must not be before --period")
+            base_import_id = args.import_id or default_base_import_id(
+                "mops_t164sb01",
+                date(first_period.report_year, first_period.report_quarter * 3 - 2, 1),
+                date(last_period.report_year, last_period.report_quarter * 3 - 2, 1),
+            )
+            backfill_report = FinancialFilingArchiveBackfill(
+                FinancialFilingArchiveImporter(
+                    engine, raw_store=LocalRawArtifactStore(args.raw_root)
+                ),
+                archive_root=args.archive_root,
+            ).run(
+                start=first_period,
+                end=last_period,
+                base_import_id=base_import_id,
+                purpose=IngestPurpose(args.purpose),
+                on_result=_filing_progress if args.progress else None,
+            )
         elif args.command == "securities-lending":
             importer = SecuritiesLendingImporter(
                 engine, raw_store=LocalRawArtifactStore(args.raw_root)

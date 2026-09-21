@@ -14,6 +14,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
+from pathlib import Path
 from uuid import UUID, uuid5
 
 from stock_data_center.coverage import ExpectedCoverageService
@@ -23,12 +24,20 @@ from stock_data_center.ingestion.adapters.corporate_action import (
 from stock_data_center.ingestion.adapters.monthly_revenue import (
     MOPSMonthlyRevenueAdapter,
 )
+from stock_data_center.ingestion.adapters.financial_filing_archive import (
+    LegacyFinancialFilingArchiveAdapter,
+)
 from stock_data_center.ingestion.adapters.whole_market_daily import (
     WholeMarketDailyAdapter,
 )
 from stock_data_center.ingestion.corporate_action import CorporateActionImporter
+from stock_data_center.ingestion.financial_filing import (
+    FinancialFilingArchiveImporter,
+)
+from stock_data_center.financials.models import FilingPeriod
 from stock_data_center.ingestion.models import (
     CorporateActionRangeRequest,
+    FinancialFilingArchiveRequest,
     MonthlyRevenueRequest,
     ResourceQuarantinedError,
     RevenuePage,
@@ -39,7 +48,7 @@ from stock_data_center.ingestion.monthly_revenue import MonthlyRevenueImporter
 from stock_data_center.ingestion.whole_market_daily import WholeMarketDailyImporter
 from stock_data_center.market_calendar import TradingCalendarService
 from stock_data_center.monthly_revenue.models import RevenuePeriod
-from stock_data_center.provenance import IngestPurpose
+from stock_data_center.provenance import ArtifactOrigin, IngestPurpose
 
 
 @dataclass(frozen=True, slots=True)
@@ -784,3 +793,277 @@ def _periods_between(start: RevenuePeriod, end: RevenuePeriod):
     while (year, month) <= (end.year, end.month):
         yield RevenuePeriod(year, month)
         year, month = (year + 1, 1) if month == 12 else (year, month + 1)
+
+
+@dataclass(frozen=True, slots=True)
+class FilingDocumentResult:
+    """What happened to one archived document."""
+
+    period_label: str
+    security_code: str
+    import_id: UUID
+    status: str
+    facts: int = 0
+    created: int = 0
+    deduplicated: int = 0
+    reason_code: str | None = None
+    detail: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class FinancialFilingBackfillReport:
+    source: str
+    start: FilingPeriod
+    end: FilingPeriod
+    periods: tuple[FilingPeriod, ...]
+    results: tuple[FilingDocumentResult, ...]
+
+    @property
+    def documents(self) -> int:
+        return len(self.results)
+
+    @property
+    def imported(self) -> int:
+        return sum(1 for item in self.results if item.status == "imported")
+
+    @property
+    def resumed(self) -> int:
+        return sum(1 for item in self.results if item.status == "resumed")
+
+    @property
+    def quarantined(self) -> int:
+        return sum(1 for item in self.results if item.status == "quarantined")
+
+    @property
+    def failed(self) -> int:
+        return sum(1 for item in self.results if item.status == "failed")
+
+    @property
+    def facts(self) -> int:
+        return sum(item.facts for item in self.results)
+
+    @property
+    def created(self) -> int:
+        return sum(item.created for item in self.results)
+
+    @property
+    def deduplicated(self) -> int:
+        return sum(item.deduplicated for item in self.results)
+
+    @property
+    def is_complete(self) -> bool:
+        return self.failed == 0
+
+    def as_dict(self) -> dict[str, object]:
+        """The import manifest CLAUDE.md §78 requires, one line per exclusion.
+
+        Quarantined documents are listed individually rather than counted: the
+        excluded ones are financial-industry issuers and filers outside 上市/
+        上櫃, and which issuers those were is the answer to "why is this quarter
+        short of the archive's file count".
+        """
+
+        quarantined: dict[str, list[str]] = {}
+        for item in self.results:
+            if item.status == "quarantined":
+                quarantined.setdefault(item.reason_code or "unknown", []).append(
+                    f"{item.period_label}:{item.security_code}"
+                )
+        return {
+            "source": self.source,
+            "start": _period_label(self.start),
+            "end": _period_label(self.end),
+            "periods": [_period_label(period) for period in self.periods],
+            "documents": self.documents,
+            "imported": self.imported,
+            "resumed": self.resumed,
+            "quarantined": self.quarantined,
+            "failed": self.failed,
+            "facts": self.facts,
+            "business_versions_created": self.created,
+            "business_versions_deduplicated": self.deduplicated,
+            "is_complete": self.is_complete,
+            "quarantined_documents": {
+                reason: sorted(codes) for reason, codes in sorted(quarantined.items())
+            },
+            "failures": [
+                {
+                    "period": item.period_label,
+                    "security_code": item.security_code,
+                    "import_id": str(item.import_id),
+                    "reason_code": item.reason_code,
+                    "detail": item.detail,
+                }
+                for item in self.results
+                if item.status == "failed"
+            ],
+        }
+
+
+def filing_import_id(base: UUID, source: str, period_label: str, code: str) -> UUID:
+    """The per-document equivalent of `date_import_id`.
+
+    A quarter is about 1,800 documents and the whole archive about 45,000, so
+    the unit that has to resume is the document: a run killed at 30,000 must
+    come back and skip the 30,000, not repeat them.
+    """
+    return uuid5(base, f"{source}:{period_label}:{code}")
+
+
+class FinancialFilingArchiveBackfill:
+    """Import every archived filing in a range of quarters, document by document.
+
+    No calendar and no coverage declaration is consulted. What exists is what
+    the archive holds: the universe of filers changes every quarter as issuers
+    list and delist, and the archive's own folder is the only record of which
+    filed when. A missing quarter folder is an error rather than an empty
+    quarter, because the two look identical afterwards and one of them means
+    the archive root is wrong.
+    """
+
+    def __init__(
+        self,
+        importer: FinancialFilingArchiveImporter,
+        *,
+        archive_root: Path,
+    ) -> None:
+        self._importer = importer
+        self._root = Path(archive_root)
+
+    def run(
+        self,
+        *,
+        start: FilingPeriod,
+        end: FilingPeriod,
+        base_import_id: UUID | None = None,
+        purpose: IngestPurpose = IngestPurpose.UNSPECIFIED,
+        git_commit: str | None = None,
+        on_result: Callable[[FilingDocumentResult], None] | None = None,
+    ) -> FinancialFilingBackfillReport:
+        if (start.report_year, start.report_quarter) > (
+            end.report_year,
+            end.report_quarter,
+        ):
+            raise ValueError("start must not be after end")
+        adapter = LegacyFinancialFilingArchiveAdapter(archive_root=self._root)
+        # Derived from the range, so rerunning the same command resumes it
+        # rather than starting a second 45,000-document run (see
+        # `default_base_import_id`). The quarter's first day stands for the
+        # quarter.
+        base = base_import_id or default_base_import_id(
+            adapter.source,
+            date(start.report_year, start.report_quarter * 3 - 2, 1),
+            date(end.report_year, end.report_quarter * 3 - 2, 1),
+        )
+        periods = tuple(_quarters_between(start, end))
+        results: list[FilingDocumentResult] = []
+        for period in periods:
+            for code in self._codes_in(period):
+                result = self._one_document(
+                    adapter=adapter,
+                    period=period,
+                    code=code,
+                    base_import_id=base,
+                    purpose=purpose,
+                    git_commit=git_commit,
+                )
+                results.append(result)
+                if on_result is not None:
+                    # A 45,000-document walk that only reports at the end
+                    # reports nothing at all when it is killed at 30,000.
+                    on_result(result)
+        return FinancialFilingBackfillReport(
+            source=adapter.source,
+            start=start,
+            end=end,
+            periods=periods,
+            results=tuple(results),
+        )
+
+    def _codes_in(self, period: FilingPeriod) -> list[str]:
+        folder = self._root / str(period.report_year) / _period_label(period)
+        if not folder.is_dir():
+            raise FileNotFoundError(
+                f"no archived quarter at {folder}: {_period_label(period)} is either "
+                "outside "
+                "the archive or the archive root is wrong, and an empty "
+                "quarter would look the same afterwards"
+            )
+        codes = set()
+        for path in folder.glob(f"{_period_label(period)}_*.html"):
+            parts = path.stem.split("_")
+            if len(parts) != 3:
+                raise ValueError(
+                    f"unexpected archive file name {path.name}; the archive "
+                    "names files <period>_<symbol>_<date>.html"
+                )
+            codes.add(parts[1])
+        return sorted(codes)
+
+    def _one_document(
+        self,
+        *,
+        adapter: LegacyFinancialFilingArchiveAdapter,
+        period: FilingPeriod,
+        code: str,
+        base_import_id: UUID,
+        purpose: IngestPurpose,
+        git_commit: str | None,
+    ) -> FilingDocumentResult:
+        import_id = filing_import_id(
+            base_import_id, adapter.source, _period_label(period), code
+        )
+        try:
+            result = self._importer.run(
+                adapter=adapter,
+                request=FinancialFilingArchiveRequest(
+                    code, period.report_year, period.report_quarter
+                ),
+                import_id=import_id,
+                purpose=purpose,
+                git_commit=git_commit,
+                artifact_origin=ArtifactOrigin.LEGACY_ARCHIVE,
+            )
+        except ResourceQuarantinedError as error:
+            # A financial-industry issuer or a filer outside 上市/上櫃 is the
+            # boundary doing its job, not a failure: the document is excluded
+            # from v1 by scope. It is still counted and named, because a
+            # quarter short of its file count has to be explainable.
+            return FilingDocumentResult(
+                period_label=_period_label(period),
+                security_code=code,
+                import_id=import_id,
+                status="quarantined",
+                reason_code=_reason_code(error),
+                detail=str(error),
+            )
+        except Exception as error:  # noqa: BLE001 - reported, not swallowed
+            return FilingDocumentResult(
+                period_label=_period_label(period),
+                security_code=code,
+                import_id=import_id,
+                status="failed",
+                reason_code="operational_error",
+                detail=f"{type(error).__name__}: {error}",
+            )
+        return FilingDocumentResult(
+            period_label=_period_label(period),
+            security_code=code,
+            import_id=import_id,
+            status="resumed" if result.resumed_from_checkpoint else "imported",
+            facts=result.normalized_rows,
+            created=result.business_versions_created,
+            deduplicated=result.business_versions_deduplicated,
+        )
+
+
+def _period_label(period: FilingPeriod) -> str:
+    """`2026Q1` — the archive's folder name, file prefix and manifest label."""
+    return f"{period.report_year}Q{period.report_quarter}"
+
+
+def _quarters_between(start: FilingPeriod, end: FilingPeriod):
+    year, quarter = start.report_year, start.report_quarter
+    while (year, quarter) <= (end.report_year, end.report_quarter):
+        yield FilingPeriod(year, quarter)
+        year, quarter = (year + 1, 1) if quarter == 4 else (year, quarter + 1)
