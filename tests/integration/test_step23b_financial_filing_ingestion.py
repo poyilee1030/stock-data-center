@@ -55,6 +55,7 @@ def fixture(name: str) -> bytes:
 
 CEMENT_Q1 = fixture("1101_2025Q1_statements")
 CEMENT_Q3 = fixture("1101_2025Q3_statements")
+SAME_EPS = fixture("6160_2024Q2_statements")
 BROKER = fixture("5864_2020Q1_statements")
 EMERGING = fixture("6785_2020Q2_statements")
 CEMENT_FACTS = 20
@@ -225,6 +226,113 @@ def test_the_eps_contract_holds(isolated_database_url: str, tmp_path: Path) -> N
         assert q3_ytd.value == Decimal("-1.28")
         assert q3_annual is None
         assert q1.unit_identity == "iso4217:TWD/xbrli:shares"
+    finally:
+        engine.dispose()
+
+
+def test_a_quarter_eps_equal_to_the_year_to_date_one_is_still_two_facts(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """6160 2024Q2 prints -0.41 for the single quarter and -0.41 again for the
+    year to date. The two facts differ only by context, so a summary that
+    looked its source fact back up by value would tie both bases to one fact
+    and the seal would refuse the filing. Nine documents in a 2,500-document
+    sample of the archive do this."""
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        result, manifest = run(
+            engine, tmp_path, content=SAME_EPS, code="6160", year=2024, quarter=2
+        )
+        assert manifest.status == "succeeded"
+        assert result.business_versions_created == 1
+        service = FinancialFilingService()
+        with engine.connect() as connection:
+            quarter = service.actual_eps(
+                connection,
+                security_code="6160",
+                period=FilingPeriod(2024, 2),
+                period_basis=EPSPeriodBasis.QUARTER,
+                context=system(),
+                source=SOURCE,
+            )
+            ytd = service.actual_eps(
+                connection,
+                security_code="6160",
+                period=FilingPeriod(2024, 2),
+                period_basis=EPSPeriodBasis.YTD,
+                context=system(),
+                source=SOURCE,
+            )
+        assert quarter.value == Decimal("-0.41")
+        assert ytd.value == Decimal("-0.41")
+        # Same number, different rows: each basis points at its own context.
+        assert quarter.source_fact.fact_id != ytd.source_fact.fact_id
+        assert quarter.source_fact.context.period_start != (
+            ytd.source_fact.context.period_start
+        )
+    finally:
+        engine.dispose()
+
+
+def test_the_archive_importer_never_records_an_official_fetch(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """The bytes come off disk, so the origin is `legacy_archive` whether or
+    not the caller says so (CLAUDE.md §75)."""
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        folder = tmp_path / "archive" / "2025" / "2025Q1"
+        folder.mkdir(parents=True)
+        (folder / "2025Q1_1101_20250515.html").write_bytes(CEMENT_Q1)
+        importer = FinancialFilingArchiveImporter(
+            engine, raw_store=LocalRawArtifactStore(tmp_path / "raw")
+        )
+        importer.run(
+            adapter=LegacyFinancialFilingArchiveAdapter(
+                archive_root=tmp_path / "archive"
+            ),
+            request=FinancialFilingArchiveRequest("1101", 2025, 1),
+            import_id=uuid4(),
+            purpose=IngestPurpose.GAP_FILL,
+        )
+        with engine.connect() as connection:
+            origins = connection.scalars(
+                sa.text("SELECT DISTINCT artifact_origin FROM raw_artifact_observations")
+            ).all()
+        assert origins == ["legacy_archive"]
+    finally:
+        engine.dispose()
+
+
+def test_a_missing_archive_document_leaves_a_failed_manifest(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """Looking the file up is part of fetching it, so a miss is recorded.
+    Raising before the manifest exists would end a 45,000-filing loop with no
+    auditable trace at all (CLAUDE.md §78, §79)."""
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        importer = FinancialFilingArchiveImporter(
+            engine, raw_store=LocalRawArtifactStore(tmp_path / "raw")
+        )
+        import_id = uuid4()
+        with pytest.raises(Exception):
+            importer.run(
+                adapter=LegacyFinancialFilingArchiveAdapter(
+                    archive_root=tmp_path / "empty"
+                ),
+                request=FinancialFilingArchiveRequest("1101", 2025, 1),
+                import_id=import_id,
+                purpose=IngestPurpose.GAP_FILL,
+            )
+        with engine.connect() as connection:
+            status = connection.scalar(
+                sa.text(
+                    "SELECT status FROM import_manifests WHERE import_id = :import_id"
+                ),
+                {"import_id": import_id},
+            )
+        assert status == "failed"
     finally:
         engine.dispose()
 

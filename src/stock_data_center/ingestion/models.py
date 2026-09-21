@@ -29,7 +29,11 @@ from stock_data_center.market_reference.models import (
 )
 from stock_data_center.financials.classification import SourceContextClassification
 from stock_data_center.financials.ingestion import FinancialFactObservation
-from stock_data_center.financials.ixbrl import ReportCategory, StatementSection
+from stock_data_center.financials.ixbrl import (
+    ParsedFact,
+    ReportCategory,
+    StatementSection,
+)
 from stock_data_center.financials.models import SummaryPeriodBasis
 from stock_data_center.monthly_revenue.ingestion import MonthlyRevenueObservation
 from stock_data_center.monthly_revenue.models import RevenuePeriod
@@ -337,17 +341,28 @@ class StatementFact:
     statement: "StatementSection"
     account_code: str
     observation: FinancialFactObservation
+    #: The parsed fact this row came from, so a curated summary can name the
+    #: exact row rather than search for one by value.
+    source: "ParsedFact"
 
 
 @dataclass(frozen=True, slots=True)
 class FilingEPS:
-    """One curated `basic_eps`, with the source role that authorized its basis."""
+    """One curated `basic_eps`, with the source role that authorized its basis.
+
+    `fact_index` points into `ParsedFinancialFiling.facts`, so the summary is
+    tied to the exact row the value was read from. Looking the row back up by
+    its value instead would be ambiguous: a single-quarter EPS can equal the
+    year-to-date one (6160 2024Q2 prints -0.41 twice), and the two differ only
+    by context.
+    """
 
     period_basis: SummaryPeriodBasis
     value: Decimal
     unit_identity: str
     concept_qname: str
     context_ref: str
+    fact_index: int
     classification: SourceContextClassification
 
 

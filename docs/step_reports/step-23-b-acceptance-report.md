@@ -150,3 +150,45 @@ Fixture 是真實文件切出來的：head 到 `</ix:header>`、只保留被引�
 - 舊系統只存當期，本系統把文件印出來的去年同期比較欄一起存了。要做與舊系統
   完全同範圍的比對，在對帳時依 context 過濾即可（23-c）。
 - 本 step 沒有 `docs/stepNN.html` 教材頁，冷讀 N/A。
+
+## Code review 的處理（#40，2026-09-21）
+
+六項發現全部成立，全部修掉。HIGH 那一項在真實檔案庫上重現過，也在真實檔案庫上驗證修好。
+
+**HIGH — 單季 EPS 等於累計 EPS 時整份申報被拒。** 原本 importer 以
+`(filing, concept, unit, numeric_value, statement, period_end)` 反查已寫入的 EPS 事實，
+而單季與累計的 `period_end` 相同：值一樣時兩個 basis 會拿到同一筆
+`source_fact_id`，seal 的 summary 契約必然有一邊不成立，整份匯入以 23514 中止。
+6160 2024Q2 兩個 EPS 都是 -0.41（context 分別是 `From20240401To20240630` 與
+`From20240101To20240630`）；實際跑下去比 reviewer 說的更早就死在
+`classify_eps_period_basis`（「source classification does not match the XBRL context」）。
+修法是不要反查：`FilingEPS` 帶 `fact_index`，adapter 在讀出 EPS 時就記下它是
+`ParsedFinancialFiling.facts` 的第幾列，importer 直接用那一列寫回的 id。
+reviewer 列出的 10 份文件現在全部匯入成功，6160 2024Q2 的 quarter 與 ytd 指向不同事實
+（`period_start` 分別是 2024-04-01 與 2024-01-01）。新增 fixture
+`mops_t164sb01_6160_2024Q2_statements.html` 與回歸測試。
+
+**MEDIUM — 檔案庫 importer 沒有強制 `legacy_archive`。** 只換 fetcher 不夠：
+`RawFirstImporter.run` 預設 `OFFICIAL_FETCH`，漏傳 kwarg 的呼叫者會把檔案庫位元組
+記成官方抓取。改成 override `run()` 強制寫死，並加測試（不傳 kwarg 也必須是
+`legacy_archive`）。
+
+**MEDIUM — `resource()` 在 quarantine 區之外丟 SourceDataError。** 檔名帶著合成日期、
+要 glob 才知道，而 `resource()` 跑在 manifest 建立之前，例外會整個逃出
+`run()`，在 45,000 份的迴圈裡不留任何紀錄。改成 `resource()` 只回傳 pattern，
+解析交給新的 `ArchiveGlobFetcher`，它在受保護的 fetch 區塊裡丟——失敗會留下
+`failed` 的 manifest。`source_uri` 記的是實際讀到的檔案，manifest 記的是請求的
+pattern。加了「找不到檔案留下 failed manifest」的測試。
+
+**LOW — `_preview` 可能靜默回傳 `""`。** 改成 `cp950` 加 `errors="replace"`，
+512 byte 的切點落在雙位元組字元中間也不會漏掉 `檔案不存在!`。
+
+**LOW — statement span 止於第一個 `</table>`，索引取自轉小寫的副本。** 改成用
+`re.compile(r"<table\b|</table>", re.I)` 數巢狀深度走到自己那個結尾，順便不再對
+每份文件複製數 MB 字串。修完對**全部 45,324 份**文件重跑三張表的事實數，與修改前
+**逐份相同（0 份不一致）**，解析失敗仍然只有已知的 3 份 2855。
+
+**LOW — C→A fallback 比對格式化訊息字串。** 改讀
+`error.__cause__.reason_code`。
+
+修完全套測試 1,074 passed（新增 4 條）。

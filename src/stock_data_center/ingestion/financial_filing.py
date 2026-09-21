@@ -50,7 +50,7 @@ from stock_data_center.ingestion.adapters.financial_filing import (
 from stock_data_center.ingestion.adapters.financial_filing_archive import (
     LegacyFinancialFilingArchiveAdapter,
 )
-from stock_data_center.ingestion.http import LocalArchiveFetcher, SourceFetcher
+from stock_data_center.ingestion.http import ArchiveGlobFetcher, SourceFetcher
 from stock_data_center.ingestion.lifecycle import (
     BusinessWriteResult,
     RawFirstAdapter,
@@ -63,6 +63,7 @@ from stock_data_center.ingestion.models import (
 )
 from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
 from stock_data_center.market_data import MarketDataWriter
+from stock_data_center.provenance import ArtifactOrigin
 
 BASIC_EPS = "basic_eps"
 
@@ -165,15 +166,20 @@ class FinancialFilingImporter(RawFirstImporter[object, ParsedFinancialFiling]):
             # A draft left behind by an interrupted run is finished here; a
             # sealed one is this document already stored, and the repeated
             # fetch is recorded as another observation of it, not as facts.
-            for fact in parsed.facts:
+            fact_ids = [
                 self._writer.append_fact(
                     connection,
                     version_id=written.version_id,
                     observation=fact.observation,
                 )
-            facts_written = len(parsed.facts)
+                for fact in parsed.facts
+            ]
+            facts_written = len(fact_ids)
             self._append_eps(
-                connection, parsed=parsed, version_id=written.version_id
+                connection,
+                parsed=parsed,
+                version_id=written.version_id,
+                fact_ids=fact_ids,
             )
             self._writer.seal(connection, version_id=written.version_id)
 
@@ -254,31 +260,23 @@ class FinancialFilingImporter(RawFirstImporter[object, ParsedFinancialFiling]):
         *,
         parsed: ParsedFinancialFiling,
         version_id: int,
+        fact_ids: list[int],
     ) -> None:
         """Curate `basic_eps` from the fact the income statement printed.
 
         Step 5 requires a validated `SourceContextClassification` for every
         `basic_eps`, and refuses to read a basis out of a duration's length.
         The adapter produced one per current role under
-        `mops-xbrl-context-role:v1`; this looks the stored fact back up by the
-        identity it was written with.
+        `mops-xbrl-context-role:v1`, each naming the row it read, so the
+        summary points at the id that row was written with. Searching for the
+        row by its value instead would be ambiguous: a single-quarter EPS can
+        equal the year-to-date one (6160 2024Q2 prints -0.41 twice), the two
+        share concept, unit, statement and period end, and tying both bases to
+        one context makes the seal refuse the whole filing.
         """
 
-        from stock_data_center.db.metadata import financial_facts
-
         for entry in parsed.eps:
-            fact_id = connection.scalar(
-                sa.select(financial_facts.c.id).where(
-                    financial_facts.c.filing_version_id == version_id,
-                    financial_facts.c.concept_qname == entry.concept_qname,
-                    financial_facts.c.unit_identity == entry.unit_identity,
-                    financial_facts.c.numeric_value == entry.value,
-                    financial_facts.c.statement == "income_statement",
-                    financial_facts.c.period_end == parsed.period_end,
-                )
-            )
-            if fact_id is None:  # pragma: no cover - the fact was just written
-                raise ValueError("the EPS source fact was not stored")
+            fact_id = fact_ids[entry.fact_index]
             self._writer.append_summary(
                 connection,
                 version_id=version_id,
@@ -315,11 +313,22 @@ class FinancialFilingArchiveImporter(FinancialFilingImporter):
         super().__init__(
             engine,
             raw_store=raw_store,
-            fetcher=fetcher or LocalArchiveFetcher(media_type="text/html"),
+            fetcher=fetcher or ArchiveGlobFetcher(media_type="text/html"),
             security_writer=security_writer,
             writer=writer,
             policy=policy,
         )
+
+    def run(self, **kwargs: object) -> object:
+        """Record `legacy_archive`, whatever the caller passed.
+
+        The bytes came off disk. A caller that forgot the keyword would
+        otherwise file a legacy archive copy as an official fetch of
+        `mops_t164sb01` (CLAUDE.md §75).
+        """
+
+        kwargs["artifact_origin"] = ArtifactOrigin.LEGACY_ARCHIVE
+        return super().run(**kwargs)  # type: ignore[arg-type]
 
 
 def filing_versions_for(

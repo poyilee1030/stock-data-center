@@ -31,6 +31,7 @@ from stock_data_center.ingestion.adapters.financial_filing import (
 from stock_data_center.ingestion.adapters.financial_filing_archive import (
     LegacyFinancialFilingArchiveAdapter,
 )
+from stock_data_center.ingestion.http import ArchiveGlobFetcher
 from stock_data_center.ingestion.models import (
     FinancialFilingArchiveRequest,
     FinancialFilingRequest,
@@ -212,9 +213,14 @@ def test_the_archive_locates_one_document_per_filing(tmp_path: Path) -> None:
     (folder / "2025Q1_1101_20250515.html").write_bytes(CEMENT_Q1)
     adapter = LegacyFinancialFilingArchiveAdapter(archive_root=tmp_path)
     resource = adapter.resource(FinancialFilingArchiveRequest("1101", 2025, 1))
-    assert resource.source_uri == str(folder / "2025Q1_1101_20250515.html")
+    # The name carries a date the request does not know, so the resource is a
+    # pattern and the fetch resolves it.
+    assert resource.source_uri == str(folder / "2025Q1_1101_*.html")
     assert resource.resource_key == (
         "mops_t164sb01:financial_filing_archive:1101:2025Q1"
+    )
+    assert ArchiveGlobFetcher().fetch(resource).source_uri == str(
+        folder / "2025Q1_1101_20250515.html"
     )
 
 
@@ -224,6 +230,15 @@ def test_two_archive_copies_of_one_filing_fail_closed(tmp_path: Path) -> None:
     (folder / "2025Q1_1101_20250515.html").write_bytes(CEMENT_Q1)
     (folder / "2025Q1_1101_20250516.html").write_bytes(CEMENT_Q1)
     adapter = LegacyFinancialFilingArchiveAdapter(archive_root=tmp_path)
+    resource = adapter.resource(FinancialFilingArchiveRequest("1101", 2025, 1))
     with pytest.raises(SourceDataError) as error:
-        adapter.resource(FinancialFilingArchiveRequest("1101", 2025, 1))
+        ArchiveGlobFetcher().fetch(resource)
     assert error.value.reason_code == "ambiguous_archive_file"
+
+
+def test_a_missing_archive_document_fails_closed(tmp_path: Path) -> None:
+    adapter = LegacyFinancialFilingArchiveAdapter(archive_root=tmp_path)
+    resource = adapter.resource(FinancialFilingArchiveRequest("1101", 2025, 1))
+    with pytest.raises(SourceDataError) as error:
+        ArchiveGlobFetcher().fetch(resource)
+    assert error.value.reason_code == "archive_file_missing"

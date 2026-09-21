@@ -205,7 +205,7 @@ class MOPSFinancialFilingAdapter:
             ),
             revision_fingerprint=fingerprint,
             facts=facts,
-            eps=self._eps(report),
+            eps=self._eps(report, facts),
             market_code=header.market_code or "",
             source_fact_count=len(report.facts),
             note_block_count=report.note_block_count,
@@ -255,13 +255,17 @@ class MOPSFinancialFilingAdapter:
                     statement=fact.statement,
                     account_code=fact.account_code,
                     observation=observation,
+                    source=fact,
                 )
             )
         return tuple(facts)
 
-    def _eps(self, report: ParsedIXBRLReport) -> tuple[FilingEPS, ...]:
+    def _eps(
+        self, report: ParsedIXBRLReport, facts: tuple[StatementFact, ...]
+    ) -> tuple[FilingEPS, ...]:
         entries: dict[SummaryPeriodBasis, FilingEPS] = {}
-        for fact in report.facts:
+        for index, statement_fact in enumerate(facts):
+            fact = statement_fact.source
             if fact.statement is not StatementSection.INCOME_STATEMENT:
                 continue
             if not fact.concept_qname.endswith("}" + BASIC_EPS):
@@ -287,21 +291,23 @@ class MOPSFinancialFilingAdapter:
                 unit_identity=fact.unit_identity,
                 concept_qname=fact.concept_qname,
                 context_ref=fact.context_ref,
+                fact_index=index,
                 classification=classification,
             )
         return tuple(entries[basis] for basis in SummaryPeriodBasis if basis in entries)
 
 
 def _preview(content: bytes) -> str:
-    """The first bytes of the response, in whichever encoding MOPS used."""
+    """The first bytes of the response, in whichever encoding MOPS used.
+
+    Decoded with `errors="replace"`: the 512-byte cut can land inside a
+    double-byte character, and a preview that gave up there would miss
+    `檔案不存在!` and report a filer who files individually as an unreadable
+    document instead of letting the C→A fallback find their report.
+    """
 
     head = content[:512]
-    for encoding in ("cp950", "utf-8"):
-        try:
-            return head.decode(encoding)
-        except UnicodeDecodeError:
-            continue
-    return ""
+    return head.decode("cp950", errors="replace")
 
 
 def _fingerprint(facts: tuple[StatementFact, ...]) -> str:

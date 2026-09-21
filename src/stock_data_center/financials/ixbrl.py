@@ -158,7 +158,7 @@ _DIVIDE = re.compile(
     re.I | re.S,
 )
 _ROW = re.compile(r"<tr\b.*?</tr>", re.I | re.S)
-_TABLE_OPEN = re.compile(r"<table\b[^>]*>", re.I)
+_TABLE_BOUNDARY = re.compile(r"<table\b|</table>", re.I)
 _NONFRACTION = re.compile(r"<ix:nonFraction\b([^>]*)>(.*?)</ix:nonFraction>", re.I | re.S)
 _NOTE_BLOCK = re.compile(r"<ix:nonNumeric\b[^>]*\bescape\s*=\s*\"true\"", re.I)
 _ATTR = re.compile(r"([:\w-]+)\s*=\s*\"([^\"]*)\"")
@@ -487,12 +487,24 @@ def _statement_spans(text: str) -> dict[StatementSection, tuple[int, int]]:
             raise IXBRLParseError(
                 f"document marks the {section.value} anchor {len(found)} times"
             )
-        opened = _TABLE_OPEN.search(text, found[0])
-        closed = text.lower().find("</table>", opened.end()) if opened else -1
-        if opened is None or closed < 0:
+        opened = _TABLE_BOUNDARY.search(text, found[0])
+        if opened is None or opened.group(0).startswith("</"):
             raise IXBRLParseError(
                 f"the {section.value} anchor is followed by no table"
             )
+        # Walk to this table's own close, so a nested table does not end the
+        # statement early and drop the rows after it.
+        depth, closed = 1, None
+        position = opened.end()
+        while depth:
+            boundary = _TABLE_BOUNDARY.search(text, position)
+            if boundary is None:
+                raise IXBRLParseError(
+                    f"the {section.value} table is never closed"
+                )
+            depth += -1 if boundary.group(0).startswith("</") else 1
+            position = boundary.end()
+            closed = boundary.start()
         spans[section] = (opened.end(), closed)
     return spans
 

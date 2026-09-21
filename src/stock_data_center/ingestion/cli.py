@@ -868,10 +868,11 @@ def main(argv: list[str] | None = None) -> int:
                         break
                     except ResourceQuarantinedError as error:
                         # `檔案不存在!` is MOPS saying this filer files the
-                        # other report, not a failure. Anything else is.
-                        if "no_such_report" not in str(error) or index + 1 == len(
-                            attempts
-                        ):
+                        # other report, not a failure. Anything else is. The
+                        # reason comes off the SourceDataError the lifecycle
+                        # chained, not out of the formatted message.
+                        reason = getattr(error.__cause__, "reason_code", None)
+                        if reason != "no_such_report" or index + 1 == len(attempts):
                             raise
                 assert result is not None
             else:

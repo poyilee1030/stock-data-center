@@ -30,7 +30,6 @@ from stock_data_center.ingestion.adapters.financial_filing import (
 from stock_data_center.ingestion.models import (
     FinancialFilingArchiveRequest,
     ParsedFinancialFiling,
-    SourceDataError,
     SourceResource,
 )
 
@@ -50,29 +49,24 @@ class LegacyFinancialFilingArchiveAdapter(MOPSFinancialFilingAdapter):
         self._root = Path(archive_root) if archive_root else DEFAULT_ARCHIVE_ROOT
 
     def resource(self, request: FinancialFilingArchiveRequest) -> SourceResource:
+        """Where the document is, as a pattern.
+
+        The file name ends in the synthetic deadline the legacy scraper wrote,
+        which is not derivable from the request, so the name has to be looked
+        up. That lookup belongs to the fetch — `ArchiveGlobFetcher` does it —
+        and not here: `resource()` runs before the import manifest exists, so
+        a miss raised from here would leave no record at all.
+        """
+
         folder = self._root / str(request.report_year) / request.period_label
-        matches = sorted(folder.glob(f"{request.period_label}_{request.security_code}_*.html"))
-        if not matches:
-            raise SourceDataError(
-                "archive_file_missing",
-                f"{self.source}: no archived document under {folder} for "
-                f"{request.security_code} {request.period_label}",
-            )
-        if len(matches) > 1:
-            # One filing, one document. Two would mean the archive holds two
-            # answers to the same request and nothing says which is current.
-            raise SourceDataError(
-                "ambiguous_archive_file",
-                f"{self.source}: {len(matches)} archived documents for "
-                f"{request.security_code} {request.period_label}: "
-                f"{[path.name for path in matches]}",
-            )
         return SourceResource(
             resource_key=(
                 f"{self.source}:financial_filing_archive:{request.security_code}:"
                 f"{request.period_label}"
             ),
-            source_uri=str(matches[0]),
+            source_uri=str(
+                folder / f"{request.period_label}_{request.security_code}_*.html"
+            ),
         )
 
     def parse(

@@ -53,6 +53,42 @@ class LocalArchiveFetcher:
         )
 
 
+class ArchiveGlobFetcher(LocalArchiveFetcher):
+    """Resolve one archive file from a pattern, as part of fetching it.
+
+    An archive file's folder is known but its name carries a date we do not,
+    so it has to be looked up. Doing that in an adapter's `resource()` would
+    put the lookup before the import manifest exists, outside every block that
+    records a quarantine or an operational failure: a missing file would then
+    end a 45,000-filing loop with no auditable trace at all (CLAUDE.md §78,
+    §79). Here it is a fetch failure, which the lifecycle records.
+
+    `resource.source_uri` is the pattern; the artifact observation records the
+    file that actually answered it.
+    """
+
+    def fetch(self, resource: SourceResource) -> FetchedArtifact:
+        pattern = Path(resource.source_uri)
+        matches = sorted(pattern.parent.glob(pattern.name))
+        if not matches:
+            raise SourceDataError(
+                "archive_file_missing", f"no archived file matches {pattern}"
+            )
+        if len(matches) > 1:
+            # One filing, one document. Two would mean the archive holds two
+            # answers to the same request and nothing says which is current.
+            raise SourceDataError(
+                "ambiguous_archive_file",
+                f"{len(matches)} archived files match {pattern}: "
+                f"{[path.name for path in matches]}",
+            )
+        return super().fetch(
+            SourceResource(
+                resource_key=resource.resource_key, source_uri=str(matches[0])
+            )
+        )
+
+
 # MOPS blocked the legacy scraper on 2026-07-02. Its answer, kept since, is a
 # 3-second pause between requests (my_stock_project
 # scraper/quarterly/fetch_xbrl.py, `FETCH_INTERVAL_SECONDS`). Steps 20-d, 22,
