@@ -968,6 +968,65 @@ The adapter reports that page as `no_such_report` rather than as a parse
 failure.
 
 
+#### Step 23-c findings (2026-09-21)
+
+**The archive was written by two kinds of run, and only the file's mtime tells
+them apart.** Measured over all 45,324 files:
+
+| mtime | Files | What it wrote |
+| --- | ---: | --- |
+| 2026-02-21, 02-22, 02-23, 02-24, 02-26 | 36,026 | 2020Q1–2025Q3 wholesale |
+| 2026-03-04 … 2026-04-01 | 1,653 | 2025Q4, day by day |
+| 2026-04-14 … 2026-05-16 | 1,647 | 2026Q1, day by day |
+| 2026-07-29 … 2026-08-15 | 1,643 | 2026Q2, day by day |
+| 2026-08-01 | 24 | 2026Q1 (20) and 2026Q2 (4), 22:28–23:59 |
+| 2026-08-16 | 293 | 2020Q1 (135), 2020Q2 (156) and 2026Q2 (2) |
+| 2026-08-17 | 4,038 | every quarter from 2020Q1 to 2026Q2 |
+
+A run that wrote files for quarters closed months earlier is a bulk run, not a
+daily one: 2026-08-16 wrote 2020Q1 and 2020Q2 beside two 2026Q2 files, and
+2026-08-17 wrote every quarter there is. The daily-job runs each stay inside
+one filing window.
+
+So a file proves a first sighting only when its quarter is 2025Q4 or later
+**and** its mtime is not one of those eight bulk dates: 4,943 files (2025Q4
+1,653, 2026Q1 1,647, 2026Q2 1,643). The other 40,381 prove nothing about
+publication and resolve by `financial_statements_general@1`.
+
+The instant claimed is the file's own mtime, not the end of its day. The
+monthly-revenue archive records dates only, so Step 22-c had to round out to
+23:59:59; an iXBRL file carries the second it was written, which is a tighter
+bound and just as certainly not before the sighting.
+
+**The sample gate.** `scripts/sample_official_vs_archive.py` draws a seeded
+stratified sample — 10 documents from each of the 26 quarters — and compares
+each archived copy with what `t164sb01` serves today, decoded as cp950. SAMPLE_GATE_RESULT
+
+**Legacy parity is a filter, not a parse.** The reconciliation lines legacy's
+row identity up with ours as follows, and the mapping is not symmetric:
+
+| legacy `period_type` | statement | our context |
+| --- | --- | --- |
+| `as_of` | balance sheet | `instant_date` = quarter end |
+| `accumulated` | income statement, cash flows | `period_start` = 1 January |
+| `quarter` | income statement only | `period_start` = quarter start |
+
+Two things follow, both found by running the comparison rather than by reading
+the schema. In Q1 the single quarter *is* the year to date, and legacy filed
+the one duration under both labels, so one of our facts answers to both keys —
+matching only `accumulated` reports 57,000 of legacy's rows as missing.
+`cash_flow_xbrl` has exactly one `period_type`, `accumulated`, so a `quarter`
+key for it invents 84,000 rows legacy never had.
+
+**Units are per unit, not per table.** Legacy stored the printed number and
+left the 仟元 multiplier to its consumers: our `iso4217:TWD` value is legacy's
+× 1,000 (the statements print 仟元 with `scale="3"`), while `xbrli:shares` and
+the EPS unit `iso4217:TWD/xbrli:shares` are stored as printed. Compared that
+way, 2025Q1 matches 301,033 of 301,033 comparable facts with zero value
+differences. Step 23-b's 413-row fixture survives as a named class:
+4,221 of those matching facts are share counts whose legacy *consumers* scale
+by 1,000 anyway, which is a downstream difference and not a stored one.
+
 ### 4.9 TDCC shareholding distribution
 
 - OpenData `getOD.ashx?id=1-5`: 資料日期, 證券代號, 持股分級, 人數, 股數,
@@ -1789,3 +1848,42 @@ its copy differs from the page with no issuer rewrite (§4.7); a 2026M02-onward
 row differing only that way dedups onto the official version and carries the
 capture bound, rather than forking a version whose Market-PIT answer would be
 the mangled text. 15 rows across the window.
+
+### 7.6 What the iXBRL archive proves (Step 23-c)
+
+`t164sb01` publishes no filing instant: the document carries the period it
+covers and nothing about when it was filed, and the endpoint serves whichever
+version is current. So all the publication evidence financial statements have
+comes from the archive file's mtime, and §4.8 records which files carry one.
+
+| Claim | Documents |
+| --- | ---: |
+| `legacy_capture_bound`, at the file's own mtime (2025Q4 onward, daily-job files) | 4,943 |
+| `release_rule`, `financial_statements_general@1` | 40,381 |
+
+Both figures count archive files, before the v1 boundary rejects
+financial-industry issuers and filers outside 上市/上櫃; the stored counts are
+in the Step 23-c report.
+
+The two are exclusive rather than both written. A capture already outranks the
+rule (rank 70 against 40), and where the capture is *later* than the statutory
+deadline the filing was filed late and the rule is falsified for it (CLAUDE.md
+§32) — writing both would leave that falsified instant in the table, ready to
+become the answer if the capture were ever superseded.
+
+**The look-ahead this leaves, stated plainly.** Before 2025Q4 nothing proves
+whether a filer was on time, so a genuinely late filing resolves at the
+deadline, earlier than it was really public. That is the price of ROADMAP §23's
+archive route; the alternative was `unknown` for 2020Q1–2025Q3, which makes six
+years of financial statements invisible under Market PIT. It is bounded: the
+deadline is the statute's, never earlier, and every filing that was on time —
+which the 2025Q4-onward captures show is the overwhelming majority — resolves
+no earlier than it should.
+
+`financial_statements_general@1` was registered in migration `3c8e5f1b7a46`
+with its authority (證券交易法 §36) and is **not** declared on
+`dataset_sources` for `mops_t164sb01`. Declaring it there would hand the
+statutory instant to every version the official importer writes, including
+filings nothing has ever proved were on time — the same look-ahead §7.5
+describes for the KY issuers. The archive importer names the rule itself, for
+the documents whose file proves no sighting.
