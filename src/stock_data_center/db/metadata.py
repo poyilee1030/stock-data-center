@@ -640,6 +640,9 @@ financial_filing_versions = sa.Table(
     sa.Column("period_start", sa.Date(), nullable=False),
     sa.Column("period_end", sa.Date(), nullable=False),
     sa.Column("currency", sa.String(3), nullable=False),
+    # 合併 or 個體. MOPS asks for one of them by `REPORT_ID` and answers
+    # `檔案不存在!` for the other, so a filer files one per quarter, never both.
+    sa.Column("report_category", sa.String(16)),
     sa.Column("business_content_hash", sa.CHAR(64)),
     sa.Column("raw_artifact_id", uuid_type, nullable=False),
     sa.Column("ingest_run_id", uuid_type, nullable=False),
@@ -649,6 +652,10 @@ financial_filing_versions = sa.Table(
     sa.CheckConstraint("report_quarter BETWEEN 1 AND 4", name="quarter_range"),
     sa.CheckConstraint("period_end >= period_start", name="period_range"),
     sa.CheckConstraint("currency ~ '^[A-Z]{3}$'", name="currency_format"),
+    sa.CheckConstraint(
+        "report_category IS NULL OR report_category IN ('consolidated', 'individual')",
+        name="report_category_value",
+    ),
 )
 
 financial_filing_version_observations = sa.Table(
@@ -689,6 +696,14 @@ financial_facts = sa.Table(
     sa.Column("text_value", sa.Text()),
     sa.Column("is_nil", sa.Boolean(), nullable=False, server_default=sa.false()),
     sa.Column("decimals", sa.String(32)),
+    # Which statement printed this row, and the 會計科目代碼 it printed in the
+    # first cell. One number can be a row of two statements — the balance
+    # sheet's 1100 and the cash-flow statement's E00210 are the same
+    # `ifrs-full:CashAndCashEquivalents` at the same instant in the same unit,
+    # four such pairs in every one of the archive's 42,750 in-scope documents —
+    # so the statement is part of what tells two rows apart.
+    sa.Column("statement", sa.String(24)),
+    sa.Column("account_code", sa.String(16)),
     sa.ForeignKeyConstraint(
         ["filing_version_id"], ["financial_filing_versions.id"], ondelete="RESTRICT"
     ),
@@ -697,7 +712,9 @@ financial_facts = sa.Table(
         "concept_qname",
         "context_hash",
         "unit_identity",
+        "statement",
         name="uq_financial_fact_identity",
+        postgresql_nulls_not_distinct=True,
     ),
     sa.UniqueConstraint(
         "id", "filing_version_id", name="uq_financial_fact_filing_identity"
@@ -718,6 +735,11 @@ financial_facts = sa.Table(
     ),
     sa.CheckConstraint(
         "concept_qname ~ '^\\{[^{}]+\\}[^{}]+$'", name="canonical_qname"
+    ),
+    sa.CheckConstraint(
+        "statement IS NULL OR statement IN "
+        "('balance_sheet', 'income_statement', 'cash_flow')",
+        name="statement_value",
     ),
 )
 

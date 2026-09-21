@@ -45,8 +45,12 @@ class FinancialFilingObservation:
     period_start: date
     period_end: date
     currency: str
+    #: 合併 or 個體, as the document's own `ReportCategory` states it.
+    report_category: str | None = None
 
     def __post_init__(self) -> None:
+        if self.report_category not in (None, "consolidated", "individual"):
+            raise ValueError("report_category must be consolidated or individual")
         if not self.filing_key:
             raise ValueError("filing_key must not be empty")
         if not 1900 <= self.report_year <= 9999:
@@ -70,8 +74,17 @@ class FinancialFactObservation:
     text_value: str | None = None
     is_nil: bool = False
     decimals: str | None = None
+    #: The statement whose table printed the row, and the 會計科目代碼 in its
+    #: first cell. The statement is part of fact identity, because one number
+    #: can be a row of two statements; the code is business content beside it.
+    statement: str | None = None
+    account_code: str | None = None
 
     def __post_init__(self) -> None:
+        if self.statement not in (
+            None, "balance_sheet", "income_statement", "cash_flow"
+        ):
+            raise ValueError("statement must be one of the three MOPS statements")
         qname = self.concept_qname
         if not qname.startswith("{") or "}" not in qname[1:]:
             raise ValueError("concept_qname must use canonical {namespace}local form")
@@ -232,6 +245,8 @@ class FinancialFilingWriter:
                 text_value=observation.text_value,
                 is_nil=observation.is_nil,
                 decimals=observation.decimals,
+                statement=observation.statement,
+                account_code=observation.account_code,
             )
             .returning(financial_facts.c.id)
         ).scalar_one()

@@ -611,8 +611,8 @@ explicit out-of-scope work
 | 22-a | MERGED | 月營收：比較值 schema 與 MOPS adapter |
 | 22-b | MERGED | 月營收：歷史 backfill 與舊系統對帳 |
 | 22-c | MERGED | 月營收：發布證據 |
-| 23-a | THIS STEP | 財務報表：iXBRL parser 與文件契約 |
-| 23-b | PLANNED | 財務報表：官方 adapter、檔案庫 adapter 與匯入路徑 |
+| 23-a | MERGED | 財務報表：iXBRL parser 與文件契約 |
+| 23-b | THIS STEP | 財務報表：官方 adapter、檔案庫 adapter 與匯入路徑 |
 | 23-c | PLANNED | 財務報表：全量 backfill、抽樣關卡與對帳 |
 | 24 | PLANNED | TDCC 股權分散 |
 | 25 | PLANNED | 還原價格 |
@@ -1550,7 +1550,7 @@ owner 於 2026-09-20 刪除兩條原驗收：「`revswarm` 已公告營收的交
 
 ### Step 23-a — iXBRL parser 與文件契約
 
-狀態：**IN REVIEW** (#39)。依賴：Step 5 契約。
+狀態：**MERGED** (#39)。依賴：Step 5 契約。
 
 範圍內：`financials/ixbrl.py` 的純解析層，輸入是一份 `t164sb01` 回應的原始 bytes，輸出
 是已正規化的 header、`XBRLContext`、unit identity、`ix:nonFraction` 事實，以及
@@ -1606,11 +1606,50 @@ context 才是當期。Q1 起始於 1/1 的那一個是 `current_single_quarter`
 
 ### Step 23-b — 官方 adapter、檔案庫 adapter 與匯入路徑
 
-狀態：**PLANNED**。依賴：Step 23-a、Step 11。
+狀態：**THIS STEP**。依賴：Step 23-a、Step 11。
 
 範圍內：`mops_t164sb01` 官方 adapter（`REPORT_ID` C→A fallback、3 秒間隔、raw-first）、
 `legacy_archive` 檔案庫 adapter、importer、CLI，以及來源宣告 migration。此時證據是
 `unknown`。金融業與非 sii／otc 文件在邊界擋掉並計數。
+
+**存哪些事實：與舊資料庫相同的範圍**（owner 決策，2026-09-21）。舊系統
+`stock_db` 存的是資產負債表、綜合損益表、現金流量表三張表——
+`balance_sheet_xbrl`、`income_statement_xbrl`、`cash_flow_xbrl`——本 step 存的就是
+這三張。權益變動表、財務報表附註、附表與 `escape="true"` 敘述區塊計數但不存；
+要不要存留到 ROADMAP 最後再決定。
+
+這三張表由文件自己的錨點界定：`<div id="BalanceSheet">`、
+`<div id="StatementOfComprehensiveIncome">`、`<div id="StatementsOfCashFlows">`，
+各後接**恰好一張** `<table>`。45,324 份文件每一份都印出這三個錨點各一次，而這三張
+表裡的每一筆 `ix:nonFraction` 都帶會計科目代碼：v1 宇宙內 42,750 份文件共
+16,180,359 筆，**0 筆沒有代碼**（2026-09-21 全量實測）。
+
+**為什麼 fact identity 要加上 statement。** Step 5 的身分是
+filing + QName + context + unit，真實文件裝不下：`ifrs-full:CashAndCashEquivalents`
+同時是資產負債表的 `1100` 和現金流量表的 `E00210`——同一個時點、同一個單位、
+同一個數字，印成兩張報表的兩列。全檔案庫 171,000 組，每份文件正好四組。
+`financial_facts` 因此存 `statement` 並把它納入身分；加上它之後，那 16,180,359 筆
+**沒有任何一組重複身分**。唯一索引用 `NULLS NOT DISTINCT`，所以 Phase 5 寫入、
+沒有 statement 的事實去重行為完全不變。
+
+`account_code` 存在旁邊，是業務內容而不是身分：它是舊系統 `*_xbrl` 的列身分、
+是 23-c 對帳「代碼 ↔ QName」的依據，但 QName 本身已經分得開同一張表、同一個
+context、同一個單位的兩列 `ProfitLossBeforeTax`（`A00010` 是 `ifrs-full`、
+`A10000` 是 `tifrs-scf`）。兩者都進 `business_content_hash`，payload 的排序也加上
+statement，讓排序成為全序（CLAUDE.md §24）。
+
+**`mops-filing-revision:v1`。** `t164sb01` 沒有申報序號、沒有發布時點、沒有更正
+序號，而且回傳的是「目前有效（可能已更正）」的那一版。`filing_key` 因此是端點
+自己的請求鍵加上一個指紋：`{代號}:{年}Q{季}:{REPORT_ID}:{指紋}`。指紋只取正規化
+後的報表列（statement、科目代碼、QName、context、unit、值），所以同一份文件
+重抓是同一個 source revision、檔案庫那份 UTF-8 副本與官方 cp950 回應是同一個
+revision，而更正後的文件是新的 revision——這正是 `docs/financial_xbrl.md`
+「更正的申報用新的 source revision key」對一個自己不宣告 revision 的來源的要求。
+
+**`REPORT_ID` C→A fallback 有來源實測。** `C` 是合併報表、`A` 是個體報表，一家
+公司一季只申報其中一種：另一個 `REPORT_ID` 會拿到 98 bytes 的 `檔案不存在!`，
+HTTP 狀態碼還是 200（2026-09-21 對 1101 與 1342 實測）。那一頁是來源的回答而不是
+失敗，所以 adapter 回報 `no_such_report`，CLI 的 `auto` 再去要另一個。
 
 驗收：
 

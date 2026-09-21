@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import json
 import os
 import time
@@ -54,6 +55,15 @@ from stock_data_center.ingestion.adapters import (
     TWSETradingCalendarAdapter,
     TWSEWholeMarketDailyAdapter,
 )
+from stock_data_center.ingestion.adapters.financial_filing import (
+    MOPSFinancialFilingAdapter,
+)
+from stock_data_center.ingestion.adapters.financial_filing_archive import (
+    DEFAULT_ARCHIVE_ROOT as XBRL_ARCHIVE_ROOT,
+)
+from stock_data_center.ingestion.adapters.financial_filing_archive import (
+    LegacyFinancialFilingArchiveAdapter,
+)
 from stock_data_center.ingestion.adapters.monthly_revenue_archive import (
     DEFAULT_ARCHIVE_ROOT as ARCHIVE_ROOT,
 )
@@ -82,7 +92,10 @@ from stock_data_center.ingestion.market_index import (
 from stock_data_center.ingestion.models import (
     CorporateActionRangeRequest,
     DailyMarketRequest,
+    FinancialFilingArchiveRequest,
+    FinancialFilingRequest,
     ForeignHoldingRequest,
+    ArtifactOrigin,
     IngestPurpose,
     InstitutionalInvestorRequest,
     InstitutionalMarketSummaryRequest,
@@ -91,6 +104,7 @@ from stock_data_center.ingestion.models import (
     MonthlyRevenueArchiveRequest,
     MonthlyRevenueRequest,
     OfficialValuationRequest,
+    ResourceQuarantinedError,
     RevenuePage,
     SecuritiesLendingRequest,
     SecurityLifecycleRequest,
@@ -98,6 +112,10 @@ from stock_data_center.ingestion.models import (
     TaiexHistoryRequest,
     TradingCalendarRequest,
     WholeMarketDailyRequest,
+)
+from stock_data_center.ingestion.financial_filing import (
+    FinancialFilingArchiveImporter,
+    FinancialFilingImporter,
 )
 from stock_data_center.ingestion.monthly_revenue import MonthlyRevenueImporter
 from stock_data_center.ingestion.monthly_revenue_archive import (
@@ -131,6 +149,16 @@ def _months(first: date, last: date):
     while month <= last:
         yield month
         month = (month.replace(day=28) + timedelta(days=7)).replace(day=1)
+
+
+_FILING_PERIOD = re.compile(r"(\d{4})Q([1-4])")
+
+
+def _filing_period(parser: argparse.ArgumentParser, value: str) -> tuple[int, int]:
+    match = _FILING_PERIOD.fullmatch(value.strip().upper())
+    if match is None:
+        parser.error("--period must be a quarter such as 2025Q1")
+    return int(match.group(1)), int(match.group(2))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -434,6 +462,37 @@ def main(argv: list[str] | None = None) -> int:
     )
     corporate_action.add_argument("--import-id", type=UUID)
     corporate_action.add_argument("--raw-root", type=Path, default=Path("data/raw"))
+    filing = subparsers.add_parser(
+        "financial-filing",
+        help="import one filer's MOPS iXBRL statement document for one quarter",
+    )
+    filing.add_argument("--security-code", required=True)
+    filing.add_argument("--period", required=True, help="YYYYQn, e.g. 2025Q1")
+    filing.add_argument(
+        "--report-id",
+        choices=("auto", "C", "A"),
+        default="auto",
+        help="MOPS REPORT_ID: C is 合併報表, A is 個體報表. `auto` asks for C "
+        "and falls back to A when MOPS answers 檔案不存在, which is how a "
+        "filer that files individually is found without guessing",
+    )
+    # MOPS is paced by the per-host governor (3 s) whatever this says.
+    filing.add_argument("--min-interval-seconds", type=float, default=3.0)
+    filing.add_argument("--import-id", type=UUID)
+    filing.add_argument("--raw-root", type=Path, default=Path("data/raw"))
+    filing_archive = subparsers.add_parser(
+        "financial-filing-archive",
+        help="import one filing from the legacy iXBRL archive",
+    )
+    filing_archive.add_argument("--security-code", required=True)
+    filing_archive.add_argument("--period", required=True, help="YYYYQn, e.g. 2025Q1")
+    filing_archive.add_argument(
+        "--archive-root", type=Path, default=XBRL_ARCHIVE_ROOT,
+        help="the legacy xbrl archive root (ROADMAP §14: it stays outside "
+        "this repository)",
+    )
+    filing_archive.add_argument("--import-id", type=UUID)
+    filing_archive.add_argument("--raw-root", type=Path, default=Path("data/raw"))
     subparsers.add_parser(
         "security-transfer-reconciliation",
         help="recompute final transfer matching from canonical TWSE/TPEx histories",
@@ -777,6 +836,59 @@ def main(argv: list[str] | None = None) -> int:
                     )
                     continue
                 archive_results.append((period, month_id, month_result))
+        elif args.command in ("financial-filing", "financial-filing-archive"):
+            year, quarter = _filing_period(parser, args.period)
+            if args.command == "financial-filing":
+                importer = FinancialFilingImporter(
+                    engine, raw_store=LocalRawArtifactStore(args.raw_root)
+                )
+                adapter = MOPSFinancialFilingAdapter()
+                attempts = (
+                    ("C", "A") if args.report_id == "auto" else (args.report_id,)
+                )
+                # One import id per attempt, derived from the run's own, so
+                # the C miss and the A import stay separately resumable.
+                base_import_id = import_id
+                result = None
+                for index, report_id in enumerate(attempts):
+                    import_id = (
+                        base_import_id
+                        if index == 0
+                        else uuid5(base_import_id, report_id)
+                    )
+                    try:
+                        result = importer.run(
+                            adapter=adapter,
+                            request=FinancialFilingRequest(
+                                args.security_code, year, quarter, report_id
+                            ),
+                            import_id=import_id,
+                            purpose=IngestPurpose(args.purpose),
+                        )
+                        break
+                    except ResourceQuarantinedError as error:
+                        # `檔案不存在!` is MOPS saying this filer files the
+                        # other report, not a failure. Anything else is.
+                        if "no_such_report" not in str(error) or index + 1 == len(
+                            attempts
+                        ):
+                            raise
+                assert result is not None
+            else:
+                importer = FinancialFilingArchiveImporter(
+                    engine, raw_store=LocalRawArtifactStore(args.raw_root)
+                )
+                result = importer.run(
+                    adapter=LegacyFinancialFilingArchiveAdapter(
+                        archive_root=args.archive_root
+                    ),
+                    request=FinancialFilingArchiveRequest(
+                        args.security_code, year, quarter
+                    ),
+                    import_id=import_id,
+                    purpose=IngestPurpose(args.purpose),
+                    artifact_origin=ArtifactOrigin.LEGACY_ARCHIVE,
+                )
         elif args.command == "securities-lending":
             importer = SecuritiesLendingImporter(
                 engine, raw_store=LocalRawArtifactStore(args.raw_root)

@@ -900,6 +900,74 @@ full-year one. Prior-year comparatives share the same concepts and differ only
 by context, which is why role assignment reads the context, never the value's
 position or a duration's length.
 
+#### Step 23-b findings (2026-09-21)
+
+**Which rows are a statement's, and how many.** Each of the three statements
+legacy `stock_db` stored is marked by the document's own anchor — `<div
+id="BalanceSheet">`, `<div id="StatementOfComprehensiveIncome">`, `<div
+id="StatementsOfCashFlows">` — each followed by exactly one `<table>`. Measured
+over all 45,324 archive documents: every document prints all three anchors, and
+each exactly once. Inside those tables, in the 42,750 documents in the v1
+sii/otc non-financial universe:
+
+| | Facts |
+| --- | ---: |
+| balance sheet | 7,070,429 |
+| statement of comprehensive income | 4,352,694 |
+| statement of cash flows | 4,757,236 |
+| **total** | **16,180,359** |
+| of those, with no 會計科目代碼 | **0** |
+
+The rest of the document — 權益變動表, the notes, the 附表 and 12.9 million
+`escape="true"` narrative blocks — is out of this step's storage scope by owner
+decision (2026-09-21): the scope is the legacy database's, and what else to
+store is decided at the end of the ROADMAP.
+
+**The Step 5 fact identity does not fit a real document, and the statement is
+what fixes it.** Collision groups per candidate identity, over those 42,750
+documents:
+
+| Identity | Documents with a collision | Groups | Groups with differing values |
+| --- | ---: | ---: | ---: |
+| QName + context + unit | 42,750 | 171,000 | 0 |
+| statement + QName + context + unit | **0** | **0** | 0 |
+| statement + 會計科目代碼 + context + unit | **0** | **0** | 0 |
+
+The 171,000 are one number printed as a row of two statements — the balance
+sheet's `1100` and the cash-flow statement's `E00210` are both
+`ifrs-full:CashAndCashEquivalents`, same instant and unit — four in every
+document. They never disagree, which is why they are the same number and not a
+source inconsistency. Adding the statement removes every collision; the
+會計科目代碼 is not needed for identity, because the QName already separates
+`A00010` (`ifrs-full:ProfitLossBeforeTax`) from `A10000`
+(`tifrs-scf:ProfitLossBeforeTax`) in the same cash-flow table, same context,
+same unit, same value.
+
+**The legacy codebook is not the universe.** Restricting to the 1,748 codes in
+legacy `xbrl_codebook` also removes every collision, but it drops 1,040
+statement rows in 332 documents whose codes the codebook does not list — the
+cash-flow subtotals `AA0000`, `AB0000` and `AC0100`–`AC0500`. The anchors are
+therefore the cut, not a code list, and no codebook is stored (ROADMAP §16
+stands).
+
+**Legacy stored the current period only.** `balance_sheet_xbrl` holds one
+period per quarter and `income_statement_xbrl` holds the quarter and the
+accumulated period, both current. The documents print the prior-year
+comparative columns beside them, and 23-b stores those too: they are rows the
+source printed, and dropping a column would need a rule the document does not
+give. Legacy parity on that axis is a filter at reconciliation time (Step
+23-c), not a parse-time omission.
+
+**`REPORT_ID` is exclusive, and the miss is a page.** Measured 2026-09-21:
+`t164sb01?step=1&CO_ID=1101&SYEAR=2025&SSEASON=1&REPORT_ID=A` answers HTTP 200
+with 98 bytes, `<h4 ...>檔案不存在!</h4><br>` in cp950; the same request for
+1342 with `REPORT_ID=C` answers the same page, and each answers its own id with
+a document. So a filer files 合併 or 個體 in a quarter, never both, which is
+the archive's one-document-per-(symbol, quarter) shape seen from the endpoint.
+The adapter reports that page as `no_such_report` rather than as a parse
+failure.
+
+
 ### 4.9 TDCC shareholding distribution
 
 - OpenData `getOD.ashx?id=1-5`: 資料日期, 證券代號, 持股分級, 人數, 股數,

@@ -97,6 +97,31 @@ FINANCIAL_INDUSTRIES = frozenset(
     }
 )
 
+class StatementSection(str, Enum):
+    """The three statements the document marks with its own anchor `<div>`.
+
+    Legacy `stock_db` stored exactly these three — `balance_sheet_xbrl`,
+    `income_statement_xbrl`, `cash_flow_xbrl` — and nothing from 權益變動表, the
+    notes or the 附表. Each anchor appears exactly once in every one of the
+    45,324 archive documents, and every `ix:nonFraction` inside the table that
+    follows it carries a 會計科目代碼: 16,180,359 facts, none without a code
+    (scan of 2026-09-21, audit §4.8).
+    """
+
+    BALANCE_SHEET = "balance_sheet"
+    INCOME_STATEMENT = "income_statement"
+    CASH_FLOW = "cash_flow"
+
+
+#: The anchor the document itself prints before each statement's table.
+STATEMENT_ANCHORS: Mapping[StatementSection, str] = MappingProxyType(
+    {
+        StatementSection.BALANCE_SHEET: "BalanceSheet",
+        StatementSection.INCOME_STATEMENT: "StatementOfComprehensiveIncome",
+        StatementSection.CASH_FLOW: "StatementsOfCashFlows",
+    }
+)
+
 #: The v1 security universe is 上市 and 上櫃 only (CLAUDE.md v1 scope). Emerging,
 #: public and non-public filers exist in the archive and have no market code.
 MARKET_CODES: Mapping[SourceMarket, str] = MappingProxyType(
@@ -133,6 +158,7 @@ _DIVIDE = re.compile(
     re.I | re.S,
 )
 _ROW = re.compile(r"<tr\b.*?</tr>", re.I | re.S)
+_TABLE_OPEN = re.compile(r"<table\b[^>]*>", re.I)
 _NONFRACTION = re.compile(r"<ix:nonFraction\b([^>]*)>(.*?)</ix:nonFraction>", re.I | re.S)
 _NOTE_BLOCK = re.compile(r"<ix:nonNumeric\b[^>]*\bescape\s*=\s*\"true\"", re.I)
 _ATTR = re.compile(r"([:\w-]+)\s*=\s*\"([^\"]*)\"")
@@ -206,6 +232,8 @@ class ParsedFact:
     account_code: str | None
     label_zh: str | None
     label_en: str | None
+    #: The statement whose table printed this row, or `None` outside the three.
+    statement: StatementSection | None = None
     #: The source printed a placeholder such as `-` instead of a number.
     is_placeholder: bool = False
 
@@ -219,6 +247,8 @@ class ParsedIXBRLReport:
     units: Mapping[str, str]
     facts: tuple[ParsedFact, ...]
     note_block_count: int
+    #: The statement anchors this document actually printed.
+    statement_sections: frozenset[StatementSection] = frozenset()
     #: `ix:nonFraction` elements with no unit: prose the filer's tool wrote into
     #: the numeric element. They are not facts, and they are not silently lost.
     malformed_numeric_facts: int = 0
@@ -432,6 +462,41 @@ def _parse_units(text: str) -> dict[str, str]:
     return units
 
 
+def _statement_spans(text: str) -> dict[StatementSection, tuple[int, int]]:
+    """Where each statement's own table starts and ends.
+
+    The anchor is the document's, not ours: `<div id="BalanceSheet"></div>` and
+    its two siblings, each followed by the one `<table>` that holds that
+    statement. An anchor printed twice, or followed by no table, fails closed
+    rather than letting a fact land in the wrong statement. An anchor that is
+    simply absent yields no span, and the facts under it keep `statement=None`:
+    this parser reads whatever document it is handed, and it is the Step 23-b
+    adapter — which knows it asked `t164sb01` for a statement document — that
+    requires all three to be there.
+    """
+
+    spans: dict[StatementSection, tuple[int, int]] = {}
+    for section, anchor in STATEMENT_ANCHORS.items():
+        found = [
+            match.end()
+            for match in re.finditer(rf'\bid\s*=\s*"{anchor}"', text, re.I)
+        ]
+        if not found:
+            continue
+        if len(found) > 1:
+            raise IXBRLParseError(
+                f"document marks the {section.value} anchor {len(found)} times"
+            )
+        opened = _TABLE_OPEN.search(text, found[0])
+        closed = text.lower().find("</table>", opened.end()) if opened else -1
+        if opened is None or closed < 0:
+            raise IXBRLParseError(
+                f"the {section.value} anchor is followed by no table"
+            )
+        spans[section] = (opened.end(), closed)
+    return spans
+
+
 def _row_labels(row: str) -> tuple[str | None, str | None, str | None]:
     cells = _CELL.findall(row)
     if not cells:
@@ -490,6 +555,7 @@ def _parse_facts(
     contexts: Mapping[str, XBRLContext],
     units: Mapping[str, str],
     repairs: set[str],
+    spans: Mapping[StatementSection, tuple[int, int]],
 ) -> tuple[tuple[ParsedFact, ...], int]:
     rows = [(match.start(), match.end(), match.group(0)) for match in _ROW.finditer(text)]
     facts: list[ParsedFact] = []
@@ -510,6 +576,14 @@ def _parse_facts(
                 cached_row, cached_labels = row_index, _row_labels(rows[row_index][2])
             account_code, label_zh, label_en = cached_labels
 
+        statement = next(
+            (
+                section
+                for section, (start, end) in spans.items()
+                if start <= match.start() < end
+            ),
+            None,
+        )
         attributes = {
             name.lower(): value for name, value in _ATTR.findall(match.group(1))
         }
@@ -567,6 +641,7 @@ def _parse_facts(
                 account_code=account_code,
                 label_zh=label_zh,
                 label_en=label_en,
+                statement=statement,
                 is_placeholder=value is None,
             )
         )
@@ -591,8 +666,14 @@ def parse_ixbrl_report(
     contexts = _parse_contexts(text, namespaces, repairs)
     units = _parse_units(text)
 
+    spans = _statement_spans(text)
     facts, malformed = _parse_facts(
-        text, namespaces=namespaces, contexts=contexts, units=units, repairs=repairs
+        text,
+        namespaces=namespaces,
+        contexts=contexts,
+        units=units,
+        repairs=repairs,
+        spans=spans,
     )
 
     month, day = QUARTER_END[header.report_quarter]
@@ -607,6 +688,7 @@ def parse_ixbrl_report(
         units=MappingProxyType(units),
         facts=facts,
         note_block_count=len(_NOTE_BLOCK.findall(text)),
+        statement_sections=frozenset(spans),
         malformed_numeric_facts=malformed,
         prefix_case_repairs=tuple(sorted(repairs)),
     )

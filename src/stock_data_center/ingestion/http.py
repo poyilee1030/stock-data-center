@@ -12,11 +12,45 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from stock_data_center.ingestion.models import FetchedArtifact, SourceResource
+from pathlib import Path
+
+from stock_data_center.ingestion.models import (
+    FetchedArtifact,
+    SourceDataError,
+    SourceResource,
+)
 
 
 class SourceFetcher(Protocol):
     def fetch(self, resource: SourceResource) -> FetchedArtifact: ...
+
+
+class LocalArchiveFetcher:
+    """Read one archive file, and record what the file itself says.
+
+    `fetched_at` is the Data Center read time, not a source publication time
+    (CLAUDE.md §75). The file's own mtime travels separately, in the manifest.
+    """
+
+    def __init__(self, *, media_type: str = "application/octet-stream") -> None:
+        self.last_mtime: datetime | None = None
+        self._media_type = media_type
+
+    def fetch(self, resource: SourceResource) -> FetchedArtifact:
+        path = Path(resource.source_uri)
+        try:
+            content = path.read_bytes()
+        except OSError as error:
+            raise SourceDataError(
+                "archive_unreadable", f"{path}: {error}"
+            ) from error
+        self.last_mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
+        return FetchedArtifact(
+            content=content,
+            source_uri=str(path),
+            fetched_at=datetime.now(UTC),
+            media_type=self._media_type,
+        )
 
 
 # MOPS blocked the legacy scraper on 2026-07-02. Its answer, kept since, is a

@@ -96,6 +96,9 @@ class FinancialFact:
     text_value: str | None
     is_nil: bool
     decimals: str | None
+    #: The statement that printed the row, and its 會計科目代碼.
+    statement: str | None = None
+    account_code: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
