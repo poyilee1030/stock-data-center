@@ -20,7 +20,7 @@ Schema 影響：只有 `dataset_sources.accepted_evidence_types` 放寬。**沒�
 `dataset_release_rules` 列——理由見下。downgrade 在已存有這三種證據時，於修改前
 拒絕（CLAUDE.md §81）。
 
-規模：`src/` +605／−36 行，在 CLAUDE.md §1 的約 800 行門檻內。
+規模：`src/` +622／−38 行，在 CLAUDE.md §1 的約 800 行門檻內。
 
 ## 檔案的 mtime 就是全部的證據
 
