@@ -12,11 +12,81 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from stock_data_center.ingestion.models import FetchedArtifact, SourceResource
+from pathlib import Path
+
+from stock_data_center.ingestion.models import (
+    FetchedArtifact,
+    SourceDataError,
+    SourceResource,
+)
 
 
 class SourceFetcher(Protocol):
     def fetch(self, resource: SourceResource) -> FetchedArtifact: ...
+
+
+class LocalArchiveFetcher:
+    """Read one archive file, and record what the file itself says.
+
+    `fetched_at` is the Data Center read time, not a source publication time
+    (CLAUDE.md §75). The file's own mtime travels separately, in the manifest.
+    """
+
+    def __init__(self, *, media_type: str = "application/octet-stream") -> None:
+        self.last_mtime: datetime | None = None
+        self._media_type = media_type
+
+    def fetch(self, resource: SourceResource) -> FetchedArtifact:
+        path = Path(resource.source_uri)
+        try:
+            content = path.read_bytes()
+        except OSError as error:
+            raise SourceDataError(
+                "archive_unreadable", f"{path}: {error}"
+            ) from error
+        self.last_mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
+        return FetchedArtifact(
+            content=content,
+            source_uri=str(path),
+            fetched_at=datetime.now(UTC),
+            media_type=self._media_type,
+        )
+
+
+class ArchiveGlobFetcher(LocalArchiveFetcher):
+    """Resolve one archive file from a pattern, as part of fetching it.
+
+    An archive file's folder is known but its name carries a date we do not,
+    so it has to be looked up. Doing that in an adapter's `resource()` would
+    put the lookup before the import manifest exists, outside every block that
+    records a quarantine or an operational failure: a missing file would then
+    end a 45,000-filing loop with no auditable trace at all (CLAUDE.md §78,
+    §79). Here it is a fetch failure, which the lifecycle records.
+
+    `resource.source_uri` is the pattern; the artifact observation records the
+    file that actually answered it.
+    """
+
+    def fetch(self, resource: SourceResource) -> FetchedArtifact:
+        pattern = Path(resource.source_uri)
+        matches = sorted(pattern.parent.glob(pattern.name))
+        if not matches:
+            raise SourceDataError(
+                "archive_file_missing", f"no archived file matches {pattern}"
+            )
+        if len(matches) > 1:
+            # One filing, one document. Two would mean the archive holds two
+            # answers to the same request and nothing says which is current.
+            raise SourceDataError(
+                "ambiguous_archive_file",
+                f"{len(matches)} archived files match {pattern}: "
+                f"{[path.name for path in matches]}",
+            )
+        return super().fetch(
+            SourceResource(
+                resource_key=resource.resource_key, source_uri=str(matches[0])
+            )
+        )
 
 
 # MOPS blocked the legacy scraper on 2026-07-02. Its answer, kept since, is a

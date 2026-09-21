@@ -7,6 +7,7 @@ import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from enum import Enum
 from types import MappingProxyType
 from urllib.parse import urlencode
@@ -26,6 +27,14 @@ from stock_data_center.market_reference.models import (
     MarketIndexObservation,
     OfficialValuationObservation,
 )
+from stock_data_center.financials.classification import SourceContextClassification
+from stock_data_center.financials.ingestion import FinancialFactObservation
+from stock_data_center.financials.ixbrl import (
+    ParsedFact,
+    ReportCategory,
+    StatementSection,
+)
+from stock_data_center.financials.models import SummaryPeriodBasis
 from stock_data_center.monthly_revenue.ingestion import MonthlyRevenueObservation
 from stock_data_center.monthly_revenue.models import RevenuePeriod
 
@@ -272,6 +281,133 @@ class RevenuePage(str, Enum):
 
     DOMESTIC = "0"
     FOREIGN = "1"
+
+
+@dataclass(frozen=True, slots=True)
+class FinancialFilingRequest:
+    """One `t164sb01` document: one filer, one quarter, one report id.
+
+    `report_id` is MOPS's own `REPORT_ID`: `C` for 合併報表, `A` for 個體報表.
+    A filer files one of them per quarter and the endpoint answers
+    `檔案不存在!` for the other, so the caller asks for `C` and falls back to
+    `A` (audit §4.8).
+    """
+
+    security_code: str
+    report_year: int
+    report_quarter: int
+    report_id: str = "C"
+
+    def __post_init__(self) -> None:
+        if not self.security_code:
+            raise ValueError("security_code must not be empty")
+        if not 1 <= self.report_quarter <= 4:
+            raise ValueError("report_quarter must be between 1 and 4")
+        if self.report_id not in ("C", "A"):
+            raise ValueError("report_id must be C (合併) or A (個體)")
+
+    @property
+    def period_label(self) -> str:
+        return f"{self.report_year:04d}Q{self.report_quarter}"
+
+
+@dataclass(frozen=True, slots=True)
+class FinancialFilingArchiveRequest:
+    """The legacy archive's copy of one filing (ROADMAP §14, CLAUDE.md §75).
+
+    The archive holds one file per filing and does not say which `REPORT_ID`
+    fetched it; the document's own `ReportCategory` does.
+    """
+
+    security_code: str
+    report_year: int
+    report_quarter: int
+
+    def __post_init__(self) -> None:
+        if not self.security_code:
+            raise ValueError("security_code must not be empty")
+        if not 1 <= self.report_quarter <= 4:
+            raise ValueError("report_quarter must be between 1 and 4")
+
+    @property
+    def period_label(self) -> str:
+        return f"{self.report_year:04d}Q{self.report_quarter}"
+
+
+@dataclass(frozen=True, slots=True)
+class StatementFact:
+    """One statement row, with the statement and 會計科目代碼 it was printed in."""
+
+    statement: "StatementSection"
+    account_code: str
+    observation: FinancialFactObservation
+    #: The parsed fact this row came from, so a curated summary can name the
+    #: exact row rather than search for one by value.
+    source: "ParsedFact"
+
+
+@dataclass(frozen=True, slots=True)
+class FilingEPS:
+    """One curated `basic_eps`, with the source role that authorized its basis.
+
+    `fact_index` points into `ParsedFinancialFiling.facts`, so the summary is
+    tied to the exact row the value was read from. Looking the row back up by
+    its value instead would be ambiguous: a single-quarter EPS can equal the
+    year-to-date one (6160 2024Q2 prints -0.41 twice), and the two differ only
+    by context.
+    """
+
+    period_basis: SummaryPeriodBasis
+    value: Decimal
+    unit_identity: str
+    concept_qname: str
+    context_ref: str
+    fact_index: int
+    classification: SourceContextClassification
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedFinancialFiling:
+    """One `t164sb01` document, reduced to what this step stores.
+
+    The three statements legacy `stock_db` stored and nothing else: 權益變動表,
+    the notes, the 附表 and the `escape="true"` narrative blocks are counted
+    here and stored nowhere, and whether they ever are is a decision the
+    ROADMAP takes at its end.
+    """
+
+    security_code: str
+    report_year: int
+    report_quarter: int
+    report_category: "ReportCategory"
+    report_id: str
+    period_start: date
+    period_end: date
+    currency: str
+    filing_key: str
+    revision_fingerprint: str
+    facts: tuple[StatementFact, ...]
+    eps: tuple[FilingEPS, ...]
+    market_code: str
+    #: What the document held that this step does not store.
+    source_fact_count: int
+    note_block_count: int
+    parser_version: str
+
+    @property
+    def coverage_start(self) -> date | None:
+        return self.period_start
+
+    @property
+    def coverage_end(self) -> date | None:
+        return self.period_end
+
+    @property
+    def statement_counts(self) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for fact in self.facts:
+            counts[fact.statement.value] = counts.get(fact.statement.value, 0) + 1
+        return counts
 
 
 @dataclass(frozen=True, slots=True)

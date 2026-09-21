@@ -51,7 +51,7 @@ from stock_data_center.evidence import EvidencePolicyService
 from stock_data_center.ingestion.adapters.monthly_revenue_archive import (
     LegacyMonthlyRevenueArchiveAdapter,
 )
-from stock_data_center.ingestion.http import SourceFetcher
+from stock_data_center.ingestion.http import LocalArchiveFetcher, SourceFetcher
 from stock_data_center.ingestion.lifecycle import (
     BusinessWriteResult,
     RawFirstAdapter,
@@ -86,33 +86,6 @@ FIRST_CAPTURE_WINDOW_START = RevenuePeriod(2026, 2)
 STATUTORY_RULE = ("monthly_revenue_statutory", 1)
 STATUTORY_DAY = 10
 WHITESPACE = re.compile(r"\s+")
-
-
-class LocalArchiveFetcher:
-    """Read one archive file, and record what the file itself says.
-
-    `fetched_at` is the Data Center read time, not a source publication time
-    (CLAUDE.md §75). The file's own mtime travels separately, in the manifest.
-    """
-
-    def __init__(self) -> None:
-        self.last_mtime: datetime | None = None
-
-    def fetch(self, resource: SourceResource) -> FetchedArtifact:
-        path = Path(resource.source_uri)
-        try:
-            content = path.read_bytes()
-        except OSError as error:
-            raise SourceDataError(
-                "archive_unreadable", f"{path}: {error}"
-            ) from error
-        self.last_mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
-        return FetchedArtifact(
-            content=content,
-            source_uri=str(path),
-            fetched_at=datetime.now(UTC),
-            media_type="text/csv",
-        )
 
 
 def end_of_day(day: date) -> datetime:
@@ -204,7 +177,7 @@ class MonthlyRevenueArchiveImporter(
         writer: MonthlyRevenueWriter | None = None,
         policy: EvidencePolicyService | None = None,
     ) -> None:
-        super().__init__(engine, raw_store=raw_store, fetcher=fetcher or LocalArchiveFetcher())
+        super().__init__(engine, raw_store=raw_store, fetcher=fetcher or LocalArchiveFetcher(media_type="text/csv"))
         self._writer = writer or MonthlyRevenueWriter()
         self._policy = policy or EvidencePolicyService()
 

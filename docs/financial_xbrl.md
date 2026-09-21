@@ -193,3 +193,71 @@ document's one current context is the single quarter. Everything else —
 including every prior-year comparative, every instant, and every dimensional
 context — is `other`, which `classify_eps_period_basis` refuses. The rule never
 reads a role out of a duration's length.
+
+## Step 23-b: storing a MOPS document
+
+Step 23-b connects the parser to two sources and the import path. What it
+stores is the scope legacy `stock_db` stored: the balance sheet, the statement
+of comprehensive income and the statement of cash flows — legacy's
+`balance_sheet_xbrl`, `income_statement_xbrl` and `cash_flow_xbrl`.
+權益變動表, the notes, the 附表 and the `escape="true"` narrative blocks are
+counted in the manifest and stored nowhere; whether they are ever stored is a
+decision the ROADMAP takes at its end (owner decision, 2026-09-21).
+
+**The statement is the document's own.** Each statement is marked by an anchor
+`<div id="BalanceSheet">`, `<div id="StatementOfComprehensiveIncome">` and
+`<div id="StatementsOfCashFlows">`, each followed by exactly one `<table>`.
+Every one of the 45,324 archive documents prints all three anchors exactly
+once, and every `ix:nonFraction` inside those tables carries a 會計科目代碼 —
+16,180,359 facts in the 42,750 documents inside the v1 universe, none without
+a code (scan of 2026-09-21). A missing or repeated anchor fails closed.
+
+**The statement is part of fact identity.** Step 5 identified a fact by filing,
+QName, context hash and unit, and a real document breaks that:
+`ifrs-full:CashAndCashEquivalents` is the balance sheet's `1100` and the
+cash-flow statement's `E00210` — the same instant, unit and number printed as
+two statement rows. That is 171,000 collisions over the archive, four in every
+in-scope document. `financial_facts` therefore stores `statement` and it is
+part of the identity; with it, those 16,180,359 facts hold no duplicate
+identity at all. The unique constraint is `NULLS NOT DISTINCT`, so facts
+written without a statement dedup exactly as they did before.
+
+`account_code` is stored beside it as business content, not as identity: it is
+the row identity legacy `*_xbrl` keyed on and what Step 23-c reconciles
+code ↔ QName against, but the QName already separates the two
+`ProfitLossBeforeTax` rows that share a statement, a context and a unit
+(`A00010` is `ifrs-full`, `A10000` is `tifrs-scf`). Both enter the sealed
+`business_content_hash`, and the payload's ordering gains the statement so it
+is total.
+
+### `mops-filing-revision:v1`
+
+`t164sb01` publishes no filing id, no publication instant and no amendment
+sequence, and it serves the currently effective — possibly amended — report.
+The filing key is therefore the endpoint's own request key plus a fingerprint
+of the normalized statement rows:
+
+```text
+{security}:{year}Q{quarter}:{REPORT_ID}:{fingerprint}
+```
+
+The fingerprint covers statement, 會計科目代碼, QName, context, unit and value
+and nothing else, so the same document re-fetched is one source revision, the
+archive's UTF-8 copy of a document already fetched officially is that same
+revision, and a corrected document is a new one — which is what
+"a corrected business filing uses a new source revision key" above requires of
+a source that names no revision itself.
+
+`REPORT_ID` is `C` for 合併報表 and `A` for 個體報表, and a filer files one of
+them per quarter: MOPS answers the other with 98 bytes of `檔案不存在!` under
+HTTP 200 (measured 2026-09-21 on 1101 and 1342). That page is a source answer,
+not a failure, so the adapter reports `no_such_report` and the CLI's `auto`
+asks for the other id.
+
+### What 23-b does not claim
+
+`mops_t164sb01` accepts only `official` evidence and declares no release rule,
+so every filing records `unknown`: System-PIT visible, Market-PIT invisible
+until Step 23-c attaches the evidence. Financial-industry issuers and filers
+outside 上市/上櫃 are refused at the adapter boundary and counted as
+quarantine, so no such issuer has a filing version at all.

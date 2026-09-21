@@ -68,6 +68,7 @@ class FinancialFilingService:
                 financial_facts.c.concept_qname,
                 financial_facts.c.context_hash,
                 financial_facts.c.unit_identity,
+                financial_facts.c.statement,
             )
         ).mappings()
         summary_rows = connection.execute(
@@ -96,6 +97,8 @@ class FinancialFilingService:
                 text_value=row["text_value"],
                 is_nil=row["is_nil"],
                 decimals=row["decimals"],
+                statement=row["statement"],
+                account_code=row["account_code"],
             )
             for row in facts
         )

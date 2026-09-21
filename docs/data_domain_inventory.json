@@ -563,6 +563,24 @@
             ],
             "audit_section": "4.8",
             "note": "Declared per fact by the document."
+          },
+          "statement": {
+            "coverage": "sourced",
+            "source_fields": [
+              "div id=\"BalanceSheet\"",
+              "div id=\"StatementOfComprehensiveIncome\"",
+              "div id=\"StatementsOfCashFlows\""
+            ],
+            "audit_section": "4.8",
+            "note": "The statement whose table printed the row, from the document's own anchor. Part of fact identity: one number can be a row of two statements, 171,000 such pairs across the archive (Step 23-b)."
+          },
+          "account_code": {
+            "coverage": "sourced",
+            "source_fields": [
+              "會計科目代碼"
+            ],
+            "audit_section": "4.8",
+            "note": "The code in the statement row's first cell, the row identity legacy *_xbrl keyed on. Business content, not identity: the QName already separates two rows that share a statement, context and unit."
           }
         }
       },
@@ -578,7 +596,7 @@
           },
           "filing_key": {
             "coverage": "internal",
-            "note": "Synthetic (security, year, quarter, report type), matching the endpoint's own request key. t164sb01 publishes no filing ID, publication instant, or amendment sequence."
+            "note": "Synthetic (security, year, quarter, report type, revision fingerprint), the endpoint's own request key plus mops-filing-revision:v1. t164sb01 publishes no filing ID, publication instant or amendment sequence and serves the currently effective report, so the fingerprint over the normalized statement rows is what makes a corrected document a new source revision and a re-fetch the same one."
           },
           "report_year": {
             "coverage": "sourced",
@@ -619,6 +637,14 @@
             ],
             "audit_section": "4.8",
             "note": "The document declares unitRef values (TWD, Shares, Pure, EarningsPerShare)."
+          },
+          "report_category": {
+            "coverage": "sourced",
+            "source_fields": [
+              "tifrs-notes:ReportCategory"
+            ],
+            "audit_section": "4.8",
+            "note": "合併報表 or 個體報表. A filer files one per quarter; MOPS answers the other REPORT_ID with 檔案不存在."
           }
         }
       },
