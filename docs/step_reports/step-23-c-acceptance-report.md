@@ -328,3 +328,56 @@ migration 的 downgrade 守門在真實資料上實測：對已存 42,750 筆證
 並加一條回歸：走訪中途 git 的答案改變，所有 manifest 仍然只帶第一個值。
 
 其餘的 backfill 路徑沒有改——它們的窗口短得多，而且本 step 不擁有它們（CLAUDE.md §67）。
+
+## Code review 的處理（#41，2026-09-22）
+
+七項發現全部成立，逐項在程式碼上回核過，全部修掉。
+
+**MEDIUM — 對帳腳本沒有挑最新版本。** `OUR_FACTS` 只用 `(report_year,
+report_quarter)` 篩。`filing_key` 帶著更正指紋，所以同一 (公司, 季) 的更正會是第二個
+sealed version，那位申報人的每個科目代碼都會拿到兩個值、落進
+`duplicate_identity_in_ours`——而那個分類不在 explained 清單裡，對帳會 exit 1。
+`categories` 也會被後到的版本蓋掉。目前過關只因為檔案庫 backfill 還沒產生任何更正，
+Step 27 第一筆更正就會炸。改成用 `DISTINCT ON (security_id, source)` 依
+`seal.ingested_at DESC, v.id DESC` 取最新一版——舊系統存的也是它最後一次抓到的那一版，
+這才是可比的對象。2025Q1 重跑，結果逐類別完全相同（301,033 identical，exit 0）。
+
+**MEDIUM — 檔案庫路徑會寫入已被既存 capture 證偽的 release_rule。** 官方路徑的
+`BoundEvidencePolicy.plan` 會把 `stored_capture` 傳進 `evidence_plan`，首見晚於期限時
+抑制規則（CLAUDE.md §32）；`ArchivePlanner.plan` 沒有這道檢查。情境：官方
+`first_capture` 先建版並存下 2026 年的 `capture_bound`，檔案庫那份去重後因為來自
+2026 年 2 月批次而 `bound_at` 是 `None`，於是把 2020 年的法定期限寫了進去。今天的答案
+不會變（rank 80 > 40），但那是一個被推翻的時刻留在只能附加的儲存裡，等 capture 哪天
+被取代就會變成答案——這正是同一個方法的 docstring 說要避免的事。
+`archive_evidence_plan` 因此收 `proven_capture_at`，晚於 rule 時一筆都不寫。
+
+**MEDIUM — 對帳腳本在每筆 fact 迴圈內重建 legacy symbol set。** `mine` 那側已預先算好
+`held`，legacy 那側沒有。只在未配對時執行，全窗口 878 列而不是 reviewer 估的每季數千，
+所以實際是約 5×10⁸ 次而非 10⁹–10¹⁰——量級估高了三個數量級，但缺陷真實。提到迴圈外。
+
+**LOW — rule 每份文件解析一次而非每季一次**，與 `archive_planner` 的 docstring 相違。
+2025Q4 之前的檔案全部 `needs_rule`，等於約四萬次 rule 查詢加四萬次交易日推移。改成
+importer 上以 `(year, quarter)` 為 key 快取——rule 是不可變的、交易日曆對已過的季也
+穩定。
+
+**LOW — 證據驗證腳本把官方抓取的版本也算進去。** 檔案庫 adapter 刻意沿用同一個
+`source`（CLAUDE.md §30），所以查詢會看到官方抓取的版本；它們帶的是 `capture_bound`，
+被 `IN ('legacy_capture_bound','release_rule')` 濾成 NULL 而被算成 `disagrees`。
+`stockdc_backfill` 全是檔案庫來源才沒炸。改成帶官方 capture 的版本單獨計數並跳過——
+它們不是檔案庫該負責的。
+
+**LOW — 抽樣腳本直接 `matches[0]`**，繞過本 PR 為此新增的 `resolve_archive_glob`
+（加它的理由正是「兩邊不得對同一請求給出不同檔案」）。一份申報對到兩個檔案時匯入端
+`ambiguous_archive_file` fail closed，取樣端卻靜默取字母序第一個；零匹配則丟
+IndexError 而不是可回報的判定。改成走同一支解析器。
+
+**LOW — 編排腳本的 `pkill -9 -f "financial-filing-backfill"` 比對整台機器**，而且正常
+結束也會執行。腳本本身鼓勵並行跑不同年份區間，先結束的那個會殺掉另一個。
+**修法與 reviewer 建議的不同**：改成只殺記錄下來的 PGID 會**完全失效**——
+`setsid cmd &` 會 fork，`$!` 是 launcher 而不是 worker 的 group leader，這正是原本需要
+blanket pkill 的原因。改成把 pattern 縮到本次啟動的年份區間
+（`--period 2020Q1 --through 2020Q4`），並列跑不同年份互不相殺，殘留則印警告。
+
+新增回歸：`archive_evidence_plan` 的三條（已存 capture 晚於期限 → 不寫 rule；早於 →
+照寫；沒有 → 照寫），以及一條整合測試（官方 `first_capture` 先建版、檔案庫去重之後
+只有 `capture_bound`，沒有 `release_rule`）。修完全套 1,114 passed。

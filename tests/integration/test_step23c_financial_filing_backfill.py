@@ -30,6 +30,9 @@ import sqlalchemy as sa
 
 from stock_data_center.financials import FinancialFilingService
 from stock_data_center.financials.models import FilingPeriod
+from stock_data_center.ingestion.adapters.financial_filing import (
+    MOPSFinancialFilingAdapter,
+)
 from stock_data_center.ingestion.adapters.financial_filing_archive import (
     LegacyFinancialFilingArchiveAdapter,
 )
@@ -39,8 +42,13 @@ from stock_data_center.ingestion.backfill import (
 )
 from stock_data_center.ingestion.financial_filing import (
     FinancialFilingArchiveImporter,
+    FinancialFilingImporter,
 )
-from stock_data_center.ingestion.models import FinancialFilingArchiveRequest
+from stock_data_center.ingestion.models import (
+    FetchedArtifact,
+    FinancialFilingArchiveRequest,
+    FinancialFilingRequest,
+)
 from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
 from stock_data_center.market_calendar import TradingCalendarWriter
 from stock_data_center.market_calendar.models import (
@@ -49,6 +57,8 @@ from stock_data_center.market_calendar.models import (
 )
 from stock_data_center.pit import MarketPITContext, SystemPITContext
 from stock_data_center.provenance import ArtifactOrigin, IngestPurpose
+
+from tests.conftest import store_trading_calendar
 
 pytestmark = pytest.mark.integration
 
@@ -75,6 +85,21 @@ AUGUST_2020_TRADING_DAYS = tuple(
     for day in range(1, 32)
     if date(2020, 8, day).weekday() < 5
 )
+
+
+class StaticFetcher:
+    """The official endpoint, answering with one document."""
+
+    def __init__(self, content: bytes) -> None:
+        self.content = content
+
+    def fetch(self, resource):
+        return FetchedArtifact(
+            content=self.content,
+            source_uri=resource.source_uri,
+            fetched_at=datetime.now(UTC),
+            media_type="text/html",
+        )
 
 
 def archive_file(
@@ -595,5 +620,58 @@ def test_the_walk_stamps_one_commit_on_every_document(
                 )
             ).all()
         assert stamped == ["commit-before"]
+    finally:
+        engine.dispose()
+
+
+def test_a_capture_already_stored_falsifies_the_rule_for_that_filing(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """A rule the archive would claim must not outlive a later first sighting.
+
+    An official `first_capture` proves when someone first saw the filing. If
+    that instant is *after* the statutory deadline, the filer was late and the
+    rule is falsified for that row (CLAUDE.md §32). The archive copy of the
+    same document dedups onto the version, and a bulk-run file proves nothing
+    of its own — so it must claim nothing rather than append the deadline.
+    Evidence is append-only: the rule would sit under the capture for ever,
+    ready to become the answer the day the capture above it is superseded.
+    """
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        with engine.connect() as connection:
+            store_trading_calendar(connection, month=date(2020, 8, 1))
+        # The official fetch sees 1101 2020Q2 first, years after the deadline.
+        importer = FinancialFilingImporter(
+            engine,
+            raw_store=LocalRawArtifactStore(tmp_path / "raw"),
+            fetcher=StaticFetcher(CEMENT_2020Q2),
+        )
+        importer.run(
+            adapter=MOPSFinancialFilingAdapter(),
+            request=FinancialFilingRequest("1101", 2020, 2, "C"),
+            import_id=uuid4(),
+            purpose=IngestPurpose.FIRST_CAPTURE,
+        )
+        with engine.connect() as connection:
+            assert claimed_types(
+                evidence_rows(connection, code="1101", year=2020, quarter=2)
+            ) == ["capture_bound"]
+
+        # The archive's copy is the same document from a February 2026 bulk
+        # run: it dedups, and it proves nothing.
+        root = tmp_path / "xbrl"
+        archive_file(
+            root, period="2020Q2", code="1101", content=CEMENT_2020Q2,
+            mtime=datetime(2026, 2, 22, 9, 30, tzinfo=TAIPEI),
+        )
+        result, _ = import_archive(
+            engine, tmp_path, root=root, code="1101", year=2020, quarter=2
+        )
+        assert result.business_versions_created == 0
+        with engine.connect() as connection:
+            rows = evidence_rows(connection, code="1101", year=2020, quarter=2)
+            assert claimed_types(rows) == ["capture_bound"]
+            assert "release_rule" not in {row["evidence_type"] for row in rows}
     finally:
         engine.dispose()

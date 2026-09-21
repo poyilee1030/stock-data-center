@@ -121,6 +121,7 @@ def archive_evidence_plan(
     rule_instant: datetime | None = None,
     rule_source: str | None = None,
     bound_is_the_rule_day: bool = False,
+    proven_capture_at: datetime | None = None,
 ) -> tuple[PlannedEvidence, ...]:
     """What one legacy-archive row proves about when its month was public.
 
@@ -168,6 +169,14 @@ def archive_evidence_plan(
                 "a row left on the statutory day needs the rule instant it claims"
             )
         _require_rule_attribution(rule_source)
+        if proven_capture_at is not None and proven_capture_at > rule_instant:
+            # A first sighting later than the deadline falsifies the rule for
+            # this row, whoever proved it and whenever (§2, CLAUDE.md §32). The
+            # row keeps the capture it already carries and claims nothing here;
+            # appending the rule would leave a falsified instant in
+            # append-only storage, ready to answer the day the capture above it
+            # is superseded.
+            return ()
         return (
             PlannedEvidence(
                 evidence_type="release_rule",

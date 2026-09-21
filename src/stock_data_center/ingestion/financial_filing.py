@@ -350,6 +350,7 @@ class FinancialFilingArchiveImporter(FinancialFilingImporter):
             writer=writer,
             policy=policy,
         )
+        self._quarter_planners: dict[tuple[int, int], object] = {}
 
     def run(self, **kwargs: object) -> object:
         """Record `legacy_archive`, whatever the caller passed.
@@ -399,27 +400,65 @@ class FinancialFilingArchiveImporter(FinancialFilingImporter):
                 "LegacyFinancialFilingArchiveAdapter"
             )
         bound_at = adapter.capture_bound(self._request_for(parsed))
-        planner = self._policy.bind(
+        bound = self._policy.bind(
             connection, dataset_code=adapter.dataset_code, source=adapter.source
-        ).archive_planner(
-            connection,
-            period=parsed.period_end,
-            rule_id=STATUTORY_RULE[0],
-            rule_version=STATUTORY_RULE[1],
-            # The rule resolution asks the trading calendar, which refuses
-            # outside its imported coverage. A captured file never needs it.
-            needs_rule=bound_at is None,
-            evidence_label=EVIDENCE_LABEL,
         )
+        if bound_at is not None:
+            # A captured file needs no rule, and resolving one would ask the
+            # trading calendar, which refuses outside its imported coverage.
+            planner = bound.archive_planner(
+                connection,
+                period=parsed.period_end,
+                rule_id=STATUTORY_RULE[0],
+                rule_version=STATUTORY_RULE[1],
+                needs_rule=False,
+                evidence_label=EVIDENCE_LABEL,
+            )
+        else:
+            planner = self._quarter_planner(
+                connection, bound=bound, parsed=parsed
+            )
         planned = planner.plan(
             bound_at=bound_at,
             proves_first_capture=bound_at is not None,
             bound_is_the_rule_day=bound_at is None,
+            # What this version already carries. An official `first_capture`
+            # may have proved a first sighting before this archive copy was
+            # imported, and a sighting later than the deadline falsifies the
+            # rule for that filing (CLAUDE.md §32).
+            proven_capture_at=bound.stored_capture(connection, version_id),
         )
         return planned, (
             "legacy archive capture" if bound_at is not None
             else f"{STATUTORY_RULE[0]}@{STATUTORY_RULE[1]}"
         )
+
+    def _quarter_planner(
+        self,
+        connection: Connection,
+        *,
+        bound,
+        parsed: ParsedFinancialFiling,
+    ):
+        """The rule instant for this quarter, resolved once for the whole walk.
+
+        Every filing in a quarter shares the deadline, and the rule is
+        registered immutably, so resolving it per document asks the calendar
+        the same question about forty thousand times across the archive.
+        """
+
+        key = (parsed.report_year, parsed.report_quarter)
+        planner = self._quarter_planners.get(key)
+        if planner is None:
+            planner = bound.archive_planner(
+                connection,
+                period=parsed.period_end,
+                rule_id=STATUTORY_RULE[0],
+                rule_version=STATUTORY_RULE[1],
+                evidence_label=EVIDENCE_LABEL,
+            )
+            self._quarter_planners[key] = planner
+        return planner
 
     @staticmethod
     def _request_for(

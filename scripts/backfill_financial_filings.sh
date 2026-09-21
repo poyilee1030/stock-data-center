@@ -26,6 +26,9 @@ TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-21600}"
 
 mkdir -p "$LOG_DIR"
 PIDS=()
+# One pattern per launched year range, so cleanup reaches this run's workers
+# and only this run's.
+PATTERNS=()
 
 cleanup() {
     # Signal the process group, not the launcher: `python -m` forks, and a
@@ -34,11 +37,24 @@ cleanup() {
         [[ -n "$pid" ]] && kill -- "-$pid" 2>/dev/null || true
     done
     wait 2>/dev/null || true
-    # Nothing may outlive this script: a stray importer keeps writing into the
-    # database after the run reported itself finished.
-    if pgrep -f "financial-filing-backfill" >/dev/null 2>&1; then
-        pkill -9 -f "financial-filing-backfill" || true
-    fi
+    # Nothing this script launched may outlive it: a stray importer keeps
+    # writing into the database after the run reported itself finished. But
+    # `setsid cmd &` forks, so `$!` above is the launcher and not the worker's
+    # group leader — the kill by group is a best effort, and this is what
+    # actually reaches the worker.
+    #
+    # Matched on each launched year range rather than on
+    # `financial-filing-backfill` alone. The years are independent, so two of
+    # these run side by side by design, and a blanket pattern from whichever
+    # finished first would kill the other shell's workers.
+    for pattern in "${PATTERNS[@]:-}"; do
+        [[ -n "$pattern" ]] && pkill -9 -f -- "$pattern" 2>/dev/null || true
+    done
+    for pattern in "${PATTERNS[@]:-}"; do
+        if [[ -n "$pattern" ]] && pgrep -f -- "$pattern" >/dev/null 2>&1; then
+            echo "warning: still running: $pattern" >&2
+        fi
+    done
 }
 trap cleanup EXIT INT TERM
 
@@ -56,7 +72,8 @@ for year in $(seq "$FIRST_YEAR" "$LAST_YEAR"); do
             --progress \
         > "$LOG_DIR/${year}.json" 2> "$LOG_DIR/${year}.progress" &
     PIDS+=("$!")
-    echo "launched ${year}Q1..${year}Q${last_quarter} (pgid $!)" >&2
+    PATTERNS+=("financial-filing-backfill --period ${year}Q1 --through ${year}Q${last_quarter}")
+    echo "launched ${year}Q1..${year}Q${last_quarter} (launcher $!)" >&2
 done
 
 status=0

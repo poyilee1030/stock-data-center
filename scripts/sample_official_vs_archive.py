@@ -63,7 +63,11 @@ from stock_data_center.ingestion.adapters.financial_filing_archive import (
     DEFAULT_ARCHIVE_ROOT,
     LegacyFinancialFilingArchiveAdapter,
 )
-from stock_data_center.ingestion.http import HttpSourceFetcher, RetryingFetcher
+from stock_data_center.ingestion.http import (
+    HttpSourceFetcher,
+    RetryingFetcher,
+    resolve_archive_glob,
+)
 from stock_data_center.ingestion.models import (
     FinancialFilingArchiveRequest,
     FinancialFilingRequest,
@@ -106,9 +110,18 @@ def compare(
 ) -> SampleResult:
     period = f"{year}Q{quarter}"
     archive_request = FinancialFilingArchiveRequest(code, year, quarter)
-    pattern = Path(archive_adapter.resource(archive_request).source_uri)
-    matches = sorted(pattern.parent.glob(pattern.name))
-    archived_bytes = matches[0].read_bytes()
+    # The same resolver the importer fetches through, so the gate can never
+    # vouch for a file the import would not read: two files matching one
+    # request is `ambiguous_archive_file` on both sides, not a silent pick of
+    # the alphabetically first, and none is a reportable verdict rather than an
+    # IndexError.
+    try:
+        path = resolve_archive_glob(
+            Path(archive_adapter.resource(archive_request).source_uri)
+        )
+    except SourceDataError as error:
+        return SampleResult(period, code, None, "unexplained", error.reason_code)
+    archived_bytes = path.read_bytes()
     try:
         archived = archive_adapter.parse(archived_bytes, archive_request)
     except SourceDataError as error:

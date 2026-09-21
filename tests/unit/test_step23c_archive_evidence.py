@@ -19,6 +19,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from stock_data_center.evidence.plan import archive_evidence_plan
 from stock_data_center.ingestion.adapters.financial_filing_archive import (
     BACKFILL_RUN_DATES,
     LEGACY_CAPTURE_WINDOW_START,
@@ -102,3 +103,50 @@ def test_a_naive_mtime_is_refused() -> None:
 
 def test_the_rule_is_named_by_version() -> None:
     assert STATUTORY_RULE == ("financial_statements_general", 1)
+
+
+def test_a_stored_capture_after_the_deadline_falsifies_the_rule() -> None:
+    """A first sighting later than the deadline means the filer was late.
+
+    The rule is then false for that row and is not recorded at all
+    (CLAUDE.md §32). Evidence is append-only, so writing it anyway would leave
+    a falsified instant under the capture for ever.
+    """
+    assert (
+        archive_evidence_plan(
+            bound_at=None,
+            evidence_source="legacy xbrl archive 2026-02-22",
+            proves_first_capture=False,
+            bound_is_the_rule_day=True,
+            rule_instant=datetime(2020, 8, 17, 23, 59, 59, tzinfo=TAIPEI),
+            rule_source="financial_statements_general@1",
+            proven_capture_at=datetime(2026, 9, 20, 10, 0, tzinfo=TAIPEI),
+        )
+        == ()
+    )
+
+
+def test_a_stored_capture_before_the_deadline_leaves_the_rule_claimable() -> None:
+    """The falsification is one-directional: only a *later* sighting kills it."""
+    planned = archive_evidence_plan(
+        bound_at=None,
+        evidence_source="legacy xbrl archive 2026-02-22",
+        proves_first_capture=False,
+        bound_is_the_rule_day=True,
+        rule_instant=datetime(2020, 8, 17, 23, 59, 59, tzinfo=TAIPEI),
+        rule_source="financial_statements_general@1",
+        proven_capture_at=datetime(2020, 8, 10, 9, 0, tzinfo=TAIPEI),
+    )
+    assert [item.evidence_type for item in planned] == ["release_rule"]
+
+
+def test_no_stored_capture_leaves_the_rule_claimable() -> None:
+    planned = archive_evidence_plan(
+        bound_at=None,
+        evidence_source="legacy xbrl archive 2026-02-22",
+        proves_first_capture=False,
+        bound_is_the_rule_day=True,
+        rule_instant=datetime(2020, 8, 17, 23, 59, 59, tzinfo=TAIPEI),
+        rule_source="financial_statements_general@1",
+    )
+    assert [item.evidence_type for item in planned] == ["release_rule"]

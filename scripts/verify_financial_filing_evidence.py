@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 """Step 23-c — check every stored filing's evidence against its archive file.
 
+Versions an official fetch captured first are counted and skipped: they
+carry their own `capture_bound`, and they are not the archive's to answer
+for.
+
 The acceptance criterion is that a filing the legacy daily job captured
 resolves under Market PIT no earlier than that capture, and this re-derives the
 claim rather than trusting the import that wrote it: for each stored version it
@@ -72,7 +76,12 @@ def main(argv: list[str] | None = None) -> int:
             sa.text(
                 """
                 SELECT s.security_code, v.report_year, v.report_quarter, v.id,
-                       e.evidence_type, e.published_at, e.evidence_source
+                       e.evidence_type, e.published_at, e.evidence_source,
+                       EXISTS (
+                           SELECT 1 FROM publication_evidence c
+                            WHERE c.financial_filing_version_id = v.id
+                              AND c.evidence_type = 'capture_bound'
+                       ) AS officially_captured
                   FROM financial_filing_versions v
                   JOIN security s ON s.id = v.security_id
                   LEFT JOIN publication_evidence e
@@ -85,6 +94,15 @@ def main(argv: list[str] | None = None) -> int:
             )
         ).mappings()
         for row in rows:
+            if row["officially_captured"]:
+                # The archive adapter files under the official source code on
+                # purpose (CLAUDE.md §30), so this query sees official fetches
+                # too. A version an official `first_capture` saw first carries
+                # its own `capture_bound`, which outranks anything the archive
+                # could claim — judging it against an archive file would report
+                # a failure where the evidence is right.
+                counts["officially_captured"] += 1
+                continue
             code = row["security_code"]
             year, quarter = row["report_year"], row["report_quarter"]
             mtime = archive_mtime(

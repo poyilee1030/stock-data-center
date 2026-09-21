@@ -105,8 +105,23 @@ def quarters(start: str, end: str) -> list[str]:
     return [label for label in labels if start <= label <= end]
 
 
+# Legacy holds one row per (filer, quarter, code): whatever its last scrape
+# saw. A corrected filing is a second sealed version of the same quarter here —
+# `filing_key` carries the revision fingerprint — so comparing every version
+# would double every account code of that filer and report it as a duplicate
+# identity. The comparable version is the newest sealed one, and `ingested_at`
+# breaks the tie deterministically.
 OUR_FACTS = sa.text(
     """
+    WITH latest AS (
+        SELECT DISTINCT ON (v.security_id, v.source)
+               v.id, v.security_id
+          FROM financial_filing_versions v
+          JOIN financial_filing_seals seal ON seal.filing_version_id = v.id
+         WHERE v.report_year = :year
+           AND v.report_quarter = :quarter
+         ORDER BY v.security_id, v.source, seal.ingested_at DESC, v.id DESC
+    )
     SELECT s.security_code AS symbol,
            v.report_category,
            f.statement,
@@ -115,12 +130,10 @@ OUR_FACTS = sa.text(
            f.numeric_value,
            f.period_start
       FROM financial_facts f
-      JOIN financial_filing_versions v ON v.id = f.filing_version_id
-      JOIN financial_filing_seals seal ON seal.filing_version_id = v.id
+      JOIN latest ON latest.id = f.filing_version_id
+      JOIN financial_filing_versions v ON v.id = latest.id
       JOIN security s ON s.id = v.security_id
-     WHERE v.report_year = :year
-       AND v.report_quarter = :quarter
-       AND f.numeric_value IS NOT NULL
+     WHERE f.numeric_value IS NOT NULL
        AND (
              (f.statement = 'balance_sheet' AND f.instant_date = :quarter_end)
           OR (f.statement <> 'balance_sheet' AND f.period_end = :quarter_end)
@@ -265,6 +278,9 @@ def reconcile_quarter(
     """
     fourth_quarter = label.endswith("Q4")
     held = {key[0] for key in mine}
+    # Both sides' filer sets are built once. Rebuilding legacy's inside the
+    # loop rebuilt a 600,000-key set for every unmatched row.
+    legacy_filers = {key[0] for key in theirs}
     for key, values in mine.items():
         if len(values) > 1:
             classes["duplicate_identity_in_ours"] += 1
@@ -272,7 +288,7 @@ def reconcile_quarter(
             continue
         legacy_values = theirs.get(key)
         if legacy_values is None:
-            if key[0] not in {row[0] for row in theirs}:
+            if key[0] not in legacy_filers:
                 name = "absent_from_legacy:filing_absent_from_legacy"
             elif key[2] in codebook:
                 name = "absent_from_legacy:inside_legacy_codebook"
