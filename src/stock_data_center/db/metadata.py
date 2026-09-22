@@ -1976,4 +1976,16 @@ sa.Index(
     publication_evidence.c.recorded_at,
 )
 
+# Step 26-a. Resolving one version's evidence is the question every PIT resolve
+# asks, and nothing indexed it: ingestion writes evidence and never looks it up,
+# so the whole-table scan only surfaced when a rolling as-of series asked it
+# once per observation date — 600 ms each on 22 million rows. Partial because
+# daily prices are a small minority of evidence rows; the other targets keep
+# the behaviour they have until a step needs theirs.
+sa.Index(
+    "ix_publication_evidence_daily_price",
+    publication_evidence.c.daily_price_version_id,
+    postgresql_where=publication_evidence.c.daily_price_version_id.is_not(None),
+)
+
 __all__ = ["metadata"]

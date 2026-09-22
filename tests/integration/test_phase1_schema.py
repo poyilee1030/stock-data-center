@@ -825,6 +825,9 @@ def test_derived_contract_versions_pit_lineage_and_computed_time(db: Connection)
             """
             INSERT INTO dataset_catalog (dataset_code, description, schema_version)
             VALUES ('technical_indicators', 'canonical technical indicators', 'v1')
+            -- Step 26-a declares this dataset in a migration; this test
+            -- predates it and only needs the row to exist.
+            ON CONFLICT (dataset_code) DO NOTHING
             """
         )
     )

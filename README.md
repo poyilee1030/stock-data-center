@@ -43,6 +43,20 @@ mtime：2025Q4 起每日工作抓到的 4,895 份帶 `legacy_capture_bound`，�
 已知限制：2025Q4 之前沒有首見證據，所以真正延遲申報的公司在 Market PIT 下會偏早
 （audit §7.6）；官方路徑遇到 Big5 使用者造字的文件會 fail closed，留給 Step 28。
 
+TDCC 股權分散拆成 24-a（adapter 與匯入路徑）與 24-b（376 週 backfill、每週涵蓋
+與對帳），都已合併。
+
+**衍生資料開始交付**：Step 26 拆成 26-a–26-e，第一段 26-a 交付 derivation 服務
+基礎與 `technical_indicators:v1`（MA／VMA 5-240、KD、RSI 6/12、MACD、Bollinger，
+全部以未還原的原始收盤價計算，與舊系統的消費者訓練時一致）。全市場 2,582 支證券、
+75,990,376 列滾動 as-of 序列、0 失敗。價格類指標與舊系統逐筆相同（最大差異
+1.1e-13）；其餘差異三類全部歸因，沒有未解釋的一筆。
+
+滾動序列的截止點取自輸入自己的 release rule：`daily_price` 遵循
+`exchange_daily_settled@1`，所以觀察日 D 在 D+1 03:00 計算——D 自己的收盤價算在
+D 裡，D+1 的不算。`information_as_of` 隨觀察日移動，`knowledge_as_of` 是整個執行
+共用的，兩條軸不合併。
+
 ## 技術棧
 
 ```text

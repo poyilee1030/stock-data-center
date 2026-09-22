@@ -599,10 +599,14 @@ explicit out-of-scope work
 | 23-a | MERGED | 財務報表：iXBRL parser 與文件契約 |
 | 23-b | MERGED | 財務報表：官方 adapter、檔案庫 adapter 與匯入路徑 |
 | 23-c | MERGED | 財務報表：全量 backfill、抽樣關卡與對帳 |
-| 24-a | IN REVIEW | TDCC 股權分散：adapter 與匯入路徑 |
-| 24-b | IN REVIEW | TDCC 股權分散：376 週 backfill、涵蓋範圍與對帳 |
+| 24-a | MERGED | TDCC 股權分散：adapter 與匯入路徑 |
+| 24-b | MERGED | TDCC 股權分散：376 週 backfill、涵蓋範圍與對帳 |
 | 25 | PLANNED | 還原價格 |
-| 26 | PLANNED | 標準衍生 v1（移植舊系統計算程式） |
+| 26-a | IN REVIEW | derivation 服務基礎與 technical_indicators:v1 |
+| 26-b | PLANNED | 法人連續天數與累積流量 |
+| 26-c | PLANNED | 股權分散集中度 |
+| 26-d | PLANNED | 融資融券與借券指標 |
+| 26-e | PLANNED | 估值指標 |
 | 27 | PLANNED | 公開 REST API v1 |
 | 28 | PLANNED | 排程的前向抓取 |
 | 29 | PLANNED | Python SDK 與下游整合 |
@@ -1769,7 +1773,7 @@ importer 以資料日期欄位為 key，絕不用檔名：`20200619.CSV` 和 `20
 
 ## Step 26 — 標準衍生 v1（移植舊系統計算程式）
 
-狀態：**PLANNED**。依賴：Steps 17-c–25，依各指標的需要。
+狀態：**拆成 26-a–26-e**。依賴：Steps 17-c–25，依各指標的需要。
 
 定義，每個都從舊系統的計算程式移植，並與舊系統的表對帳：
 
@@ -1790,6 +1794,145 @@ short_interest_metrics:v1        SBL/short ratios and WoW changes
 
 範圍外：綜合壓力分數（下游）；指標的還原價格版本（之後的 derivation version）。
 
+### 為什麼拆成五個
+
+七個 derivation 各自要註冊定義、實作計算、實體化滾動序列、證明實體化與即時
+計算一致，再與舊系統的七張表逐欄對帳。舊系統的計算程式本身就有 1,791 行，
+移植後加上 PIT 與 lineage 只會更多，遠超過 CLAUDE.md §1 的 800 行審閱上限。
+
+拆的縫是**輸入領域**：每一段自己就是完整的契約——定義、計算、實體化、對帳
+——合併後不會留下半個契約。26-a 另外負擔所有 derivation 共用的基礎設施，
+所以它是第一個。
+
+```text
+26-a  derivation 服務基礎 + technical_indicators:v1      輸入：daily_price
+26-b  institutional_streaks:v1 + institutional_cumulative_flow:v1
+                                                          輸入：institutional_investor_flow、foreign_holding
+26-c  shareholding_concentration:v1                       輸入：tdcc_distribution
+26-d  margin_metrics:v1 + short_interest_metrics:v1       輸入：margin_trading、securities_lending
+26-e  valuation_metrics:v1                                輸入：financial_fact、daily_price、official_valuation
+```
+
+### 滾動 as-of 序列的截止點慣例
+
+§17 說「每個觀察日期都用該日期截止點時可見的輸入」，但沒有說截止點是幾點。
+這一點不能含糊：`daily_price` 遵循 `exchange_daily_settled@1`，D 當天的行情
+要到 **D+1 的 03:00**（Asia/Taipei）才算公開。若把截止點取在 D 當天結束，
+D 自己的收盤價就不可見，整條指標序列會系統性落後一天。
+
+因此：
+
+```text
+cutoff(D) = 該 derivation 所有必要輸入中，週期 D 最晚的 release 時刻
+```
+
+`technical_indicators:v1` 只吃 `daily_price`，所以 `cutoff(D) = D+1 03:00+08:00`。
+每個定義把自己的截止點寫進 `calendar_convention`，而不是由呼叫端猜。這個慣例
+同時就是無未來洩漏的判準：D+1 的行情在 D+2 03:00 才公開，永遠大於 cutoff(D)。
+
+滾動序列以 Market PIT 實體化，`information_as_of = knowledge_as_of = cutoff(D)`。
+
+### 舊系統的 technical_indicators 是兩個 derivation
+
+舊系統把法人連續買賣天數寫進 `technical_indicators` 同一張表。它們的輸入領域
+不同（`daily_quotes` vs `institutional_investors`），release 時刻也不同，合成
+一個 derivation 會讓其中一邊的可見性決定另一邊。所以 `technical_indicators:v1`
+只有價量指標，連續天數屬於 26-b 的 `institutional_streaks:v1`。對帳時兩者都比
+舊系統的同一張表。
+
+### 舊系統的 EWM 暖機是對帳時的已知差異
+
+KD、RSI 和 MACD 都是無限記憶的指數移動平均。舊系統的增量執行只回頭讀 500 個
+日曆天（`BUFFER_DAYS`），所以同一個日期在「全量重算」與「增量續跑」下的值不同。
+本 step 的滾動序列永遠從證券的第一筆可見行情開始暖機，因此差異是預期的，要在
+對帳報告中量化，不是靠放寬容差蓋過去。
+
+## Step 26-a — derivation 服務基礎與 technical_indicators:v1
+
+狀態：**IN REVIEW**。依賴：Step 17-c。
+
+交付：
+
+- `derived` 套件：定義註冊（`derived_dataset_definitions`，含 `definition_hash`
+  與冪等註冊）、計算執行（`derived_computation_runs`）、結果寫入
+  （`derived_metric_versions`）
+- 純函數計算器：MA/VMA 5/10/20/60/120/240、KD（RSV 9 日、alpha 1/3）、
+  RSI 6/12（Wilder，`com = window - 1`）、MACD（12/26/9）、Bollinger（20、2 倍
+  樣本標準差）。全部以 raw close／volume 計算，`price_adjustment_convention`
+  明寫 `raw_official_close`
+- 滾動 as-of 實體化 CLI，與同 context 的即時計算路徑
+- `scripts/reconcile_technical_indicators.py`
+
+驗收：
+
+- 每個公式對固定 fixture 的值與舊系統逐欄相同（容差在報告中寫明）
+- 實體化結果與同一個 PIT context 的即時計算完全相同
+- 觀察日 D 的值不依賴任何 `cutoff(D)` 之後才可見的輸入；把 D+1 的行情加進資料庫
+  不改變 D 的任何值
+- 定義冪等註冊：同樣的定義重跑不產生第二筆 `derived_dataset_definitions`
+- 與舊系統 `technical_indicators` 的價量欄位對帳，差異逐類說明
+
+全部通過（`docs/step_reports/step-26-a-acceptance-report.md`）。2,582 支證券、
+75,990,376 列、0 失敗。價格類指標與舊系統逐筆相同（最大差異 1.1e-13）；其餘差異
+分成三類並全部歸因：舊系統丟掉沒成交的日子（695 支、26,290 個證券日）、舊系統
+凍結的 2026-03-27 不完整成交量（902 支）、轉板證券的每來源一條序列（14 支）。
+沒有第四類。
+
+範圍外：法人連續天數（26-b）；還原價格版本的指標。
+
+## Step 26-b — 法人連續天數與累積流量
+
+狀態：**PLANNED**。依賴：Steps 20-a、20-d、26-a。
+
+`institutional_streaks:v1` 移植 `calculate_net_streak`：同號連續段的長度，帶正負號，
+淨額為 0 當天歸零。三個投資人別各一條。
+
+`institutional_cumulative_flow:v1` 移植 `trust_holding`／`dealer_holding`：自序列
+起點起的淨額累積和，除以 `foreign_holding` 的發行股數得到比例。這是**代理值**
+而不是真正的持股，欄位名稱與文件都要這樣說。
+
+驗收：與舊系統 `technical_indicators` 的三個 streak 欄位、以及 `trust_holding`／
+`dealer_holding` 對帳；累積和的起點差異要量化。
+
+## Step 26-c — 股權分散集中度
+
+狀態：**PLANNED**。依賴：Step 24-b、26-a。
+
+`shareholding_concentration:v1`：分級 1-8 為小股東、9-11 為中股東、12-15 為大股東，
+各自的占比合計與人數合計，集中度價差與四個 WoW 差分。舊系統沒有分級 16／17，
+本 step 的定義要明寫分級範圍，不因為來源多了兩級就改變語意。
+
+驗收：與舊系統 `shareholding_concentration` 對帳；2023-10-20 截斷週依 24-b 的
+記載處理。
+
+## Step 26-d — 融資融券與借券指標
+
+狀態：**PLANNED**。依賴：Steps 21-a、21-b、26-a。
+
+`margin_metrics:v1`：融資與融券使用率、餘額的週變化與變化率、回補壓力。
+`short_interest_metrics:v1`：借券餘額變化與變化率、賣出／還券比、融券餘額變化。
+
+兩者都用來源自己的前期餘額欄位，不用 LAG 推算。
+
+驗收：與舊系統 `margin_pressure_analysis`／`short_interest_analysis` 對帳，
+**不含** `margin_pressure_score` 與 `short_pressure_score`——那兩個是綜合壓力
+分數，依 §24 留在下游。
+
+## Step 26-e — 估值指標
+
+狀態：**PLANNED**。依賴：Steps 18-c、23-c、26-a。
+
+`valuation_metrics:v1`：TTM EPS（近四季單季 EPS 之和）、PE（收盤／TTM EPS，
+TTM ≤ 0 時為 NULL）、PE 百分位（同一證券至該日為止的 expanding rank，×100）、
+ROE（TTM EPS／每股淨值 ×100）。官方發布的 PE 是觀察資料（Step 18-c），與本
+derivation 算出的 PE 分開呈現（§53）。
+
+**與舊系統的刻意差異**：舊系統用法定申報期限（5/15、8/14、11/14、次年 3/31）
+當作財報的生效日。本 repo 有真正的發布證據，所以 TTM EPS 的可見性走 PIT
+resolver，不走假期限。對帳時這一類差異要逐筆分類，不得為了對齊舊系統而改回
+期限推算。
+
+驗收：與舊系統 `valuation_daily` 對帳；因發布證據而產生的差異單獨成類並解釋。
 ---
 
 ## Step 34 — 穩定的 Publication-Evidence Hash
