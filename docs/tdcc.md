@@ -181,6 +181,12 @@ data date resolves at 12:00 on the following Sunday. A `first_capture` run that
 genuinely sees a week first also writes a `capture_bound`, and a capture later
 than the rule falsifies the rule for those rows, exactly as ADR-0020 §2 has it.
 
+The archive importer forces `gap_fill`, whatever the run declared. Reading a
+2020 file off disk today is not a first sighting, and honouring a declared
+`first_capture` would write today's instant as a capture bound and suppress the
+rule as falsified — pushing that week's market visibility to the day of the
+backfill, irreversibly, since evidence is append-only.
+
 The week is keyed on the file's own 資料日期, never on its filename: two
 archived files named for 2020-06-19 hold the 2020-06-12 table, and trusting the
 name would invent a week and hide a missing one. A file whose content date is
@@ -195,7 +201,10 @@ Three boundaries are worth stating:
 * **A security whose rows do not form a distribution quarantines alone.** The
   week's other securities are complete published facts (ADR-0022 §8). The
   manifest carries `row_quarantined_count` and one entry per rejected
-  security.
+  security. This includes a holding level above 100%: the adapter checks the
+  role's ceiling so that one security's defect does not roll back the week,
+  while the writer and the row trigger keep enforcing it for every other
+  write path.
 * **A truncated payload is reported, not smoothed.** `2023/20231020.7z` is a
   download cut at 1.5 MiB, 562 securities short. Its complete securities
   import, the partial one quarantines, and `truncated_payload` plus a warning

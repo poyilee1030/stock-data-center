@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
 
@@ -12,17 +14,23 @@ import sqlalchemy as sa
 from stock_data_center.ingestion.adapters.tdcc_shareholding import (
     LegacyTDCCArchiveAdapter,
     TDCCOpenDataAdapter,
+    parse_shareholding,
 )
 from stock_data_center.ingestion.models import (
     FetchedArtifact,
     TDCCShareholdingRequest,
 )
+from stock_data_center.ingestion.http import TDCCArchiveFetcher
 from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
 from stock_data_center.ingestion.tdcc_shareholding import TDCCShareholdingImporter
 from stock_data_center.market_data import MarketDataWriter
 from stock_data_center.pit import MarketPITContext, SystemPITContext
 from stock_data_center.provenance import ArtifactOrigin, IngestPurpose
-from stock_data_center.tdcc import TDCCDistributionError, TDCCSnapshotService
+from stock_data_center.tdcc import (
+    TDCCDistributionError,
+    TDCCSnapshotService,
+    TDCCSnapshotWriter,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -368,14 +376,15 @@ def test_the_archive_adapter_records_legacy_archive_provenance(
         engine.dispose()
 
 
-def test_a_holding_level_above_one_hundred_percent_is_rejected(
+def test_a_holding_level_above_one_hundred_percent_quarantines_that_security(
     isolated_database_url: str, tmp_path: Path
 ) -> None:
-    """The ceiling moved to the role, it did not disappear.
+    """The ceiling moved to the role, it did not disappear — and it is a
+    per-security defect, so the rest of the week still imports.
 
     No archived holding level exceeds 100 (audit §4.9), so one that did would
-    be a parse defect, and both the writer's profile validation and the row
-    trigger say so.
+    be a parse defect in one security's rows. Failing the whole file over it
+    would cost the other ~4,000 securities their published distribution.
     """
     engine = sa.create_engine(isolated_database_url)
     try:
@@ -383,8 +392,61 @@ def test_a_holding_level_above_one_hundred_percent_is_rejected(
         content = LATEST.decode("utf-8-sig").replace(
             ",2496562,291447275,1.12", ",2496562,291447275,101.00", 1
         )
-        with pytest.raises(TDCCDistributionError, match="cannot own"):
-            run(engine, tmp_path, content=content.encode("utf-8"))
+        result, manifest = run(engine, tmp_path, content=content.encode("utf-8"))
+        assert manifest.status == "succeeded"
+        assert result.business_versions_created == 2
+        assert manifest.reconciliation["row_quarantines"] == [
+            {
+                "security_code": "2330",
+                "reason_code": "holding_level_above_one_hundred",
+                "detail": "2330 holding level 1 owns 101.00% of custody",
+            }
+        ]
+        with engine.connect() as connection:
+            written = set(
+                connection.scalars(
+                    sa.text(
+                        "SELECT s.security_code FROM tdcc_snapshot_versions v "
+                        "JOIN security s ON s.id = v.security_id"
+                    )
+                )
+            )
+        assert written == {"0056", "1101"}
+    finally:
+        engine.dispose()
+
+
+def test_storage_still_refuses_a_holding_level_above_one_hundred(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """The adapter is not the only guard: the writer and the row trigger
+    enforce the same rule for any other write path (Step 6, ADR-0012)."""
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        register(engine, "2330")
+        importer = TDCCShareholdingImporter(engine)
+        with engine.begin() as connection:
+            security_id = connection.scalar(
+                sa.text("SELECT id FROM security WHERE security_code = '2330'")
+            )
+            parsed = parse_shareholding(
+                LATEST, source=SOURCE, expected_date=WEEK
+            )
+            row = next(
+                item for item in parsed.rows if item.security_code == "2330"
+            )
+            buckets = tuple(
+                replace(bucket, ownership_percent=Decimal("101"))
+                if bucket.bucket_code == "1"
+                else bucket
+                for bucket in row.observation.distribution
+            )
+            with pytest.raises(TDCCDistributionError, match="cannot own"):
+                importer._writer.validate_distribution(
+                    connection,
+                    replace(row.observation, distribution=buckets),
+                )
+        del security_id
     finally:
         engine.dispose()
 
@@ -415,5 +477,174 @@ def test_rerunning_a_truncated_week_is_safe_and_records_each_sighting(
                 sa.text("SELECT count(*) FROM tdcc_snapshot_versions")
             )
         assert (quarantines, versions) == (2, 1)
+    finally:
+        engine.dispose()
+
+
+def archive(tmp_path: Path, weeks: dict[date, bytes]) -> Path:
+    root = tmp_path / "shareholding"
+    for week, payload in weeks.items():
+        year = root / str(week.year)
+        year.mkdir(parents=True, exist_ok=True)
+        (year / f"{week:%Y%m%d}.csv").write_bytes(payload)
+    return root
+
+
+def test_an_archive_walk_never_claims_a_capture_however_it_was_declared(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """Reading a file off disk today is a gap fill, not a first sighting.
+
+    Honouring a declared `first_capture` would write today's instant as a
+    capture bound and, being later than `tdcc_weekly@1`, suppress the rule as
+    falsified — which in append-only storage would push that week's market
+    visibility to the day of the backfill.
+    """
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        register(engine, "2330", "0056", "1101")
+        root = archive(tmp_path, {WEEK: LATEST})
+        importer = TDCCShareholdingImporter(
+            engine,
+            raw_store=LocalRawArtifactStore(tmp_path / "raw"),
+            fetcher=TDCCArchiveFetcher(),
+        )
+        import_id = uuid4()
+        importer.run(
+            adapter=LegacyTDCCArchiveAdapter(archive_root=root),
+            request=TDCCShareholdingRequest(WEEK),
+            import_id=import_id,
+            git_commit="test-commit",
+            purpose=IngestPurpose.FIRST_CAPTURE,
+        )
+        with engine.connect() as connection:
+            types = set(
+                connection.scalars(
+                    sa.text(
+                        "SELECT evidence_type FROM publication_evidence "
+                        "WHERE dataset_code = 'tdcc_snapshot'"
+                    )
+                )
+            )
+            purposes = set(
+                connection.scalars(
+                    sa.text(
+                        "SELECT purpose FROM ingest_runs "
+                        "WHERE dataset_code = 'tdcc_snapshot'"
+                    )
+                )
+            )
+            published = set(
+                connection.scalars(
+                    sa.text(
+                        "SELECT published_at FROM publication_evidence "
+                        "WHERE dataset_code = 'tdcc_snapshot'"
+                    )
+                )
+            )
+        assert types == {"release_rule"}
+        # The declared purpose is not silently kept either: the run records
+        # what it actually did.
+        assert purposes == {IngestPurpose.GAP_FILL.value}
+        assert published == {RELEASE}
+    finally:
+        engine.dispose()
+
+
+def test_the_manifest_names_the_file_that_answered_even_across_weeks(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """Read back from the stored artifact, not from the fetcher's last state.
+
+    One fetcher serves a whole 376-week walk (Step 24-b), so live fetcher
+    state would attribute the previous week's file to this week's manifest.
+    """
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        register(engine, "2330", "0056", "1101", "00673R")
+        root = archive(
+            tmp_path,
+            {WEEK: LATEST, date(2020, 4, 30): OVER_HUNDRED},
+        )
+        importer = TDCCShareholdingImporter(
+            engine,
+            raw_store=LocalRawArtifactStore(tmp_path / "raw"),
+            fetcher=TDCCArchiveFetcher(),
+        )
+        manifests = []
+        for week in (WEEK, date(2020, 4, 30)):
+            import_id = uuid4()
+            importer.run(
+                adapter=LegacyTDCCArchiveAdapter(archive_root=root),
+                request=TDCCShareholdingRequest(week),
+                import_id=import_id,
+                git_commit="test-commit",
+            )
+            with engine.connect() as connection:
+                manifests.append(importer.manifest(connection, import_id))
+        assert [
+            Path(str(manifest.reconciliation["archive_file"])).name
+            for manifest in manifests
+        ] == ["20260918.csv", "20200430.csv"]
+        assert [
+            manifest.reconciliation["archive_filename_date"]
+            for manifest in manifests
+        ] == ["2026-09-18", "2020-04-30"]
+    finally:
+        engine.dispose()
+
+
+class WriterBug(TDCCSnapshotWriter):
+    def write_snapshot(self, *args, **kwargs):  # noqa: ANN002, ANN003
+        raise RuntimeError("simulated writer bug")
+
+
+class FetchMustNotRun:
+    def fetch(self, resource):  # noqa: ANN001
+        raise AssertionError("a captured checkpoint must not re-fetch")
+
+
+def test_a_resumed_week_still_names_its_own_file(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """A resume reads the captured artifact and never calls `fetch()`, so the
+    file has to come from the artifact observation (CLAUDE.md §75)."""
+    engine = sa.create_engine(isolated_database_url)
+    raw_store = LocalRawArtifactStore(tmp_path / "raw")
+    try:
+        register(engine, "2330", "0056", "1101")
+        root = archive(tmp_path, {WEEK: LATEST})
+        import_id = uuid4()
+        with pytest.raises(RuntimeError, match="simulated writer bug"):
+            TDCCShareholdingImporter(
+                engine,
+                raw_store=raw_store,
+                fetcher=TDCCArchiveFetcher(),
+                writer=WriterBug(),
+            ).run(
+                adapter=LegacyTDCCArchiveAdapter(archive_root=root),
+                request=TDCCShareholdingRequest(WEEK),
+                import_id=import_id,
+                git_commit="test-commit",
+            )
+        resumed = TDCCShareholdingImporter(
+            engine, raw_store=raw_store, fetcher=FetchMustNotRun()
+        )
+        result = resumed.run(
+            adapter=LegacyTDCCArchiveAdapter(archive_root=root),
+            request=TDCCShareholdingRequest(WEEK),
+            import_id=import_id,
+            git_commit="test-commit",
+        )
+        assert result.business_versions_created == 3
+        with engine.connect() as connection:
+            manifest = resumed.manifest(connection, import_id)
+        assert Path(str(manifest.reconciliation["archive_file"])).name == (
+            "20260918.csv"
+        )
+        # Nothing was fetched this run, so there is no mtime to report and no
+        # candidate list — and neither is invented.
+        assert manifest.reconciliation["archive_file_mtime"] is None
+        assert manifest.reconciliation["archive_candidates"] == []
     finally:
         engine.dispose()

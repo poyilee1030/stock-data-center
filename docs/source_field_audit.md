@@ -1221,7 +1221,11 @@ portal reaches back about a year (2025-09-19 on 2026-09-14), and
 securities, and **15 rows each**, levels 16 and 17 stripped — which is further
 proof it is not a source. Owner decision (2026-09-22): import the 2,786
 complete securities, quarantine the partial one, and report the week as
-truncated.
+truncated. Three signals detect a cut — a payload not ending in a newline, a
+decode failure mid-character, and a last security whose distribution is
+incomplete — so only a cut landing exactly on a security boundary (one row in
+seventeen) still looks complete, which is what a week-over-week security count
+is for (Step 24-b).
 
 **The published 合計 exceeds 100%.** 158 rows, all at level 17, over 74 data
 dates from 2019-07-19 to 2023-10-06, for 49 securities, up to `135.00`

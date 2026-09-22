@@ -269,3 +269,43 @@ def test_a_missing_archived_week_is_a_fetch_failure(tmp_path: Path) -> None:
             )
         )
     assert error.value.reason_code == "archive_file_missing"
+
+
+def test_a_cut_landing_on_a_newline_is_still_reported_as_truncated() -> None:
+    """The real 2023-10-20 file happens to be cut mid-row, which the byte
+    check sees. A cut one byte later leaves no partial row at all, and the
+    only remaining signal is the last security missing the rest of its
+    levels."""
+    text = TRUNCATED.decode("utf-8-sig")
+    assert not text.endswith("\n")
+    parsed = parse((text + "\r\n").encode("utf-8"), date(2023, 10, 20))
+    assert parsed.truncated is True
+    assert [item.security_code for item in parsed.rejected] == ["8162"]
+    assert [row.security_code for row in parsed.rows] == ["2330"]
+
+
+def test_a_complete_file_is_not_reported_as_truncated() -> None:
+    for payload, week in ((LATEST, date(2026, 9, 18)), (SLASHED, date(2019, 6, 28))):
+        assert parse(payload, week).truncated is False
+
+
+def test_a_payload_cut_before_its_first_newline_says_so() -> None:
+    with pytest.raises(SourceDataError) as error:
+        parse(LATEST[:20])
+    assert error.value.reason_code == "truncated_payload"
+
+
+def test_a_holding_level_above_one_hundred_quarantines_that_security() -> None:
+    text = LATEST.decode("utf-8-sig").replace(
+        ",2496562,291447275,1.12", ",2496562,291447275,101.00", 1
+    )
+    parsed = parse(text.encode("utf-8"), date(2026, 9, 18))
+    assert [item.security_code for item in parsed.rejected] == ["2330"]
+    assert parsed.rejected[0].reason_code == "holding_level_above_one_hundred"
+    assert [row.security_code for row in parsed.rows] == ["0056", "1101"]
+
+
+def test_the_published_total_is_not_subject_to_that_ceiling() -> None:
+    # Same value, on the total row: published as-is (audit §4.9).
+    parsed = parse(DOUBLE_BOM, date(2020, 4, 30))
+    assert [item.security_code for item in parsed.rejected] == []

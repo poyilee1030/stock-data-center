@@ -34,6 +34,7 @@ from sqlalchemy import Connection, Engine
 from stock_data_center.db.metadata import (
     import_quarantine,
     publication_evidence,
+    raw_artifact_observations,
     security,
 )
 from stock_data_center.evidence import EvidencePolicyService
@@ -85,14 +86,24 @@ class TDCCShareholdingImporter(
         self._policy = policy or EvidencePolicyService()
 
     def run(self, **kwargs):
-        """Archived bytes are `legacy_archive`; a live fetch is official.
+        """Archived bytes are `legacy_archive`, and prove no first sighting.
 
-        Decided from the adapter rather than left to the caller, because the
-        origin is a fact about where the bytes came from (CLAUDE.md §75).
+        Both are facts about where the bytes came from rather than caller
+        choices (CLAUDE.md §75). The purpose matters as much as the origin:
+        reading a 2020 file off disk in 2026 is a `gap_fill` however the run
+        was declared, and honouring a declared `first_capture` here would
+        write today's instant as a capture bound and, being later than
+        `tdcc_weekly@1`, suppress the rule as falsified — pushing that week's
+        market visibility to 2026 in append-only storage. The archive file
+        carries no first-seen evidence of its own: the legacy job downloaded
+        whatever OpenData was serving, and its mtime is a download time.
+        Same decision as Step 23-c's archive importer, which does not consult
+        `context.purpose` either.
         """
         adapter = kwargs.get("adapter")
         if isinstance(adapter, LegacyTDCCArchiveAdapter):
-            kwargs.setdefault("artifact_origin", ArtifactOrigin.LEGACY_ARCHIVE)
+            kwargs["artifact_origin"] = ArtifactOrigin.LEGACY_ARCHIVE
+            kwargs["purpose"] = IngestPurpose.GAP_FILL
         return super().run(**kwargs)
 
     def _source_scope(
@@ -170,6 +181,7 @@ class TDCCShareholdingImporter(
     ) -> BusinessWriteResult:
         self._require_adapter(adapter)
         tdcc_lineage = TDCCLineageRef(lineage.raw_artifact_id, lineage.ingest_run_id)
+        artifact = self._artifact_observation(connection, lineage)
         known = self._known_securities(
             connection, [row.security_code for row in parsed.rows]
         )
@@ -278,11 +290,18 @@ class TDCCShareholdingImporter(
                 ),
                 "container": parsed.container,
                 "archive_member": parsed.member_name,
+                # Which file answered, read back from the stored artifact
+                # rather than from the fetcher. A resume reads the captured
+                # artifact and never calls `fetch()`, so live fetcher state
+                # would be empty — or, with one fetcher reused across a
+                # 376-week walk, the previous week's (CLAUDE.md §75).
+                "archive_file": artifact["source_uri"],
+                "archive_filename_date": _filename_date(artifact["source_uri"]),
+                "archive_fetched_at": artifact["fetched_at"].isoformat(),
+                "archive_file_mtime": _archive_mtime(self._fetcher),
                 "archive_candidates": list(
                     getattr(self._fetcher, "last_candidates", ()) or ()
                 ),
-                "archive_file_mtime": _archive_mtime(self._fetcher),
-                "archive_filename_date": _filename_date(self._fetcher),
                 "snapshot_date_format": parsed.date_format,
                 "header_variant": parsed.header_variant,
                 "source_fields": list(parsed.source_fields),
@@ -338,6 +357,22 @@ class TDCCShareholdingImporter(
         return {code: identifier for code, identifier in rows}
 
     @staticmethod
+    def _artifact_observation(
+        connection: Connection, lineage: LineageRef
+    ) -> sa.RowMapping:
+        """What this run's artifact records: the file, and when it was read."""
+        return connection.execute(
+            sa.select(
+                raw_artifact_observations.c.source_uri,
+                raw_artifact_observations.c.fetched_at,
+            ).where(
+                raw_artifact_observations.c.raw_artifact_id
+                == lineage.raw_artifact_id,
+                raw_artifact_observations.c.ingest_run_id == lineage.ingest_run_id,
+            )
+        ).mappings().one()
+
+    @staticmethod
     def _existing_evidence(
         connection: Connection, *, source: str, version_ids: set[int]
     ) -> set[int]:
@@ -358,18 +393,20 @@ class TDCCShareholdingImporter(
 
 
 def _archive_mtime(fetcher: object) -> str | None:
+    """The file's own mtime, when this run was the one that read it.
+
+    Absent on a resume, which reads the captured artifact instead; the file
+    that answered is recorded from the artifact observation either way.
+    """
     mtime = getattr(fetcher, "last_mtime", None)
     return mtime.isoformat() if mtime is not None else None
 
 
-def _filename_date(fetcher: object) -> str | None:
+def _filename_date(source_uri: str) -> str | None:
     """The date the answering file's own name states, for the manifest.
 
     Recorded rather than trusted: the content date decides, and the adapter
     already refuses a file whose 資料日期 is not the week that was asked for.
     """
-    candidates = getattr(fetcher, "last_candidates", ()) or ()
-    if not candidates:
-        return None
-    stated = filename_date(Path(candidates[0]))
+    stated = filename_date(Path(source_uri))
     return stated.isoformat() if stated else None

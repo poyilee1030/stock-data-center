@@ -60,6 +60,9 @@ downgrade：`b2c5f8d1a437` 在該來源已有版本／ingest run／manifest 時�
 | `first_capture` 晚於規則時只寫 capture_bound | **PASS** | `test_a_first_capture_run_claims_its_own_capture_bound`（只有 `capture_bound`，被推翻的規則不寫入） |
 | 截斷週重跑安全，且每次抓取的隔離事實各留一筆 | **PASS** | `test_rerunning_a_truncated_week_is_safe_and_records_each_sighting`（版本 1、隔離 2） |
 | 檔案庫讀出的位元組記為 `legacy_archive` | **PASS** | `test_the_archive_adapter_records_legacy_archive_provenance` |
+| 檔案庫路徑不論宣告什麼都不主張初見 | **PASS** | `test_an_archive_walk_never_claims_a_capture_however_it_was_declared`（`--purpose first_capture` 仍只寫 `release_rule`，`ingest_runs.purpose` 記為 `gap_fill`，`published_at` 是次週日 12:00） |
+| manifest 記的是真正回答這一週的檔案，跨週與 resume 都不會錯 | **PASS** | `test_the_manifest_names_the_file_that_answered_even_across_weeks`、`test_a_resumed_week_still_names_its_own_file`（resume 不呼叫 `fetch()`，`archive_file` 仍正確，mtime 與 candidates 不捏造） |
+| 切在換行邊界的截斷也偵測得到 | **PASS** | `test_a_cut_landing_on_a_newline_is_still_reported_as_truncated`、`test_a_payload_cut_before_its_first_newline_says_so`、`test_a_complete_file_is_not_reported_as_truncated` |
 
 ### 真實檔案實測（不在測試套件內，指令留在報告裡）
 
@@ -96,11 +99,11 @@ rejected_quarantined_count          0
 
 ```text
 .venv/bin/python -m pytest -q
-1,145 passed, 3 skipped
+1,155 passed, 3 skipped
 ```
 
-新增 `tests/unit/test_step24a_tdcc_adapters.py`（21）、
-`tests/integration/test_step24a_tdcc_ingestion.py`（11）。
+新增 `tests/unit/test_step24a_tdcc_adapters.py`（26）、
+`tests/integration/test_step24a_tdcc_ingestion.py`（15）。
 修改 `tests/unit/test_phase6_contract.py`：占比超過 100 現在可表示，
 scale 與下界的拒絕不變。
 
@@ -111,6 +114,24 @@ fixture 全部是真實檔案的切片，列保持位元組原樣：
 
 migration：`alembic upgrade head` 在乾淨資料庫與 `stockdc_backfill` 都通過；
 `test_phase1_schema.py` 的 upgrade/downgrade round-trip 通過。
+
+## 審查後的修正（#42 review）
+
+四項發現全部成立，都已修：
+
+1. **MAJOR**：檔案庫匯入若以 `--purpose first_capture` 執行，會用讀檔時間宣告
+   `capture_bound` 並把 `tdcc_weekly@1` 判為推翻，把 2020 年那幾週的 market-PIT
+   可見性推到 2026 年（證據 append-only，無法回頭）。修法與 Step 23-c 相同：
+   檔案庫 adapter 強制 `gap_fill`，`artifact_origin` 之外 purpose 也不交給呼叫者。
+2. 持股比例超過 100% 的 holding 原本會讓整週約 4,000 檔 rollback。改在 adapter
+   解析時檢查，只隔離該支證券；writer 與 row trigger 的保證保留給其他寫入路徑。
+   原本鎖住錯誤行為的測試已改寫，另加一個直接測 writer 仍拒絕的測試。
+3. resume 時 manifest 的檔案庫 provenance 會是空的，或（24-b 重用同一個 fetcher 時）
+   是上一週的。改成從已存的 `raw_artifact_observations` 讀 `source_uri`／`fetched_at`；
+   `archive_file_mtime` 與 `archive_candidates` 只在這次真的抓取時才有值。
+4. 截斷偵測補上兩個訊號：切在換行邊界時看「最後一支證券的分布不完整」，切在
+   多位元組字元中間時 decode 失敗記為 `truncated_payload` 而非編碼問題。剩下
+   只有剛好切在證券邊界（十七列裡一列）仍看不出來，那屬於 24-b 的逐週證券數比較。
 
 ## 已知限制與刻意延後
 
@@ -124,3 +145,5 @@ migration：`alembic upgrade head` 在乾淨資料庫與 `stockdc_backfill` 都�
 - **入口網站的個股查詢沒有實作。** 它只在約一年的時間窗內有資料，用途是修補，
   audit §4.9 已記載；v1 的歷史不依賴它。
 - **前向抓取排程**仍是 Step 27。
+- **`truncated_payload` 只代表「我們能看出來的截斷」。** 剛好切在證券邊界的
+  檔案仍會看起來完整；完整性的最終判斷是 24-b 的逐週證券數比較。

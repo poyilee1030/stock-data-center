@@ -95,7 +95,19 @@ def parse_shareholding(
 ) -> ParsedTDCCShareholding:
     """One weekly file, from whichever container it arrived in."""
     container, member, payload = _unpack(content, source)
-    text = payload.decode("utf-8-sig", errors="strict")
+    try:
+        text = payload.decode("utf-8-sig", errors="strict")
+    except UnicodeDecodeError as error:
+        # A payload cut in the middle of a multi-byte character is truncation,
+        # not a different encoding, and saying so keeps the two apart in the
+        # manifest. Anything else really is an encoding the parser does not
+        # know.
+        raise SourceDataError(
+            "truncated_payload"
+            if error.reason == "unexpected end of data"
+            else "invalid_encoding",
+            f"{source}: {error}",
+        ) from error
     # Ten archived files carry a second BOM after `utf-8-sig` (audit §4.9).
     while text.startswith("﻿"):
         text = text[1:]
@@ -103,8 +115,15 @@ def parse_shareholding(
     # complete securities before the cut are still published facts, so the
     # partial line is dropped and the file is reported as truncated; the
     # security it belonged to fails its profile below and is quarantined.
-    truncated = bool(text) and not text.endswith(("\n", "\r"))
-    if truncated:
+    cut_mid_row = bool(text) and not text.endswith(("\n", "\r"))
+    if cut_mid_row:
+        if "\n" not in text:
+            # Cut before the first newline: there is no header to read, and
+            # calling that an empty response would hide that bytes were lost.
+            raise SourceDataError(
+                "truncated_payload",
+                f"{source}: the payload ends mid-row before its first newline",
+            )
         text = text[: text.rfind("\n") + 1]
 
     reader = csv.reader(io.StringIO(text))
@@ -221,6 +240,14 @@ def parse_shareholding(
             )
         )
 
+    # A cut that happens to land on a newline leaves no partial row, so the
+    # byte-level check above cannot see it. What it does leave is a last
+    # security missing the rest of its levels, which is the same signal from
+    # the other end. Only an exact cut at a security boundary — one row in
+    # seventeen — still looks complete here, and that is what Step 24-b's
+    # week-over-week security count is for.
+    truncated = cut_mid_row or (bool(order) and order[-1] in rejected)
+
     return ParsedTDCCShareholding(
         snapshot_date=snapshot_date,
         rows=tuple(rows),
@@ -266,6 +293,17 @@ def _buckets(
                 "negative_holding_level",
                 f"{code} holding level {level} is negative: "
                 f"{holders}/{shares}/{percent}",
+            )
+        if level != TOTAL_LEVEL and share_percent > 100:
+            # Checked here so it quarantines this security, the way every
+            # other defect in a distribution does. The writer's profile
+            # validation and the row trigger enforce the same rule, but they
+            # raise inside the transaction and would fail the whole week over
+            # one security. The published 合計 has no ceiling (module
+            # docstring), so only the holding levels are checked.
+            raise SourceDataError(
+                "holding_level_above_one_hundred",
+                f"{code} holding level {level} owns {percent}% of custody",
             )
         buckets.append(
             TDCCBucketObservation(

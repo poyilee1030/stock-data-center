@@ -23,6 +23,14 @@ Step 24-a 要把 TDCC 每週股權分散表接進 Step 6 已有的儲存契約�
 來源的兩種讀法。載體差異記在 `artifact_origin`：檔案庫讀出來的是
 `legacy_archive`，前向抓取是 `official_fetch`。
 
+**檔案庫的 ingest purpose 也由 adapter 決定，不交給呼叫者。** 2026 年從磁碟讀出
+2020 年的檔案是 `gap_fill`，不管 run 宣告什麼。若照著宣告的 `first_capture` 走，
+`evidence_plan` 會寫下今天這個瞬間當 capture bound，而它晚於 `tdcc_weekly@1`，
+於是規則被判為推翻而不寫入——在 append-only 的儲存裡，那一週的 market 可見性
+就被推到回補當天。檔案本身沒有任何初見證據：舊工作下載的是 OpenData 當時供應的
+最新週，檔案 mtime 是下載時間。與 Step 23-c 的檔案庫 importer 同一個判斷
+（它同樣不參考 `context.purpose`）。
+
 `is_canonical` 保持 false。只有一個來源，沒有東西要在來源之間選；宣告 canonical
 等於宣告一個 reconciliation 政策，那要自己的 ADR（CLAUDE.md §30）。
 
@@ -66,6 +74,11 @@ TDCC 說明4 定義這一列是「各持股分級合計股數與發行公司已�
 `ownership_percent >= -100`，把「holding 不得超過 100」放進本來就知道角色的
 row trigger 與 writer 的 profile 驗證，合計不設上限、照發布值存。
 
+adapter 也在解析時檢查同一條界線，因為位置決定影響範圍：writer 與 trigger 在
+交易裡丟例外，會為了一支證券讓整週約 4,000 檔全部 rollback。adapter 檢查則讓
+它與其他分布缺陷一樣只隔離那一支（下面 §5）。兩層都留著：adapter 是匯入路徑的
+邊界，writer 與 trigger 是任何其他寫入路徑的保證。
+
 降級在有任何一列超過 100 時，在動任何資料之前就失敗：收窄 CHECK 會留下沒有任何
 insert 能重現的已發布歷史（CLAUDE.md §81）。
 
@@ -81,6 +94,14 @@ insert 能重現的已發布歷史（CLAUDE.md §81）。
 並帶一筆 warning。整檔 fail closed 會丟掉三千多支證券的完整分布，而那不是資料
 的問題。逐列隔離沿用 ADR-0022 §8 的形狀。
 
+**截斷的偵測有三個訊號，各有極限。** 位元組層面看「payload 沒有以換行結尾」，
+真實的 2023-10-20 剛好切在列中間所以抓得到；切在多位元組字元中間會是
+decode 失敗，也記成 `truncated_payload` 而不是編碼問題；切剛好落在換行邊界時
+前兩個都看不到，此時唯一的訊號是「檔案最後一支證券的分布不完整」，也一併判為
+截斷。只有剛好切在證券邊界（十七列裡的一列）仍然看起來完整，那要靠 Step 24-b
+的逐週證券數比較。manifest 的 `truncated_payload` 因此是「我們能看出來的截斷」，
+完整性的最終判斷屬於 24-b。
+
 ### 6. 不從這個檔案註冊證券
 
 TDCC 為它保管的每一個代號編表，包含權證、受益證券等遠超 v1 範圍（上市／上櫃）的
@@ -93,8 +114,9 @@ the_v1_universe`）。身分繼續由交易所 feed 決定（CLAUDE.md §30、§
 資料日期 的那一週在次週日 12:00（Asia/Taipei）解析為可知。這條規則出自 ADR-0020
 §3 決策 2，依據是舊系統週日 10:20 的工作加上緩衝，而不是 TDCC 公布的時程表——
 audit 找不到任何公布的時程。bulk 檔與入口網站都不帶發布時刻，所以這是這個資料集
-唯一的發布時間。`first_capture` 真正第一次看到某週時另外寫 `capture_bound`；
-第一次看到的時間晚於規則，就為那些列推翻規則，與 ADR-0020 §2 一致。
+唯一的發布時間。前向抓取真正第一次看到某週時另外寫 `capture_bound`；
+第一次看到的時間晚於規則，就為那些列推翻規則，與 ADR-0020 §2 一致。檔案庫路徑
+不可能符合這個條件，所以它強制 `gap_fill`（§1）。
 
 ## 後果
 
