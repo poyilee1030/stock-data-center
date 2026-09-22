@@ -1,6 +1,6 @@
 # Step 24-b 驗收報告
 
-狀態：IN REVIEW
+狀態：IN REVIEW (#43)
 
 範圍：TDCC 股權分散的第二部分，376 週的 backfill、涵蓋範圍與舊系統對帳。
 這個 step 新增：
