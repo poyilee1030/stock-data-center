@@ -1281,6 +1281,69 @@ A security with no adjustment still gets a zero-filled level 16 in the bulk
 file plus a level 17 total; the portal instead shows sixteen rows with 合計 in
 position 16. That is the two-label observation above, seen from the other side.
 
+#### Step 24-b findings (2026-09-22)
+
+**The data date is TDCC's business day, not an exchange trading day.** Across
+the 376 archived weeks:
+
+```text
+Fri 330   Thu 22   Sat 14   Wed 9   Tue 1
+```
+
+None of the fourteen Saturdays is a TWSE trading day — 2020-06-20, 2021-02-20
+and the rest are absent from the trading calendar and hold no daily prices.
+They are Taiwan's make-up workdays, when TDCC's books were open and the
+exchange was not. Two ISO weeks even carry two data dates each, a Friday and
+the make-up Saturday after it:
+
+```text
+2020-W39   2020-09-25 and 2020-09-26
+2021-W07   2021-02-19 and 2021-02-20
+```
+
+So the week is the only unit that can be expected, which is what the
+`trading_week` cadence declares (migration `d3b8c6f1a294`). Inside the v1
+window five ISO weeks hold no TWSE trading day at all, every one of them
+Lunar New Year:
+
+```text
+week start   2021-02-08  2022-01-31  2023-01-23  2025-01-27  2026-02-16
+```
+
+Four of them hold no snapshot either. The fifth, 2021-W06, holds one —
+**2021-02-09, a Tuesday, with the exchange shut all week** — so it is reported
+as `unexpected` coverage rather than filtered away. The six intervals of ten
+days or more noted above are therefore not gaps in the week series: they are
+Lunar New Year weeks where the data date sits at an unusual position, and every
+ISO week between the first and last archived week except the four above holds a
+snapshot.
+
+#### Legacy `stock_db.shareholding` (2026-09-22)
+
+The reconciliation baseline, 11,929,680 rows over 341 dates, 2020-01-03 to
+2026-09-18. Three structural differences, measured rather than assumed:
+
+- **Levels 1-15 only.** `SELECT DISTINCT level` returns 1 to 15; each level
+  holds exactly 795,312 rows. Legacy stored no 差異數調整 row and no 合計 row,
+  so it cannot be compared on either, and it is not a source for them.
+- **A smaller universe throughout, and smaller again from 2023-09-15.**
+
+```text
+2020-01-03   file 2,774   legacy 2,485
+2023-09-08   file 3,316   legacy 2,709
+2023-09-15   file 3,325   legacy 1,767      <- the scraper's filter change
+2026-09-11   file 4,055   legacy 2,963
+```
+
+- **Securities legacy holds that the v1 universe does not.** 656 of them in
+  January 2020 alone — 0058, 1107, 1204, 1207 and so on. None is priced by any
+  feed we hold, and legacy's own `stock_info` (1,944 issuers) does not list
+  them either: TDCC reports custody for codes long delisted and for instrument
+  classes the exchanges never price.
+
+On the levels and securities both sides hold, the values agree exactly:
+137,325 compared rows over January 2020, zero differences.
+
 ### 4.10 Corporate actions: exchange result feeds
 
 All of these were verified live on 2026-09-14 and again, feed by feed and year

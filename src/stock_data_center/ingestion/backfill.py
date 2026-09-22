@@ -27,6 +27,11 @@ from stock_data_center.ingestion.adapters.monthly_revenue import (
 from stock_data_center.ingestion.adapters.financial_filing_archive import (
     LegacyFinancialFilingArchiveAdapter,
 )
+from stock_data_center.ingestion.adapters.tdcc_shareholding import (
+    DEFAULT_ARCHIVE_ROOT as TDCC_ARCHIVE_ROOT,
+    LegacyTDCCArchiveAdapter,
+    filename_date,
+)
 from stock_data_center.ingestion.adapters.whole_market_daily import (
     WholeMarketDailyAdapter,
 )
@@ -43,13 +48,19 @@ from stock_data_center.ingestion.models import (
     ResourceQuarantinedError,
     RevenuePage,
     SourceDataError,
+    TDCCShareholdingRequest,
     WholeMarketDailyRequest,
 )
 from stock_data_center.ingestion.monthly_revenue import MonthlyRevenueImporter
+from stock_data_center.ingestion.tdcc_shareholding import TDCCShareholdingImporter
 from stock_data_center.ingestion.whole_market_daily import WholeMarketDailyImporter
 from stock_data_center.market_calendar import TradingCalendarService
 from stock_data_center.monthly_revenue.models import RevenuePeriod
 from stock_data_center.provenance import ArtifactOrigin, IngestPurpose
+
+# The archive's own containers, and the folder holding files moved aside.
+_TDCC_SUFFIXES = frozenset({".csv", ".zip", ".7z"})
+_TDCC_QUARANTINE = "_quarantine"
 
 
 @dataclass(frozen=True, slots=True)
@@ -1074,3 +1085,263 @@ def _quarters_between(start: FilingPeriod, end: FilingPeriod):
     while (year, quarter) <= (end.report_year, end.report_quarter):
         yield FilingPeriod(year, quarter)
         year, quarter = (year + 1, 1) if quarter == 4 else (year, quarter + 1)
+
+
+def _in_year_range(path: Path, start: date, end: date) -> bool:
+    """Whether an undateable file sits in a year folder this run walks.
+
+    The archive stores a year per folder. A file whose folder is not a year is
+    treated as in range, because nothing then bounds it.
+    """
+    folder = path.parent.name
+    if len(folder) == 4 and folder.isdigit():
+        return start.year <= int(folder) <= end.year
+    return True
+
+
+@dataclass(frozen=True, slots=True)
+class TDCCWeekResult:
+    """What happened to one published week."""
+
+    snapshot_date: date
+    import_id: UUID
+    status: str
+    securities: int = 0
+    created: int = 0
+    deduplicated: int = 0
+    row_quarantined: int = 0
+    truncated: bool = False
+    reason_code: str | None = None
+    detail: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class TDCCBackfillReport:
+    source: str
+    start: date
+    end: date
+    weeks: tuple[date, ...]
+    results: tuple[TDCCWeekResult, ...]
+
+    @property
+    def imported(self) -> int:
+        return sum(1 for item in self.results if item.status == "imported")
+
+    @property
+    def resumed(self) -> int:
+        return sum(1 for item in self.results if item.status == "resumed")
+
+    @property
+    def quarantined(self) -> int:
+        return sum(1 for item in self.results if item.status == "quarantined")
+
+    @property
+    def failed(self) -> int:
+        return sum(1 for item in self.results if item.status == "failed")
+
+    @property
+    def securities(self) -> int:
+        """Complete distributions the files held, which is not what was written.
+
+        A week's file carries about 4,000 securities and roughly 1,600 of them
+        are outside the v1 universe, counted rather than stored (Step 24-a).
+        """
+        return sum(item.securities for item in self.results)
+
+    @property
+    def created(self) -> int:
+        return sum(item.created for item in self.results)
+
+    @property
+    def deduplicated(self) -> int:
+        return sum(item.deduplicated for item in self.results)
+
+    @property
+    def is_complete(self) -> bool:
+        return self.failed == 0
+
+    def as_dict(self) -> dict[str, object]:
+        """The import manifest CLAUDE.md §78 requires.
+
+        A truncated week is listed rather than counted: `2023/20231020.7z` is a
+        cut download that no endpoint can replace (audit §4.9), and a week
+        short of its securities has to be explainable by name.
+        """
+        return {
+            "source": self.source,
+            "start": self.start.isoformat(),
+            "end": self.end.isoformat(),
+            "requested_weeks": len(self.weeks),
+            "imported": self.imported,
+            "resumed": self.resumed,
+            "quarantined": self.quarantined,
+            "failed": self.failed,
+            "securities_parsed": self.securities,
+            "business_versions_created": self.created,
+            "business_versions_deduplicated": self.deduplicated,
+            "row_quarantined_count": sum(
+                item.row_quarantined for item in self.results
+            ),
+            "truncated_weeks": [
+                item.snapshot_date.isoformat()
+                for item in self.results
+                if item.truncated
+            ],
+            "is_complete": self.is_complete,
+            "failures": [
+                {
+                    "snapshot_date": item.snapshot_date.isoformat(),
+                    "import_id": str(item.import_id),
+                    "reason_code": item.reason_code,
+                    "detail": item.detail,
+                }
+                for item in self.results
+                if item.status in ("failed", "quarantined")
+            ],
+        }
+
+
+class TDCCArchiveBackfill:
+    """Import every archived TDCC week in a date range, week by week.
+
+    The archive's own files decide which weeks exist. No calendar is consulted
+    for that: TDCC publishes on its own business day, which includes make-up
+    Saturdays the exchange never opened and, in Lunar New Year weeks, a day the
+    exchange was closed all week (audit §4.9). Whether the resulting set of
+    weeks has a hole is the Step 16 coverage report's question, asked
+    afterwards against the declared `trading_week` cadence.
+
+    A filename supplies only the *candidate* week. The adapter still refuses a
+    file whose 資料日期 is not the week that was asked for, which is what makes
+    walking by filename safe here (Step 24-a).
+    """
+
+    def __init__(
+        self,
+        importer: TDCCShareholdingImporter,
+        *,
+        archive_root: Path | None = None,
+    ) -> None:
+        self._importer = importer
+        self._root = Path(archive_root) if archive_root else TDCC_ARCHIVE_ROOT
+
+    def weeks_in(self, start: date, end: date) -> tuple[date, ...]:
+        """Every week the archive holds a file for, in order.
+
+        Two files can name the same week — 52 content dates keep a `.csv` and
+        a `.zip` of the same week — and the week is imported once; the fetcher
+        picks between the copies and records both (Step 24-a).
+        """
+        weeks: set[date] = set()
+        for path in sorted(self._root.rglob("*")):
+            if not path.is_file() or path.suffix.lower() not in _TDCC_SUFFIXES:
+                continue
+            if _TDCC_QUARANTINE in path.parts:
+                # Moved aside deliberately, with a note: two files named for
+                # 2020-06-19 that hold the 2020-06-12 table (audit §4.9).
+                continue
+            stated = filename_date(path)
+            if stated is None:
+                if _in_year_range(path, start, end):
+                    raise ValueError(
+                        f"archived file {path.name} states no date in its name; "
+                        "the walk cannot tell which week to ask for"
+                    )
+                # Outside the requested years, so it is not this run's
+                # business: one undateable file in 2026 must not stop a 2020
+                # range from running at all.
+                continue
+            if start <= stated <= end:
+                weeks.add(stated)
+        return tuple(sorted(weeks))
+
+    def run(
+        self,
+        *,
+        start: date,
+        end: date,
+        base_import_id: UUID | None = None,
+        purpose: IngestPurpose = IngestPurpose.GAP_FILL,
+        git_commit: str | None = None,
+        on_result: Callable[[TDCCWeekResult], None] | None = None,
+    ) -> TDCCBackfillReport:
+        if start > end:
+            raise ValueError("start must not be after end")
+        adapter = LegacyTDCCArchiveAdapter(archive_root=self._root)
+        base = base_import_id or default_base_import_id(adapter.source, start, end)
+        # Stamped once for the whole walk, so a commit made mid-run does not
+        # split its manifests and make it unresumable.
+        git_commit = git_commit or current_git_commit()
+        weeks = self.weeks_in(start, end)
+        results: list[TDCCWeekResult] = []
+        for week in weeks:
+            result = self._one_week(
+                adapter=adapter,
+                week=week,
+                base_import_id=base,
+                purpose=purpose,
+                git_commit=git_commit,
+            )
+            results.append(result)
+            if on_result is not None:
+                # A 376-week walk that only reports at the end reports nothing
+                # at all when it is killed at week 300.
+                on_result(result)
+        return TDCCBackfillReport(
+            source=adapter.source,
+            start=start,
+            end=end,
+            weeks=weeks,
+            results=tuple(results),
+        )
+
+    def _one_week(
+        self,
+        *,
+        adapter: LegacyTDCCArchiveAdapter,
+        week: date,
+        base_import_id: UUID,
+        purpose: IngestPurpose,
+        git_commit: str | None,
+    ) -> TDCCWeekResult:
+        import_id = date_import_id(base_import_id, adapter.source, week)
+        try:
+            result = self._importer.run(
+                adapter=adapter,
+                request=TDCCShareholdingRequest(week),
+                import_id=import_id,
+                purpose=purpose,
+                git_commit=git_commit,
+            )
+        except ResourceQuarantinedError as error:
+            # The file was captured and kept; what failed is reading it as this
+            # week. Reported, not fatal: the other 375 weeks are unaffected.
+            return TDCCWeekResult(
+                snapshot_date=week,
+                import_id=import_id,
+                status="quarantined",
+                reason_code=_reason_code(error),
+                detail=str(error),
+            )
+        except Exception as error:  # noqa: BLE001 - reported, not swallowed
+            return TDCCWeekResult(
+                snapshot_date=week,
+                import_id=import_id,
+                status="failed",
+                reason_code="operational_error",
+                detail=f"{type(error).__name__}: {error}",
+            )
+        with self._importer.engine.connect() as connection:
+            reconciliation = self._importer.manifest(
+                connection, import_id
+            ).reconciliation
+        return TDCCWeekResult(
+            snapshot_date=week,
+            import_id=import_id,
+            status="resumed" if result.resumed_from_checkpoint else "imported",
+            securities=result.normalized_rows,
+            created=result.business_versions_created,
+            deduplicated=result.business_versions_deduplicated,
+            row_quarantined=int(reconciliation.get("row_quarantined_count", 0) or 0),
+            truncated=bool(reconciliation.get("truncated_payload", False)),
+        )

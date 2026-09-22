@@ -80,6 +80,20 @@ class ExpectedCoverageService:
             )
         if declaration.cadence == "calendar_month":
             return tuple(_months_between(window_start, window_end))
+        if declaration.cadence == "trading_week":
+            # A week the market never opened is not expected to hold anything;
+            # every other week is. The week is named by its Monday, and the
+            # date inside it is deliberately not predicted: TDCC publishes on
+            # its own business day, which includes make-up Saturdays the
+            # exchange never opened (Step 24-b, audit §4.9).
+            return _week_starts(
+                self._calendar.trading_days(
+                    connection,
+                    market=declaration.calendar_market,
+                    start=window_start,
+                    end=window_end,
+                )
+            )
         raise ValueError(f"unsupported cadence {declaration.cadence!r}")
 
 
@@ -115,9 +129,24 @@ class CoverageValidator:
         expected = self._expected.expected_periods(
             connection, dataset_code=dataset_code, market=market, start=start, end=end
         )
-        observed = self._observed_periods(
-            connection, declaration=declaration, start=start, end=end
-        )
+        if declaration.cadence == "trading_week":
+            # Asked for whole weeks, not the requested days: a window ending
+            # mid-week still expects that week, and TDCC usually publishes it
+            # on the Friday. Filtering the observations by the raw range would
+            # report the week as missing the moment the range ended on a
+            # Wednesday.
+            observed = _week_starts(
+                self._observed_periods(
+                    connection,
+                    declaration=declaration,
+                    start=_week_start(start),
+                    end=_week_start(end) + timedelta(days=6),
+                )
+            )
+        else:
+            observed = self._observed_periods(
+                connection, declaration=declaration, start=start, end=end
+            )
         non_trading_days: tuple[date, ...] = ()
         if declaration.cadence == "trading_day" and window_start <= window_end:
             # The closure list follows the declared window, exactly as the
@@ -135,6 +164,17 @@ class CoverageValidator:
                 day
                 for day in _days_between(window_start, window_end)
                 if day not in open_days
+            )
+        elif declaration.cadence == "trading_week" and window_start <= window_end:
+            # The same channel one period up: a week the market never opened,
+            # named by its Monday. Reported rather than merely left out of the
+            # expectation, because "no snapshot that week" is only explained
+            # when the reader can see why.
+            open_weeks = set(expected)
+            non_trading_days = tuple(
+                week
+                for week in _week_starts(_days_between(window_start, window_end))
+                if week not in open_weeks
             )
         expected_set = set(expected)
         observed_set = set(observed)
@@ -180,6 +220,21 @@ class CoverageValidator:
             sa.select(sa.distinct(column)).where(*predicates).order_by(column)
         ).scalars()
         return tuple(rows)
+
+
+def _week_start(day: date) -> date:
+    return day - timedelta(days=day.weekday())
+
+
+def _week_starts(days) -> tuple[date, ...]:
+    """The Monday of each ISO week these dates fall in, in order, deduplicated.
+
+    Two dates can share a week — 2020-W39 and 2021-W07 each hold a Friday
+    snapshot and the make-up Saturday after it — so the week is a set, not a
+    count.
+    """
+    weeks = {day - timedelta(days=day.weekday()) for day in days}
+    return tuple(sorted(weeks))
 
 
 def _days_between(start: date, end: date):

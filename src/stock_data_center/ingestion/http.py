@@ -90,8 +90,18 @@ class TDCCArchiveFetcher(LocalArchiveFetcher):
     def __init__(self, *, media_type: str = "text/csv") -> None:
         super().__init__(media_type=media_type)
         self.last_candidates: tuple[str, ...] = ()
+        # Which resource the state above describes. A resumed week never calls
+        # `fetch`, so a reader has to be able to tell "this run read it" from
+        # "the previous week did".
+        self.last_resource_key: str | None = None
 
     def fetch(self, resource: SourceResource) -> FetchedArtifact:
+        # Cleared first: one fetcher serves a whole 376-week walk, and a week
+        # that fails here must not leave the previous week's file looking like
+        # its own provenance (CLAUDE.md §75).
+        self.last_candidates = ()
+        self.last_mtime = None
+        self.last_resource_key = None
         pattern = Path(resource.source_uri)
         candidates = sorted(
             path for path in pattern.parent.glob(pattern.name) if path.is_file()
@@ -101,6 +111,7 @@ class TDCCArchiveFetcher(LocalArchiveFetcher):
                 "archive_file_missing", f"no archived file matches {pattern}"
             )
         self.last_candidates = tuple(path.name for path in candidates)
+        self.last_resource_key = resource.resource_key
         return super().fetch(
             SourceResource(
                 resource_key=resource.resource_key,

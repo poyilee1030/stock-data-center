@@ -69,6 +69,8 @@ from stock_data_center.ingestion.adapters.monthly_revenue_archive import (
     DEFAULT_ARCHIVE_ROOT as ARCHIVE_ROOT,
 )
 from stock_data_center.ingestion.backfill import (
+    TDCCArchiveBackfill,
+    TDCCWeekResult,
     CorporateActionBackfill,
     FilingDocumentResult,
     FinancialFilingArchiveBackfill,
@@ -171,6 +173,18 @@ def _filing_progress(result: FilingDocumentResult) -> None:
         f"{result.period_label} {result.security_code} {result.status}"
         + (f" {result.reason_code}" if result.reason_code else "")
         + (f" facts={result.facts}" if result.facts else ""),
+        file=sys.stderr,
+        flush=True,
+    )
+
+
+def _tdcc_progress(result: TDCCWeekResult) -> None:
+    """One line per week, on stderr so it never joins the manifest."""
+    print(
+        f"{result.snapshot_date.isoformat()} {result.status}"
+        + (f" {result.reason_code}" if result.reason_code else "")
+        + (f" securities={result.securities}" if result.securities else "")
+        + (" truncated" if result.truncated else ""),
         file=sys.stderr,
         flush=True,
     )
@@ -376,6 +390,35 @@ def main(argv: list[str] | None = None) -> int:
     )
     tdcc.add_argument("--import-id", type=UUID)
     tdcc.add_argument("--raw-root", type=Path, default=Path("data/raw"))
+    tdcc_backfill = subparsers.add_parser(
+        "tdcc-shareholding-backfill",
+        help="import every archived TDCC week in a date range",
+    )
+    tdcc_backfill.add_argument(
+        "--snapshot-date", required=True,
+        help="first data date to consider, Gregorian YYYY-MM-DD; the archive's "
+        "own files decide which weeks inside the range exist",
+    )
+    tdcc_backfill.add_argument(
+        "--through", help="last data date, Gregorian YYYY-MM-DD (default: "
+        "--snapshot-date)",
+    )
+    tdcc_backfill.add_argument(
+        "--archive-root", type=Path, default=TDCC_ARCHIVE_ROOT,
+        help="the legacy shareholding archive root (ROADMAP §14: it stays "
+        "outside this repository)",
+    )
+    tdcc_backfill.add_argument(
+        "--import-id", type=UUID,
+        help="the run identity; derived from the range when omitted, so "
+        "rerunning the same command resumes it",
+    )
+    tdcc_backfill.add_argument("--raw-root", type=Path, default=Path("data/raw"))
+    tdcc_backfill.add_argument(
+        "--progress", action="store_true",
+        help="print one line per week to stderr; a 376-week walk that only "
+        "reports at the end reports nothing when it is killed",
+    )
     lending = subparsers.add_parser(
         "securities-lending",
         help="import one market's per-security securities lending for one trade date",
@@ -988,6 +1031,32 @@ def main(argv: list[str] | None = None) -> int:
                 base_import_id=base_import_id,
                 purpose=IngestPurpose(args.purpose),
                 on_result=_filing_progress if args.progress else None,
+            )
+        elif args.command == "tdcc-shareholding-backfill":
+            first_week = date.fromisoformat(args.snapshot_date)
+            last_week = (
+                date.fromisoformat(args.through) if args.through else first_week
+            )
+            if last_week < first_week:
+                parser.error("--through must not be before --snapshot-date")
+            base_import_id = args.import_id or default_base_import_id(
+                "tdcc_opendata", first_week, last_week
+            )
+            backfill_report = TDCCArchiveBackfill(
+                TDCCShareholdingImporter(
+                    engine,
+                    raw_store=LocalRawArtifactStore(args.raw_root),
+                    fetcher=TDCCArchiveFetcher(),
+                ),
+                archive_root=args.archive_root,
+            ).run(
+                start=first_week,
+                end=last_week,
+                base_import_id=base_import_id,
+                # The archive proves no first sighting whatever is declared;
+                # the importer forces this too (Step 24-a).
+                purpose=IngestPurpose.GAP_FILL,
+                on_result=_tdcc_progress if args.progress else None,
             )
         elif args.command == "securities-lending":
             importer = SecuritiesLendingImporter(

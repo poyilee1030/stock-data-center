@@ -46,6 +46,9 @@ class CoverageReport:
     # row on a day the market never opened, say. Surfaced rather than filtered
     # away, because silently dropping it hides the anomaly it is.
     unexpected: tuple[date, ...]
+    # Periods inside the window the calendar says are legitimately absent: the
+    # closed days of a `trading_day` cadence, and for `trading_week` the
+    # Monday of each week the market never opened (Step 24-b).
     non_trading_days: tuple[date, ...]
 
     @property
