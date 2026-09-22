@@ -211,5 +211,28 @@ Three boundaries are worth stating:
   records that the week is short (owner decision, 2026-09-22). No endpoint can
   refetch it.
 
-The weekly coverage cadence, the Lunar New Year closures, and the legacy
-reconciliation belong to Step 24-b.
+## Coverage (Step 24-b)
+
+Expected coverage is declared as the `trading_week` cadence: every ISO week
+holding at least one TWSE trading day is expected to hold at least one
+snapshot, named by that week's Monday. The date inside the week is
+deliberately not predicted. TDCC compiles on its own business day, which over
+the 376 archived weeks means 330 Fridays, 22 Thursdays, 14 make-up Saturdays
+the exchange never opened, 9 Wednesdays and one Tuesday — and two weeks that
+carry two data dates each (ADR-0025, audit §4.9).
+
+Two absences are therefore different things, and the report keeps them apart:
+
+* a week the exchange never opened is not expected and is listed in
+  `non_trading_days` — five of them in the v1 window, all Lunar New Year;
+* a week that had trading days and holds no snapshot is `missing`, which is a
+  real gap.
+
+The converse also shows up: 2021-W06 holds a snapshot (2021-02-09) although
+the exchange was shut all week, so it is reported as `unexpected` rather than
+filtered away.
+
+The archive walk itself consults no calendar: the archive's files decide which
+weeks exist, and the coverage report asks afterwards whether that set has a
+hole. `scripts/reconcile_tdcc_shareholding.py` runs both, and the legacy
+comparison alongside them.
