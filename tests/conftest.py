@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import uuid
+from datetime import date  # noqa: F401 - used in annotations
 from collections.abc import Iterator
 
 import pytest
@@ -105,3 +106,79 @@ def isolated_database_url() -> Iterator[str]:
             )
             connection.exec_driver_sql(f'DROP DATABASE "{database_name}"')
         admin_engine.dispose()
+
+
+def store_trading_calendar(
+    connection: Connection,
+    *,
+    month: "date",
+    days=None,
+    through: "date | None" = None,
+    market: str = "TWSE",
+) -> None:
+    """One month of trading days, with the provenance the writer insists on.
+
+    Any import whose evidence comes from a statutory deadline asks the calendar
+    to move that deadline off a closed day, and the calendar refuses outside
+    its imported coverage rather than guessing (Step 15-b). Tests that reach
+    that path therefore have to put a month in first, and this is the one way
+    they do it.
+
+    `days` defaults to the month's weekdays, which is close enough for a test
+    that only needs the deadline not to land on a weekend; a test that cares
+    about a specific holiday passes its own.
+    """
+
+    import calendar as _calendar
+    import hashlib
+    from datetime import date as _date
+
+    from stock_data_center.market_calendar import TradingCalendarWriter
+    from stock_data_center.market_calendar.models import (
+        CalendarLineageRef,
+        TradingCalendarObservation,
+    )
+
+    last_day = _calendar.monthrange(month.year, month.month)[1]
+    if days is None:
+        days = tuple(
+            _date(month.year, month.month, day)
+            for day in range(1, last_day + 1)
+            if _date(month.year, month.month, day).weekday() < 5
+        )
+    through = through or _date(month.year, month.month, last_day)
+    digest = hashlib.sha256(f"{market}:{month}".encode()).hexdigest()
+    run_id = connection.scalar(
+        sa.text(
+            "INSERT INTO ingest_runs (dataset_code, source, status, started_at, "
+            " purpose) VALUES ('trading_calendar', 'twse', 'succeeded', now(), "
+            "'gap_fill') RETURNING id"
+        )
+    )
+    artifact_id = connection.scalar(
+        sa.text(
+            "INSERT INTO raw_artifacts (raw_artifact_hash, storage_uri, byte_size, "
+            " media_type) VALUES (:h, :uri, 1, 'application/json') RETURNING id"
+        ),
+        {"h": digest, "uri": f"file://{digest[:2]}/{digest}"},
+    )
+    connection.execute(
+        sa.text(
+            "INSERT INTO raw_artifact_observations (raw_artifact_id, ingest_run_id, "
+            " source_uri, fetched_at, artifact_origin) "
+            "VALUES (:a, :r, 'https://x', now(), 'official_fetch')"
+        ),
+        {"a": artifact_id, "r": run_id},
+    )
+    TradingCalendarWriter().append_month(
+        connection,
+        source="twse",
+        observation=TradingCalendarObservation(
+            market=market,
+            calendar_month=month,
+            trading_days=tuple(days),
+            coverage_through=through,
+        ),
+        lineage=CalendarLineageRef(artifact_id, run_id),
+    )
+    connection.commit()

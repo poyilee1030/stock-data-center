@@ -35,6 +35,7 @@ from stock_data_center.db.metadata import (
     financial_filing_versions,
 )
 from stock_data_center.evidence import EvidencePolicyService
+from stock_data_center.evidence.plan import PlannedEvidence
 from stock_data_center.financials.ingestion import (
     FilingLineageRef,
     FinancialFilingObservation,
@@ -48,6 +49,8 @@ from stock_data_center.ingestion.adapters.financial_filing import (
     MOPSFinancialFilingAdapter,
 )
 from stock_data_center.ingestion.adapters.financial_filing_archive import (
+    EVIDENCE_LABEL,
+    STATUTORY_RULE,
     LegacyFinancialFilingArchiveAdapter,
 )
 from stock_data_center.ingestion.http import ArchiveGlobFetcher, SourceFetcher
@@ -58,6 +61,7 @@ from stock_data_center.ingestion.lifecycle import (
 )
 from stock_data_center.ingestion.models import (
     EvidenceContext,
+    FinancialFilingArchiveRequest,
     ParsedFinancialFiling,
     SourceResource,
 )
@@ -183,15 +187,12 @@ class FinancialFilingImporter(RawFirstImporter[object, ParsedFinancialFiling]):
             )
             self._writer.seal(connection, version_id=written.version_id)
 
-        bound = self._policy.bind(
-            connection, dataset_code=adapter.dataset_code, source=adapter.source
-        )
-        planned = bound.plan(
+        planned, publication_time = self._plan_evidence(
             connection,
-            period=parsed.period_end,
-            purpose=context.purpose,
+            adapter=adapter,
+            parsed=parsed,
+            context=context,
             version_created=written.created,
-            captured_at=context.captured_at,
             version_id=written.version_id,
         )
         evidence_ids: set[int] = set()
@@ -247,11 +248,42 @@ class FinancialFilingImporter(RawFirstImporter[object, ParsedFinancialFiling]):
                 "parser_version": parsed.parser_version,
                 "coverage_validation": "not_evaluated",
                 "coverage_gaps": None,
-                "publication_time": (
-                    bound.rule.evidence_source if bound.rule else "unknown"
-                ),
+                "publication_time": publication_time,
                 "availability_time_evidence": sorted(claimed),
             },
+        )
+
+    def _plan_evidence(
+        self,
+        connection: Connection,
+        *,
+        adapter,
+        parsed: ParsedFinancialFiling,
+        context: EvidenceContext,
+        version_created: bool,
+        version_id: int,
+    ) -> tuple[tuple[PlannedEvidence, ...], str]:
+        """What this import may claim, and what to call it in the manifest.
+
+        An official fetch claims whatever its declared purpose entitles it to
+        (ADR-0020 §5), which for `mops_t164sb01` means a capture bound when it
+        is genuinely the first sighting and `unknown` otherwise: the source
+        declares no release rule, deliberately.
+        """
+
+        bound = self._policy.bind(
+            connection, dataset_code=adapter.dataset_code, source=adapter.source
+        )
+        planned = bound.plan(
+            connection,
+            period=parsed.period_end,
+            purpose=context.purpose,
+            version_created=version_created,
+            captured_at=context.captured_at,
+            version_id=version_id,
+        )
+        return planned, (
+            bound.rule.evidence_source if bound.rule else "unknown"
         )
 
     def _append_eps(
@@ -318,6 +350,7 @@ class FinancialFilingArchiveImporter(FinancialFilingImporter):
             writer=writer,
             policy=policy,
         )
+        self._quarter_planners: dict[tuple[int, int], object] = {}
 
     def run(self, **kwargs: object) -> object:
         """Record `legacy_archive`, whatever the caller passed.
@@ -329,6 +362,118 @@ class FinancialFilingArchiveImporter(FinancialFilingImporter):
 
         kwargs["artifact_origin"] = ArtifactOrigin.LEGACY_ARCHIVE
         return super().run(**kwargs)  # type: ignore[arg-type]
+
+    def _plan_evidence(
+        self,
+        connection: Connection,
+        *,
+        adapter,
+        parsed: ParsedFinancialFiling,
+        context: EvidenceContext,
+        version_created: bool,
+        version_id: int,
+    ) -> tuple[tuple[PlannedEvidence, ...], str]:
+        """What the archived file proves, which is one of exactly two things.
+
+        Step 23-c. The file's mtime decides (audit §4.8). A daily-job file from
+        2025Q4 onward was written when the legacy scraper first saw the filing,
+        so it is a `legacy_capture_bound` at that instant — someone else's
+        sighting, dated to the second, one rank below our own capture. Every
+        other file came from a bulk run that noticed the filing long after it
+        was published, so it proves nothing and the filing resolves by
+        `financial_statements_general@1` instead.
+
+        The two are exclusive rather than both written: a capture already
+        outranks the rule, and where the capture is *later* than the deadline
+        the filing was filed late and the rule is falsified for it
+        (CLAUDE.md §32). Writing both would leave the falsified instant stored,
+        ready to become the answer if the capture were ever superseded.
+
+        `context.purpose` is not consulted. It describes what *this* run did,
+        and this run did not see the filing first — the legacy scraper did,
+        years ago, and the file is the record of it.
+        """
+
+        if not isinstance(adapter, LegacyFinancialFilingArchiveAdapter):
+            raise TypeError(
+                "FinancialFilingArchiveImporter requires a "
+                "LegacyFinancialFilingArchiveAdapter"
+            )
+        bound_at = adapter.capture_bound(self._request_for(parsed))
+        bound = self._policy.bind(
+            connection, dataset_code=adapter.dataset_code, source=adapter.source
+        )
+        if bound_at is not None:
+            # A captured file needs no rule, and resolving one would ask the
+            # trading calendar, which refuses outside its imported coverage.
+            planner = bound.archive_planner(
+                connection,
+                period=parsed.period_end,
+                rule_id=STATUTORY_RULE[0],
+                rule_version=STATUTORY_RULE[1],
+                needs_rule=False,
+                evidence_label=EVIDENCE_LABEL,
+            )
+        else:
+            planner = self._quarter_planner(
+                connection, bound=bound, parsed=parsed
+            )
+        planned = planner.plan(
+            bound_at=bound_at,
+            proves_first_capture=bound_at is not None,
+            bound_is_the_rule_day=bound_at is None,
+            # What this version already carries. An official `first_capture`
+            # may have proved a first sighting before this archive copy was
+            # imported, and a sighting later than the deadline falsifies the
+            # rule for that filing (CLAUDE.md §32).
+            proven_capture_at=bound.stored_capture(connection, version_id),
+        )
+        return planned, (
+            "legacy archive capture" if bound_at is not None
+            else f"{STATUTORY_RULE[0]}@{STATUTORY_RULE[1]}"
+        )
+
+    def _quarter_planner(
+        self,
+        connection: Connection,
+        *,
+        bound,
+        parsed: ParsedFinancialFiling,
+    ):
+        """The rule instant for this quarter, resolved once for the whole walk.
+
+        Every filing in a quarter shares the deadline, and the rule is
+        registered immutably, so resolving it per document asks the calendar
+        the same question about forty thousand times across the archive.
+        """
+
+        key = (parsed.report_year, parsed.report_quarter)
+        planner = self._quarter_planners.get(key)
+        if planner is None:
+            planner = bound.archive_planner(
+                connection,
+                period=parsed.period_end,
+                rule_id=STATUTORY_RULE[0],
+                rule_version=STATUTORY_RULE[1],
+                evidence_label=EVIDENCE_LABEL,
+            )
+            self._quarter_planners[key] = planner
+        return planner
+
+    @staticmethod
+    def _request_for(
+        parsed: ParsedFinancialFiling,
+    ) -> FinancialFilingArchiveRequest:
+        """The request that found this document, rebuilt from the document.
+
+        The header and the request agree — the parser refuses them otherwise —
+        so rebuilding it here keeps the evidence keyed to what was actually
+        parsed rather than to what a caller asked for.
+        """
+
+        return FinancialFilingArchiveRequest(
+            parsed.security_code, parsed.report_year, parsed.report_quarter
+        )
 
 
 def filing_versions_for(

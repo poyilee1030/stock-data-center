@@ -115,12 +115,13 @@ def evidence_plan(
 
 def archive_evidence_plan(
     *,
-    bound_at: datetime,
+    bound_at: datetime | None,
     evidence_source: str,
     proves_first_capture: bool,
     rule_instant: datetime | None = None,
     rule_source: str | None = None,
     bound_is_the_rule_day: bool = False,
+    proven_capture_at: datetime | None = None,
 ) -> tuple[PlannedEvidence, ...]:
     """What one legacy-archive row proves about when its month was public.
 
@@ -138,12 +139,20 @@ def archive_evidence_plan(
       rule instead, which is never earlier than the rule and moves with it
       when the deadline falls on a closed day.
 
-    `bound_at` is the end of the archive's day in the market timezone: the
-    archive dates rows to the day, and the end of it is the earliest instant
-    that is certainly not before the sighting or the article.
+    `bound_at` is what the archive file itself proves: for monthly revenue the
+    end of the archive's day in the market timezone, because the archive dates
+    rows to the day and the end of it is the earliest instant certainly not
+    before the sighting or the article; for an archived iXBRL document (Step
+    23-c) the file's own mtime, which is dated to the second. It is `None` only
+    when the row claims the rule, which needs no bound of its own.
     """
-    if bound_at.tzinfo is None:
+    if bound_at is not None and bound_at.tzinfo is None:
         raise ValueError("bound_at must be timezone-aware (CLAUDE.md §34)")
+    if bound_at is None and not bound_is_the_rule_day:
+        raise ValueError(
+            "a row with no bound and no rule claims nothing; pass the instant "
+            "the archive proves"
+        )
     if proves_first_capture:
         return (
             PlannedEvidence(
@@ -160,6 +169,14 @@ def archive_evidence_plan(
                 "a row left on the statutory day needs the rule instant it claims"
             )
         _require_rule_attribution(rule_source)
+        if proven_capture_at is not None and proven_capture_at > rule_instant:
+            # A first sighting later than the deadline falsifies the rule for
+            # this row, whoever proved it and whenever (§2, CLAUDE.md §32). The
+            # row keeps the capture it already carries and claims nothing here;
+            # appending the rule would leave a falsified instant in
+            # append-only storage, ready to answer the day the capture above it
+            # is superseded.
+            return ()
         return (
             PlannedEvidence(
                 evidence_type="release_rule",

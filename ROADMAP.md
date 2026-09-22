@@ -612,8 +612,8 @@ explicit out-of-scope work
 | 22-b | MERGED | 月營收：歷史 backfill 與舊系統對帳 |
 | 22-c | MERGED | 月營收：發布證據 |
 | 23-a | MERGED | 財務報表：iXBRL parser 與文件契約 |
-| 23-b | IN REVIEW | 財務報表：官方 adapter、檔案庫 adapter 與匯入路徑 |
-| 23-c | PLANNED | 財務報表：全量 backfill、抽樣關卡與對帳 |
+| 23-b | MERGED | 財務報表：官方 adapter、檔案庫 adapter 與匯入路徑 |
+| 23-c | IN REVIEW | 財務報表：全量 backfill、抽樣關卡與對帳 |
 | 24 | PLANNED | TDCC 股權分散 |
 | 25 | PLANNED | 還原價格 |
 | 26 | PLANNED | 標準衍生 v1（移植舊系統計算程式） |
@@ -1606,7 +1606,7 @@ context 才是當期。Q1 起始於 1/1 的那一個是 `current_single_quarter`
 
 ### Step 23-b — 官方 adapter、檔案庫 adapter 與匯入路徑
 
-狀態：**IN REVIEW** (#40)。依賴：Step 23-a、Step 11。
+狀態：**MERGED** (#40)。依賴：Step 23-a、Step 11。
 
 範圍內：`mops_t164sb01` 官方 adapter（`REPORT_ID` C→A fallback、3 秒間隔、raw-first）、
 `legacy_archive` 檔案庫 adapter、importer、CLI，以及來源宣告 migration。此時證據是
@@ -1660,10 +1660,41 @@ HTTP 狀態碼還是 200（2026-09-21 對 1101 與 1342 實測）。那一頁是
 
 ### Step 23-c — 全量 backfill、抽樣關卡與對帳
 
-狀態：**PLANNED**。依賴：Step 23-b。
+狀態：**IN REVIEW** (#41)。依賴：Step 23-b。
 
 範圍內：2020Q1–2026Q2 全量匯入、檔案庫對官方的抽樣比較、發布證據（2025Q4 起的
 `legacy_capture_bound`，其餘 release rule），以及舊系統對帳。
+
+**檔案的 mtime 就是全部的證據。** 檔案庫由兩種執行寫成，只有 mtime 分得出來
+（audit §4.8）：2025Q4 起每日工作隨著申報出現逐份抓，mtime 散在整個申報窗口，
+所以那個瞬間是舊爬蟲的首見；其餘全部來自大批次執行——2026-02-21/22/23/24/26
+重抓 2020Q1–2025Q3，以及 2026-08-01、08-16、08-17 三次補抓，其中 08-16 同時寫了
+2020Q1、2020Q2 與兩份 2026Q2，這正是它是批次而不是每日的證明。批次執行是在發布
+很久之後才注意到那份申報，證明不了任何事（CLAUDE.md §32）。
+
+實測分布：45,324 份中 4,943 份帶首見（2025Q4 1,653、2026Q1 1,647、2026Q2 1,643），
+其餘 40,381 份以 `financial_statements_general@1` 解析。
+
+`financial_statements_general@1`（migration `3c8e5f1b7a46` 已註冊）**不宣告在來源
+上**，與 22-c 同樣的理由：宣告在來源上，官方 importer 寫的每一個版本都會拿到法定
+時刻，包含沒有任何東西證明它準時申報的那些。改由檔案庫 importer 逐份引用。
+
+兩者互斥而不是都寫：首見本來就勝過 rule，而首見晚於期限時該份是延遲申報、rule
+對它被推翻（CLAUDE.md §32）。都寫會把被推翻的時刻留在庫裡。
+
+決策記錄（2026-09-21）：
+
+1. **capture 取檔案 mtime 本身，不取當日結束。** 月營收檔案庫只記到日，所以 22-c
+   取當日 23:59:59；這裡 mtime 是逐檔的寫入瞬間，是更緊、同樣成立的上界。
+2. **證據從檔案讀，不從 fetcher 的狀態讀。** 從 captured checkpoint 續跑的匯入會
+   從 raw store 讀回 bytes、不呼叫 fetcher；證據若因為續跑而悄悄變弱，就是續跑改寫
+   了歷史（CLAUDE.md §76）。
+3. **2026-08-01 的 4 份 2026Q2 檔案一併歸為批次。** 那次執行 22:28–23:59 之間同時
+   寫了 2026Q1 的 20 份，是一次批次；把這 4 份也當批次，它們改以 2026-08-15 解析，
+   比 08-01 的 capture **晚**，是安全的方向。
+4. **延遲申報的前視風險留著並記錄。** 2025Q4 之前沒有任何首見證據，準時與否無從分辨，
+   所以 rule 對真正延遲申報的公司會偏早。ROADMAP §23 的檔案庫方案本來就接受這一點；
+   替代方案是全部留 `unknown`，代價是 2020Q1–2025Q3 在 Market PIT 下完全看不到。
 
 驗收：
 
@@ -1846,6 +1877,23 @@ dispatch              -> one job per still-missing period, and nothing else
 
 升級期限結束迴圈：到隔天早上宣告的時刻仍然缺漏的期間，會發出通知，指名資料集、期間
 和最後的 reason code，而不是永遠默默重試。
+
+### Step 23-c 交來的一件事：讀不出來的官方文件
+
+2026-09-21 的抽樣關卡發現的（audit §4.8）。有些 `t164sb01` 的官方回應帶著
+`0x84 0x50`——Big5 使用者造字區的位元組對，`cp950` 與 `big5hkscs` 都不對映——
+整份文件因此解不出來，parser fail closed，重新抓取會被 quarantine 成
+`unreadable_document`。抽樣 251 份中有 2 份（6470 2025Q1、5315 2026Q1）。
+
+舊爬蟲當時是以 replacement 解碼的，所以檔案庫那份在同一個位置是 U+FFFD 加上 `P`：
+全檔案庫 45,324 份中有 **717 份**帶 U+FFFD、共 2,994 處，**沒有任何一處落在三張
+報表內**，全部在敘述文字裡，也沒有任何一處在帶 `ix:nonFraction` 的儲存格。所以
+沒有任何已儲存的值依賴這個字元，23-c 的 backfill 不受影響。
+
+Step 27 前向抓取要決定怎麼處理：猜一個使用者造字等於發明來源內容，所以不是加一個
+寬鬆 codec 就算了。可能的方向是保留原始位元組、只對無法對映的位元組記錄位置與
+quarantine reason，讓三張報表照樣解析——但那要先證明無法對映的位元組永遠不落在
+報表內，而目前只有檔案庫這一份證據。
 
 除了迴圈本身，還需要四件事：
 

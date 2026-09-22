@@ -183,7 +183,7 @@ class RawFirstImporter[RequestT, ParsedT](ABC):
                 connection,
                 import_id=import_id,
                 adapter=adapter,
-                git_commit=git_commit or _git_commit(),
+                git_commit=git_commit or current_git_commit(),
                 scope=scope,
                 fingerprint=fingerprint,
             )
@@ -1186,7 +1186,15 @@ def _advisory_lock_key(import_id: UUID, resource_key: str) -> int:
     return int.from_bytes(sha256(identity).digest()[:8], "big", signed=True)
 
 
-def _git_commit() -> str:
+def current_git_commit() -> str:
+    """The commit a run stamps on its manifest, `-dirty` if the tree is.
+
+    Public because a range runner has to take it once for the whole walk: a
+    manifest whose commit disagrees with the run's is refused as changed
+    configuration, so asking per resource would make a long walk unresumable
+    across any commit made while it runs.
+    """
+
     try:
         commit = subprocess.run(
             ["git", "rev-parse", "HEAD"],

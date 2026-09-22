@@ -68,25 +68,35 @@ class ArchiveGlobFetcher(LocalArchiveFetcher):
     """
 
     def fetch(self, resource: SourceResource) -> FetchedArtifact:
-        pattern = Path(resource.source_uri)
-        matches = sorted(pattern.parent.glob(pattern.name))
-        if not matches:
-            raise SourceDataError(
-                "archive_file_missing", f"no archived file matches {pattern}"
-            )
-        if len(matches) > 1:
-            # One filing, one document. Two would mean the archive holds two
-            # answers to the same request and nothing says which is current.
-            raise SourceDataError(
-                "ambiguous_archive_file",
-                f"{len(matches)} archived files match {pattern}: "
-                f"{[path.name for path in matches]}",
-            )
         return super().fetch(
             SourceResource(
-                resource_key=resource.resource_key, source_uri=str(matches[0])
+                resource_key=resource.resource_key,
+                source_uri=str(resolve_archive_glob(Path(resource.source_uri))),
             )
         )
+
+
+def resolve_archive_glob(pattern: Path) -> Path:
+    """The one archived file a pattern names.
+
+    Shared with the adapters that need the file itself rather than its bytes —
+    Step 23-c reads its mtime, which is the whole of its publication evidence —
+    so the two never disagree about which file answered a request.
+    """
+    matches = sorted(pattern.parent.glob(pattern.name))
+    if not matches:
+        raise SourceDataError(
+            "archive_file_missing", f"no archived file matches {pattern}"
+        )
+    if len(matches) > 1:
+        # One filing, one document. Two would mean the archive holds two
+        # answers to the same request and nothing says which is current.
+        raise SourceDataError(
+            "ambiguous_archive_file",
+            f"{len(matches)} archived files match {pattern}: "
+            f"{[path.name for path in matches]}",
+        )
+    return matches[0]
 
 
 # MOPS blocked the legacy scraper on 2026-07-02. Its answer, kept since, is a

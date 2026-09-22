@@ -14,13 +14,15 @@ shape Step 22-a had.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
 
 import pytest
 import sqlalchemy as sa
+
+from tests.conftest import store_trading_calendar
 
 from stock_data_center.financials import FinancialFilingService
 from stock_data_center.financials.models import EPSPeriodBasis, FilingPeriod
@@ -281,6 +283,10 @@ def test_the_archive_importer_never_records_an_official_fetch(
     not the caller says so (CLAUDE.md §75)."""
     engine = sa.create_engine(isolated_database_url)
     try:
+        with engine.connect() as connection:
+            # Step 23-c: a 2025Q1 archive file resolves by the statutory
+            # deadline, and that asks the calendar whether 2025-05-15 was open.
+            store_trading_calendar(connection, month=date(2025, 5, 1))
         folder = tmp_path / "archive" / "2025" / "2025Q1"
         folder.mkdir(parents=True)
         (folder / "2025Q1_1101_20250515.html").write_bytes(CEMENT_Q1)
@@ -297,7 +303,12 @@ def test_the_archive_importer_never_records_an_official_fetch(
         )
         with engine.connect() as connection:
             origins = connection.scalars(
-                sa.text("SELECT DISTINCT artifact_origin FROM raw_artifact_observations")
+                sa.text(
+                    "SELECT DISTINCT o.artifact_origin"
+                    " FROM raw_artifact_observations o"
+                    " JOIN ingest_runs r ON r.id = o.ingest_run_id"
+                    " WHERE r.dataset_code = 'financial_filing'"
+                )
             ).all()
         assert origins == ["legacy_archive"]
     finally:
@@ -473,6 +484,10 @@ def test_the_archive_import_dedups_against_the_official_one(
     engine = sa.create_engine(isolated_database_url)
     try:
         run(engine, tmp_path)
+        with engine.connect() as connection:
+            # Step 23-c: the archive copy resolves by the statutory deadline,
+            # and that asks the calendar whether 2025-05-15 was open.
+            store_trading_calendar(connection, month=date(2025, 5, 1))
         folder = tmp_path / "archive" / "2025" / "2025Q1"
         folder.mkdir(parents=True)
         (folder / "2025Q1_1101_20250515.html").write_bytes(CEMENT_Q1)
