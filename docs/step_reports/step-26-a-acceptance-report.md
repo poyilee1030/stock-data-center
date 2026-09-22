@@ -1,6 +1,6 @@
 # Step 26-a 驗收報告
 
-狀態：IN REVIEW
+狀態：IN REVIEW (#44)
 
 範圍：標準衍生資料的第一部分——derivation 服務基礎，以及第一個定義
 `technical_indicators:v1`。新增：
