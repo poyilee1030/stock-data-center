@@ -614,7 +614,7 @@ explicit out-of-scope work
 | 23-a | MERGED | 財務報表：iXBRL parser 與文件契約 |
 | 23-b | MERGED | 財務報表：官方 adapter、檔案庫 adapter 與匯入路徑 |
 | 23-c | MERGED | 財務報表：全量 backfill、抽樣關卡與對帳 |
-| 24-a | THIS STEP | TDCC 股權分散：adapter 與匯入路徑 |
+| 24-a | IN REVIEW | TDCC 股權分散：adapter 與匯入路徑 |
 | 24-b | PLANNED | TDCC 股權分散：376 週 backfill、涵蓋範圍與對帳 |
 | 25 | PLANNED | 還原價格 |
 | 26 | PLANNED | 標準衍生 v1（移植舊系統計算程式） |
