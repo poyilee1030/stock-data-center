@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from collections import Counter
 from datetime import date
 from decimal import Decimal
@@ -132,6 +133,21 @@ def compare_week(stored: dict, legacy: dict) -> dict:
                 }
             )
             continue
+        if any(
+            legacy_row[column] is None
+            for column in ("holders", "shares", "percentage")
+        ):
+            # Legacy holds no nulls today, and a null is not a value that can
+            # disagree. Classified rather than raised: crashing at week 300 of
+            # 376 would throw away everything already compared (§78).
+            differences.append(
+                {
+                    "security_code": code,
+                    "level": level,
+                    "class": "legacy_value_is_null",
+                }
+            )
+            continue
         compared += 1
         if (
             int(row["holders"]) == int(legacy_row["holders"])
@@ -157,6 +173,22 @@ def compare_week(stored: dict, legacy: dict) -> dict:
                 },
             }
         )
+    # The loop above walks legacy's rows, so a level only we hold would go
+    # unmentioned. It cannot happen — a stored distribution is complete for
+    # its profile — and it is counted rather than assumed away.
+    for code, level in stored:
+        if (
+            level in COMPARED_LEVELS
+            and code in theirs
+            and (code, level) not in legacy
+        ):
+            differences.append(
+                {
+                    "security_code": code,
+                    "level": level,
+                    "class": "level_absent_from_legacy",
+                }
+            )
     return {
         "stored_securities": len(ours),
         "legacy_securities": len(theirs),
@@ -337,7 +369,16 @@ def main() -> int:
     if args.output:
         with open(args.output, "w", encoding="utf-8") as handle:
             handle.write(text + "\n")
-    return 0 if not difference_classes.get("value_difference") else 1
+    if not shared or not compared_rows:
+        # Nothing was compared, which is not the same as nothing disagreeing:
+        # a wrong legacy URL, an empty database or a window with no overlap
+        # all look like this. Reported as a failure so a scripted run notices.
+        print(
+            "reconciled nothing: no week is held by both sides in this window",
+            file=sys.stderr,
+        )
+        return 1
+    return 0 if not difference_classes else 1
 
 
 if __name__ == "__main__":

@@ -212,8 +212,8 @@ class TDCCShareholdingImporter(
             captured_at=context.captured_at,
             versions=written,
         )
+        resource_key = adapter.resource(request).resource_key
         if isinstance(dependencies, UUID) and parsed.rejected:
-            resource_key = adapter.resource(request).resource_key
             for item in parsed.rejected:
                 connection.execute(
                     sa.insert(import_quarantine).values(
@@ -298,9 +298,13 @@ class TDCCShareholdingImporter(
                 "archive_file": artifact["source_uri"],
                 "archive_filename_date": _filename_date(artifact["source_uri"]),
                 "archive_fetched_at": artifact["fetched_at"].isoformat(),
-                "archive_file_mtime": _archive_mtime(self._fetcher),
+                # Only what this run read. A resumed week reads the captured
+                # artifact and never calls `fetch`, and one fetcher serves a
+                # whole 376-week walk, so the fetcher's state is trusted only
+                # when it describes this very resource.
+                "archive_file_mtime": _archive_mtime(self._fetcher, resource_key),
                 "archive_candidates": list(
-                    getattr(self._fetcher, "last_candidates", ()) or ()
+                    _archive_candidates(self._fetcher, resource_key)
                 ),
                 "snapshot_date_format": parsed.date_format,
                 "header_variant": parsed.header_variant,
@@ -392,14 +396,27 @@ class TDCCShareholdingImporter(
         )
 
 
-def _archive_mtime(fetcher: object) -> str | None:
+def _read_this_resource(fetcher: object, resource_key: str) -> bool:
+    """Whether the fetcher's state describes this run's own read."""
+    return getattr(fetcher, "last_resource_key", None) == resource_key
+
+
+def _archive_mtime(fetcher: object, resource_key: str) -> str | None:
     """The file's own mtime, when this run was the one that read it.
 
     Absent on a resume, which reads the captured artifact instead; the file
     that answered is recorded from the artifact observation either way.
     """
+    if not _read_this_resource(fetcher, resource_key):
+        return None
     mtime = getattr(fetcher, "last_mtime", None)
     return mtime.isoformat() if mtime is not None else None
+
+
+def _archive_candidates(fetcher: object, resource_key: str) -> tuple[str, ...]:
+    if not _read_this_resource(fetcher, resource_key):
+        return ()
+    return tuple(getattr(fetcher, "last_candidates", ()) or ())
 
 
 def _filename_date(source_uri: str) -> str | None:

@@ -1087,6 +1087,18 @@ def _quarters_between(start: FilingPeriod, end: FilingPeriod):
         year, quarter = (year + 1, 1) if quarter == 4 else (year, quarter + 1)
 
 
+def _in_year_range(path: Path, start: date, end: date) -> bool:
+    """Whether an undateable file sits in a year folder this run walks.
+
+    The archive stores a year per folder. A file whose folder is not a year is
+    treated as in range, because nothing then bounds it.
+    """
+    folder = path.parent.name
+    if len(folder) == 4 and folder.isdigit():
+        return start.year <= int(folder) <= end.year
+    return True
+
+
 @dataclass(frozen=True, slots=True)
 class TDCCWeekResult:
     """What happened to one published week."""
@@ -1230,10 +1242,15 @@ class TDCCArchiveBackfill:
                 continue
             stated = filename_date(path)
             if stated is None:
-                raise ValueError(
-                    f"archived file {path.name} states no date in its name; "
-                    "the walk cannot tell which week to ask for"
-                )
+                if _in_year_range(path, start, end):
+                    raise ValueError(
+                        f"archived file {path.name} states no date in its name; "
+                        "the walk cannot tell which week to ask for"
+                    )
+                # Outside the requested years, so it is not this run's
+                # business: one undateable file in 2026 must not stop a 2020
+                # range from running at all.
+                continue
             if start <= stated <= end:
                 weeks.add(stated)
         return tuple(sorted(weeks))

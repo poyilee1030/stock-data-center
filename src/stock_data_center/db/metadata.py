@@ -845,7 +845,10 @@ dataset_expected_coverage = sa.Table(
         ondelete="RESTRICT",
     ),
     sa.CheckConstraint(
-        "cadence IN ('trading_day', 'calendar_month')", name="cadence_value"
+        # `trading_week` is TDCC's: the data date is the publisher's own
+        # business day, so only the week can be expected (Step 24-b).
+        "cadence IN ('trading_day', 'calendar_month', 'trading_week')",
+        name="cadence_value",
     ),
     sa.CheckConstraint(
         "window_end IS NULL OR window_end >= window_start", name="window_order"

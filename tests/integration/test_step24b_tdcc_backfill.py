@@ -95,9 +95,16 @@ def test_the_walk_enumerates_the_weeks_the_archive_holds(tmp_path: Path) -> None
         date(2020, 10, 8),
         date(2024, 1, 5),
     )
-    write(root, "shareholding_backup.csv", b"")
+    (root / "2026").mkdir(parents=True, exist_ok=True)
+    (root / "2026" / "shareholding_backup.csv").write_bytes(b"")
     with pytest.raises(ValueError, match="states no date"):
         walk.weeks_in(date(2019, 1, 1), date(2027, 1, 1))
+    # Outside the requested years it is not this run's business: one
+    # undateable 2026 file must not stop a 2020 range from running.
+    assert walk.weeks_in(date(2020, 1, 1), date(2020, 12, 31)) == (
+        date(2020, 1, 3),
+        date(2020, 10, 8),
+    )
 
 
 def test_each_week_imports_under_its_own_resumable_import_id(
@@ -409,3 +416,70 @@ def test_a_snapshot_in_a_week_the_market_never_opened_is_unexpected_not_hidden(
     )
     assert report.unexpected == (date(2021, 2, 8),)
     assert report.is_complete is False
+
+
+def test_a_resumed_week_in_a_walk_reports_no_file_mtime_of_its_own(
+    isolated_database_url: str, tmp_path: Path
+) -> None:
+    """One fetcher serves the whole walk, so its state must not travel.
+
+    The first week is read and reports its file's mtime; the second is read
+    too. Rerunning the walk resumes both from their checkpoints without
+    calling `fetch`, and neither may then carry the other's mtime or candidate
+    list (CLAUDE.md §75).
+    """
+    engine = sa.create_engine(isolated_database_url)
+    try:
+        register(engine, "2330", "0056", "1101", "00673R")
+        root = tmp_path / "shareholding"
+        write(root, "20260918.csv", LATEST)
+        write(root, "20200430.csv", OVER_HUNDRED)
+        walk = backfill(engine, tmp_path, root)
+        first = walk.run(start=date(2020, 1, 1), end=date(2026, 12, 31))
+        importer = walk._importer  # noqa: SLF001 - the manifests are the point
+        with engine.connect() as connection:
+            read = {
+                item.snapshot_date: importer.manifest(
+                    connection, item.import_id
+                ).reconciliation
+                for item in first.results
+            }
+        assert all(entry["archive_file_mtime"] is not None for entry in read.values())
+        assert read[WEEK]["archive_candidates"] == ["20260918.csv"]
+        assert read[date(2020, 4, 30)]["archive_candidates"] == ["20200430.csv"]
+
+        resumed = backfill(engine, tmp_path, root)
+        again = resumed.run(start=date(2020, 1, 1), end=date(2026, 12, 31))
+        assert again.resumed == 2
+        with engine.connect() as connection:
+            replayed = {
+                item.snapshot_date: resumed._importer.manifest(  # noqa: SLF001
+                    connection, item.import_id
+                ).reconciliation
+                for item in again.results
+            }
+        # The manifests are the ones the first run wrote, each still naming its
+        # own file — nothing was overwritten with another week's state.
+        for week, entry in replayed.items():
+            assert Path(str(entry["archive_file"])).name == (
+                f"{week:%Y%m%d}.csv"
+            )
+    finally:
+        engine.dispose()
+
+
+def test_a_window_ending_mid_week_does_not_invent_a_gap(db: Connection) -> None:
+    """TDCC publishes on the Friday; a report asked to 2021-01-06 still has
+    to see the week's snapshot rather than call the week missing."""
+    store_calendar(db)
+    store_snapshot(db, "T0108", date(2021, 1, 8))
+    report = CoverageValidator().report(
+        db,
+        dataset_code="tdcc_snapshot",
+        market="TW",
+        start=date(2021, 1, 4),
+        end=date(2021, 1, 6),
+    )
+    assert report.expected == (date(2021, 1, 4),)
+    assert report.observed == (date(2021, 1, 4),)
+    assert report.missing == ()

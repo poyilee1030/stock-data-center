@@ -129,11 +129,24 @@ class CoverageValidator:
         expected = self._expected.expected_periods(
             connection, dataset_code=dataset_code, market=market, start=start, end=end
         )
-        observed = self._observed_periods(
-            connection, declaration=declaration, start=start, end=end
-        )
         if declaration.cadence == "trading_week":
-            observed = _week_starts(observed)
+            # Asked for whole weeks, not the requested days: a window ending
+            # mid-week still expects that week, and TDCC usually publishes it
+            # on the Friday. Filtering the observations by the raw range would
+            # report the week as missing the moment the range ended on a
+            # Wednesday.
+            observed = _week_starts(
+                self._observed_periods(
+                    connection,
+                    declaration=declaration,
+                    start=_week_start(start),
+                    end=_week_start(end) + timedelta(days=6),
+                )
+            )
+        else:
+            observed = self._observed_periods(
+                connection, declaration=declaration, start=start, end=end
+            )
         non_trading_days: tuple[date, ...] = ()
         if declaration.cadence == "trading_day" and window_start <= window_end:
             # The closure list follows the declared window, exactly as the
@@ -207,6 +220,10 @@ class CoverageValidator:
             sa.select(sa.distinct(column)).where(*predicates).order_by(column)
         ).scalars()
         return tuple(rows)
+
+
+def _week_start(day: date) -> date:
+    return day - timedelta(days=day.weekday())
 
 
 def _week_starts(days) -> tuple[date, ...]:

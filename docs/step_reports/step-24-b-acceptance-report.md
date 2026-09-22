@@ -107,13 +107,39 @@ ingest_runs purpose             382，全部 gap_fill
 
 ```text
 .venv/bin/python -m pytest -q
-1,164 passed, 3 skipped
+1,166 passed, 3 skipped
 ```
 
-新增 `tests/integration/test_step24b_tdcc_backfill.py`（9）：walk 的週列舉
+新增 `tests/integration/test_step24b_tdcc_backfill.py`（11）：walk 的週列舉
 （三種檔名、重複副本、`_quarantine`、無日期檔名）、逐週 import id 與續跑、
 單週隔離不終止整趟、截斷週在報告裡具名、每週 cadence 的四種情形（期待、
 休市週、缺口、交易所未開卻有快照）。
+
+## 審查後的修正（#43 review）
+
+七項發現全部成立，都已修：
+
+1. **schema drift（HIGH）**：`metadata.py` 的 cadence CHECK 沒跟著 migration 放寬，
+   用 `metadata.create_all` 建的資料庫會拒絕 24-b 自己的宣告。`alembic check`
+   沒抓到是因為它預設不比對 CHECK 內容。
+2. 一個 fetcher 服務整趟 376 週，而 `archive_file_mtime` 與 `archive_candidates`
+   仍讀 live 狀態，續跑的那一週會寫進前一週的 mtime。`TDCCArchiveFetcher` 新增
+   `last_resource_key`、每次 fetch 先清空；manifest 只在狀態確實描述這次的
+   resource 時才記錄，否則是 `null`／`[]`。（`archive_file` 在 #42 已修過同一個坑，
+   這兩個欄位當時漏掉。）
+3. 週 cadence 的 observed 先用原始日期區間過濾才收斂成週，視窗在週三結束會把
+   週五才發布的那一週報成缺口。改成以整週查詢。
+4. 對帳在沒有任何共有週時回傳 0，「什麼都沒比」被當成「通過」。現在印訊息並
+   回傳 1。
+5. legacy 的 NULL 值會在中途丟例外而不是歸類；改為 `legacy_value_is_null`。
+6. 只迭代 legacy 的 key，我方多出的分級不會被報出來；補上反向掃描
+   `level_absent_from_legacy`。
+7. `weeks_in` 在範圍過濾前就對無日期檔名拋錯，範圍外的一個檔案會擋掉所有區間。
+   改成只在該檔案落在請求年份內時才失敗。
+
+修正後重跑對帳，結果不變：9,512,610 個比對列、0 個差異，新增的兩個類別都沒有
+出現。新增 3 個回歸測試（跨週 fetcher 狀態不外洩、視窗在週中結束不造假缺口、
+範圍外的無日期檔名）。
 
 ## 已知限制與刻意延後
 
