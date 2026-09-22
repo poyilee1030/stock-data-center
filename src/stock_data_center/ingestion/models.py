@@ -37,6 +37,7 @@ from stock_data_center.financials.ixbrl import (
 from stock_data_center.financials.models import SummaryPeriodBasis
 from stock_data_center.monthly_revenue.ingestion import MonthlyRevenueObservation
 from stock_data_center.monthly_revenue.models import RevenuePeriod
+from stock_data_center.tdcc.models import TDCCSnapshotObservation
 
 # Re-exported: adapters and importers import the origin from here.
 from stock_data_center.provenance import ArtifactOrigin, IngestPurpose  # noqa: F401
@@ -448,6 +449,65 @@ class ParsedMonthlyRevenueArchive:
     @property
     def coverage_start(self) -> date | None:
         return date(self.period.year, self.period.month, 1) if self.rows else None
+
+    @property
+    def coverage_end(self) -> date | None:
+        return self.coverage_start
+
+
+@dataclass(frozen=True, slots=True)
+class TDCCShareholdingRequest:
+    """One week of the TDCC distribution file (Step 24-a).
+
+    `snapshot_date` is the 資料日期 the caller expects. The archive adapter
+    requires it, because it names the file to read; the live OpenData adapter
+    takes it as an assertion about the week being served and accepts `None`
+    for whatever is current.
+    """
+
+    snapshot_date: date | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class TDCCShareholdingRow:
+    """One security's complete distribution for the file's week."""
+
+    security_code: str
+    observation: TDCCSnapshotObservation
+
+
+@dataclass(frozen=True, slots=True)
+class TDCCRejectedSecurity:
+    """One security whose rows cannot form a distribution for the profile.
+
+    Its own quarantine, not the file's: the other securities in the same
+    week are complete published facts (ADR-0022 §8).
+    """
+
+    security_code: str
+    reason_code: str
+    detail: str
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedTDCCShareholding:
+    """One weekly whole-market file, keyed on its own 資料日期."""
+
+    snapshot_date: date
+    rows: tuple[TDCCShareholdingRow, ...]
+    rejected: tuple[TDCCRejectedSecurity, ...]
+    header_variant: str
+    source_fields: tuple[str, ...]
+    source_rows: int
+    container: str
+    member_name: str | None
+    date_format: str
+    truncated: bool
+    dropped_adjustment_holder_counts: int
+
+    @property
+    def coverage_start(self) -> date | None:
+        return self.snapshot_date if self.rows else None
 
     @property
     def coverage_end(self) -> date | None:

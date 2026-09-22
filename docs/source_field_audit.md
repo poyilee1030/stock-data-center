@@ -1,6 +1,6 @@
 # Source Field Audit
 
-Status date: 2026-09-16.
+Status date: 2026-09-22.
 
 This document records which fields the legacy database, the legacy raw archive,
 and the official endpoints actually provide. `ROADMAP.md` uses it as the
@@ -1175,6 +1175,107 @@ closure:
 
 There is no unexplained gap. The former filtered directory alone had eight such
 intervals, including 2021-11-26 → 2021-12-24.
+
+#### Step 24-a findings (2026-09-22)
+
+Every archived file was decompressed and parsed row by row, 1,377,971
+security-weeks in all. What the earlier survey had not looked at:
+
+**The archive has grown by one week.** 428 files, **376 content dates**,
+2019-06-28 → **2026-09-18**, of which **349** fall inside the v1 window. 52
+dates keep more than one copy (376 + 52 = 428). The new week arrived as
+`2026/TDCC_OD_1-5_20260918.csv`, under OpenData's own filename, and the portal
+offered 20260918 as its latest date the same day.
+
+**Filenames take three shapes, and all three agree with their content date.**
+`20240105.7z`; `20201008_集保戶股權分散表20201008.7z` and
+`20210209_集保戶股權分散表20210209.7z`; and OpenData's
+`TDCC_OD_1-5_20260918.csv`. So a parser extracts the date from the name and
+compares, rather than requiring the stem to be `YYYYMMDD`.
+
+**One container holds more than the week.** `2021/20210806.7z` holds six
+entries: a directory, four stray `TraceLog*.Txt` scraper logs, and the real
+`20210806.csv`. The member has to be chosen — the one `.csv`, case-insensitively
+— and a container with two CSVs or none is refused. Member extensions vary in
+case as the outer ones do (`20221125.CSV` inside `20221125.7z`).
+
+**`2023/20231020.7z` is a truncated download and the week is unrecoverable.**
+Decompressed it is exactly 1,572,864 bytes — 1.5 MiB, a block boundary — and it
+ends mid-row with no newline:
+
+```text
+20231020,8162,1,96,15269,0.02
+20231020,8162,2,343,760864,        <- 占比 cut off, file ends
+```
+
+```text
+20231013   3,340 securities / 56,780 rows
+20231020   2,787 / 47,364          <- 562 securities short
+20231027   3,354 / 57,018
+```
+
+It is the only such file: in every other week, every security holds exactly
+levels 1-17. Nothing can replace it. OpenData serves the latest week only, the
+portal reaches back about a year (2025-09-19 on 2026-09-14), and
+`shareholding.bak`'s copy of that week is filtered twice over — 1,777
+securities, and **15 rows each**, levels 16 and 17 stripped — which is further
+proof it is not a source. Owner decision (2026-09-22): import the 2,786
+complete securities, quarantine the partial one, and report the week as
+truncated.
+
+**The published 合計 exceeds 100%.** 158 rows, all at level 17, over 74 data
+dates from 2019-07-19 to 2023-10-06, for 49 securities, up to `135.00`
+(`00663L`, 2022-11-25); `00673R` and `1906` both publish `101.00` on
+2020-04-30. Measured ranges over the whole archive:
+
+```text
+levels 1-15  占比  0.00 .. 100.00     never above 100
+level 16     占比  magnitude <= 35.90
+level 17     占比  0.00 .. 135.00
+占比 scale         always 2 decimals
+股數 maximum       25,935,030,992
+人數 maximum       3,563,245
+```
+
+Step 24-a therefore moves the ceiling out of the table check and into the
+role-aware row trigger (migration `c9a4e7b21d58`).
+
+**差異數調整 (level 16), officially.** The portal's 說明4, read live on
+2026-09-22:
+
+```text
+「差異數調整」項係指因資料日前1營業日客戶帳戶賣出餘額不足之情事發生，
+使各「持股分級」合計股數與發行公司已發行股份總數產生之差異。
+```
+
+So the row is a reconciliation difference, not a holding band. Three facts
+follow, each verified rather than assumed:
+
+* **The published sign is negative, and the bulk file drops it.** The portal
+  and the bulk file for the same week, 2026-09-11:
+
+```text
+code     bulk 分級16 (人數, 股數, 占比)   portal 分級16
+0056     3,        28,164,     0.00     (人數 blank), -28,164,     -0.00
+00400A   1,         3,000,     0.00     (人數 blank),  -3,000,     -0.00
+00401A   1,     2,864,000,     1.20     (人數 blank), -2,864,000,  -1.20
+00404A   4,    11,409,474,     3.22     (人數 blank), -11,409,474, -3.22
+```
+
+* **The arithmetic agrees.** `合計股數 = Σ 分級1..15 股數 − 分級16 股數` holds
+  for all 1,377,971 security-weeks; `Σ + 16` holds for none of them, and
+  neither identity fails anywhere. `合計人數 = Σ 分級1..15 人數` holds
+  everywhere too, so the adjustment's count is not in the total.
+* **The bulk file's 人數 for that row has no official meaning.** The portal
+  leaves the cell blank; the bulk file's fixed six columns put a small integer
+  there — 19,801 rows, 2,832 securities, 368 of the 376 weeks, values 1 to 4.
+  Nothing official defines it. It is counted in the manifest, kept in the raw
+  artifact, and not stored (`holder_count` is NULL for that role, as ADR-0012
+  already required).
+
+A security with no adjustment still gets a zero-filled level 16 in the bulk
+file plus a level 17 total; the portal instead shows sixteen rows with 合計 in
+position 16. That is the two-label observation above, seen from the other side.
 
 ### 4.10 Corporate actions: exchange result feeds
 

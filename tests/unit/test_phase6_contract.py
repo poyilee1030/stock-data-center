@@ -41,8 +41,12 @@ def test_bucket_values_are_never_silently_rounded_by_storage() -> None:
 def test_bucket_values_reject_invalid_ranges_and_identity() -> None:
     with pytest.raises(ValueError, match="holder_count"):
         bucket(holder_count=-1)
+    # Above 100 is representable: TDCC publishes 合計 up to 135.00 (audit
+    # §4.9), and the holding levels' ceiling is a per-role rule, enforced by
+    # the writer's profile validation and the row trigger (Step 24-a).
+    assert bucket(ownership_percent=Decimal("135")).ownership_percent == Decimal(135)
     with pytest.raises(ValueError, match="ownership_percent"):
-        bucket(ownership_percent=Decimal("100.00000001"))
+        bucket(ownership_percent=Decimal("100.000000001"))
     with pytest.raises(ValueError, match="ownership_percent"):
         bucket(ownership_percent=Decimal("-100.00000001"))
     with pytest.raises(ValueError, match="bucket_code"):

@@ -158,6 +158,14 @@ class TDCCSnapshotWriter:
                     f"{role} bucket {bucket.bucket_code} requires holder_count and "
                     "non-negative shares/percent"
                 )
+            elif role == "holding" and bucket.ownership_percent > 100:
+                # A holding level is a share of custody. The published total
+                # exceeds 100 for some securities and is left uncapped; a
+                # holding level never has (audit §4.9).
+                raise TDCCDistributionError(
+                    f"holding bucket {bucket.bucket_code} cannot own "
+                    f"{bucket.ownership_percent}% of custody"
+                )
 
     def begin_snapshot(
         self,

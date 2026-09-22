@@ -1723,7 +1723,7 @@
               "人數"
             ],
             "audit_section": "4.9",
-            "note": "Published per level."
+            "note": "Published per level, except the 差異數調整 row: 說明4 makes it a difference, which has no holders, so it is NULL there. The bulk file's fixed six columns still state a small integer on that row (19,801 archived rows) with no official meaning; Step 24-a counts it in the manifest and leaves it raw-only."
           },
           "shares": {
             "coverage": "sourced",
@@ -1731,7 +1731,7 @@
               "股數"
             ],
             "audit_section": "4.9",
-            "note": "Published per level."
+            "note": "Published per level. The 差異數調整 row is stored negative: the bulk file states the magnitude unsigned and the publisher's portal renders it negative, and 合計 = Σ levels 1-15 − 差異數調整 holds for every archived security-week (ADR-0024)."
           },
           "ownership_percent": {
             "coverage": "sourced",
@@ -1739,7 +1739,7 @@
               "占集保庫存數比例%"
             ],
             "audit_section": "4.9",
-            "note": "Published per level."
+            "note": "Published per level, with no upper bound: 合計 exceeds 100 in 158 archived rows, up to 135.00. A holding level's 100% ceiling is enforced per role by the row trigger instead (migration c9a4e7b21d58)."
           }
         }
       },

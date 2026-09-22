@@ -11,6 +11,8 @@ dependencies = [
   "alembic>=1.16,<2",
   "httpx>=0.28,<1",
   "psycopg[binary]>=3.2,<4",
+  # Step 24: the TDCC archive stores 2021 onward as .7z (audit §4.9).
+  "py7zr>=1.0,<2",
   "sqlalchemy>=2.0,<2.1",
 ]
 

@@ -80,7 +80,7 @@ from stock_data_center.ingestion.backfill import (
 from stock_data_center.ingestion.corporate_action import CorporateActionImporter
 from stock_data_center.ingestion.daily_market import DailyMarketImporter
 from stock_data_center.ingestion.foreign_holding import ForeignHoldingImporter
-from stock_data_center.ingestion.http import RetryingFetcher
+from stock_data_center.ingestion.http import RetryingFetcher, TDCCArchiveFetcher
 from stock_data_center.ingestion.institutional_investor import (
     InstitutionalInvestorImporter,
 )
@@ -112,6 +112,7 @@ from stock_data_center.ingestion.models import (
     SecuritiesLendingRequest,
     SecurityLifecycleRequest,
     SecurityMetadataRequest,
+    TDCCShareholdingRequest,
     TaiexHistoryRequest,
     TradingCalendarRequest,
     WholeMarketDailyRequest,
@@ -121,6 +122,12 @@ from stock_data_center.ingestion.financial_filing import (
     FinancialFilingImporter,
 )
 from stock_data_center.ingestion.monthly_revenue import MonthlyRevenueImporter
+from stock_data_center.ingestion.adapters.tdcc_shareholding import (
+    DEFAULT_ARCHIVE_ROOT as TDCC_ARCHIVE_ROOT,
+    LegacyTDCCArchiveAdapter,
+    TDCCOpenDataAdapter,
+)
+from stock_data_center.ingestion.tdcc_shareholding import TDCCShareholdingImporter
 from stock_data_center.ingestion.monthly_revenue_archive import (
     MonthlyRevenueArchiveImporter,
 )
@@ -347,6 +354,28 @@ def main(argv: list[str] | None = None) -> int:
         "per-month ids are derived from",
     )
     archive.add_argument("--raw-root", type=Path, default=Path("data/raw"))
+    tdcc = subparsers.add_parser(
+        "tdcc-shareholding",
+        help="import one published week of the TDCC shareholding distribution",
+    )
+    tdcc.add_argument(
+        "--snapshot-date",
+        help="the 資料日期 to import, Gregorian YYYY-MM-DD; required for an "
+        "archived week, and with --live an assertion about the week OpenData "
+        "is serving",
+    )
+    tdcc.add_argument(
+        "--live", action="store_true",
+        help="fetch OpenData id=1-5, which is always the latest week, instead "
+        "of reading the archive",
+    )
+    tdcc.add_argument(
+        "--archive-root", type=Path, default=TDCC_ARCHIVE_ROOT,
+        help="the legacy shareholding archive root (ROADMAP §14: it stays "
+        "outside this repository)",
+    )
+    tdcc.add_argument("--import-id", type=UUID)
+    tdcc.add_argument("--raw-root", type=Path, default=Path("data/raw"))
     lending = subparsers.add_parser(
         "securities-lending",
         help="import one market's per-security securities lending for one trade date",
@@ -1116,6 +1145,34 @@ def main(argv: list[str] | None = None) -> int:
             result = importer.run(
                 adapter=adapter,
                 request=SecurityMetadataRequest(args.expected_report_date),
+                import_id=import_id,
+                purpose=IngestPurpose(args.purpose),
+            )
+        elif args.command == "tdcc-shareholding":
+            snapshot_date = (
+                date.fromisoformat(args.snapshot_date)
+                if args.snapshot_date
+                else None
+            )
+            if not args.live and snapshot_date is None:
+                parser.error(
+                    "tdcc-shareholding needs --snapshot-date, or --live for "
+                    "whatever week OpenData is serving"
+                )
+            importer = TDCCShareholdingImporter(
+                engine,
+                raw_store=LocalRawArtifactStore(args.raw_root),
+                # The archive resolves a week's file itself: 52 dates keep two
+                # copies and the names take three shapes (audit §4.9).
+                fetcher=None if args.live else TDCCArchiveFetcher(),
+            )
+            result = importer.run(
+                adapter=(
+                    TDCCOpenDataAdapter()
+                    if args.live
+                    else LegacyTDCCArchiveAdapter(archive_root=args.archive_root)
+                ),
+                request=TDCCShareholdingRequest(snapshot_date),
                 import_id=import_id,
                 purpose=IngestPurpose(args.purpose),
             )

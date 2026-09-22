@@ -54,8 +54,13 @@ class TDCCBucketObservation:
             raise ValueError("shares must be a whole number")
         object.__setattr__(self, "shares", shares.quantize(Decimal(1)))
         percent = Decimal(self.ownership_percent)
-        if not Decimal(-100) <= percent <= Decimal(100):
-            raise ValueError("ownership_percent must be between -100 and 100")
+        # No upper bound: TDCC publishes 合計 above 100 — 158 rows over 74 data
+        # dates, up to 135.00 (audit §4.9) — and refusing them would drop
+        # published security-weeks whose counts are unremarkable. The role
+        # bounds that do hold are checked where the role is known: the writer's
+        # profile validation and the row trigger cap a holding level at 100.
+        if percent < Decimal(-100):
+            raise ValueError("ownership_percent must not be below -100")
         if percent != percent.quantize(Decimal(1).scaleb(-_PERCENT_SCALE)):
             raise ValueError(
                 f"ownership_percent must have at most {_PERCENT_SCALE} decimal places"
