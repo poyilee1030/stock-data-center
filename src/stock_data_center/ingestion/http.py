@@ -76,6 +76,39 @@ class ArchiveGlobFetcher(LocalArchiveFetcher):
         )
 
 
+class TDCCArchiveFetcher(LocalArchiveFetcher):
+    """Resolve one archived TDCC week, which may be held more than once.
+
+    Unlike `ArchiveGlobFetcher`, several matches are normal here: 52 of the
+    376 content dates keep two copies, mostly a `.csv` and a `.zip` of the
+    same 2020 week, and every pair agrees on row and security counts
+    (audit §4.9), so either is the week. The choice is therefore made
+    deterministically — sorted by name, first one wins — rather than refused,
+    and every candidate is recorded so a manifest shows what else was there.
+    """
+
+    def __init__(self, *, media_type: str = "text/csv") -> None:
+        super().__init__(media_type=media_type)
+        self.last_candidates: tuple[str, ...] = ()
+
+    def fetch(self, resource: SourceResource) -> FetchedArtifact:
+        pattern = Path(resource.source_uri)
+        candidates = sorted(
+            path for path in pattern.parent.glob(pattern.name) if path.is_file()
+        )
+        if not candidates:
+            raise SourceDataError(
+                "archive_file_missing", f"no archived file matches {pattern}"
+            )
+        self.last_candidates = tuple(path.name for path in candidates)
+        return super().fetch(
+            SourceResource(
+                resource_key=resource.resource_key,
+                source_uri=str(candidates[0]),
+            )
+        )
+
+
 def resolve_archive_glob(pattern: Path) -> Path:
     """The one archived file a pattern names.
 

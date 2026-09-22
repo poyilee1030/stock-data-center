@@ -974,10 +974,12 @@ tdcc_distribution = sa.Table(
         "snapshot_version_id", "bucket_code", name="uq_tdcc_distribution_bucket"
     ),
     sa.CheckConstraint("holder_count >= 0", name="holder_count_nonnegative"),
-    # Signed values are allowed for adjustment buckets; per-role rules are
-    # enforced by the validate_tdcc_distribution_row trigger.
+    # Signed values are allowed for adjustment buckets, and the published
+    # 合計 exceeds 100 for some securities (Step 24-a, audit §4.9), so only the
+    # lower bound is a table rule. Per-role rules, the holding levels' ceiling
+    # among them, are enforced by the validate_tdcc_distribution_row trigger.
     sa.CheckConstraint(
-        "ownership_percent BETWEEN -100 AND 100", name="ownership_percent_range"
+        "ownership_percent >= -100", name="ownership_percent_range"
     ),
 )
 
