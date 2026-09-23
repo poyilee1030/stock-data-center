@@ -165,7 +165,7 @@ TWSE / TPEx / MOPS / TDCC
  stock-eps-model    stock-model-selection
 ```
 
-PostgreSQL 是權威來源。之後可能會在 API 和 resolver 之間加上查詢結果快取（NullCache/Redis），但那不屬於 v1 的交付（§26.2）。
+PostgreSQL 是權威來源。
 
 ## 3.1 抓取邊界
 
@@ -203,25 +203,11 @@ v1 不建 queue，也不拆獨立服務。上面的流程是形狀，不是部�
 
 ## Invariant A — PostgreSQL 是權威來源
 
-任何快取都不是權威來源。刪除快取不可以改變正確性。
+所有業務資料、證據、ingestion 歷史和衍生定義都只存在 PostgreSQL。
 
-## Invariant B — 快取是可選的
+（原本的 Invariants B、C 是快取條件，已隨快取計畫一併刪除。其餘字母不重新編號，以免破壞既有的 Invariant G 引用。）
 
-應用程式在以下設定下必須正確運作：
-
-```text
-CACHE_BACKEND=none
-```
-
-## Invariant C — 快取只影響效能
-
-如果日後加入快取，對同一個標準查詢：
-
-```text
-result(cache=none) == result(cache=redis)
-```
-
-## Invariant D — 下游系統絕不直接存取 PostgreSQL 或快取
+## Invariant D — 下游系統絕不直接存取 PostgreSQL
 
 只有 Data Center 的 API／SDK 是公開的。
 
@@ -284,7 +270,6 @@ PostgreSQL             18+
 pytest
 httpx
 Docker / Docker Compose
-Redis                  optional, deferred (§26.2)
 ```
 
 Docker PostgreSQL image：`postgres:18`。不要使用 `postgres:latest`。
@@ -631,7 +616,7 @@ Steps 1–12 建立了儲存、PIT 和 raw-first 的基礎。它們的 writer �
 
 Step 編號是本 roadmap 自己的編號，不必與 GitHub pull request 編號一致。到 Step 14 為止兩者一致；之後 ADR-0020 沒有經過 pull request 直接 commit 到 `main`，所以 Step 16 開的是 GitHub #15。這沒有問題，也不會為了修正而重新編號：step 編號識別的是工作，pull request 編號識別的是審閱。每個 step 的驗收報告都記錄交付它的 pull request。
 
-Step 13 是必須重新確立 *step* 編號的地方：已放棄的股利彙總 pilot 佔了這個編號，但根本沒有開成 pull request（§21.3）。原本規劃的 Steps 14–33 在上表重新編成 14–32；33 是新的 step，不是舊編號的延續。原本的「Corporate-Action Identity Research Track」、「Official Reference-Price / Share-Count Pilot」和「Historical Corporate-Action Backfill」由 Step 19 取代。原本的「Source Capability Hook」併入 Step 15。原本的「Legacy Migration and Reconciliation」拆成 Steps 17-a–26 各領域的對帳驗收，以及切換用的 Step 32。原本的快取 step 延後（§26.2）。
+Step 13 是必須重新確立 *step* 編號的地方：已放棄的股利彙總 pilot 佔了這個編號，但根本沒有開成 pull request（§21.3）。原本規劃的 Steps 14–33 在上表重新編成 14–32；33 是新的 step，不是舊編號的延續。原本的「Corporate-Action Identity Research Track」、「Official Reference-Price / Share-Count Pilot」和「Historical Corporate-Action Backfill」由 Step 19 取代。原本的「Source Capability Hook」併入 Step 15。原本的「Legacy Migration and Reconciliation」拆成 Steps 17-a–26 各領域的對帳驗收，以及切換用的 Step 32。原本的快取 step 已刪除。
 
 ---
 
@@ -2033,7 +2018,6 @@ quarantine reason，讓三張報表照樣解析——但那要先證明無法對
 
 | 項目 | 觸發條件 |
 |---|---|
-| 快取抽象層、Redis 後端 | Step 30 量測的 API／資料庫延遲證明不足。如果日後加入，適用 Invariants A–C。 |
 | 股票標籤 | 出現帶有生效日期的官方來源。第三方的當下快照不算。 |
 | XBRL codebook、信用交易市場彙總 | 有使用者讀取。目前兩者都沒有。 |
 | 純價格還原序列；指標的還原價格版本 | 有使用者需要。重現舊系統使用者的需求時用不到。 |
@@ -2186,14 +2170,14 @@ stock-data-center/
 - 還原價格使用參考價慣例，並有經審閱的不連續報告。
 - 標準衍生 v1 指標重現舊系統的計算程式，PIT 造成的差異都有解釋。
 - 除非有經驗證的來源欄位填入，否則任何 API 欄位都不會以資料的形式呈現。
-- 下游 ML repo 只使用 API／SDK。不需要 Redis。
+- 下游 ML repo 只使用 API／SDK。
 
 ---
 
 # 30. 核心設計原則
 
 1. 正確的歷史可見性優先於方便。
-2. PostgreSQL 是事實；任何快取都是可丟棄的最佳化。
+2. PostgreSQL 是事實。
 3. 市場時間和 Data Center 知識時間是兩個分開的時鐘。
 4. System PIT 代表實際、完整的 ingestion 歷史。
 5. 業務 revision 和 publication evidence 是分開的。
@@ -2212,4 +2196,3 @@ stock-data-center/
 18. 如果無法取得穩定的來源 identity，就 fail closed，而不是製造一個合成事件。
 19. 沒有指名來源欄位，就不儲存也不承諾任何欄位：設計依循來源實際發布的內容。
 20. v1 是以 PIT 重建的舊系統範圍，不是所有可想像欄位的超集合。
-21. 先量測再最佳化：延遲量測之前不加快取。

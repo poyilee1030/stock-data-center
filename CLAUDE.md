@@ -17,7 +17,6 @@ publication evidence
 PIT visibility
 canonical reusable derived datasets
 public API
-optional query-result caching
 ```
 
 It does NOT own:
@@ -32,7 +31,7 @@ model-specific experimental features
 
 Highest-priority requirement:
 
-> Historical correctness must not depend on current database state, caller discipline, derivation timing, source import order, guessed source identity, or cache availability.
+> Historical correctness must not depend on current database state, caller discipline, derivation timing, source import order, or guessed source identity.
 
 ---
 
@@ -169,7 +168,7 @@ The security universe is 上市 (`sii`) and 上櫃 (`otc`) only. Where an endpoi
 
 Financial-industry financial statements are excluded from Step 23; those issuers' other datasets remain in scope. Stock tags, the XBRL codebook, and margin market summary are not v1 deliveries. Existing nullable storage contracts are retained, not dropped merely because v1 does not populate them.
 
-ROADMAP §26 distinguishes unavailable source fields, work waiting on a stated trigger, and obtainable work excluded by owner decision. Do not turn these into an unconditional future backlog. In particular, cache abstraction and Redis wait until Step 30 measurements prove API/DB latency insufficient.
+ROADMAP §26 distinguishes unavailable source fields, work waiting on a stated trigger, and obtainable work excluded by owner decision. Do not turn these into an unconditional future backlog.
 
 ---
 
@@ -187,7 +186,6 @@ PostgreSQL 18+
 pytest
 httpx
 Docker / Docker Compose
-Redis optional, deferred outside v1 (ROADMAP §26.2)
 ```
 
 Use:
@@ -219,145 +217,9 @@ Downstream consumers receive resolved data. Do not move PIT logic into downstrea
 
 # 4. PostgreSQL Is Authoritative
 
-PostgreSQL is the source of truth. Redis is never authoritative.
+PostgreSQL is the source of truth for business data, evidence, ingestion history, and derivation definitions.
 
-Deleting all Redis keys must not change correctness.
-
----
-
-# 5. Redis Is Optional
-
-Cache implementation is not a v1 requirement. The cache rules in this document apply if the ROADMAP measurement trigger authorizes a later cache step; they do not authorize adding a cache to current delivery.
-
-When a cache is implemented, both are valid:
-
-```env
-CACHE_BACKEND=none
-```
-
-and:
-
-```env
-CACHE_BACKEND=redis
-REDIS_URL=redis://host:6379
-```
-
-Do not require Redis to run migrations, ingest data, resolve PIT queries, calculate canonical derived data, or pass core correctness tests.
-
----
-
-# 6. Cache Equivalence Is a Hard Invariant
-
-For a canonical request Q:
-
-```text
-resolve(Q, NullCache)
-==
-resolve(Q, Redis cold cache)
-==
-resolve(Q, Redis warm cache)
-==
-resolve(Q, Redis unavailable with fallback)
-```
-
-Differences in performance are allowed. Differences in business/PIT output are P0 bugs.
-
----
-
-# 7. Redis Failure Must Degrade Performance Only
-
-Redis GET failure:
-
-```text
-log/metric -> bypass cache -> query PostgreSQL -> return correct result
-```
-
-Redis SET failure must not fail a correct response.
-
-Use short connection/socket timeouts. Do not implement long blocking retries in the request path.
-
----
-
-# 8. Cache Layer Placement
-
-Correct:
-
-```text
-API
- -> service
- -> cache
- -> PIT resolver / derived service on miss
- -> PostgreSQL
-```
-
-Avoid Redis-specific code inside API routes, SQL repositories, PIT semantics, or derived formulas.
-
----
-
-# 9. Cache Backends
-
-When cache work is authorized, provide at least:
-
-```text
-NullCache
-RedisCache
-```
-
-Application services depend on the cache interface, not Redis directly.
-
----
-
-# 10. Cache Key Correctness
-
-Canonical cache identity must include every semantically relevant field:
-
-```text
-cache contract version
-response schema version
-resolver semantics version
-dataset/endpoint
-business query parameters
-source
-pit mode
-information_as_of
-knowledge_as_of
-system_as_of
-derivation_version where applicable
-```
-
-Omitting a relevant PIT/source/derivation parameter is a P0 bug.
-
-Use canonical serialization before hashing.
-
----
-
-# 11. Cache Namespace Evolution
-
-Semantic changes must not silently reuse old cached results.
-
-Bump relevant namespace/version for changes to:
-
-```text
-cache contract
-response schema
-PIT resolver semantics
-source reconciliation semantics
-derivation semantics
-```
-
----
-
-# 12. Cache Content
-
-Prefer caching normalized PIT-resolved Data Center results, not PostgreSQL row representations.
-
----
-
-# 13. Redis Persistence
-
-Redis is disposable RAM cache.
-
-Do not rely on Redis persistence for audit, revision history, evidence, ingestion history, or derivation definitions.
+There is no cache. Sections 5–13, 58, 60, 61, 64, 69, and 82 held cache rules and were removed with the cache plan; the remaining section numbers are kept because other documents cite them.
 
 ---
 
@@ -543,7 +405,7 @@ If a record stores `raw_artifact_id` and `ingest_run_id`, the DB should enforce 
 
 # 28. Raw Artifact Rule
 
-Raw artifacts are immutable and content-addressed. They are evidence/provenance, not cache.
+Raw artifacts are immutable and content-addressed. They are evidence/provenance.
 
 v1 uses the local `data/raw/` store behind a storage abstraction. It contains only content-addressed artifacts (`<ab>/<sha256>`), never source archives or a `processed/` staging layer. Archives inside the store root could bypass the intended `storage_uri` boundary because reads validate containment under that root.
 
@@ -1087,13 +949,13 @@ Keep them exactly as published; do not replace or reconcile them against our own
 
 Public clients may know dataset concepts, PIT context, source, derivation version, and provenance.
 
-They must not know PostgreSQL table names, Redis key formats, or Alembic internals.
+They must not know PostgreSQL table names or Alembic internals.
 
 ---
 
 # 56. Downstream Credential Rule
 
-Downstream ML repos must not require PostgreSQL or Redis credentials. They use API/SDK only.
+Downstream ML repos must not require PostgreSQL credentials. They use API/SDK only.
 
 ---
 
@@ -1101,40 +963,20 @@ Downstream ML repos must not require PostgreSQL or Redis credentials. They use A
 
 ```text
 write: source -> raw artifact -> parser -> normalization -> PostgreSQL
-read: client -> API -> optional cache -> PIT/derived service -> PostgreSQL
+read: client -> API -> PIT/derived service -> PostgreSQL
 ```
-
-Do not route ingestion correctness through Redis.
-
----
-
-# 58. No Cache-Only Writes
-
-Never write durable business/evidence/derivation-definition data only to Redis.
 
 ---
 
 # 59. Query Alias Rule
 
-Resolve `latest`/`now` aliases to explicit semantics/timestamps where possible before cache identity construction.
-
----
-
-# 60. Cache TTL Rule
-
-TTL is performance policy, never a correctness mechanism.
-
----
-
-# 61. Cache Serialization Rule
-
-Cache encoding is deterministic and versioned. Cached responses retain the same semantic metadata/provenance as uncached responses.
+Resolve `latest`/`now` aliases to explicit semantics/timestamps where possible before resolving a query.
 
 ---
 
 # 62. Observability Rule
 
-Expose enough information to distinguish cache behavior, PostgreSQL queries, resolver latency, derivation latency, response size, ingest status, quarantine, source failures, coverage gaps, and reconciliation status.
+Expose enough information to distinguish PostgreSQL queries, resolver latency, derivation latency, response size, ingest status, quarantine, source failures, coverage gaps, and reconciliation status.
 
 Do not log credentials.
 
@@ -1142,13 +984,7 @@ Do not log credentials.
 
 # 63. SSD Optimization Rule
 
-Do not claim SSD benefit without measurement. Redis does not eliminate PostgreSQL write I/O.
-
----
-
-# 64. Testing Cache Correctness
-
-Every cacheable query family tests NullCache, Redis cold/warm, and Redis-unavailable fallback equivalence.
+Do not claim SSD benefit without measurement.
 
 ---
 
@@ -1176,8 +1012,6 @@ seal concurrency
 source capability isolation
 XBRL dimensions
 derived PIT inheritance
-cache PIT identity
-cache failure fallback
 corporate-action identity collision
 corporate-action correction-stability
 publication-vs-event identity
@@ -1217,14 +1051,6 @@ provide regressions
 ```
 
 Empty-but-correct contracts do not grant permission to reinterpret semantics during later ingestion work.
-
----
-
-# 69. Cache Scope Rule
-
-Do not introduce Redis/cache work into source-correctness PRs unless the current ROADMAP PR explicitly owns cache behavior.
-
-No cache PR is authorized before the measured-latency trigger in ROADMAP §26.2.
 
 ---
 
@@ -1398,15 +1224,9 @@ Never delete/collapse valid PIT history merely to make downgrade succeed.
 
 ---
 
-# 82. Redis Configuration Rule
-
-Redis-specific configuration belongs in deployment/configuration, not domain logic.
-
----
-
 # 83. Security Rule
 
-If Redis is remote, restrict network access, use auth/TLS as appropriate, and never commit credentials.
+Never commit credentials.
 
 ---
 
@@ -1426,14 +1246,13 @@ When tradeoffs exist, prioritize:
 9. derivation-version correctness
 10. reconciliation/auditability
 11. migration/history preservation
-12. cache/result equivalence
-13. maintainability
-14. performance
-15. SSD/read reduction
-16. convenience
+12. maintainability
+13. performance
+14. SSD/read reduction
+15. convenience
 ```
 
-Never trade identity/PIT/auditability/provenance/source semantics/import determinism/reconciliation/migration safety/cache correctness for implementation convenience.
+Never trade identity/PIT/auditability/provenance/source semantics/import determinism/reconciliation/migration safety for implementation convenience.
 
 ---
 
@@ -1452,7 +1271,7 @@ PIT semantics preserved
 provenance preserved
 source identity semantics preserved
 no source-capability leakage
-no direct downstream DB/cache dependency introduced
+no direct downstream DB dependency introduced
 out-of-scope work not silently absorbed
 review blockers/majors resolved
 ```
@@ -1513,14 +1332,6 @@ raw vs adjusted distinguishable
 derived inputs PIT-safe and lineage-complete
 ```
 
-For cache PRs additionally:
-
-```text
-CACHE_BACKEND=none passes
-Redis cold/warm equivalence passes
-Redis failure fallback passes
-```
-
 Then publish/update PR acceptance evidence.
 
 ---
@@ -1574,7 +1385,6 @@ stock-data-center owns:
     PostgreSQL
     stable source/business identity contracts
     canonical reusable derived data
-    optional cache
     API
 
 stock-eps-model owns:
@@ -1591,10 +1401,6 @@ stock-model-selection owns:
     backtesting
 ```
 
-Redis remains optional.
-
 Canonical derived datasets remain model-independent, versioned, PIT-safe, and reusable.
-
-Enabling, disabling, restarting, or losing Redis may affect performance but never correctness.
 
 A source being official does not automatically make every row safely normalizable. If official data lacks a proven stable business identity required by the canonical contract, the correct outcome is to preserve evidence and remain blocked rather than invent semantics.
