@@ -62,6 +62,9 @@ ROADMAP 已同步改名。
   先以 `dataset_code` 篩選再 join。
 - **原本以為**事實表會降到約 4 GB，實際 5.8 GB，多出的是唯一索引。
 - **原本以為**要建 6 張表（ROADMAP 初稿的數字）。實際是 5 張；衍生資料 0 張。
+- **原本以為** `fetches` 在 35-a 搬過一次就夠了（#48 review）。但這三個領域在 35-c-2 之前仍由 v1 寫入；
+  如果之後有新的 v1 抓取，而 `fetches` 整表被跳過，新表的 insert 會因外鍵失敗，「可續跑」就不成立。
+  改為每次都補進還沒有的 run（`ON CONFLICT (id) DO NOTHING`）；在 `stockdc_backfill` 重跑補進 0 筆，9.2 秒。
 - `pkill -f <腳本名>` 會把下這個指令的 shell 自己也殺掉（35-b-1 記過的 `pgrep -f` 同一族）；
   停止背景查詢改用 `pg_cancel_backend`。
 

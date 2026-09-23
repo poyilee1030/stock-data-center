@@ -24,7 +24,9 @@ What is copied, and what is not:
   Monthly revenue keeps several versions per key; see `MONTHLY_REVENUES`.
 
 Each table is copied in its own transaction and skipped if it already holds
-rows, so an interrupted run resumes.
+rows, so an interrupted run resumes. `fetches` is the exception: every run adds
+the v1 ingest runs it does not hold yet, because v1 keeps ingesting the domains
+whose write path has not moved, and their copied rows name those runs.
 
     DATABASE_URL=postgresql+psycopg://stockdc:stockdc@localhost:5432/stockdc_backfill \
         .venv/bin/python scripts/migrate_to_schema_v2.py
@@ -69,6 +71,7 @@ SELECT r.id, r.dataset_code, r.source,
   -- An operational failure (adapter, dependency or writer error) has no
   -- quarantine row; v1 kept its reason on the resource's checkpoint.
   LEFT JOIN import_checkpoints k ON k.last_ingest_run_id = r.id
+ON CONFLICT (id) DO NOTHING
 """
 
 # The version a month was last seen with, not the highest id: v1 deduplicates on
@@ -281,9 +284,10 @@ def main() -> int:
     engine = sa.create_engine(url)
     report: dict[str, dict] = {}
 
-    def step(name: str, run) -> None:
+    def step(name: str, run, *, every_run: bool = False) -> None:
         with engine.begin() as connection:
-            if connection.execute(sa.text(f"SELECT EXISTS (SELECT 1 FROM {name})")).scalar():
+            if not every_run and connection.execute(
+                    sa.text(f"SELECT EXISTS (SELECT 1 FROM {name})")).scalar():
                 report[name] = {"skipped": "already populated"}
                 return
             began = time.monotonic()
@@ -291,7 +295,9 @@ def main() -> int:
             report[name] = {"rows": rows, "seconds": round(time.monotonic() - began, 1)}
             print(f"{name}: {rows}", file=sys.stderr, flush=True)
 
-    step("fetches", lambda c: c.execute(sa.text(FETCHES)).rowcount)
+    # Every run, not once: v1 still ingests the 35-c domains until their write
+    # paths move, and a later copy step cites those runs as its fetch_id.
+    step("fetches", lambda c: c.execute(sa.text(FETCHES)).rowcount, every_run=True)
     def load_stocks(connection):
         loaded = load_universe(connection, git_commit=current_git_commit())
         refused = {market: result for market, result in loaded.items() if isinstance(result, str)}
