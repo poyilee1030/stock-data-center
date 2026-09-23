@@ -616,7 +616,7 @@ explicit out-of-scope work
 | 35-a | MERGED | Schema v2：基礎表與交易所每日資料表、遷移 v1 歷史（ADR-0027，#46） |
 | 35-b-1 | MERGED | Schema v2：交易所每日資料寫入 v2 的新路徑（只新增程式）（#47） |
 | 35-b-2 | SUPERSEDED | Schema v2：移除 8 個領域的 v1 路徑與 v1 表（併入 35-d） |
-| 35-c-1 | IN REVIEW | Schema v2：月營收、財報、TDCC、公司行動的 v2 表與歷史搬移 |
+| 35-c-1 | IN REVIEW | Schema v2：月營收、財報、TDCC、公司行動的 v2 表與歷史搬移（#48） |
 | 35-c-2 | PLANNED | Schema v2：月營收、財報、TDCC 的寫入路徑 |
 | 35-c-3 | PLANNED | Schema v2：公司行動的寫入路徑與回補 |
 | 35-c-4 | PLANNED | Schema v2：衍生資料接 v2（26-a） |
