@@ -5,7 +5,8 @@
         --job daily_prices/twse_mi_index --start 2026-09-01 --end 2026-09-11
 
 Dates come from `trading_days`, so a closure is never requested; a monthly job
-(TAIEX OHLC) asks once per month that has a trading day in the range. Each
+(TAIEX OHLC, monthly revenue) asks once per month that has a trading day in the
+range. TDCC OpenData serves only its latest week, so its job fetches once. Each
 resource commits on its own, so an interrupted run loses at most the resource
 in flight, and a rerun skips every resource `pending` counts as done.
 `--refetch` fetches them again anyway (a correction check): an unchanged file
@@ -42,7 +43,14 @@ from stock_data_center.ingestion.http import (
     SourceFetcher,
 )
 from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
-from stock_data_center.v2.exchange_daily import JOBS, Job, ingest, pending
+from stock_data_center.v2 import financial_reports, monthly_revenue, shareholding
+from stock_data_center.v2.exchange_daily import JOBS as EXCHANGE_JOBS
+from stock_data_center.v2.exchange_daily import Job, ingest, pending
+
+JOBS: dict[str, Job] = {**EXCHANGE_JOBS, **monthly_revenue.JOBS, **shareholding.JOBS}
+# Financial reports are one document per filer and quarter, written as a whole
+# version, so they have their own runner rather than a `Job`.
+ALL_KEYS = (*sorted(JOBS), financial_reports.KEY)
 
 EXCHANGE_MIN_INTERVAL_SECONDS = 1.5
 HOST_INTERVALS = {
@@ -53,6 +61,8 @@ HOST_INTERVALS = {
 
 
 def periods(connection: Connection, job: Job, start: date, end: date) -> list[date]:
+    if job.latest_only:
+        return [end]  # the source serves one file, whatever the range
     days = connection.scalars(
         sa.select(trading_days.c.trade_date)
         .where(trading_days.c.trade_date.between(start, end))
@@ -93,7 +103,7 @@ def run(
     for job in sorted(jobs, key=lambda job: job.check is not None):
         with _unit(bind) as connection:
             wanted = periods(connection, job, start, end)
-            todo = wanted if refetch else pending(connection, job, wanted)
+            todo = wanted if refetch or job.latest_only else pending(connection, job, wanted)
         counts = Counter(periods=len(wanted), skipped=len(wanted) - len(todo),
                          appended=0, unchanged=0, out_of_scope=0, unverified=0)
         for period in todo:
@@ -116,7 +126,7 @@ def run(
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--job", action="append", required=True,
-                        help=f"repeatable; 'all' or one of {sorted(JOBS)}")
+                        help=f"repeatable; 'all' or one of {list(ALL_KEYS)}")
     parser.add_argument("--start", type=date.fromisoformat, required=True)
     parser.add_argument("--end", type=date.fromisoformat, required=True)
     parser.add_argument("--purpose", default="gap_fill",
@@ -128,8 +138,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     url = os.environ.get("DATABASE_URL")
     if not url:
         raise SystemExit("DATABASE_URL is required")
-    keys = sorted(JOBS) if "all" in args.job else args.job
-    unknown = [key for key in keys if key not in JOBS]
+    keys = list(ALL_KEYS) if "all" in args.job else args.job
+    unknown = [key for key in keys if key not in ALL_KEYS]
     if unknown:
         raise SystemExit(f"unknown job(s): {unknown}")
 
@@ -142,15 +152,23 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     engine = sa.create_engine(url)
     fetcher = RetryingFetcher(HttpSourceFetcher(governor=HostRateGovernor(HOST_INTERVALS)))
-    report = run(
-        engine, [JOBS[key] for key in keys], args.start, args.end,
-        fetcher=fetcher, git_commit=current_git_commit(), purpose=args.purpose,
-        store=LocalRawArtifactStore(args.raw_root), refetch=args.refetch, progress=progress,
-    )
+    common = {
+        "fetcher": fetcher, "git_commit": current_git_commit(), "purpose": args.purpose,
+        "store": LocalRawArtifactStore(args.raw_root), "refetch": args.refetch,
+        "progress": progress,
+    }
+    report = run(engine, [JOBS[key] for key in keys if key in JOBS], args.start, args.end,
+                 **common)
+    if financial_reports.KEY in keys:
+        report[financial_reports.KEY] = financial_reports.run(
+            engine, args.start, args.end, unit=_unit, **common)
     print(json.dumps(report, ensure_ascii=False, indent=2))
-    # A failed fetch or an empty trading day is left for a rerun; say so.
-    return 1 if any(counts.get("failed") or counts.get("empty")
-                    for counts in report.values()) else 0
+    # A failed fetch or an empty trading day is left for a rerun; say so. An
+    # empty financial quarter is a report not filed yet, which is normal.
+    return 1 if any(
+        counts.get("failed") or (counts.get("empty") and key != financial_reports.KEY)
+        for key, counts in report.items()
+    ) else 0
 
 
 if __name__ == "__main__":

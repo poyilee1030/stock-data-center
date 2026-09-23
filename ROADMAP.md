@@ -616,8 +616,8 @@ explicit out-of-scope work
 | 35-a | MERGED | Schema v2：基礎表與交易所每日資料表、遷移 v1 歷史（ADR-0027，#46） |
 | 35-b-1 | MERGED | Schema v2：交易所每日資料寫入 v2 的新路徑（只新增程式）（#47） |
 | 35-b-2 | SUPERSEDED | Schema v2：移除 8 個領域的 v1 路徑與 v1 表（併入 35-d） |
-| 35-c-1 | IN REVIEW | Schema v2：月營收、財報、TDCC、公司行動的 v2 表與歷史搬移（#48） |
-| 35-c-2 | PLANNED | Schema v2：月營收、財報、TDCC 的寫入路徑 |
+| 35-c-1 | MERGED | Schema v2：月營收、財報、TDCC、公司行動的 v2 表與歷史搬移（#48） |
+| 35-c-2 | IN REVIEW | Schema v2：月營收、財報、TDCC 的寫入路徑（#49） |
 | 35-c-3 | PLANNED | Schema v2：公司行動的寫入路徑與回補 |
 | 35-c-4 | PLANNED | Schema v2：衍生資料接 v2（26-a） |
 | 35-d | PLANNED | Schema v2：刪除所有 v1 程式與表，重新開始 migration 鏈 |
@@ -2127,6 +2127,27 @@ ADR-0027：官方代號當身分、一個 (股票, 來源, 日期) 一列的寬�
   `first_capture` 時把 `published_at` 設為抓取時刻；財報一份一個版本、同一交易寫入事實
 - 帶 dimension 的財報事實整份 quarantine（覆寫 CLAUDE.md §33）
 - 驗收：真實抓取數期，與搬過來的資料逐列相同
+
+- [x] 月營收 4 個 job（兩市場 × 國內／外國公司頁）、TDCC 1 個 job，沿用 35-b-1 的執行器
+  （`stock_data_center.v2.monthly_revenue`、`.shareholding`）；財報自己的寫入器
+  （`stock_data_center.v2.financial_reports`）；回補指令 `--job all` 涵蓋三者
+- [x] 真實抓取月營收 2020-01、2023-06、2026-07 全部 12 頁、財報 4 份、TDCC 最新一週：0 列不同
+  （`scripts/verify_v2_35c_write_path.py`，證據見 `docs/step_reports/step-35-c-2-acceptance-report.md`）
+
+實作中的決策：
+
+- **抓取、存原始檔、解析、重試、記錄 fetch 抽成共用的 `fetch_and_parse`**：交易所、月營收、TDCC
+  的執行器與財報的寫入器都用它，行為與 35-b-1 相同（原有 70 條測試不變）
+- **完整性時點（不是可見性）**：月營收要到「下下個月 1 日 00:00」才算完成（10 日申報、每月
+  13–311 家晚報）；財報是法定期限的隔天 00:00；之前抓到的都會再抓
+- **財報的完成條件**：已存的版本或 C／A 任一次抓取在完成時點之後成功，或來源回答它是金融業、
+  興櫃等 v1 範圍外（最終答案，不重抓）；兩個 id 都是 `檔案不存在!` 是還沒申報，下次再抓
+- **TDCC OpenData 只提供最新一週、只有一個 resource key**：job 不走期間，每次回補抓一次
+- **`published_at` 由寫入端決定**：`first_capture` 看到的第一列設為抓取時刻，其他目的一律 NULL
+  （§32），更正的列 NULL；比對「有沒有改變」時不看它
+- **每個 job 宣告自己的空頁代碼**（#49 review）：月營收是 `no_data_for_period`
+- **寫入前檢查位數**（#49 review）：CHECK 帶著自己的位數限制，超出在解析階段就以 `out_of_range`
+  隔離該檔，不讓 INSERT 的錯誤中斷回補；交易所的 job 同樣適用
 
 **35-c-3：公司行動的寫入路徑與回補**
 

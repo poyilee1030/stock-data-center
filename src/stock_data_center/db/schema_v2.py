@@ -43,9 +43,21 @@ def _decimal_checks(table_columns: dict[str, tuple[int, int]]) -> list[sa.CheckC
             f"{column} IS NULL OR (scale(trim_scale({column})) <= {places} "
             f"AND abs({column}) < 1e{digits})",
             name=f"{column}_precision",
+            info={"precision": (column, digits, places)},
         )
         for column, (digits, places) in table_columns.items()
     ]
+
+
+def precision(table: sa.Table) -> dict[str, tuple[int, int]]:
+    """Each decimal column's (integer digits, decimal places), as its CHECK
+    enforces them, so a writer can refuse a value before the INSERT does."""
+    return {
+        column: (digits, places)
+        for constraint in table.constraints
+        if (spec := constraint.info.get("precision"))
+        for column, digits, places in (spec,)
+    }
 
 
 def _recorded_at() -> sa.Column:

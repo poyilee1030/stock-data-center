@@ -22,6 +22,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, time, timedelta
+from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -209,8 +210,38 @@ def _taiex_close_check(connection: Connection, rows: list[dict]) -> Checked:
     return Checked(verified, "; ".join(wrong) or None, tuple(sorted(unverified)))
 
 
-_BOOKKEEPING = ("recorded_at", "fetch_id")
+# Written by the runner, never compared: a row differs from the key's latest row
+# only in its published values.
+_BOOKKEEPING = ("recorded_at", "fetch_id", "published_at")
 _STOCK_KEY = ("stock_id", "source", "trade_date")
+
+
+_BIGINT = 2**63
+
+
+def check_precision(table: sa.Table, rows: list[dict]) -> list[dict]:
+    """Refuse a value its column cannot store, before the INSERT would.
+
+    The decimal columns are unconstrained `numeric` with a CHECK (ADR-0027 §7),
+    so a third decimal or an eighth integer digit fails only at the INSERT, as
+    an IntegrityError that stops the run and rolls its fetch row back. Refused
+    here, it quarantines its file like any value the contract cannot hold."""
+    limits = v2.precision(table)
+    integers = [c.name for c in table.columns if isinstance(c.type, sa.BigInteger)]
+    for row in rows:
+        for column, (digits, places) in limits.items():
+            value = row.get(column)
+            if value is None:
+                continue
+            exponent = Decimal(value).normalize().as_tuple().exponent
+            if max(0, -exponent) > places or abs(value) >= Decimal(10) ** digits:
+                raise m.SourceDataError(
+                    "out_of_range", f"{table.name}.{column} = {value} exceeds ({digits}, {places})")
+        for column in integers:
+            value = row.get(column)
+            if isinstance(value, int) and not -_BIGINT <= value < _BIGINT:
+                raise m.SourceDataError("out_of_range", f"{table.name}.{column} = {value}")
+    return rows
 
 
 def key_columns(table: sa.Table) -> tuple[str, ...]:
@@ -234,6 +265,18 @@ class Job:
     monthly: bool = False
     check: Callable[[Connection, list[dict]], Checked] | None = None
     release_rule: ReleaseRule = RELEASE_RULE
+    # The key's date column; the other defaults describe an exchange-daily job.
+    period_column: str = "trade_date"
+    # A job whose key names more than table and source (a market's second page).
+    variant: str = ""
+    # Builds the request instead of `request_type(period)`.
+    request_of: Callable[[date | None], object] | None = None
+    # When a period's file stops changing, if not the release rule instant.
+    settled_of: Callable[[date], datetime] | None = None
+    # A source that serves only its latest file: every run fetches it once.
+    latest_only: bool = False
+    # The adapter's reason codes for "nothing published for this period".
+    empty: frozenset[str] = frozenset({"no_data_for_date"})
     key_columns: tuple[str, ...] = field(init=False)
 
     def __post_init__(self) -> None:
@@ -241,7 +284,7 @@ class Job:
 
     @property
     def key(self) -> str:
-        return f"{self.table.name}/{self.source}"
+        return f"{self.table.name}/{self.source}" + (f"/{self.variant}" if self.variant else "")
 
     @property
     def source(self) -> str:
@@ -256,17 +299,21 @@ class Job:
     def per_stock(self) -> bool:
         return "stock_id" in self.table.c
 
-    def request(self, period: date):
+    def request(self, period: date | None):
+        if self.request_of is not None:
+            return self.request_of(period)
         return self.request_type(period.replace(day=1) if self.monthly else period)
 
     def rows(self, parsed) -> list[dict]:
-        return self.rows_of(parsed, self.source)
+        return check_precision(self.table, self.rows_of(parsed, self.source))
 
     def release_rule_instant(self, trade_date: date) -> datetime:
         return available_from(trade_date, self.release_rule)
 
     def settled_at(self, period: date) -> datetime:
         """The rule instant of the last trade date a period's file can hold."""
+        if self.settled_of is not None:
+            return self.settled_of(period)
         if self.monthly:
             period = (period.replace(day=1) + timedelta(days=32)).replace(day=1) - timedelta(days=1)
         return self.release_rule_instant(period)
@@ -332,7 +379,6 @@ JOBS: dict[str, Job] = _jobs()
 # Content that is not a source answer at all (an HTML maintenance page): an
 # operational failure, retried once live, never a quarantine (Step 19-d).
 _RETRY_LIVE = frozenset({"invalid_json", "unusable_response"})
-_EMPTY = frozenset({"no_data_for_date"})
 # A succeeded fetch that held rows back is not done: the next run asks again.
 _UNFINISHED = frozenset({"close_unverified"})
 
@@ -349,10 +395,93 @@ class Outcome:
     reason_code: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class Fetched:
+    """A fetched, stored and parsed resource whose fetch row is not written yet.
+
+    `log(status, reason, detail)` writes it, in the caller's transaction, once
+    the caller knows the outcome of its write."""
+
+    parsed: object
+    value: object
+    fetched_at: datetime
+    log: Callable[..., object]
+
+
+def fetch_and_parse(
+    connection: Connection,
+    adapter,
+    request,
+    *,
+    dataset: str,
+    parse: Callable[[object], object],
+    fetcher: SourceFetcher,
+    git_commit: str,
+    purpose: str,
+    store: LocalRawArtifactStore | None = None,
+    empty: frozenset[str] = frozenset({"no_data_for_date"}),
+) -> Fetched | Outcome:
+    """Fetch one resource, keep its raw file, and parse it.
+
+    Every outcome but success is logged here and returned as an `Outcome`:
+    a failed request, a maintenance page (retried once live), an empty
+    answer, a quarantine. `parse(parsed)` turns the adapter's result into the
+    caller's rows; a `ValueError` from it quarantines like the adapter's own."""
+    store = store or LocalRawArtifactStore()
+    resource = adapter.resource(request)
+    record = FetchRecord(
+        dataset=dataset,
+        source=adapter.source,
+        resource_key=resource.resource_key,
+        source_uri=resource.source_uri,
+        purpose=purpose,
+        adapter_version=adapter.version,
+        git_commit=git_commit,
+        fetched_at=datetime.now(UTC),
+    )
+
+    def logger(record, content, attempt):
+        def log(status, reason=None, detail=None):
+            return record_fetch(
+                connection, record, content=content, status=status, store=store,
+                reason_code=reason, reason_detail=detail and detail[:2000], attempt=attempt,
+            )
+        return log
+
+    for attempt in (1, 2):
+        record = replace(record, fetched_at=datetime.now(UTC))
+        try:
+            fetched = fetcher.fetch(resource)
+        except (httpx.HTTPError, OSError) as error:
+            fetch_id = logger(record, None, attempt)("failed", "fetch_error", repr(error))
+            return Outcome("failed", fetch_id, reason_code="fetch_error")
+        content = fetched.content
+        store.put(content)  # raw-first: kept before anything parses it
+        record = replace(record, source_uri=fetched.source_uri, fetched_at=fetched.fetched_at)
+        log = logger(record, content, attempt)
+        try:
+            parsed = adapter.parse(content, request)
+            value = parse(parsed)
+        except m.SourceDataError as error:
+            code = error.reason_code
+            if code in _RETRY_LIVE:
+                fetch_id = log("failed", reason=code, detail=str(error))
+                if attempt == 1:
+                    continue
+                return Outcome("failed", fetch_id, reason_code=code)
+            status = "empty" if code in empty else "quarantined"
+            return Outcome(status, log(status, reason=code, detail=str(error)), reason_code=code)
+        except (ValueError, ArithmeticError) as error:
+            fetch_id = log("quarantined", reason="unrecognised_value", detail=str(error))
+            return Outcome("quarantined", fetch_id, reason_code="unrecognised_value")
+        return Fetched(parsed, value, record.fetched_at, log)
+    raise AssertionError("unreachable")  # pragma: no cover
+
+
 def ingest(
     connection: Connection,
     job: Job,
-    period: date,
+    period: date | None,
     *,
     fetcher: SourceFetcher,
     git_commit: str,
@@ -361,56 +490,18 @@ def ingest(
     stock_ids: frozenset[str] | None = None,
 ) -> Outcome:
     """Fetch one resource and write what changed, on `connection`'s transaction."""
-    store = store or LocalRawArtifactStore()
-    request = job.request(period)
-    resource = job.adapter.resource(request)
-    record = FetchRecord(
-        dataset=job.dataset,
-        source=job.source,
-        resource_key=resource.resource_key,
-        source_uri=resource.source_uri,
-        purpose=purpose,
-        adapter_version=job.adapter.version,
-        git_commit=git_commit,
-        fetched_at=datetime.now(UTC),
+    fetched = fetch_and_parse(
+        connection, job.adapter, job.request(period), dataset=job.dataset, parse=job.rows,
+        fetcher=fetcher, git_commit=git_commit, purpose=purpose, store=store, empty=job.empty,
     )
-
-    def log(status, content=None, reason=None, detail=None, attempt=1):
-        return record_fetch(
-            connection, record, content=content, status=status, store=store,
-            reason_code=reason, reason_detail=detail and detail[:2000], attempt=attempt,
-        )
-
-    for attempt in (1, 2):
-        record = replace(record, fetched_at=datetime.now(UTC))
-        try:
-            fetched = fetcher.fetch(resource)
-        except (httpx.HTTPError, OSError) as error:
-            fetch_id = log("failed", reason="fetch_error", detail=repr(error), attempt=attempt)
-            return Outcome("failed", fetch_id, reason_code="fetch_error")
-        content = fetched.content
-        store.put(content)  # raw-first: kept before anything parses it
-        record = replace(record, source_uri=fetched.source_uri, fetched_at=fetched.fetched_at)
-        try:
-            parsed = job.adapter.parse(content, request)
-            rows = job.rows(parsed)
-        except m.SourceDataError as error:
-            code = error.reason_code
-            if code in _RETRY_LIVE:
-                fetch_id = log("failed", content, code, str(error), attempt)
-                if attempt == 1:
-                    continue
-                return Outcome("failed", fetch_id, reason_code=code)
-            status = "empty" if code in _EMPTY else "quarantined"
-            return Outcome(status, log(status, content, code, str(error), attempt), reason_code=code)
-        except (ValueError, ArithmeticError) as error:
-            fetch_id = log("quarantined", content, "unrecognised_value", str(error), attempt)
-            return Outcome("quarantined", fetch_id, reason_code="unrecognised_value")
-        return _write(connection, job, rows, parsed, log, content, attempt, stock_ids)
-    raise AssertionError("unreachable")  # pragma: no cover
+    if isinstance(fetched, Outcome):
+        return fetched
+    first_seen = fetched.fetched_at if purpose == "first_capture" else None
+    return _write(connection, job, fetched.value, fetched.parsed, fetched.log, stock_ids,
+                  first_seen)
 
 
-def _write(connection, job, rows, parsed, log, content, attempt, stock_ids) -> Outcome:
+def _write(connection, job, rows, parsed, log, stock_ids, first_seen) -> Outcome:
     parsed_count = len(rows)
     if job.per_stock:
         if stock_ids is None:
@@ -420,13 +511,13 @@ def _write(connection, job, rows, parsed, log, content, attempt, stock_ids) -> O
 
     keys = [tuple(row[c] for c in job.key_columns) for row in rows]
     if len(keys) != len(set(keys)):
-        fetch_id = log("quarantined", content, "duplicate_key", "a key appears twice", attempt)
+        fetch_id = log("quarantined", reason="duplicate_key", detail="a key appears twice")
         return Outcome("quarantined", fetch_id, parsed_count, reason_code="duplicate_key")
     unverified: tuple[date, ...] = ()
     if job.check and rows:
         checked = job.check(connection, rows)
         if checked.mismatch:
-            fetch_id = log("quarantined", content, "close_mismatch", checked.mismatch, attempt)
+            fetch_id = log("quarantined", reason="close_mismatch", detail=checked.mismatch)
             return Outcome("quarantined", fetch_id, parsed_count, reason_code="close_mismatch")
         rows, unverified = checked.rows, checked.unverified
         keys = [tuple(row[c] for c in job.key_columns) for row in rows]
@@ -442,9 +533,10 @@ def _write(connection, job, rows, parsed, log, content, attempt, stock_ids) -> O
     else:
         reason = "rows_rejected" if rejected else None
         detail = "; ".join(f"{r.security_code}: {r.reason_code}" for r in rejected) or None
-    fetch_id = log("succeeded", content, reason, detail, attempt)
+    fetch_id = log("succeeded", reason=reason, detail=detail)
     latest = _latest(
-        connection, job.table, source=job.source, dates={row["trade_date"] for row in rows}
+        connection, job.table, source=job.source,
+        dates={row[job.period_column] for row in rows}, column=job.period_column,
     )
     values = value_columns(job.table)
     changed = [
@@ -452,6 +544,13 @@ def _write(connection, job, rows, parsed, log, content, attempt, stock_ids) -> O
         for row, key in zip(rows, keys, strict=True)
         if (old := latest.get(key)) is None or any(row[c] != old[c] for c in values)
     ]
+    if "published_at" in job.table.c:
+        # A key's first row seen by a first capture was public by that fetch; a
+        # gap fill proves nothing (CLAUDE.md §32), and a later row is a
+        # correction, public from its own recorded_at.
+        for row, key in zip(changed, (tuple(r[c] for c in job.key_columns) for r in changed),
+                            strict=True):
+            row["published_at"] = first_seen if key not in latest else None
     if changed:
         connection.execute(sa.insert(job.table), changed)
     return Outcome(
@@ -460,7 +559,9 @@ def _write(connection, job, rows, parsed, log, content, attempt, stock_ids) -> O
     )
 
 
-def _latest(connection, table, *, source, dates: Iterable[date], extra=None) -> dict:
+def _latest(
+    connection, table, *, source, dates: Iterable[date], extra=None, column="trade_date"
+) -> dict:
     """Each key's latest row for these dates, by key tuple."""
     dates = sorted(set(dates))
     if not dates:
@@ -468,7 +569,7 @@ def _latest(connection, table, *, source, dates: Iterable[date], extra=None) -> 
     keys = key_columns(table)
     query = (
         sa.select(table)
-        .where(table.c.source == source, table.c.trade_date.in_(dates))
+        .where(table.c.source == source, table.c[column].in_(dates))
         .order_by(*(table.c[k] for k in keys), table.c.recorded_at.desc())
         .distinct(*(table.c[k] for k in keys))
     )
