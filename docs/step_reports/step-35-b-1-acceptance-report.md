@@ -1,9 +1,9 @@
 # Step 35-b-1 驗收報告
 
-狀態：IN REVIEW (#47)
+狀態：MERGED (#47)
 
 範圍：交易所每日資料寫入 schema v2 的新路徑（ADR-0027）。只新增程式，v1 的
-ingestion、表與測試全部不動；35-b-2 才刪除 8 個領域的 v1 路徑。
+ingestion、表與測試全部不動；刪除 v1 路徑原排在 35-b-2，已併入 35-d。
 
 ## 交付
 
@@ -122,6 +122,6 @@ job 各 1,627 個交易日，待抓 0；TAIEX 81 個月，待抓 1（2026-09，�
 
 ## 延後
 
-- 35-b-2：刪除 8 個領域的 v1 writer、服務、CLI、測試與 v1 表（在 `stockdc_backfill`
-  執行前須 owner 確認）。
+- 刪除 8 個領域的 v1 writer、服務、CLI、測試與 v1 表：原為 35-b-2，已 SUPERSEDED、
+  併入 35-d（在 `stockdc_backfill` 執行前須 owner 確認）。
 - Step 28 排程：每日抓取直接用 `python -m stock_data_center.v2.backfill`。

@@ -614,10 +614,10 @@ explicit out-of-scope work
 | 33 | PLANNED | 發行公司股利宣告（MOPS OpenAPI），存成獨立領域 |
 | 34 | SUPERSEDED | 新增證據目標時仍穩定的 publication-evidence hash |
 | 35-a | MERGED | Schema v2：基礎表與交易所每日資料表、遷移 v1 歷史（ADR-0027，#46） |
-| 35-b-1 | IN REVIEW | Schema v2：交易所每日資料寫入 v2 的新路徑（只新增程式）（#47） |
-| 35-b-2 | PLANNED | Schema v2：移除 8 個領域的 v1 路徑與 v1 表 |
+| 35-b-1 | MERGED | Schema v2：交易所每日資料寫入 v2 的新路徑（只新增程式）（#47） |
+| 35-b-2 | SUPERSEDED | Schema v2：移除 8 個領域的 v1 路徑與 v1 表（併入 35-d） |
 | 35-c | PLANNED | Schema v2：月營收、財報、TDCC、公司行動、衍生資料的重新設計 |
-| 35-d | PLANNED | Schema v2：drop v1 基礎表，重新開始 migration 鏈 |
+| 35-d | PLANNED | Schema v2：刪除所有 v1 程式與表，重新開始 migration 鏈 |
 
 Steps 1–12 建立了儲存、PIT 和 raw-first 的基礎。它們的 writer 契約包含一些沒有任何來源會填入的欄位（§2.3）。這些欄位保持可為 null、不填值。不刪除它們，因為刪除不會帶來任何正確性上的好處。
 
@@ -2000,7 +2000,7 @@ quarantine reason，讓三張報表照樣解析——但那要先證明無法對
 
 ## Step 35 — Schema v2
 
-狀態：**35-a MERGED（#46）；35-b-1 IN REVIEW（#47）**。依據：ADR-0026、ADR-0027（2026-09-23 owner 決定）。
+狀態：**35-a MERGED（#46）；35-b-1 MERGED（#47）；35-b-2 SUPERSEDED（併入 35-d）**。依據：ADR-0026、ADR-0027（2026-09-23 owner 決定）。
 
 2026-09-23 對全部 61 張表逐張檢討「需不需要、拿掉會損失什麼」之後重新設計。原則見
 ADR-0027：官方代號當身分、一個 (股票, 來源, 日期) 一列的寬表、數字改變才新增列、
@@ -2081,12 +2081,13 @@ ADR-0027：官方代號當身分、一個 (股票, 來源, 日期) 一列的寬�
 - **部分列被 adapter 拒絕**（TPEx 本益比）時，其餘列照寫，fetch 記 `succeeded` 並在
   `reason_code = rows_rejected`、`reason_detail` 列出股票與原因，不另開表。
 
-**35-b-2：移除 v1 路徑**
+**35-b-2：移除 v1 路徑（SUPERSEDED，併入 35-d）**
 
-刪除 8 個領域的 v1 writer、服務、resolver 合約、coverage 宣告、CLI 子指令與測試，
-連同 Step 9 個股 pilot；一個 migration drop 8 張 v1 表、其 observations 表，以及
-`publication_evidence` 中屬於它們的約 2,105 萬列證據與外鍵欄位（降級在變更前拒絕）。
-在 `stockdc_backfill` 執行前須再經 owner 確認。
+原計畫單獨刪除 8 個領域的 v1 路徑與表。`publication_evidence` 仍被月營收、財報、TDCC
+等尚未搬遷的領域使用，只刪其中 8 個領域的部分要改它的外鍵欄位、CHECK 與 trigger 函式，
+而這張表在 35-d 會整張刪除，所以 owner 決定（2026-09-23）不單獨做，併入 35-d 一次處理。
+在那之前 v1 路徑留著但不再使用：每日抓取只走 `python -m stock_data_center.v2.backfill`，
+`stockdc_backfill` 多佔約 20 GB。
 
 ### 35-c — 其餘領域的重新設計
 
@@ -2096,7 +2097,13 @@ ADR-0027：官方代號當身分、一個 (股票, 來源, 日期) 一列的寬�
 
 ### 35-d — 收尾
 
-所有領域搬完後 drop v1 基礎表，以一個 baseline migration 重新開始 migration 鏈。
+所有領域搬完後一次刪除全部 v1：
+
+- 程式：8 個交易所每日領域（35-b-2 原範圍）與 35-c 各領域的 v1 writer、服務、resolver
+  合約、coverage 宣告、CLI 子指令與測試，連同 Step 9 個股 pilot；adapter 留著（v2 在用）
+- 表：所有 v1 表，包括 `publication_evidence`、`security` 與 ingest／raw artifact 基礎表
+- 以一個 baseline migration 重新開始 migration 鏈；舊鏈的降級不再需要
+- 在 `stockdc_backfill` 執行前須經 owner 確認
 
 ---
 
