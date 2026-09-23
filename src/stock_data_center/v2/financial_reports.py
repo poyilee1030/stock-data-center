@@ -33,7 +33,12 @@ from stock_data_center.ingestion.adapters.financial_filing import (
 )
 from stock_data_center.ingestion.http import SourceFetcher
 from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
-from stock_data_center.v2.exchange_daily import Fetched, Outcome, fetch_and_parse
+from stock_data_center.v2.exchange_daily import (
+    Fetched,
+    Outcome,
+    check_precision,
+    fetch_and_parse,
+)
 
 ADAPTER = MOPSFinancialFilingAdapter()
 KEY = "financial_reports/mops_t164sb01"
@@ -93,7 +98,7 @@ def facts_of(parsed) -> list[dict]:
     keys = [tuple(f[c] for c in _FACT_KEY) for f in facts]
     if len(keys) != len(set(keys)):
         raise m.SourceDataError("duplicate_key", "a fact identity appears twice")
-    return facts
+    return check_precision(v2.financial_report_facts, facts)
 
 
 def _identity(facts) -> frozenset:

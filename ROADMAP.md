@@ -2145,6 +2145,9 @@ ADR-0027：官方代號當身分、一個 (股票, 來源, 日期) 一列的寬�
 - **TDCC OpenData 只提供最新一週、只有一個 resource key**：job 不走期間，每次回補抓一次
 - **`published_at` 由寫入端決定**：`first_capture` 看到的第一列設為抓取時刻，其他目的一律 NULL
   （§32），更正的列 NULL；比對「有沒有改變」時不看它
+- **每個 job 宣告自己的空頁代碼**（#49 review）：月營收是 `no_data_for_period`
+- **寫入前檢查位數**（#49 review）：CHECK 帶著自己的位數限制，超出在解析階段就以 `out_of_range`
+  隔離該檔，不讓 INSERT 的錯誤中斷回補；交易所的 job 同樣適用
 
 **35-c-3：公司行動的寫入路徑與回補**
 

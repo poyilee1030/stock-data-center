@@ -228,3 +228,18 @@ def test_a_backfill_walks_every_stock_for_every_quarter(db, store, universe) -> 
     assert len(fetcher.requests) == 4
     assert report == {"periods": 3, "skipped": 0, "appended": 2, "unchanged": 0,
                       "succeeded": 2, "quarantined": 1}
+
+
+def test_a_fact_beyond_its_column_quarantines_the_document() -> None:
+    from stock_data_center.ingestion import models as m
+    from stock_data_center.ingestion.adapters.financial_filing import (
+        MOPSFinancialFilingAdapter,
+    )
+
+    parsed = MOPSFinancialFilingAdapter().parse(
+        TAIWAN_CEMENT, m.FinancialFilingRequest("1101", 2025, 1, "C"))
+    fact = parsed.facts[0]
+    bad = replace(fact, observation=replace(fact.observation, numeric_value=Decimal("1.005")))
+    with pytest.raises(SourceDataError) as refused:
+        fr.facts_of(replace(parsed, facts=(bad, *parsed.facts[1:])))
+    assert refused.value.reason_code == "out_of_range"

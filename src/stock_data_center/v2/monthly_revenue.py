@@ -65,6 +65,8 @@ def _job(adapter, page: m.RevenuePage) -> Job:
             RevenuePeriod(month.year, month.month), page
         ),
         settled_of=settled_at,
+        # The page for a month nobody has filed yet (audit §4.7).
+        empty=frozenset({"no_data_for_period"}),
     )
 
 

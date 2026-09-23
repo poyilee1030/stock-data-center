@@ -32,6 +32,8 @@ v1 的 ingestion、表與測試全部不動，35-d 才一次刪除。公司行�
 | 兩個 id 都 `檔案不存在!` | `empty`：還沒申報，下次回補再問 |
 | 金融業、興櫃等 v1 範圍外 | `quarantined`，視為最終答案，不重抓 |
 | 財報事實帶 dimension | 整份 `quarantined`（`dimensioned_fact`，覆寫 CLAUDE.md §33） |
+| 月營收頁面還沒有任何公司申報 | `empty`（`no_data_for_period`），下次再抓 |
+| 數值超出欄位的位數限制 | 該檔 `quarantined`（`out_of_range`），回補繼續 |
 
 完整性時點（決定下次回補要不要再抓，不影響可見性）：月營收是下下個月 1 日 00:00，財報是法定
 期限的隔天 00:00，TDCC 每次都抓（OpenData 只有一個 resource key，永遠是最新一週）。
@@ -70,7 +72,7 @@ v1 的 ingestion、表與測試全部不動，35-d 才一次刪除。公司行�
   公司目前狀態重新產生頁面（22-b 已證明），所以 2026-07 的頁面有它；TDCC 09-18 那週也有它。腳本把
   「股票在搬移歷史中完全沒有資料」的列另外列在 `stock_not_in_migrated_history`，不算差異。
 
-全套測試：1290 passed、3 skipped（需 `RUN_LIVE_SOURCE_TESTS`）。
+全套測試：1294 passed、3 skipped（需 `RUN_LIVE_SOURCE_TESTS`）。
 
 ## 踩到的坑
 
@@ -82,6 +84,17 @@ v1 的 ingestion、表與測試全部不動，35-d 才一次刪除。公司行�
   35-b-1 踩過的同一個坑，這次在財報測試的夾具又踩一次。
 - 查詢裡的 `LIKE '…%'` 經 `exec_driver_sql` 會被當成佔位符而報錯，同一個指令後面的「重建測試庫」
   就沒執行，全套測試在舊的測試庫上跑出 5 條失敗；改用 `sa.text` 並確實重建後全綠。
+
+## Code review 修正（#49）
+
+- **月營收的空頁被記成 `quarantined`**：月營收 adapter 的代碼是 `no_data_for_period`，執行器只認
+  `no_data_for_date`。改為每個 job 宣告自己的空頁代碼；記成 `empty`，照 35-b-1 的規則下次再抓。
+- **數值超出欄位範圍會讓整個回補中斷**：小數欄位只靠 CHECK 限制，超出時在 INSERT 才丟
+  `IntegrityError`，run 停下、fetch 紀錄也 rollback。`schema_v2` 的每個 CHECK 現在帶著它的
+  (整數位數, 小數位數)，寫入前在解析階段逐列比對（bigint 也檢查範圍），超出就 `out_of_range` 隔離
+  那份檔案。交易所的 16 個 job（35-b-1）也一起受保護。
+- 修正後重跑兩支真實抓取驗收：本步驟仍 0 列不同；35-b-1 的三天仍 31,145 列不變、0 份被隔離，
+  確認新檢查不會誤擋真實資料。
 
 ## 已知限制
 

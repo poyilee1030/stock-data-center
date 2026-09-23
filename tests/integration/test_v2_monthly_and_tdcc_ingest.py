@@ -181,3 +181,45 @@ def test_a_tdcc_backfill_fetches_again_on_every_run(db, store, universe) -> None
     run(db, [TDCC], date(2019, 6, 1), date(2019, 6, 28), fetcher=fetcher,
         git_commit="abc", purpose="first_capture", store=store)
     assert fetcher.requests == ["tdcc_opendata:opendata:1-5"]
+
+
+SEPTEMBER = date(2026, 9, 1)
+NOT_YET = (FIXTURES / "mops_t21sc03_sii_115_9_0_no_data.html").read_bytes()
+
+
+def test_a_month_not_published_yet_is_empty_and_asked_again(db, store, universe) -> None:
+    # Code review of #49: the revenue adapter's own code is no_data_for_period.
+    outcome = _ingest(db, store, DOMESTIC, SEPTEMBER, NOT_YET)
+    assert (outcome.status, outcome.reason_code) == ("empty", "no_data_for_period")
+    assert xd.pending(db, DOMESTIC, [SEPTEMBER]) == [SEPTEMBER]
+
+
+def test_a_value_beyond_its_column_quarantines_the_page_not_the_run(db, store, universe) -> None:
+    # Code review of #49: a third decimal used to reach the INSERT, whose
+    # IntegrityError stopped the backfill and rolled the fetch row back.
+    from stock_data_center.v2.backfill import run
+
+    fetch_id = record_fetch(
+        db, FetchRecord("trading_calendar", "twse", "cal", None, "gap_fill", "t", "abc",
+                        datetime.now(UTC)),
+        content=b"cal", status="succeeded", store=store,
+    )
+    db.execute(sa.text("INSERT INTO trading_days VALUES (:d, :f)"),
+               {"d": date(2026, 7, 31), "f": fetch_id})
+    bad = _with_revenue(PAGE, "1101", ">                  2.70<", ">                  2.705<")
+    report = run(db, [DOMESTIC], JULY, date(2026, 7, 31), fetcher=Replay(bad),
+                 git_commit="abc", purpose="gap_fill", store=store)
+    assert report["monthly_revenues/mops_t21sc03_sii"]["quarantined"] == 1
+    assert _revenues(db) == []
+    logged = db.execute(sa.text(
+        "SELECT status, reason_code FROM fetches WHERE source = 'mops_t21sc03_sii'")).one()
+    assert tuple(logged) == ("quarantined", "out_of_range")
+
+
+def test_a_tdcc_percentage_of_a_thousand_is_out_of_range() -> None:
+    from stock_data_center.ingestion.models import SourceDataError
+
+    row = TDCC.rows(TDCC.adapter.parse(WEEK, TDCC.request(None)))[0]
+    with pytest.raises(SourceDataError) as refused:
+        xd.check_precision(TDCC.table, [{**row, "total_percent": xd.Decimal("1000.00")}])
+    assert refused.value.reason_code == "out_of_range"

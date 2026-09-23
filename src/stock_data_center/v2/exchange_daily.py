@@ -22,6 +22,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, time, timedelta
+from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -215,6 +216,34 @@ _BOOKKEEPING = ("recorded_at", "fetch_id", "published_at")
 _STOCK_KEY = ("stock_id", "source", "trade_date")
 
 
+_BIGINT = 2**63
+
+
+def check_precision(table: sa.Table, rows: list[dict]) -> list[dict]:
+    """Refuse a value its column cannot store, before the INSERT would.
+
+    The decimal columns are unconstrained `numeric` with a CHECK (ADR-0027 §7),
+    so a third decimal or an eighth integer digit fails only at the INSERT, as
+    an IntegrityError that stops the run and rolls its fetch row back. Refused
+    here, it quarantines its file like any value the contract cannot hold."""
+    limits = v2.precision(table)
+    integers = [c.name for c in table.columns if isinstance(c.type, sa.BigInteger)]
+    for row in rows:
+        for column, (digits, places) in limits.items():
+            value = row.get(column)
+            if value is None:
+                continue
+            exponent = Decimal(value).normalize().as_tuple().exponent
+            if max(0, -exponent) > places or abs(value) >= Decimal(10) ** digits:
+                raise m.SourceDataError(
+                    "out_of_range", f"{table.name}.{column} = {value} exceeds ({digits}, {places})")
+        for column in integers:
+            value = row.get(column)
+            if isinstance(value, int) and not -_BIGINT <= value < _BIGINT:
+                raise m.SourceDataError("out_of_range", f"{table.name}.{column} = {value}")
+    return rows
+
+
 def key_columns(table: sa.Table) -> tuple[str, ...]:
     return tuple(c.name for c in table.primary_key.columns if c.name != "recorded_at")
 
@@ -246,6 +275,8 @@ class Job:
     settled_of: Callable[[date], datetime] | None = None
     # A source that serves only its latest file: every run fetches it once.
     latest_only: bool = False
+    # The adapter's reason codes for "nothing published for this period".
+    empty: frozenset[str] = frozenset({"no_data_for_date"})
     key_columns: tuple[str, ...] = field(init=False)
 
     def __post_init__(self) -> None:
@@ -274,7 +305,7 @@ class Job:
         return self.request_type(period.replace(day=1) if self.monthly else period)
 
     def rows(self, parsed) -> list[dict]:
-        return self.rows_of(parsed, self.source)
+        return check_precision(self.table, self.rows_of(parsed, self.source))
 
     def release_rule_instant(self, trade_date: date) -> datetime:
         return available_from(trade_date, self.release_rule)
@@ -348,7 +379,6 @@ JOBS: dict[str, Job] = _jobs()
 # Content that is not a source answer at all (an HTML maintenance page): an
 # operational failure, retried once live, never a quarantine (Step 19-d).
 _RETRY_LIVE = frozenset({"invalid_json", "unusable_response"})
-_EMPTY = frozenset({"no_data_for_date"})
 # A succeeded fetch that held rows back is not done: the next run asks again.
 _UNFINISHED = frozenset({"close_unverified"})
 
@@ -462,7 +492,7 @@ def ingest(
     """Fetch one resource and write what changed, on `connection`'s transaction."""
     fetched = fetch_and_parse(
         connection, job.adapter, job.request(period), dataset=job.dataset, parse=job.rows,
-        fetcher=fetcher, git_commit=git_commit, purpose=purpose, store=store, empty=_EMPTY,
+        fetcher=fetcher, git_commit=git_commit, purpose=purpose, store=store, empty=job.empty,
     )
     if isinstance(fetched, Outcome):
         return fetched
