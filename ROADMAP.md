@@ -618,7 +618,7 @@ explicit out-of-scope work
 | 35-b-2 | SUPERSEDED | Schema v2：移除 8 個領域的 v1 路徑與 v1 表（併入 35-d） |
 | 35-c-1 | MERGED | Schema v2：月營收、財報、TDCC、公司行動的 v2 表與歷史搬移（#48） |
 | 35-c-2 | MERGED | Schema v2：月營收、財報、TDCC 的寫入路徑（#49） |
-| 35-c-3 | IN REVIEW | Schema v2：公司行動的寫入路徑與回補 |
+| 35-c-3 | IN REVIEW (#50) | Schema v2：公司行動的寫入路徑與回補 |
 | 35-c-4 | PLANNED | Schema v2：衍生資料接 v2（26-a） |
 | 35-d | PLANNED | Schema v2：刪除所有 v1 程式與表，重新開始 migration 鏈 |
 

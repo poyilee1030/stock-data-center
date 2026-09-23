@@ -1,6 +1,6 @@
 # Step 35-c-3 驗收報告
 
-狀態：IN REVIEW
+狀態：IN REVIEW (#50)
 
 範圍：公司行動 6 個 result feed 寫入 v2 `corporate_actions` 的新路徑（ADR-0027「35-c 定案」），
 以及 2020–2026 在 `stockdc_backfill` 的重新回補。只新增程式；v1 的公司行動 ingestion、表與測試
