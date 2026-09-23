@@ -617,8 +617,8 @@ explicit out-of-scope work
 | 35-b-1 | MERGED | Schema v2：交易所每日資料寫入 v2 的新路徑（只新增程式）（#47） |
 | 35-b-2 | SUPERSEDED | Schema v2：移除 8 個領域的 v1 路徑與 v1 表（併入 35-d） |
 | 35-c-1 | MERGED | Schema v2：月營收、財報、TDCC、公司行動的 v2 表與歷史搬移（#48） |
-| 35-c-2 | IN REVIEW | Schema v2：月營收、財報、TDCC 的寫入路徑（#49） |
-| 35-c-3 | PLANNED | Schema v2：公司行動的寫入路徑與回補 |
+| 35-c-2 | MERGED | Schema v2：月營收、財報、TDCC 的寫入路徑（#49） |
+| 35-c-3 | IN REVIEW | Schema v2：公司行動的寫入路徑與回補 |
 | 35-c-4 | PLANNED | Schema v2：衍生資料接 v2（26-a） |
 | 35-d | PLANNED | Schema v2：刪除所有 v1 程式與表，重新開始 migration 鏈 |
 
@@ -2151,9 +2151,20 @@ ADR-0027：官方代號當身分、一個 (股票, 來源, 日期) 一列的寬�
 
 **35-c-3：公司行動的寫入路徑與回補**
 
-- 6 個 result feed 接上 v2；`executed_through` 之後的列只計數不存（ADR-0019）；
+- [x] 6 個 result feed 接上 v2；`executed_through` 之後的列只計數不存（ADR-0019）；
   從 feed 消失的列新增一列 `retracted = true`
-- 2020–2026 重新抓進 v2（每個 feed 一年一個請求），與 `stockdc_step19d` 的 v1 結果比對
+- [x] 2020–2026 重新抓進 v2，與 `stockdc_step19d` 的 v1 結果比對：10,827 列全部相同，
+  另有 32 列是 v1 範圍（到 2026-09-11）之後才除權息的事件
+
+實作中裁決：
+
+- **TWSE `TWT49U`／`TWTAUU` 的條件只在明細頁**：原本寫的「每個 feed 一年一個請求」低估了，
+  實際是 6,198 頁明細，約 2 小時 53 分。明細只為今天名單上的股票抓
+- **已存的事件不再抓明細**，只有 `correction_check` 會重抓；重跑一年只花一個請求
+- **明細失敗只擋下那一列**：list 的 fetch 記 `rows_rejected`，該年維持 pending，下次只補那幾頁；
+  失敗的事件仍算「有列出」，不會被誤判撤回
+- **一年要到隔年 1 月 1 日 00:00 才算完成**：當年的檔案還會列出之後的事件
+- 每頁明細各自 commit，不讓一個交易等整年的 HTTP
 
 **35-c-4：衍生資料接 v2**
 

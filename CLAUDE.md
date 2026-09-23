@@ -117,7 +117,7 @@ Each required criterion must be PASS/FAIL with concrete evidence.
 
 ## Current Step Sequence
 
-ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–18, 19-a through 19-e, 20-a through 20-d, 21-a, 21-b, 22-a through 22-c, 23-a through 24-b, 35-a, 35-b-1 and 35-c-1 as MERGED, 26-a as IN REVIEW, 35-b-2 as SUPERSEDED, and labels Step 35-c-2 as `THIS STEP` (a contextual marker, not an additional status value):
+ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–18, 19-a through 19-e, 20-a through 20-d, 21-a, 21-b, 22-a through 22-c, 23-a through 24-b, 35-a, 35-b-1, 35-c-1 and 35-c-2 as MERGED, 26-a as IN REVIEW, 35-b-2 as SUPERSEDED, and labels Step 35-c-3 as `THIS STEP` (a contextual marker, not an additional status value):
 
 ```text
 Step 11  authoritative security lifecycle history        MERGED
@@ -166,8 +166,9 @@ Step 35-a schema v2: foundation + exchange daily tables  MERGED (ADR-0027)
 Step 35-b-1 schema v2: exchange-daily write path       MERGED
 Step 35-b-2 schema v2: drop the 8 domains' v1 path      SUPERSEDED (folded into 35-d)
 Step 35-c-1 schema v2: issuer + TDCC tables, history   MERGED
-Step 35-c-2 schema v2: revenue/financial/TDCC writes   THIS STEP
-Step 35-c-3..4 corporate actions, derived              PLANNED
+Step 35-c-2 schema v2: revenue/financial/TDCC writes   MERGED
+Step 35-c-3 schema v2: corporate actions + backfill    THIS STEP
+Step 35-c-4 schema v2: derived data on v2              PLANNED
 Step 35-d  schema v2: drop all v1 code and tables      PLANNED
 ```
 
