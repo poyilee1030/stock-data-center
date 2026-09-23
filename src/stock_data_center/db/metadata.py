@@ -1976,4 +1976,8 @@ sa.Index(
     publication_evidence.c.recorded_at,
 )
 
+# Schema v2 (ADR-0027) registers its tables on this same metadata, so migrations
+# and the drift check see both generations while domains move across.
+from stock_data_center.db import schema_v2 as _schema_v2  # noqa: E402,F401
+
 __all__ = ["metadata"]

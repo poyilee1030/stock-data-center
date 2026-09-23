@@ -35,6 +35,23 @@ Highest-priority requirement:
 
 ---
 
+# 0. Schema v2 Takes Precedence (2026-09-23)
+
+The owner redesigned the schema on 2026-09-23 after reviewing every table for necessity. [ADR-0027](docs/decisions/0027-schema-v2.md) defines it and [ADR-0026](docs/decisions/0026-v1-universe-common-stocks-only.md) narrows the universe. Where this file conflicts with them, **the ADRs win**. Specifically, for every domain that has moved to schema v2 (see ROADMAP Step 35):
+
+- **Identity** is the official stock code (`stock_id`), not `security_id` (§51.5 still governs corporate-action events).
+- **Universe** is today's ISIN list of listed and OTC common stocks. It deliberately depends on today's list, overriding the §78 phrase "must not depend on today's security universe"; the survivorship bias is accepted and must be disclosed.
+- **One wide row per (stock, source, date)**, appended only when a published value changes; `recorded_at` is database-stamped. This replaces the business/evidence split of §17, the per-row evidence selection of §19, the business hash of §24–25, and per-row repeated-fetch observations of §26–27. Repeated fetches are auditable in `fetches`, one row per fetch.
+- **Publication time is not stored** for exchange-published data: it is computed from the dataset's release rule, and a corrected value is available from its `recorded_at` (§15, §31 semantics are preserved by computation, not by evidence rows).
+- **Provenance** is `fetch_id` → `fetches.sha256` → `data/raw/<ab>/<sha256>` (§27–28, §71 raw-first unchanged).
+- **Pilot sources** `twse`/`tpex` (Step 9) and `tpex_insti_qfii` are not kept (§30).
+- **Small static configuration** (release rules, dataset declarations) lives in code, not tables.
+- **Before proposing any table or column, justify it**: what is lost without it.
+
+Domains not yet redesigned (monthly revenue, financial statements, TDCC, corporate actions, derived data) still use the v1 tables and the rules below until their Step 35 redesign.
+
+---
+
 # 1. Canonical Roadmap and Delivery Unit
 
 The canonical roadmap is:
@@ -100,7 +117,7 @@ Each required criterion must be PASS/FAIL with concrete evidence.
 
 ## Current Step Sequence
 
-ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–18, 19-a through 19-e, 20-a through 20-d, 21-a, 21-b, 22-a through 22-c, 23-a and 23-b as MERGED and labels Step 23-c as `THIS STEP` (a contextual marker, not an additional status value):
+ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–18, 19-a through 19-e, 20-a through 20-d, 21-a, 21-b, 22-a through 22-c and 23-a through 24-b as MERGED, 26-a as IN REVIEW, and labels Step 35-a as `THIS STEP` (a contextual marker, not an additional status value):
 
 ```text
 Step 11  authoritative security lifecycle history        MERGED
@@ -133,10 +150,11 @@ Step 22-b monthly revenue: backfill + reconciliation    MERGED
 Step 22-c monthly revenue: publication evidence         MERGED
 Step 23-a financial statements: iXBRL parser            MERGED
 Step 23-b financial statements: adapters + import path  MERGED
-Step 23-c financial statements: backfill + reconcile    THIS STEP
-Step 24  TDCC distribution                             PLANNED
+Step 23-c financial statements: backfill + reconcile    MERGED
+Step 24-a TDCC distribution: adapters + import path      MERGED
+Step 24-b TDCC distribution: backfill + coverage        MERGED
 Step 25  adjusted prices                               PLANNED
-Step 26  canonical derived v1 (legacy calculator ports) PLANNED
+Step 26-a canonical derived: service + technical ind.  IN REVIEW (paused for Step 35)
 Step 27  public REST API v1                            PLANNED
 Step 28  scheduled forward capture                     PLANNED
 Step 29  Python SDK + downstream integration           PLANNED
@@ -144,6 +162,7 @@ Step 30  operations + observability                    PLANNED
 Step 31  full correctness CI gate                      PLANNED
 Step 32  my_stock_project cutover + v1 release          PLANNED
 Step 33  issuer dividend declarations                  PLANNED (depends on 19)
+Step 35-a schema v2: foundation + exchange daily tables  THIS STEP (ADR-0027)
 ```
 
 `ROADMAP.md` remains authoritative if this snapshot becomes stale.
@@ -164,7 +183,7 @@ Columns the audit lists as unsourced stay NULL and must not be presented as data
 
 v1 rebuilds the legacy consumer scope with PIT, normally from 2020-01-02 through cutover. Honor domain-specific history windows in ROADMAP, including Step 33's ROC 107–115 declaration requests.
 
-The security universe is 上市 (`sii`) and 上櫃 (`otc`) only. Where an endpoint offers a market selector, request those two values and reject `rotc` and `pub` at the adapter boundary.
+The security universe is the common stocks (`股票` category) on today's TWSE ISIN lists for 上市 (`sii`) and 上櫃 (`otc`) (ADR-0026): no ETFs, ETNs, preferred shares, TDRs, beneficiary certificates, innovation-board stocks or warrants, and no company delisted before today. Where an endpoint offers a market selector, request those two values and reject `rotc` and `pub` at the adapter boundary.
 
 Financial-industry financial statements are excluded from Step 23; those issuers' other datasets remain in scope. Stock tags, the XBRL codebook, and margin market summary are not v1 deliveries. Existing nullable storage contracts are retained, not dropped merely because v1 does not populate them.
 

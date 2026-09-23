@@ -1666,6 +1666,26 @@ legacy scraper on 2026-07-02, so the 3-second interval applies. The volume is
 small: 2 markets × 9 ROC years = 18 requests for the whole history, then 2 per
 day to track revisions.
 
+
+### 4.14 Common-stock universe (TWSE ISIN list)
+
+Added with schema v2 (ADR-0026, ADR-0027). `https://isin.twse.com.tw/isin/C_public.jsp?strMode=2`
+(上市) and `strMode=4` (上櫃), served as MS950 HTML; `big5hkscs` decodes every
+name. One table: a header row, then a single-cell category title row
+(`<B> 股票 <B>`, `ETF`, `特別股`, `創新板`, …) before each category's rows.
+Each row has seven cells: `有價證券代號及名稱` (code and name joined by U+3000),
+`國際證券辨識號碼(ISIN Code)`, `上市日` (YYYY/MM/DD), `市場別` (上市/上櫃),
+`產業別`, `CFICode`, `備註`.
+
+Only the `股票` category is in scope. The CFI code cannot decide it:
+`創新板` stocks are `ESVUFR` like ordinary common stock. Counts on 2026-09-23:
+上市 股票 1,054, 創新板 31, 特別股 28, TDR 10, ETF 240, ETN 15, REIT 6,
+warrants 35,327; 上櫃 股票 893, 特別股 1, ETF 119, ETN 6, asset-backed 4,
+warrants 11,024.
+
+The list is a snapshot of what is listed today. It carries no history, so a
+security delisted before the fetch is absent; ADR-0026 accepts that.
+
 ## 5. Schema columns with no source, or with partial coverage
 
 One row per stored column that an official source does not fully provide. An
@@ -1723,6 +1743,13 @@ marked *stays NULL* is in fact nullable in the live schema.
 | `xbrl_concept_catalog_versions.statement_type` | unsourced | table stays empty | No official concept-catalogue endpoint was inspected. |
 | `xbrl_concept_catalog_versions.account_name_zh` | unsourced | table stays empty | No official concept-catalogue endpoint was inspected. |
 | `xbrl_concept_catalog_versions.account_name_en` | unsourced | table stays empty | No official concept-catalogue endpoint was inspected. |
+| `daily_prices.price_direction` | partially sourced | holds the values that exist | TWSE publishes `+`/`-`/`X` in its own column. stk_wn1430 signs the number instead and has no direction column, so a TPEx row claims a direction only where the feed prints its 不比價 marker (除息 / 除權 / 除權息), which is stored as `X`. |
+| `daily_prices.last_bid_volume` | partially sourced | holds the values that exist | TWSE on all dates, in shares (`hints: 單位：元、股`, corroborated by `TWT53U`). TPEx only from 2020-04-30, in lots; the label changes 千股 to 張數 on 2025-01-10, both meaning 1,000 shares, and only TPEx is converted. |
+| `daily_prices.last_ask_volume` | partially sourced | holds the values that exist | TWSE on all dates, in shares (`hints: 單位：元、股`, corroborated by `TWT53U`). TPEx only from 2020-04-30, in lots; the label changes 千股 to 張數 on 2025-01-10, both meaning 1,000 shares, and only TPEx is converted. |
+| `index_prices.open_value` | partially sourced | holds the values that exist | TAIEX only, from rwd/zh/TAIEX/MI_5MINS_HIST (one calendar month per request). The whole-list index sources publish no OHLC and no TPEx equivalent was found. |
+| `index_prices.high_value` | partially sourced | holds the values that exist | TAIEX only, from rwd/zh/TAIEX/MI_5MINS_HIST. The whole-list index sources publish no OHLC and no TPEx equivalent was found. |
+| `index_prices.low_value` | partially sourced | holds the values that exist | TAIEX only, from rwd/zh/TAIEX/MI_5MINS_HIST. The whole-list index sources publish no OHLC and no TPEx equivalent was found. |
+| `valuations.report_period` | partially sourced | holds the values that exist | TWSE on all dates; TPEx only from 2025-01-02. |
 
 Beyond the stored columns, `publication_evidence.published_at` has no official
 source at all: no inspected source publishes a per-row release instant (§7).
