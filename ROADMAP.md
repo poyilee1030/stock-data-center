@@ -5,6 +5,8 @@
 > 狀態日期：2026-09-18。
 >
 > 來源實況基準：[`docs/source_field_audit.md`](docs/source_field_audit.md)。本 roadmap 中每個規劃中的 PR，範圍都限於 audit 證明確實存在的欄位。
+>
+> **Schema v2（2026-09-23）優先。** [ADR-0027](docs/decisions/0027-schema-v2.md) 重新設計資料表，[ADR-0026](docs/decisions/0026-v1-universe-common-stocks-only.md) 把範圍收窄為今天的上市、上櫃普通股。本 roadmap 其他章節描述的 v1 表設計（逐列 publication evidence、observations、業務 hash、seal、`security_id`、pilot 來源）與這兩份 ADR 衝突時，以 ADR 為準。實作進度見 Step 35（§25）。
 
 ## 1. 專案目標
 
@@ -30,7 +32,7 @@ v1 涵蓋 `stock_db` 涵蓋的內容，以及舊系統使用者實際讀取的�
 
 v1 不是資料商可能提供的所有欄位的超集合。只有當一個經驗證的來源欄位能填入時，該欄位才進入 v1（§2.4）。
 
-**v1 的證券範圍只有上市（`sii`）和上櫃（`otc`）。** 興櫃（`rotc`）以及不在任何市場交易的公開發行公司（`pub`）都排除在外。這是 owner 的決定，不是資料取得的限制：MOPS 四種都提供，而交易所對興櫃根本不發布每日行情檔。當來源提供市場選擇器時，adapter 只請求 `sii` 和 `otc`，並在 adapter 邊界拒絕其他值，而不是 ingest 之後再過濾。
+**v1 的證券範圍是今天 ISIN 清單上的上市（`sii`）和上櫃（`otc`）普通股**（ADR-0026，2026-09-23）：不收 ETF、ETN、特別股、TDR、受益證券、創新板與權證，也不收今天之前已下市的公司，這是 owner 接受的倖存者偏差。原本的市場別規則仍然適用： 興櫃（`rotc`）以及不在任何市場交易的公開發行公司（`pub`）都排除在外。這是 owner 的決定，不是資料取得的限制：MOPS 四種都提供，而交易所對興櫃根本不發布每日行情檔。當來源提供市場選擇器時，adapter 只請求 `sii` 和 `otc`，並在 adapter 邊界拒絕其他值，而不是 ingest 之後再過濾。
 
 ---
 
@@ -610,7 +612,11 @@ explicit out-of-scope work
 | 31 | PLANNED | 完整的正確性 CI 關卡 |
 | 32 | PLANNED | `my_stock_project` 切換與 v1 發布 |
 | 33 | PLANNED | 發行公司股利宣告（MOPS OpenAPI），存成獨立領域 |
-| 34 | PLANNED | 新增證據目標時仍穩定的 publication-evidence hash |
+| 34 | SUPERSEDED | 新增證據目標時仍穩定的 publication-evidence hash |
+| 35-a | IN REVIEW | Schema v2：基礎表與交易所每日資料表、遷移 v1 歷史（ADR-0027，#46） |
+| 35-b | PLANNED | Schema v2：交易所每日資料的 ingestion 改寫到 v2，drop 對應的 v1 表 |
+| 35-c | PLANNED | Schema v2：月營收、財報、TDCC、公司行動、衍生資料的重新設計 |
+| 35-d | PLANNED | Schema v2：drop v1 基礎表，重新開始 migration 鏈 |
 
 Steps 1–12 建立了儲存、PIT 和 raw-first 的基礎。它們的 writer 契約包含一些沒有任何來源會填入的欄位（§2.3）。這些欄位保持可為 null、不填值。不刪除它們，因為刪除不會帶來任何正確性上的好處。
 
@@ -1794,7 +1800,7 @@ short_interest_metrics:v1        SBL/short ratios and WoW changes
 
 ## Step 34 — 穩定的 Publication-Evidence Hash
 
-狀態：**PLANNED**。依賴：無。
+狀態：**SUPERSEDED**（2026-09-23，ADR-0027）：schema v2 不再逐列存 publication evidence，這個 hash 沒有對象。原為 PLANNED。
 
 問題，由 Step 16 的 review 發現。`publication_evidence_hash` 的計算方式是 `to_jsonb(NEW)` 減去一份固定的排除清單，所以它包含每個證據目標欄位，包括對這個資料集是 NULL 的那些。因此 Step 16 新增第十七個目標時，**每個資料集**算出的 hash 都改變了；Step 8 新增 `market_index_metadata_version_id` 時也發生同樣的事。
 
@@ -1988,6 +1994,48 @@ quarantine reason，讓三張報表照樣解析——但那要先證明無法對
 狀態：**PLANNED**。依賴：Steps 25–31。
 
 `my_stock_project` 使用 API／SDK，並停止維護一個相互競爭的權威資料庫。最終對帳比較使用者讀取的每張舊系統資料表與 API 結果，每個差異都已分類。
+
+---
+
+## Step 35 — Schema v2
+
+狀態：**35-a IN REVIEW（#46）**。依據：ADR-0026、ADR-0027（2026-09-23 owner 決定）。
+
+2026-09-23 對全部 61 張表逐張檢討「需不需要、拿掉會損失什麼」之後重新設計。原則見
+ADR-0027：官方代號當身分、一個 (股票, 來源, 日期) 一列的寬表、數字改變才新增列、
+每列指向一次抓取、交易所資料的公開時間由規則計算不存。
+
+### 35-a — 基礎表與交易所每日資料表
+
+- 新表：`fetches`、`stocks`、`trading_days`、`daily_prices`、`index_prices`、
+  `valuations`、`institutional_flows`、`institutional_market_flows`、
+  `foreign_holdings`、`margin_trading`、`securities_lending`（`stock_data_center.db.schema_v2`）
+- 今天的 ISIN「股票」清單寫入 `stocks`，原始頁照 raw-first 保存（`stock_data_center.v2.universe`）
+- `scripts/migrate_to_schema_v2.py` 把 v1 歷史複製過來，只收今天的普通股、保留的來源與
+  126 個指數；`recorded_at` 沿用 v1 的 `ingested_at`
+- v1 表不動：它們的 ingestion 還沒改寫
+
+驗收：
+
+- migration 可升級、可降級（降級在任何 v2 表有資料時先拒絕），`alembic check` 無差異
+- 六張個股表與 v1 篩選結果以 `EXCEPT` 雙向比對為 0 差異；指數 126 個；市場彙總列數相同
+- 每張值表只新增：UPDATE、DELETE、TRUNCATE 被觸發器拒絕
+- 每個欄位在 `data_domain_inventory.json` 有來源登記，部分來源的欄位在 audit §5
+
+### 35-b — ingestion 改寫
+
+各交易所每日資料的 adapter 改為寫入 v2 表並在 adapter 邊界套用 `stocks` 範圍；
+resolver 以 release rule 計算可用時間；之後 drop 該領域的 v1 表與其證據。
+
+### 35-c — 其餘領域的重新設計
+
+月營收、財報、TDCC、公司行動、衍生資料依同樣方式逐一檢討。月營收與財報會被更正、
+公開時間逐筆不同，是否保留某種證據在各自的討論中決定。26-a（#44）在衍生資料的
+討論時改接 v2。
+
+### 35-d — 收尾
+
+所有領域搬完後 drop v1 基礎表，以一個 baseline migration 重新開始 migration 鏈。
 
 ---
 

@@ -70,7 +70,8 @@
       "security_transfer_event_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field.",
       "tdcc_snapshot_seals": "Aggregate seal state, decided by us, never published by a source.",
       "tdcc_snapshot_version_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field.",
-      "trading_calendar_version_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field."
+      "trading_calendar_version_observations": "Provenance link between one business version and the raw artifact and ingest run that observed it; carries no source field.",
+      "fetches": "Schema v2 fetch log (ADR-0027): one row per fetch attempt with the raw file's SHA-256; provenance, not source content."
     },
     "tables": {
       "corporate_action_events": {
@@ -1888,6 +1889,970 @@
             "audit_section": "4.8",
             "effect": "table stays empty",
             "note": "No official concept-catalogue endpoint was inspected."
+          }
+        }
+      },
+      "daily_prices": {
+        "dataset_code": "daily_price",
+        "v1": true,
+        "roadmap_pr": "schema-v2",
+        "reason": "Schema v2 (ADR-0027): one append-only row per (stock, source, trade date); copied from daily_price_versions for today's common stocks.",
+        "columns": {
+          "stock_id": {
+            "coverage": "sourced",
+            "source_fields": [
+              "有價證券代號及名稱 (code part), TWSE ISIN list C_public.jsp"
+            ],
+            "audit_section": "4.14",
+            "note": "The official code, which is the identity itself (ADR-0027): listed and OTC common stocks follow one code for life."
+          },
+          "trade_date": {
+            "coverage": "sourced",
+            "source_fields": [
+              "report date of the requested MI_INDEX file",
+              "report date of the requested stk_wn1430 file"
+            ],
+            "audit_section": "4.1",
+            "note": "The daily feeds serve one whole-market file per trade date; the date is the request key, not a row column."
+          },
+          "open_price": {
+            "coverage": "sourced",
+            "source_fields": [
+              "開盤價",
+              "開盤"
+            ],
+            "audit_section": "4.1",
+            "note": "TWSE 開盤價, TPEx 開盤."
+          },
+          "high_price": {
+            "coverage": "sourced",
+            "source_fields": [
+              "最高價",
+              "最高"
+            ],
+            "audit_section": "4.1",
+            "note": "TWSE 最高價, TPEx 最高."
+          },
+          "low_price": {
+            "coverage": "sourced",
+            "source_fields": [
+              "最低價",
+              "最低"
+            ],
+            "audit_section": "4.1",
+            "note": "TWSE 最低價, TPEx 最低."
+          },
+          "close_price": {
+            "coverage": "sourced",
+            "source_fields": [
+              "收盤價",
+              "收盤"
+            ],
+            "audit_section": "4.1",
+            "note": "TWSE 收盤價, TPEx 收盤."
+          },
+          "volume": {
+            "coverage": "sourced",
+            "source_fields": [
+              "成交股數"
+            ],
+            "audit_section": "4.1",
+            "note": "Published in shares by both markets."
+          },
+          "trade_value": {
+            "coverage": "sourced",
+            "source_fields": [
+              "成交金額",
+              "成交金額(元)"
+            ],
+            "audit_section": "4.1",
+            "note": "TWSE 成交金額, TPEx 成交金額(元)."
+          },
+          "trade_count": {
+            "coverage": "sourced",
+            "source_fields": [
+              "成交筆數"
+            ],
+            "audit_section": "4.1",
+            "note": "Published by both markets."
+          },
+          "price_change": {
+            "coverage": "sourced",
+            "source_fields": [
+              "漲跌價差",
+              "漲跌"
+            ],
+            "audit_section": "4.1",
+            "note": "TWSE publishes an unsigned 漲跌價差 with a separate sign column; TPEx publishes a signed 漲跌."
+          },
+          "price_direction": {
+            "coverage": "partially_sourced",
+            "source_fields": [
+              "漲跌(+/-)"
+            ],
+            "audit_section": "4.1",
+            "note": "TWSE publishes +/-/X in its own column. stk_wn1430 signs the number instead and has no direction column, so a TPEx row claims a direction only where the feed prints its 不比價 marker (除息 / 除權 / 除權息), stored as X."
+          },
+          "last_bid_price": {
+            "coverage": "sourced",
+            "source_fields": [
+              "最後揭示買價",
+              "最後買價"
+            ],
+            "audit_section": "4.1",
+            "note": "The single published bid level."
+          },
+          "last_ask_price": {
+            "coverage": "sourced",
+            "source_fields": [
+              "最後揭示賣價",
+              "最後賣價"
+            ],
+            "audit_section": "4.1",
+            "note": "The single published ask level."
+          },
+          "last_bid_volume": {
+            "coverage": "partially_sourced",
+            "source_fields": [
+              "最後揭示買量",
+              "最後買量(千股)",
+              "最後買量(張數)"
+            ],
+            "audit_section": "4.1",
+            "note": "TWSE on all dates, in lots. TPEx only from 2020-04-30; the label changes 千股 to 張數 on 2025-01-10, both meaning 1,000 shares."
+          },
+          "last_ask_volume": {
+            "coverage": "partially_sourced",
+            "source_fields": [
+              "最後揭示賣量",
+              "最後賣量(千股)",
+              "最後賣量(張數)"
+            ],
+            "audit_section": "4.1",
+            "note": "TWSE on all dates, in lots. TPEx only from 2020-04-30; the label changes 千股 to 張數 on 2025-01-10, both meaning 1,000 shares."
+          },
+          "recorded_at": {
+            "coverage": "internal",
+            "note": "The Data Center's own write instant, stamped by the database; never a publication time."
+          },
+          "fetch_id": {
+            "coverage": "internal",
+            "note": "The fetch this row was parsed from; the fetch names the raw file by SHA-256."
+          }
+        }
+      },
+      "valuations": {
+        "dataset_code": "official_valuation",
+        "v1": true,
+        "roadmap_pr": "schema-v2",
+        "reason": "Schema v2 (ADR-0027): one append-only row per (stock, source, trade date); copied from official_valuation_versions for today's common stocks.",
+        "columns": {
+          "stock_id": {
+            "coverage": "sourced",
+            "source_fields": [
+              "有價證券代號及名稱 (code part), TWSE ISIN list C_public.jsp"
+            ],
+            "audit_section": "4.14",
+            "note": "The official code, which is the identity itself (ADR-0027): listed and OTC common stocks follow one code for life."
+          },
+          "trade_date": {
+            "coverage": "sourced",
+            "source_fields": [
+              "BWIBBU_d top-level date (YYYYMMDD)",
+              "peQryDate top-level date (YYYYMMDD) and table date (ROC YYY/MM/DD)"
+            ],
+            "audit_section": "4.6",
+            "note": "One whole-market file per trade date; the response must state the requested date."
+          },
+          "pe_ratio": {
+            "coverage": "sourced",
+            "source_fields": [
+              "本益比"
+            ],
+            "audit_section": "4.6",
+            "note": "Published by both markets, as a multiple. TWSE `-`, TPEx `N/A` (and, for the two ratios only, `null`), and a printed zero mean not computed and store NULL; a negative value quarantines its row."
+          },
+          "pb_ratio": {
+            "coverage": "sourced",
+            "source_fields": [
+              "股價淨值比"
+            ],
+            "audit_section": "4.6",
+            "note": "Published by both markets, as a multiple, with the same not-computed markers as pe_ratio; a negative value quarantines its row."
+          },
+          "dividend_yield": {
+            "coverage": "sourced",
+            "source_fields": [
+              "殖利率(%)"
+            ],
+            "audit_section": "4.6",
+            "note": "Published by both markets, in percentage points."
+          },
+          "dividend_year": {
+            "coverage": "sourced",
+            "source_fields": [
+              "股利年度"
+            ],
+            "audit_section": "4.6",
+            "note": "Published by both markets as an ROC year; stored as ROC + 1911."
+          },
+          "report_period": {
+            "coverage": "partially_sourced",
+            "source_fields": [
+              "財報年/季"
+            ],
+            "audit_section": "4.6",
+            "note": "TWSE on all dates; TPEx only from 2025-01-02."
+          },
+          "recorded_at": {
+            "coverage": "internal",
+            "note": "The Data Center's own write instant, stamped by the database; never a publication time."
+          },
+          "fetch_id": {
+            "coverage": "internal",
+            "note": "The fetch this row was parsed from; the fetch names the raw file by SHA-256."
+          }
+        }
+      },
+      "institutional_flows": {
+        "dataset_code": "institutional_investor",
+        "v1": true,
+        "roadmap_pr": "schema-v2",
+        "reason": "Schema v2 (ADR-0027): one append-only row per (stock, source, trade date); copied from institutional_investor_versions for today's common stocks.",
+        "columns": {
+          "stock_id": {
+            "coverage": "sourced",
+            "source_fields": [
+              "有價證券代號及名稱 (code part), TWSE ISIN list C_public.jsp"
+            ],
+            "audit_section": "4.14",
+            "note": "The official code, which is the identity itself (ADR-0027): listed and OTC common stocks follow one code for life."
+          },
+          "trade_date": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE T86 `date`",
+              "TPEx insti/dailyTrade `date` and table `date`"
+            ],
+            "audit_section": "4.3",
+            "note": "One whole-market file per trade date."
+          },
+          "foreign_buy": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE T86 外陸資買進股數(不含外資自營商)",
+              "TPEx insti/dailyTrade 外資及陸資(不含外資自營商) / 買進股數"
+            ],
+            "audit_section": "4.3",
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
+          },
+          "foreign_sell": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE T86 外陸資賣出股數(不含外資自營商)",
+              "TPEx insti/dailyTrade 外資及陸資(不含外資自營商) / 賣出股數"
+            ],
+            "audit_section": "4.3",
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
+          },
+          "foreign_net": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE T86 外陸資買賣超股數(不含外資自營商)",
+              "TPEx insti/dailyTrade 外資及陸資(不含外資自營商) / 買賣超股數"
+            ],
+            "audit_section": "4.3",
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
+          },
+          "foreign_dealer_buy": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE T86 外資自營商買進股數",
+              "TPEx insti/dailyTrade 外資自營商 / 買進股數"
+            ],
+            "audit_section": "4.3",
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
+          },
+          "foreign_dealer_sell": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE T86 外資自營商賣出股數",
+              "TPEx insti/dailyTrade 外資自營商 / 賣出股數"
+            ],
+            "audit_section": "4.3",
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
+          },
+          "foreign_dealer_net": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE T86 外資自營商買賣超股數",
+              "TPEx insti/dailyTrade 外資自營商 / 買賣超股數"
+            ],
+            "audit_section": "4.3",
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
+          },
+          "trust_buy": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE T86 投信買進股數",
+              "TPEx insti/dailyTrade 投信 / 買進股數"
+            ],
+            "audit_section": "4.3",
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
+          },
+          "trust_sell": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE T86 投信賣出股數",
+              "TPEx insti/dailyTrade 投信 / 賣出股數"
+            ],
+            "audit_section": "4.3",
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
+          },
+          "trust_net": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE T86 投信買賣超股數",
+              "TPEx insti/dailyTrade 投信 / 買賣超股數"
+            ],
+            "audit_section": "4.3",
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
+          },
+          "dealer_self_buy": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE T86 自營商買進股數(自行買賣)",
+              "TPEx insti/dailyTrade 自營商(自行買賣) / 買進股數"
+            ],
+            "audit_section": "4.3",
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
+          },
+          "dealer_self_sell": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE T86 自營商賣出股數(自行買賣)",
+              "TPEx insti/dailyTrade 自營商(自行買賣) / 賣出股數"
+            ],
+            "audit_section": "4.3",
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
+          },
+          "dealer_self_net": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE T86 自營商買賣超股數(自行買賣)",
+              "TPEx insti/dailyTrade 自營商(自行買賣) / 買賣超股數"
+            ],
+            "audit_section": "4.3",
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
+          },
+          "dealer_hedge_buy": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE T86 自營商買進股數(避險)",
+              "TPEx insti/dailyTrade 自營商(避險) / 買進股數"
+            ],
+            "audit_section": "4.3",
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
+          },
+          "dealer_hedge_sell": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE T86 自營商賣出股數(避險)",
+              "TPEx insti/dailyTrade 自營商(避險) / 賣出股數"
+            ],
+            "audit_section": "4.3",
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
+          },
+          "dealer_hedge_net": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE T86 自營商買賣超股數(避險)",
+              "TPEx insti/dailyTrade 自營商(避險) / 買賣超股數"
+            ],
+            "audit_section": "4.3",
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
+          },
+          "dealer_net": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE T86 自營商買賣超股數",
+              "TPEx insti/dailyTrade 自營商 / 買賣超股數"
+            ],
+            "audit_section": "4.3",
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
+          },
+          "total_net": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE T86 三大法人買賣超股數",
+              "TPEx insti/dailyTrade 三大法人買賣超股數合計"
+            ],
+            "audit_section": "4.3",
+            "note": "Published in shares (T86 hints 單位：股; TPEx labels 股數). Nets are stored as published, signed, never recomputed."
+          },
+          "recorded_at": {
+            "coverage": "internal",
+            "note": "The Data Center's own write instant, stamped by the database; never a publication time."
+          },
+          "fetch_id": {
+            "coverage": "internal",
+            "note": "The fetch this row was parsed from; the fetch names the raw file by SHA-256."
+          }
+        }
+      },
+      "foreign_holdings": {
+        "dataset_code": "foreign_holding",
+        "v1": true,
+        "roadmap_pr": "schema-v2",
+        "reason": "Schema v2 (ADR-0027): one append-only row per (stock, source, trade date); copied from foreign_holding_versions for today's common stocks. TPEx side from MOPS t13sa150_otc only.",
+        "columns": {
+          "stock_id": {
+            "coverage": "sourced",
+            "source_fields": [
+              "有價證券代號及名稱 (code part), TWSE ISIN list C_public.jsp"
+            ],
+            "audit_section": "4.14",
+            "note": "The official code, which is the identity itself (ADR-0027): listed and OTC common stocks follow one code for life."
+          },
+          "trade_date": {
+            "coverage": "sourced",
+            "source_fields": [
+              "report date of the requested MI_QFIIS file",
+              "report date of the requested t13sa150_otc response"
+            ],
+            "audit_section": "4.4",
+            "note": "One whole-market file per trade date."
+          },
+          "issued_shares": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/MI_QFIIS 發行股數",
+              "MOPS t13sa150_otc 發行股數",
+              "TPEx insti/qfii 發行股數(A)"
+            ],
+            "audit_section": "4.4",
+            "note": "Audit 4.4, Step 20-d: 2020-01-02 onward in both markets; shares; TWSE hints 單位:股, the MOPS label is 股數."
+          },
+          "investable_shares": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/MI_QFIIS 外資及陸資尚可投資股數",
+              "MOPS t13sa150_otc 外資及陸資尚可投資股數",
+              "TPEx insti/qfii 僑外資及陸資尚可投資股數B=A*F-C"
+            ],
+            "audit_section": "4.4",
+            "note": "Audit 4.4, Step 20-d: 2020-01-02 onward in both markets; shares."
+          },
+          "held_shares": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/MI_QFIIS 全體外資及陸資持有股數",
+              "MOPS t13sa150_otc 全體外資及陸資持有股數",
+              "TPEx insti/qfii 僑外資及陸資持有股數(C)"
+            ],
+            "audit_section": "4.4",
+            "note": "Audit 4.4, Step 20-d: 2020-01-02 onward in both markets; shares."
+          },
+          "investable_ratio": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/MI_QFIIS 外資及陸資尚可投資比率",
+              "MOPS t13sa150_otc 外資及陸資尚可投資比率",
+              "TPEx insti/qfii 僑外資及陸資尚可投資比率(D=B/A), percent with a % sign, rounded not truncated"
+            ],
+            "audit_section": "4.4",
+            "note": "Audit 4.4, Step 20-d: 2020-01-02 onward in both markets; percent; trunc(investable / issued, 2), checked on every row."
+          },
+          "held_ratio": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/MI_QFIIS 全體外資及陸資持股比率",
+              "MOPS t13sa150_otc 全體外資及陸資持股比率",
+              "TPEx insti/qfii 僑外資及陸資持股比率(E=C/A), percent with a % sign"
+            ],
+            "audit_section": "4.4",
+            "note": "Audit 4.4, Step 20-d: 2020-01-02 onward in both markets; percent; trunc(held / issued, 2), checked on every row."
+          },
+          "foreign_legal_limit_ratio": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE fund/MI_QFIIS 外資及陸資共用法令投資上限比率",
+              "MOPS t13sa150_otc 外資及陸資共用法令投資上限比率",
+              "TPEx insti/qfii 法令投資上限比率(F), percent with a % sign"
+            ],
+            "audit_section": "4.4",
+            "note": "Audit 4.4, Step 20-d: 2020-01-02 onward in both markets; percent."
+          },
+          "recorded_at": {
+            "coverage": "internal",
+            "note": "The Data Center's own write instant, stamped by the database; never a publication time."
+          },
+          "fetch_id": {
+            "coverage": "internal",
+            "note": "The fetch this row was parsed from; the fetch names the raw file by SHA-256."
+          }
+        }
+      },
+      "margin_trading": {
+        "dataset_code": "margin_trading",
+        "v1": true,
+        "roadmap_pr": "schema-v2",
+        "reason": "Schema v2 (ADR-0027): one append-only row per (stock, source, trade date); copied from margin_trading_versions for today's common stocks.",
+        "columns": {
+          "stock_id": {
+            "coverage": "sourced",
+            "source_fields": [
+              "有價證券代號及名稱 (code part), TWSE ISIN list C_public.jsp"
+            ],
+            "audit_section": "4.14",
+            "note": "The official code, which is the identity itself (ADR-0027): listed and OTC common stocks follow one code for life."
+          },
+          "trade_date": {
+            "coverage": "sourced",
+            "source_fields": [
+              "report date of the requested MI_MARGN file",
+              "report date of the requested margin_bal file"
+            ],
+            "audit_section": "4.5",
+            "note": "One whole-market file per trade date."
+          },
+          "margin_buy": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE marginTrading/MI_MARGN 融資 買進",
+              "TPEx margin/balance 資買"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5, Step 21-a: 2020-01-02 onward in both markets; lots × 1,000 shares, except TWSE_LOT_SHARES (008201: 100), per TWSE's trading-unit note."
+          },
+          "margin_sell": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE marginTrading/MI_MARGN 融資 賣出",
+              "TPEx margin/balance 資賣"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5, Step 21-a: 2020-01-02 onward in both markets; lots × 1,000 shares, except TWSE_LOT_SHARES (008201: 100), per TWSE's trading-unit note."
+          },
+          "margin_cash_repayment": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE marginTrading/MI_MARGN 現金償還",
+              "TPEx margin/balance 現償"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5, Step 21-a: 2020-01-02 onward in both markets; lots × 1,000 shares, except TWSE_LOT_SHARES (008201: 100), per TWSE's trading-unit note."
+          },
+          "margin_previous_balance": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE marginTrading/MI_MARGN 融資 前日餘額",
+              "TPEx margin/balance 前資餘額(張)"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5, Step 21-a: 2020-01-02 onward in both markets; lots × 1,000 shares, except TWSE_LOT_SHARES (008201: 100), per TWSE's trading-unit note."
+          },
+          "margin_balance": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE marginTrading/MI_MARGN 融資 今日餘額",
+              "TPEx margin/balance 資餘額"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5, Step 21-a: 2020-01-02 onward in both markets; lots × 1,000 shares, except TWSE_LOT_SHARES (008201: 100), per TWSE's trading-unit note."
+          },
+          "margin_limit": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE marginTrading/MI_MARGN 融資 次一營業日限額",
+              "TPEx margin/balance 資限額"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5, Step 21-a: 2020-01-02 onward in both markets; lots × 1,000 shares, except TWSE_LOT_SHARES (008201: 100), per TWSE's trading-unit note."
+          },
+          "short_buy": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE marginTrading/MI_MARGN 融券 買進",
+              "TPEx margin/balance 券買"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5, Step 21-a: 2020-01-02 onward in both markets; lots × 1,000 shares, except TWSE_LOT_SHARES (008201: 100), per TWSE's trading-unit note."
+          },
+          "short_sell": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE marginTrading/MI_MARGN 融券 賣出",
+              "TPEx margin/balance 券賣"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5, Step 21-a: 2020-01-02 onward in both markets; lots × 1,000 shares, except TWSE_LOT_SHARES (008201: 100), per TWSE's trading-unit note."
+          },
+          "short_stock_repayment": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE marginTrading/MI_MARGN 現券償還",
+              "TPEx margin/balance 券償"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5, Step 21-a: 2020-01-02 onward in both markets; lots × 1,000 shares, except TWSE_LOT_SHARES (008201: 100), per TWSE's trading-unit note."
+          },
+          "short_previous_balance": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE marginTrading/MI_MARGN 融券 前日餘額",
+              "TPEx margin/balance 前券餘額(張)"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5, Step 21-a: 2020-01-02 onward in both markets; lots × 1,000 shares, except TWSE_LOT_SHARES (008201: 100), per TWSE's trading-unit note."
+          },
+          "short_balance": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE marginTrading/MI_MARGN 融券 今日餘額",
+              "TPEx margin/balance 券餘額"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5, Step 21-a: 2020-01-02 onward in both markets; lots × 1,000 shares, except TWSE_LOT_SHARES (008201: 100), per TWSE's trading-unit note."
+          },
+          "short_limit": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE marginTrading/MI_MARGN 融券 次一營業日限額",
+              "TPEx margin/balance 券限額"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5, Step 21-a: 2020-01-02 onward in both markets; lots × 1,000 shares, except TWSE_LOT_SHARES (008201: 100), per TWSE's trading-unit note."
+          },
+          "offset_balance": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE marginTrading/MI_MARGN 資券互抵",
+              "TPEx margin/balance 資券相抵(張)"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5, Step 21-a: 2020-01-02 onward in both markets; lots × 1,000 shares, except TWSE_LOT_SHARES (008201: 100), per TWSE's trading-unit note."
+          },
+          "recorded_at": {
+            "coverage": "internal",
+            "note": "The Data Center's own write instant, stamped by the database; never a publication time."
+          },
+          "fetch_id": {
+            "coverage": "internal",
+            "note": "The fetch this row was parsed from; the fetch names the raw file by SHA-256."
+          }
+        }
+      },
+      "securities_lending": {
+        "dataset_code": "securities_lending",
+        "v1": true,
+        "roadmap_pr": "schema-v2",
+        "reason": "Schema v2 (ADR-0027): one append-only row per (stock, source, trade date); copied from securities_lending_versions for today's common stocks.",
+        "columns": {
+          "stock_id": {
+            "coverage": "sourced",
+            "source_fields": [
+              "有價證券代號及名稱 (code part), TWSE ISIN list C_public.jsp"
+            ],
+            "audit_section": "4.14",
+            "note": "The official code, which is the identity itself (ADR-0027): listed and OTC common stocks follow one code for life."
+          },
+          "trade_date": {
+            "coverage": "sourced",
+            "source_fields": [
+              "report date of the requested TWT93U file",
+              "report date of the requested margin/sbl file"
+            ],
+            "audit_section": "4.5",
+            "note": "One whole-market file per trade date."
+          },
+          "previous_balance": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE marginTrading/TWT93U 借券賣出 前日餘額",
+              "TPEx margin/sbl 借券賣出 前日餘額"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5, Step 21-b: 2020-01-02 onward in both markets; published in shares (TWSE hints 單位：股; TPEx page 單位：股), stored unconverted."
+          },
+          "sold": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE marginTrading/TWT93U 借券賣出 當日賣出",
+              "TPEx margin/sbl 借券賣出 當日賣出"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5, Step 21-b: 2020-01-02 onward in both markets; published in shares (TWSE hints 單位：股; TPEx page 單位：股), stored unconverted."
+          },
+          "returned": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE marginTrading/TWT93U 借券賣出 當日還券",
+              "TPEx margin/sbl 借券賣出 當日還券"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5, Step 21-b: 2020-01-02 onward in both markets; published in shares (TWSE hints 單位：股; TPEx page 單位：股), stored unconverted."
+          },
+          "balance": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE marginTrading/TWT93U 借券賣出 當日餘額",
+              "TPEx margin/sbl 借券賣出 當日餘額"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5, Step 21-b: 2020-01-02 onward in both markets; published in shares (TWSE hints 單位：股; TPEx page 單位：股), stored unconverted."
+          },
+          "next_limit": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE marginTrading/TWT93U 融券 次一營業日限額",
+              "TPEx margin/sbl 融券 限額"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5, Step 21-b: 2020-01-02 onward in both markets; published in shares (TWSE hints 單位：股; TPEx page 單位：股), stored unconverted. The short-sale limit in exact shares; margin_trading.short_next_limit holds it rounded down to whole lots."
+          },
+          "next_available_limit": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE marginTrading/TWT93U 次一營業日可限額",
+              "TPEx margin/sbl 次一營業日可借券賣出限額"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5, Step 21-b: 2020-01-02 onward in both markets; published in shares (TWSE hints 單位：股; TPEx page 單位：股), stored unconverted."
+          },
+          "adjustment": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE marginTrading/TWT93U 借券賣出 當日調整",
+              "TPEx margin/sbl 借券賣出 當日調整數額"
+            ],
+            "audit_section": "4.5",
+            "note": "Audit 4.5, Step 21-b: 2020-01-02 onward in both markets; published in shares (TWSE hints 單位：股; TPEx page 單位：股), stored unconverted. Signed: positions moved between accounts and error corrections."
+          },
+          "recorded_at": {
+            "coverage": "internal",
+            "note": "The Data Center's own write instant, stamped by the database; never a publication time."
+          },
+          "fetch_id": {
+            "coverage": "internal",
+            "note": "The fetch this row was parsed from; the fetch names the raw file by SHA-256."
+          }
+        }
+      },
+      "institutional_market_flows": {
+        "dataset_code": "institutional_market_summary",
+        "v1": true,
+        "roadmap_pr": "schema-v2",
+        "reason": "Schema v2 (ADR-0027): market-level institutional flows as published; the market follows from the source.",
+        "columns": {
+          "trade_date": {
+            "coverage": "sourced",
+            "source_fields": [
+              "TWSE BFI82U `date`",
+              "TPEx insti/summary `date` and table `date`"
+            ],
+            "audit_section": "4.3",
+            "note": "One market-level file per trade date."
+          },
+          "institution": {
+            "coverage": "sourced",
+            "source_fields": [
+              "單位名稱"
+            ],
+            "audit_section": "4.3",
+            "note": "The published name, with TPEx's U+3000 layout indent removed. Each market keeps its own names; TPEx also publishes the subtotals 外資及陸資合計 and 自營商合計, which TWSE does not. The adapter accepts exactly the published rows in the published order."
+          },
+          "buy": {
+            "coverage": "sourced",
+            "source_fields": [
+              "買進金額",
+              "買進金額(元)"
+            ],
+            "audit_section": "4.3",
+            "note": "TWD as published (BFI82U hints 單位：元; TPEx labels (元)). Never negative."
+          },
+          "sell": {
+            "coverage": "sourced",
+            "source_fields": [
+              "賣出金額",
+              "賣出金額(元)"
+            ],
+            "audit_section": "4.3",
+            "note": "TWD as published (BFI82U hints 單位：元; TPEx labels (元)). Never negative."
+          },
+          "net": {
+            "coverage": "sourced",
+            "source_fields": [
+              "買賣差額",
+              "買賣超(元)"
+            ],
+            "audit_section": "4.3",
+            "note": "TWD as published, signed, never recomputed."
+          },
+          "recorded_at": {
+            "coverage": "internal",
+            "note": "The Data Center's own write instant, stamped by the database; never a publication time."
+          },
+          "fetch_id": {
+            "coverage": "internal",
+            "note": "The fetch this row was parsed from; the fetch names the raw file by SHA-256."
+          }
+        }
+      },
+      "index_prices": {
+        "dataset_code": "market_index",
+        "v1": true,
+        "roadmap_pr": "schema-v2",
+        "reason": "Schema v2 (ADR-0027): the 126 kept indices (headline and sector) identified by source and published name.",
+        "columns": {
+          "trade_date": {
+            "coverage": "sourced",
+            "source_fields": [
+              "report date of the requested MI_INDEX file",
+              "report date of the requested indexSummary file"
+            ],
+            "audit_section": "4.2",
+            "note": "One whole-list file per trade date; the date is the request key."
+          },
+          "open_value": {
+            "coverage": "partially_sourced",
+            "source_fields": [
+              "開盤指數"
+            ],
+            "audit_section": "4.2",
+            "note": "TAIEX only, from rwd/zh/TAIEX/MI_5MINS_HIST (one calendar month per request). The whole-list index sources publish no OHLC and no TPEx equivalent was found."
+          },
+          "high_value": {
+            "coverage": "partially_sourced",
+            "source_fields": [
+              "最高指數"
+            ],
+            "audit_section": "4.2",
+            "note": "TAIEX only, from rwd/zh/TAIEX/MI_5MINS_HIST. The whole-list index sources publish no OHLC and no TPEx equivalent was found."
+          },
+          "low_value": {
+            "coverage": "partially_sourced",
+            "source_fields": [
+              "最低指數"
+            ],
+            "audit_section": "4.2",
+            "note": "TAIEX only, from rwd/zh/TAIEX/MI_5MINS_HIST. The whole-list index sources publish no OHLC and no TPEx equivalent was found."
+          },
+          "close_value": {
+            "coverage": "sourced",
+            "source_fields": [
+              "收盤指數",
+              "收市指數"
+            ],
+            "audit_section": "4.2",
+            "note": "TWSE 收盤指數, TPEx 收市指數."
+          },
+          "change_points": {
+            "coverage": "sourced",
+            "source_fields": [
+              "漲跌點數",
+              "漲跌"
+            ],
+            "audit_section": "4.2",
+            "note": "TWSE 漲跌點數 with its 漲跌(+/-) sign column, TPEx 漲跌."
+          },
+          "change_percent": {
+            "coverage": "sourced",
+            "source_fields": [
+              "漲跌百分比(%)",
+              "漲跌幅度(%)"
+            ],
+            "audit_section": "4.2",
+            "note": "TWSE 漲跌百分比(%), TPEx 漲跌幅度(%)."
+          },
+          "index_name": {
+            "coverage": "sourced",
+            "source_fields": [
+              "指數 (MI_INDEX table title and row label)",
+              "指數名稱 (TPEx index summary)"
+            ],
+            "audit_section": "4.5",
+            "note": "The published category:name string, which is how each source identifies an index."
+          },
+          "recorded_at": {
+            "coverage": "internal",
+            "note": "The Data Center's own write instant, stamped by the database; never a publication time."
+          },
+          "fetch_id": {
+            "coverage": "internal",
+            "note": "The fetch this row was parsed from; the fetch names the raw file by SHA-256."
+          }
+        }
+      },
+      "trading_days": {
+        "dataset_code": "trading_calendar",
+        "v1": true,
+        "roadmap_pr": "schema-v2",
+        "reason": "Schema v2 (ADR-0027): one row per TWSE trading date; closure is absence inside a successfully fetched month.",
+        "columns": {
+          "trade_date": {
+            "coverage": "sourced",
+            "source_fields": [
+              "日期"
+            ],
+            "audit_section": "4.12",
+            "note": "Every actual trading day the report lists. July 2024 omits the 07-24/25 typhoon closures, so an absence is the closure."
+          },
+          "fetch_id": {
+            "coverage": "internal",
+            "note": "The fetch this row was parsed from; the fetch names the raw file by SHA-256."
+          }
+        }
+      },
+      "stocks": {
+        "dataset_code": "stocks",
+        "v1": true,
+        "roadmap_pr": "schema-v2",
+        "reason": "Today's v1 universe (ADR-0026): the 股票 section of the TWSE ISIN lists for 上市 and 上櫃.",
+        "columns": {
+          "stock_id": {
+            "coverage": "sourced",
+            "source_fields": [
+              "有價證券代號及名稱 (code part), TWSE ISIN list C_public.jsp"
+            ],
+            "audit_section": "4.14",
+            "note": "The official code, which is the identity itself (ADR-0027): listed and OTC common stocks follow one code for life."
+          },
+          "name": {
+            "coverage": "sourced",
+            "source_fields": [
+              "有價證券代號及名稱 (name part)"
+            ],
+            "audit_section": "4.14",
+            "note": "Name after the full-width space."
+          },
+          "market": {
+            "coverage": "sourced",
+            "source_fields": [
+              "市場別"
+            ],
+            "audit_section": "4.14",
+            "note": "上市 -> sii, 上櫃 -> otc; the page (strMode 2 or 4) must agree."
+          },
+          "industry": {
+            "coverage": "sourced",
+            "source_fields": [
+              "產業別"
+            ],
+            "audit_section": "4.14",
+            "note": "As published; blank is NULL."
+          },
+          "listed_on": {
+            "coverage": "sourced",
+            "source_fields": [
+              "上市日"
+            ],
+            "audit_section": "4.14",
+            "note": "Gregorian YYYY/MM/DD as published."
+          },
+          "fetch_id": {
+            "coverage": "internal",
+            "note": "The fetch this row was parsed from; the fetch names the raw file by SHA-256."
           }
         }
       }

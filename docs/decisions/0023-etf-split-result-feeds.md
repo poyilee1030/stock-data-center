@@ -1,6 +1,6 @@
 # ADR-0023：ETF 分割/反分割結果檔——沒有換股率欄位時存什麼
 
-狀態：**Accepted**，隨 ROADMAP Step 19-e 合併生效。
+狀態：**Superseded** by ADR-0026（2026-09-23）：v1 不再收 ETF，這些結果檔沒有用途。原為 Accepted，隨 ROADMAP Step 19-e 合併生效。
 延伸 ADR-0019 的結果檔識別身分；沿用 ADR-0022 的 import 路徑框架。
 
 ## 背景
