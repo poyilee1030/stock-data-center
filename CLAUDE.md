@@ -446,6 +446,18 @@ If multiple sources exist without a canonical-source policy, require explicit so
 
 ---
 
+# 30.1 Third-Party Verification Sources
+
+The Fubon Neo API (market data from Fugle) and FinMind may be used as verification cross-checks. Their code lives in `third-party/fubon/` and `third-party/finmind/`. They are not Data Center sources:
+
+- Never write their values into Data Center tables, register them in `dataset_sources`, record publication evidence from them, or use them to fill a field the audit lists as unsourced.
+- Official endpoints and legacy `stock_db` remain the reconciliation baseline (§78). Agreement with a third party is extra evidence; a disagreement is classified, never "fixed" by aligning our values to theirs.
+- Call read-only market-data endpoints only; never a Fubon account, order, or trading call. Credentials stay out of the repository: Fubon reads the trade project's `.env` and certificate, FinMind reads `FINMIND_TOKEN` from `.env`. Raw responses stay in each tool's gitignored `raw/`.
+
+Neither has PIT: they return current values with no publication time, version, or lineage. Measured on Fubon (ROADMAP §27.9.1): moving averages match legacy and `technical_indicators:v1`; KD is the Western slow stochastic, MACD warm-up starts about a month before the requested window so a date's value depends on the query range, and daily candles drop no-trade days. FinMind keeps no-trade days but fills their close with 0.0, which must be read as missing, never as a price.
+
+---
+
 # 31. Unknown Publication Rule
 
 If:

@@ -8,3 +8,6 @@ __pycache__/
 htmlcov/
 data/raw/*
 !data/raw/.gitkeep
+
+# Fubon Neo SDK runtime logs, written to the working directory
+log/
