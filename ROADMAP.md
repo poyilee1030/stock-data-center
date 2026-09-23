@@ -500,7 +500,11 @@ adjustment convention where relevant
 
 v1 的衍生資料集是移植舊系統使用者讀取的內容（Step 26）。舊系統的綜合「壓力分數」留在下游。
 
-v1 的實體化方式是每個指標存一條滾動的 as-of 序列：每個觀察日期都用該日期截止點時可見的輸入計算。其他 PIT context 在需要時才計算，不實體化。對同一個 PIT context，實體化結果和即時計算結果必須一致。
+v1 的衍生資料**預設即時計算，不實體化**。滾動 as-of 序列（每個觀察日期都用該日期截止點時可見的輸入計算）和任何其他 PIT context，都在查詢時從已儲存的 PIT 輸入算出。定義仍然要註冊（`storage_strategy = virtual`），回傳的每一列仍帶著它的 PIT context 和輸入 fingerprint，所以 lineage 不因為沒有實體化而消失。
+
+理由是 26-a 量測到的成本：長格式的 `derived_metric_versions` 每個 metric-day 約 740 bytes，其中約 98% 是逐列重複的 lineage；光是 `technical_indicators:v1` 就是 7,600 萬列、56 GB，是它的輸入 `daily_price`（2 GB）的 28 倍。這些值是已版本化輸入的確定性函數，存下來不增加任何可稽核的事實。
+
+只有量測證明即時計算太慢的指標才實體化，而且要有自己的 step：先量測查詢延遲與儲存成本，再選格式。實體化的結果必須和同一個 PIT context 的即時計算完全一致。
 
 ---
 
@@ -1788,7 +1792,7 @@ margin_metrics:v1                utilization and WoW changes
 short_interest_metrics:v1        SBL/short ratios and WoW changes
 ```
 
-實體化遵循 §17：只有滾動的 as-of 序列。
+計算方式遵循 §17：預設即時計算，包括滾動的 as-of 序列。
 
 驗收：與舊系統的表對帳。因為 PIT 正確的輸入而產生的刻意差異要列出並解釋。
 

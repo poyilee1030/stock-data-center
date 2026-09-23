@@ -657,7 +657,7 @@ Materialized canonical results preserve derivation version, input identity/finge
 
 Storage strategy is a performance choice. Financial definition and PIT semantics must match.
 
-v1 materializes one rolling as-of series per metric: each observation date uses inputs visible at that date's cutoff. Other PIT contexts are computed on demand. Both paths must agree for the same context (ROADMAP §17).
+v1 computes derived data on demand by default, including the rolling as-of series in which each observation date uses the inputs visible at that date's cutoff. A metric is materialized only by its own step, after measurement shows on-demand computation too slow, and the materialized result must equal the on-demand one for the same context (ROADMAP §17).
 
 ---
 
