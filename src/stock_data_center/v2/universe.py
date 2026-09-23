@@ -87,51 +87,74 @@ def _date(text: str) -> date | None:
 
 
 ADAPTER_VERSION = "twse-isin-common-stocks:v1"
+MARKET_TIMEZONE = "Asia/Taipei"
 
 
 def load_universe(
     connection, *, git_commit: str, get=None, now=None, store=None
-) -> dict[str, int]:
-    """Fetch both lists, keep the raw pages, and upsert `stocks`.
+) -> dict[str, int | str]:
+    """Fetch both lists raw-first, then upsert `stocks` from each that parses.
+
+    Raw-first (CLAUDE.md §71): the page is stored before it is parsed, so a page
+    whose layout changed is kept for diagnosis. It is logged as a `quarantined`
+    fetch with the parser's reason and contributes no rows; the result maps that
+    market to the reason instead of a count, and the caller decides whether a
+    partial universe is acceptable.
 
     Rows are never deleted: a stock that leaves a later list keeps its row,
-    because stored history references it. `get(url) -> bytes` and `now()` are
-    injectable for tests, as is the raw `store`.
+    because stored history references it. `get(url) -> bytes`, `now()` and the
+    raw `store` are injectable for tests.
     """
+    from zoneinfo import ZoneInfo
+
     import httpx
     from sqlalchemy.dialects.postgresql import insert as pg_insert
 
     from stock_data_center.db.schema_v2 import stocks
+    from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
     from stock_data_center.v2.fetch_log import FetchRecord, record_fetch
 
     get = get or (lambda url: httpx.get(url, timeout=120).raise_for_status().content)
+    store = store or LocalRawArtifactStore()
     if now is None:
         from datetime import UTC, datetime
 
         def now():
             return datetime.now(UTC)
 
-    counts: dict[str, int] = {}
+    results: dict[str, int | str] = {}
     for market, mode in MARKETS.items():
         url = ISIN_URL.format(mode=mode)
         fetched_at = now()
         content = get(url)
-        parsed = parse_isin_page(content, market=market)
+        store.put(content)
+        market_date = fetched_at.astimezone(ZoneInfo(MARKET_TIMEZONE)).date()
+        record = FetchRecord(
+            dataset="stocks",
+            source="twse_isin",
+            resource_key=f"twse_isin:{market}:{market_date.isoformat()}",
+            source_uri=url,
+            purpose="first_capture",
+            adapter_version=ADAPTER_VERSION,
+            git_commit=git_commit,
+            fetched_at=fetched_at,
+        )
+        try:
+            parsed = parse_isin_page(content, market=market)
+        except (UniverseFormatError, UnicodeDecodeError, ValueError) as error:
+            record_fetch(
+                connection,
+                record,
+                content=content,
+                status="quarantined",
+                store=store,
+                reason_code="unrecognised_layout",
+                reason_detail=str(error)[:500],
+            )
+            results[market] = f"quarantined: {error}"
+            continue
         fetch_id = record_fetch(
-            connection,
-            FetchRecord(
-                dataset="stocks",
-                source="twse_isin",
-                resource_key=f"twse_isin:{market}:{fetched_at.date().isoformat()}",
-                source_uri=url,
-                purpose="first_capture",
-                adapter_version=ADAPTER_VERSION,
-                git_commit=git_commit,
-                fetched_at=fetched_at,
-            ),
-            content=content,
-            status="succeeded",
-            store=store,
+            connection, record, content=content, status="succeeded", store=store
         )
         rows = [
             {
@@ -154,5 +177,5 @@ def load_universe(
                 },
             )
         )
-        counts[market] = len(rows)
-    return counts
+        results[market] = len(rows)
+    return results

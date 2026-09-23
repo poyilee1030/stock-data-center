@@ -22,9 +22,10 @@
 每張表與欄位的去留，都是 2026-09-23 與 owner 逐張檢討「需不需要、拿掉會損失什麼」
 的結果，記在 ADR-0027。幾個以資料決定的點：
 
-- **型態**：依 2020–2026 實測。價格最大 19,880、最多 2 位小數 → `numeric(10,2)`；
-  指數收盤最大 420,878（報酬指數）→ `numeric(12,2)`；本益比最大 24,950；比率
-  最大 100.00。`price_direction` 除了 `+ - X` 還有 `flat`，所以是 `varchar(4)`。
+- **型態**：依 2020–2026 實測。價格最大 19,880、最多 2 位有效小數；指數收盤最大
+  420,878（報酬指數）；本益比最大 24,950；比率最大 100.00。小數欄位是 `numeric`
+  加 CHECK，而不是 `numeric(10,2)`，理由見下方審閱修正第 5 點。`price_direction`
+  除了 `+ - X` 還有 `flat`，所以是 `varchar(4)`。
 - **淨額與餘額保留**：法人淨額（312 萬列 0 筆不符）、融資融券餘額（313 萬列 0 筆
   不符）都可以精確算出，owner 決定比照 legacy 照官方數字存。
 - **外資持股的比率保留**：不能自己算，官方用無條件捨去（TWSE、MOPS）或四捨五入
@@ -62,7 +63,30 @@ v2 合計約 4.1 GB；它取代的 v1 表連同 observations 約 14 GB，另有�
 | 只新增 | **PASS**。`test_a_value_row_is_append_only`：UPDATE、DELETE、TRUNCATE 皆被拒絕，含 `fetches` |
 | 更正是新列 | **PASS**。`test_a_correction_is_a_second_row_not_an_edit` |
 | 來源登記完整 | **PASS**。storage-contract 測試涵蓋全部新表與欄位 |
-| 全套測試 | **PASS**。1,177 passed、3 skipped（live source）；新增 11 條（4 unit、7 integration）。`stockdc_backfill` 上 `alembic check` 無差異 |
+| 全套測試 | **PASS**。1,181 passed、3 skipped（live source）；新增 15 條（4 unit、11 integration）。`stockdc_backfill` 上 `alembic check` 無差異 |
+
+## 審閱修正（#46 的 code review）
+
+六條都經過對照程式碼與資料驗證，全部修正：
+
+1. **ISIN 頁沒有照 raw-first**：原本先解析、成功才存原始頁。改為先存原始頁，
+   解析失敗時記一筆 `quarantined` 的 fetch（`unrecognised_layout`），不寫入 `stocks`。
+   `test_a_page_that_no_longer_parses_is_kept_and_quarantined`。
+2. **v1 操作性失敗的原因**：沒有隔離紀錄的失敗，原因在 `import_checkpoints`。實際
+   影響 1 筆：`mops_t164sb01:financial_filing_archive:6160:2024Q2` 原本被標成
+   `interrupted`，現在是 `writer_operational_error`。沒有任何失敗或隔離的 fetch 缺原因。
+3. **`trading_days` 用 `max(id)`**：v1 依內容去重，A → B → A 時 `max(id)` 會選到被推翻
+   的 B。改為取每個月份最後一次被觀察到的版本。目前沒有月份有多個版本，結果不變。
+4. **指數的單版本檢查範圍**：限定在保留的 126 個指數。目前結果不變。
+5. **`numeric(p,2)` 會悄悄捨入**：實測 `30.555::numeric(10,2)` = `30.56`，而且在欄位
+   精度上加 CHECK 也無效（轉型先於 CHECK）。改為 `numeric` 加 CHECK。第一次重跑
+   遷移時發現 v1 的 `numeric(20,6)` 讓 30.5 帶著 6 位尾端零，所以有效位數改用
+   `scale(trim_scale(x))`。`test_a_third_decimal_is_refused_not_rounded`、
+   `test_trailing_zeros_are_not_extra_decimals`。
+6. **`resource_key` 用 UTC 日期**：改為台北日期。`test_the_list_date_is_the_taipei_date`。
+
+修正後 `stockdc_backfill` 的 v2 表重建並重跑遷移：列數與第一次完全相同，六張個股表
+`EXCEPT` 雙向比對仍為 0 差異。
 
 ## 遷移中發現的事
 
@@ -73,7 +97,8 @@ v2 合計約 4.1 GB；它取代的 v1 表連同 observations 約 14 GB，另有�
 - **兩支普通股沒有行情**：2938 床的世界（2026-09-16 上櫃）、7856 漢測（2026-09-22
   上櫃），都在回補期間之後才掛牌，這是正確的。
 - **舊的抓取狀態對應**：v1 `succeeded` 74,355、`failed` 2,975、`running` 2。v2 中
-  有隔離原因的失敗成為 `quarantined`，兩筆中斷的成為 `failed`（`interrupted`）。
+  有隔離原因的失敗成為 `quarantined`；兩筆 `running` 成為 `failed`，其中一筆帶著
+  checkpoint 上的 `writer_operational_error`，另一筆是 `interrupted`。
 
 ## 已知限制
 

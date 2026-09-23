@@ -19,9 +19,33 @@ import sqlalchemy as sa
 
 from stock_data_center.db.metadata import aware_timestamp, metadata, uuid_type
 
-PRICE = sa.Numeric(10, 2)
-INDEX_VALUE = sa.Numeric(12, 2)
-RATIO = sa.Numeric(6, 2)
+# Decimal columns are unconstrained `numeric` with a CHECK, not `numeric(p, 2)`:
+# PostgreSQL casts to a column's typmod before any CHECK runs, so `numeric(10, 2)`
+# silently rounds a published 30.555 to 30.56. Stored values must be exactly what
+# the source published (CLAUDE.md §72), so a third decimal is refused instead.
+# Significant decimals are what count: 30.500000 is 30.5, and trim_scale says so.
+# (integer digits, decimal places), from the 2020-2026 maxima: price 19,880,
+# index close 420,878, PE 24,950, ratios 100.00.
+PRICE = (8, 2)
+INDEX_VALUE = (10, 2)
+PERCENT = (6, 2)
+RATIO = (4, 2)
+
+
+def _decimal(name: str) -> sa.Column:
+    """An exact decimal column; its precision is enforced by `_decimal_checks`."""
+    return sa.Column(name, sa.Numeric())
+
+
+def _decimal_checks(table_columns: dict[str, tuple[int, int]]) -> list[sa.CheckConstraint]:
+    return [
+        sa.CheckConstraint(
+            f"{column} IS NULL OR (scale(trim_scale({column})) <= {places} "
+            f"AND abs({column}) < 1e{digits})",
+            name=f"{column}_precision",
+        )
+        for column, (digits, places) in table_columns.items()
+    ]
 
 
 def _recorded_at() -> sa.Column:
@@ -148,21 +172,30 @@ daily_prices = sa.Table(
     "daily_prices",
     metadata,
     *_daily_key(),
-    sa.Column("open_price", PRICE),
-    sa.Column("high_price", PRICE),
-    sa.Column("low_price", PRICE),
-    sa.Column("close_price", PRICE),
+    _decimal("open_price"),
+    _decimal("high_price"),
+    _decimal("low_price"),
+    _decimal("close_price"),
     sa.Column("volume", sa.BigInteger()),
     sa.Column("trade_value", sa.BigInteger()),
     sa.Column("trade_count", sa.Integer()),
-    sa.Column("price_change", PRICE),
+    _decimal("price_change"),
     sa.Column("price_direction", sa.String(4)),
-    sa.Column("last_bid_price", PRICE),
-    sa.Column("last_ask_price", PRICE),
+    _decimal("last_bid_price"),
+    _decimal("last_ask_price"),
     sa.Column("last_bid_volume", sa.BigInteger()),
     sa.Column("last_ask_volume", sa.BigInteger()),
     _fetch_id(),
     _daily_pk("daily_prices"),
+    *_decimal_checks(
+        {
+            column: PRICE
+            for column in (
+                "open_price", "high_price", "low_price", "close_price",
+                "price_change", "last_bid_price", "last_ask_price",
+            )
+        }
+    ),
     *_nonnegative(
         "volume", "trade_value", "trade_count", "last_bid_volume", "last_ask_volume"
     ),
@@ -175,15 +208,26 @@ index_prices = sa.Table(
     sa.Column("index_name", sa.Text(), nullable=False),
     sa.Column("trade_date", sa.Date(), nullable=False),
     _recorded_at(),
-    sa.Column("open_value", INDEX_VALUE),
-    sa.Column("high_value", INDEX_VALUE),
-    sa.Column("low_value", INDEX_VALUE),
-    sa.Column("close_value", INDEX_VALUE),
-    sa.Column("change_points", INDEX_VALUE),
-    sa.Column("change_percent", sa.Numeric(8, 2)),
+    _decimal("open_value"),
+    _decimal("high_value"),
+    _decimal("low_value"),
+    _decimal("close_value"),
+    _decimal("change_points"),
+    _decimal("change_percent"),
     _fetch_id(),
     sa.PrimaryKeyConstraint(
         "source", "index_name", "trade_date", "recorded_at", name="pk_index_prices"
+    ),
+    *_decimal_checks(
+        {
+            **{
+                column: INDEX_VALUE
+                for column in (
+                    "open_value", "high_value", "low_value", "close_value", "change_points"
+                )
+            },
+            "change_percent": PERCENT,
+        }
     ),
 )
 
@@ -191,13 +235,14 @@ valuations = sa.Table(
     "valuations",
     metadata,
     *_daily_key(),
-    sa.Column("pe_ratio", PRICE),
-    sa.Column("pb_ratio", PRICE),
-    sa.Column("dividend_yield", RATIO),
+    _decimal("pe_ratio"),
+    _decimal("pb_ratio"),
+    _decimal("dividend_yield"),
     sa.Column("dividend_year", sa.SmallInteger()),
     sa.Column("report_period", sa.String(8)),
     _fetch_id(),
     _daily_pk("valuations"),
+    *_decimal_checks({"pe_ratio": PRICE, "pb_ratio": PRICE, "dividend_yield": PERCENT}),
 )
 
 institutional_flows = sa.Table(
@@ -242,11 +287,17 @@ foreign_holdings = sa.Table(
     sa.Column("issued_shares", sa.BigInteger()),
     sa.Column("investable_shares", sa.BigInteger()),
     sa.Column("held_shares", sa.BigInteger()),
-    sa.Column("investable_ratio", RATIO),
-    sa.Column("held_ratio", RATIO),
-    sa.Column("foreign_legal_limit_ratio", RATIO),
+    _decimal("investable_ratio"),
+    _decimal("held_ratio"),
+    _decimal("foreign_legal_limit_ratio"),
     _fetch_id(),
     _daily_pk("foreign_holdings"),
+    *_decimal_checks(
+        {
+            column: RATIO
+            for column in ("investable_ratio", "held_ratio", "foreign_legal_limit_ratio")
+        }
+    ),
 )
 
 margin_trading = sa.Table(

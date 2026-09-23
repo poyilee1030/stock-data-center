@@ -11,7 +11,7 @@ What is copied, and what is not:
   file). The v2 fetch reuses the run's UUID, so a v1 row's `ingest_run_id` is
   its v2 `fetch_id`.
 - `stocks`: fetched today from the ISIN list, not copied (ADR-0026).
-- `trading_days`: the latest v1 calendar version of each month.
+- `trading_days`: the v1 calendar version each month was last seen with.
 - Value tables: only stocks on today's list, only the sources ADR-0027 keeps,
   only the 126 indices in `stock_data_center.v2.indices`. The Step 9 pilot
   sources (`twse`, `tpex`) and `tpex_insti_qfii` are not copied.
@@ -50,8 +50,10 @@ SELECT r.id, r.dataset_code, r.source,
        CASE WHEN r.status = 'succeeded' THEN 'succeeded'
             WHEN q.reason_code IS NOT NULL THEN 'quarantined'
             ELSE 'failed' END,
-       COALESCE(q.reason_code, CASE WHEN r.status = 'running' THEN 'interrupted' END),
-       q.reason_detail, 1, decode(a.raw_artifact_hash, 'hex'), a.byte_size
+       COALESCE(q.reason_code, k.error_code,
+                CASE WHEN r.status = 'running' THEN 'interrupted' END),
+       COALESCE(q.reason_detail, k.error_detail),
+       1, decode(a.raw_artifact_hash, 'hex'), a.byte_size
   FROM ingest_runs r
   JOIN raw_artifact_observations o ON o.ingest_run_id = r.id
   JOIN raw_artifacts a ON a.id = o.raw_artifact_id
@@ -59,15 +61,35 @@ SELECT r.id, r.dataset_code, r.source,
   LEFT JOIN LATERAL (
         SELECT reason_code, reason_detail FROM import_quarantine iq
          WHERE iq.ingest_run_id = r.id ORDER BY iq.id LIMIT 1) q ON true
+  -- An operational failure (adapter, dependency or writer error) has no
+  -- quarantine row; v1 kept its reason on the resource's checkpoint.
+  LEFT JOIN import_checkpoints k ON k.last_ingest_run_id = r.id
 """
 
+# The version a month was last seen with, not the highest id: v1 deduplicates on
+# content, so a month that went A -> B -> A has no third version, and max(id)
+# would pick the overturned B. Every sighting is either the version's own run or
+# an observation of it; the latest sighting decides, and its fetch is kept.
 TRADING_DAYS = """
+WITH sighting AS (
+    SELECT v.id AS version_id, v.calendar_month, o.fetched_at, o.ingest_run_id
+      FROM trading_calendar_versions v
+      JOIN (SELECT id AS version_id, ingest_run_id FROM trading_calendar_versions
+            UNION
+            SELECT calendar_version_id, ingest_run_id
+              FROM trading_calendar_version_observations) seen ON seen.version_id = v.id
+      JOIN raw_artifact_observations o ON o.ingest_run_id = seen.ingest_run_id
+     WHERE v.market = 'TWSE'
+), latest AS (
+    SELECT DISTINCT ON (calendar_month) version_id, ingest_run_id
+      FROM sighting
+     ORDER BY calendar_month, fetched_at DESC, ingest_run_id DESC
+)
 INSERT INTO trading_days (trade_date, fetch_id)
-SELECT DISTINCT ON (d.day) d.day, v.ingest_run_id
-  FROM trading_calendar_versions v, unnest(v.trading_days) AS d(day)
- WHERE v.market = 'TWSE'
-   AND v.id = (SELECT max(id) FROM trading_calendar_versions w
-                WHERE w.market = v.market AND w.calendar_month = v.calendar_month)
+SELECT DISTINCT ON (d.day) d.day, l.ingest_run_id
+  FROM latest l
+  JOIN trading_calendar_versions v ON v.id = l.version_id,
+       unnest(v.trading_days) AS d(day)
  ORDER BY d.day
 """
 
@@ -175,7 +197,16 @@ def main() -> int:
             print(f"{name}: {rows}", file=sys.stderr, flush=True)
 
     step("fetches", lambda c: c.execute(sa.text(FETCHES)).rowcount)
-    step("stocks", lambda c: sum(load_universe(c, git_commit=current_git_commit()).values()))
+    def load_stocks(connection):
+        loaded = load_universe(connection, git_commit=current_git_commit())
+        refused = {market: result for market, result in loaded.items() if isinstance(result, str)}
+        if refused:
+            # The raw pages are already on disk; the quarantine rows roll back
+            # with this transaction, and nothing downstream may run on half a universe.
+            raise SystemExit(f"ISIN list not loaded: {refused}")
+        return sum(loaded.values())
+
+    step("stocks", load_stocks)
     step("trading_days", lambda c: c.execute(sa.text(TRADING_DAYS)).rowcount)
 
     for target, source_table, sources, columns in PER_STOCK:
@@ -198,7 +229,13 @@ def main() -> int:
     codes = [f"{source}:{name}" for source, names in KEPT_INDICES.items() for name in names]
 
     def copy_indices(connection):
-        _single_version(connection, "market_index_versions", "market_index_id, source, trade_date")
+        _single_version(
+            connection,
+            "market_index_versions",
+            "v.market_index_id, v.source, v.trade_date",
+            "JOIN market_index m ON m.id = v.market_index_id WHERE m.index_code = ANY(:codes)",
+            {"codes": codes},
+        )
         return connection.execute(sa.text(INDEX_PRICES), {"codes": codes}).rowcount
 
     step("index_prices", copy_indices)

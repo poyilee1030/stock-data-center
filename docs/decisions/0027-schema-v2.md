@@ -27,8 +27,11 @@
    空表、PIT 能力旗標、`import_manifests`／`import_checkpoints`／`import_quarantine`
    （併入 `fetches`）、`raw_artifacts`（併入 `fetches`）、`dataset_*` 設定表與
    `release_rules` 表（改為程式常數）。
-7. **型態收緊**：價格 `numeric(10,2)`、指數 `numeric(12,2)`、比率 `numeric(6,2)`、
-   數量與金額 `bigint`；依 2020–2026 實測範圍與小數位數選定。
+7. **型態收緊，但不捨入**：數量與金額 `bigint`。小數欄位是不帶精度的 `numeric`，
+   加上 CHECK 限制有效小數位數與整數位數（價格 2 位小數、8 位整數；指數 10 位整數；
+   比率 4 位整數），依 2020–2026 實測範圍選定。不用 `numeric(10,2)`：PostgreSQL 先
+   依欄位精度轉型、才執行 CHECK，會把官方發布的 30.555 悄悄存成 30.56。有效小數
+   位數以 `scale(trim_scale(x))` 計算，所以 30.500000 視為 30.5。
 8. **衍生資料**：預設即時計算；量測證明太慢才以寬表實體化（ROADMAP §17）。
 
 ## 已定案的表

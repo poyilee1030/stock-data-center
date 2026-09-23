@@ -133,7 +133,7 @@ def test_a_failed_fetch_needs_no_raw_file(db: Connection, tmp_path) -> None:
     )
 
 
-def test_prices_keep_two_decimals_and_no_more(db: Connection, tmp_path) -> None:
+def test_a_price_beyond_eight_integer_digits_is_refused(db: Connection, tmp_path) -> None:
     fetch_id = _fetch(db, tmp_path)
     db.execute(
         sa.text(
@@ -143,4 +143,68 @@ def test_prices_keep_two_decimals_and_no_more(db: Connection, tmp_path) -> None:
         {"f": fetch_id},
     )
     with pytest.raises(DBAPIError):
-        _price(db, fetch_id, close=123456789.0)  # beyond numeric(10,2)
+        _price(db, fetch_id, close=123456789.0)  # 9 integer digits
+
+
+def test_a_third_decimal_is_refused_not_rounded(db: Connection, tmp_path) -> None:
+    """numeric(10, 2) would store a published 30.555 as 30.56 without a word."""
+    fetch_id = _fetch(db, tmp_path)
+    db.execute(
+        sa.text(
+            "INSERT INTO stocks (stock_id, name, market, fetch_id) "
+            "VALUES ('1101', '台泥', 'sii', :f)"
+        ),
+        {"f": fetch_id},
+    )
+    savepoint = db.begin_nested()
+    with pytest.raises(IntegrityError, match="close_price_precision"):
+        _price(db, fetch_id, close="30.555")
+    savepoint.rollback()
+    _price(db, fetch_id, close="30.55")
+    assert db.scalar(sa.text("SELECT close_price::text FROM daily_prices")) == "30.55"
+
+
+def test_trailing_zeros_are_not_extra_decimals(db: Connection, tmp_path) -> None:
+    """v1 stored prices as numeric(20, 6): 30.500000 is 30.5, and must be accepted."""
+    fetch_id = _fetch(db, tmp_path)
+    db.execute(
+        sa.text(
+            "INSERT INTO stocks (stock_id, name, market, fetch_id) "
+            "VALUES ('1101', '台泥', 'sii', :f)"
+        ),
+        {"f": fetch_id},
+    )
+    _price(db, fetch_id, close="30.500000")
+    assert db.scalar(sa.text("SELECT close_price = 30.5 FROM daily_prices"))
+
+
+def test_a_page_that_no_longer_parses_is_kept_and_quarantined(db: Connection, tmp_path) -> None:
+    from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
+
+    def changed_layout(url: str) -> bytes:
+        page = _pages(url).decode("big5hkscs").replace("<B> 股票 <B>", "<B> 普通股 <B>")
+        return page.encode("big5hkscs")
+
+    store = LocalRawArtifactStore(tmp_path)
+    results = load_universe(db, git_commit="abc", get=changed_layout, now=lambda: NOW, store=store)
+    assert all(str(result).startswith("quarantined") for result in results.values())
+    fetched = db.execute(
+        sa.text("SELECT status, reason_code, length(sha256) FROM fetches WHERE dataset = 'stocks'")
+    ).all()
+    assert fetched == [("quarantined", "unrecognised_layout", 32)] * 2
+    assert len([p for p in tmp_path.rglob("*") if p.is_file()]) == 2  # the pages survive
+    assert db.scalar(sa.text("SELECT count(*) FROM stocks")) == 0
+
+
+def test_the_list_date_is_the_taipei_date(db: Connection, tmp_path) -> None:
+    """17:00 UTC on the 22nd is 01:00 on the 23rd in Taipei."""
+    from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
+
+    late = datetime(2026, 9, 22, 17, 0, tzinfo=UTC)
+    load_universe(
+        db, git_commit="abc", get=_pages, now=lambda: late, store=LocalRawArtifactStore(tmp_path)
+    )
+    keys = db.scalars(
+        sa.text("SELECT resource_key FROM fetches WHERE dataset = 'stocks' ORDER BY 1")
+    ).all()
+    assert keys == ["twse_isin:otc:2026-09-23", "twse_isin:sii:2026-09-23"]

@@ -69,13 +69,19 @@ def upgrade() -> None:
     sa.Column('index_name', sa.Text(), nullable=False),
     sa.Column('trade_date', sa.Date(), nullable=False),
     sa.Column('recorded_at', postgresql.TIMESTAMP(timezone=True), server_default=sa.text('statement_timestamp()'), nullable=False),
-    sa.Column('open_value', sa.Numeric(precision=12, scale=2), nullable=True),
-    sa.Column('high_value', sa.Numeric(precision=12, scale=2), nullable=True),
-    sa.Column('low_value', sa.Numeric(precision=12, scale=2), nullable=True),
-    sa.Column('close_value', sa.Numeric(precision=12, scale=2), nullable=True),
-    sa.Column('change_points', sa.Numeric(precision=12, scale=2), nullable=True),
-    sa.Column('change_percent', sa.Numeric(precision=8, scale=2), nullable=True),
+    sa.Column('open_value', sa.Numeric(), nullable=True),
+    sa.Column('high_value', sa.Numeric(), nullable=True),
+    sa.Column('low_value', sa.Numeric(), nullable=True),
+    sa.Column('close_value', sa.Numeric(), nullable=True),
+    sa.Column('change_points', sa.Numeric(), nullable=True),
+    sa.Column('change_percent', sa.Numeric(), nullable=True),
     sa.Column('fetch_id', sa.UUID(), nullable=False),
+    sa.CheckConstraint('change_percent IS NULL OR (scale(trim_scale(change_percent)) <= 2 AND abs(change_percent) < 1e6)', name=op.f('ck_index_prices_change_percent_precision')),
+    sa.CheckConstraint('change_points IS NULL OR (scale(trim_scale(change_points)) <= 2 AND abs(change_points) < 1e10)', name=op.f('ck_index_prices_change_points_precision')),
+    sa.CheckConstraint('close_value IS NULL OR (scale(trim_scale(close_value)) <= 2 AND abs(close_value) < 1e10)', name=op.f('ck_index_prices_close_value_precision')),
+    sa.CheckConstraint('high_value IS NULL OR (scale(trim_scale(high_value)) <= 2 AND abs(high_value) < 1e10)', name=op.f('ck_index_prices_high_value_precision')),
+    sa.CheckConstraint('low_value IS NULL OR (scale(trim_scale(low_value)) <= 2 AND abs(low_value) < 1e10)', name=op.f('ck_index_prices_low_value_precision')),
+    sa.CheckConstraint('open_value IS NULL OR (scale(trim_scale(open_value)) <= 2 AND abs(open_value) < 1e10)', name=op.f('ck_index_prices_open_value_precision')),
     sa.ForeignKeyConstraint(['fetch_id'], ['fetches.id'], name=op.f('fk_index_prices_fetch_id_fetches'), ondelete='RESTRICT'),
     sa.PrimaryKeyConstraint('source', 'index_name', 'trade_date', 'recorded_at', name='pk_index_prices')
     )
@@ -114,22 +120,29 @@ def upgrade() -> None:
     sa.Column('source', sa.String(length=32), nullable=False),
     sa.Column('trade_date', sa.Date(), nullable=False),
     sa.Column('recorded_at', postgresql.TIMESTAMP(timezone=True), server_default=sa.text('statement_timestamp()'), nullable=False),
-    sa.Column('open_price', sa.Numeric(precision=10, scale=2), nullable=True),
-    sa.Column('high_price', sa.Numeric(precision=10, scale=2), nullable=True),
-    sa.Column('low_price', sa.Numeric(precision=10, scale=2), nullable=True),
-    sa.Column('close_price', sa.Numeric(precision=10, scale=2), nullable=True),
+    sa.Column('open_price', sa.Numeric(), nullable=True),
+    sa.Column('high_price', sa.Numeric(), nullable=True),
+    sa.Column('low_price', sa.Numeric(), nullable=True),
+    sa.Column('close_price', sa.Numeric(), nullable=True),
     sa.Column('volume', sa.BigInteger(), nullable=True),
     sa.Column('trade_value', sa.BigInteger(), nullable=True),
     sa.Column('trade_count', sa.Integer(), nullable=True),
-    sa.Column('price_change', sa.Numeric(precision=10, scale=2), nullable=True),
+    sa.Column('price_change', sa.Numeric(), nullable=True),
     sa.Column('price_direction', sa.String(length=4), nullable=True),
-    sa.Column('last_bid_price', sa.Numeric(precision=10, scale=2), nullable=True),
-    sa.Column('last_ask_price', sa.Numeric(precision=10, scale=2), nullable=True),
+    sa.Column('last_bid_price', sa.Numeric(), nullable=True),
+    sa.Column('last_ask_price', sa.Numeric(), nullable=True),
     sa.Column('last_bid_volume', sa.BigInteger(), nullable=True),
     sa.Column('last_ask_volume', sa.BigInteger(), nullable=True),
     sa.Column('fetch_id', sa.UUID(), nullable=False),
+    sa.CheckConstraint('close_price IS NULL OR (scale(trim_scale(close_price)) <= 2 AND abs(close_price) < 1e8)', name=op.f('ck_daily_prices_close_price_precision')),
+    sa.CheckConstraint('high_price IS NULL OR (scale(trim_scale(high_price)) <= 2 AND abs(high_price) < 1e8)', name=op.f('ck_daily_prices_high_price_precision')),
+    sa.CheckConstraint('last_ask_price IS NULL OR (scale(trim_scale(last_ask_price)) <= 2 AND abs(last_ask_price) < 1e8)', name=op.f('ck_daily_prices_last_ask_price_precision')),
     sa.CheckConstraint('last_ask_volume IS NULL OR last_ask_volume >= 0', name=op.f('ck_daily_prices_last_ask_volume_nonnegative')),
+    sa.CheckConstraint('last_bid_price IS NULL OR (scale(trim_scale(last_bid_price)) <= 2 AND abs(last_bid_price) < 1e8)', name=op.f('ck_daily_prices_last_bid_price_precision')),
     sa.CheckConstraint('last_bid_volume IS NULL OR last_bid_volume >= 0', name=op.f('ck_daily_prices_last_bid_volume_nonnegative')),
+    sa.CheckConstraint('low_price IS NULL OR (scale(trim_scale(low_price)) <= 2 AND abs(low_price) < 1e8)', name=op.f('ck_daily_prices_low_price_precision')),
+    sa.CheckConstraint('open_price IS NULL OR (scale(trim_scale(open_price)) <= 2 AND abs(open_price) < 1e8)', name=op.f('ck_daily_prices_open_price_precision')),
+    sa.CheckConstraint('price_change IS NULL OR (scale(trim_scale(price_change)) <= 2 AND abs(price_change) < 1e8)', name=op.f('ck_daily_prices_price_change_precision')),
     sa.CheckConstraint('trade_count IS NULL OR trade_count >= 0', name=op.f('ck_daily_prices_trade_count_nonnegative')),
     sa.CheckConstraint('trade_value IS NULL OR trade_value >= 0', name=op.f('ck_daily_prices_trade_value_nonnegative')),
     sa.CheckConstraint('volume IS NULL OR volume >= 0', name=op.f('ck_daily_prices_volume_nonnegative')),
@@ -145,10 +158,13 @@ def upgrade() -> None:
     sa.Column('issued_shares', sa.BigInteger(), nullable=True),
     sa.Column('investable_shares', sa.BigInteger(), nullable=True),
     sa.Column('held_shares', sa.BigInteger(), nullable=True),
-    sa.Column('investable_ratio', sa.Numeric(precision=6, scale=2), nullable=True),
-    sa.Column('held_ratio', sa.Numeric(precision=6, scale=2), nullable=True),
-    sa.Column('foreign_legal_limit_ratio', sa.Numeric(precision=6, scale=2), nullable=True),
+    sa.Column('investable_ratio', sa.Numeric(), nullable=True),
+    sa.Column('held_ratio', sa.Numeric(), nullable=True),
+    sa.Column('foreign_legal_limit_ratio', sa.Numeric(), nullable=True),
     sa.Column('fetch_id', sa.UUID(), nullable=False),
+    sa.CheckConstraint('foreign_legal_limit_ratio IS NULL OR (scale(trim_scale(foreign_legal_limit_ratio)) <= 2 AND abs(foreign_legal_limit_ratio) < 1e4)', name=op.f('ck_foreign_holdings_foreign_legal_limit_ratio_precision')),
+    sa.CheckConstraint('held_ratio IS NULL OR (scale(trim_scale(held_ratio)) <= 2 AND abs(held_ratio) < 1e4)', name=op.f('ck_foreign_holdings_held_ratio_precision')),
+    sa.CheckConstraint('investable_ratio IS NULL OR (scale(trim_scale(investable_ratio)) <= 2 AND abs(investable_ratio) < 1e4)', name=op.f('ck_foreign_holdings_investable_ratio_precision')),
     sa.ForeignKeyConstraint(['fetch_id'], ['fetches.id'], name=op.f('fk_foreign_holdings_fetch_id_fetches'), ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['stock_id'], ['stocks.stock_id'], name=op.f('fk_foreign_holdings_stock_id_stocks'), ondelete='RESTRICT'),
     sa.PrimaryKeyConstraint('stock_id', 'source', 'trade_date', 'recorded_at', name='pk_foreign_holdings')
@@ -225,16 +241,21 @@ def upgrade() -> None:
     sa.Column('source', sa.String(length=32), nullable=False),
     sa.Column('trade_date', sa.Date(), nullable=False),
     sa.Column('recorded_at', postgresql.TIMESTAMP(timezone=True), server_default=sa.text('statement_timestamp()'), nullable=False),
-    sa.Column('pe_ratio', sa.Numeric(precision=10, scale=2), nullable=True),
-    sa.Column('pb_ratio', sa.Numeric(precision=10, scale=2), nullable=True),
-    sa.Column('dividend_yield', sa.Numeric(precision=6, scale=2), nullable=True),
+    sa.Column('pe_ratio', sa.Numeric(), nullable=True),
+    sa.Column('pb_ratio', sa.Numeric(), nullable=True),
+    sa.Column('dividend_yield', sa.Numeric(), nullable=True),
     sa.Column('dividend_year', sa.SmallInteger(), nullable=True),
     sa.Column('report_period', sa.String(length=8), nullable=True),
     sa.Column('fetch_id', sa.UUID(), nullable=False),
+    sa.CheckConstraint('dividend_yield IS NULL OR (scale(trim_scale(dividend_yield)) <= 2 AND abs(dividend_yield) < 1e6)', name=op.f('ck_valuations_dividend_yield_precision')),
+    sa.CheckConstraint('pb_ratio IS NULL OR (scale(trim_scale(pb_ratio)) <= 2 AND abs(pb_ratio) < 1e8)', name=op.f('ck_valuations_pb_ratio_precision')),
+    sa.CheckConstraint('pe_ratio IS NULL OR (scale(trim_scale(pe_ratio)) <= 2 AND abs(pe_ratio) < 1e8)', name=op.f('ck_valuations_pe_ratio_precision')),
     sa.ForeignKeyConstraint(['fetch_id'], ['fetches.id'], name=op.f('fk_valuations_fetch_id_fetches'), ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['stock_id'], ['stocks.stock_id'], name=op.f('fk_valuations_stock_id_stocks'), ondelete='RESTRICT'),
     sa.PrimaryKeyConstraint('stock_id', 'source', 'trade_date', 'recorded_at', name='pk_valuations')
     )
+    # ### end Alembic commands ###
+    # Value tables and the fetch log are append-only.
     for table in APPEND_ONLY:
         op.execute(
             f"CREATE TRIGGER immutable_{table} BEFORE UPDATE OR DELETE ON {table} "
@@ -244,7 +265,6 @@ def upgrade() -> None:
             f"CREATE TRIGGER no_truncate_{table} BEFORE TRUNCATE ON {table} "
             "FOR EACH STATEMENT EXECUTE FUNCTION stockdc_reject_mutation()"
         )
-    # ### end Alembic commands ###
 
 
 def downgrade() -> None:
