@@ -614,7 +614,7 @@ explicit out-of-scope work
 | 33 | PLANNED | 發行公司股利宣告（MOPS OpenAPI），存成獨立領域 |
 | 34 | SUPERSEDED | 新增證據目標時仍穩定的 publication-evidence hash |
 | 35-a | MERGED | Schema v2：基礎表與交易所每日資料表、遷移 v1 歷史（ADR-0027，#46） |
-| 35-b-1 | PLANNED | Schema v2：交易所每日資料寫入 v2 的新路徑（只新增程式） |
+| 35-b-1 | IN REVIEW | Schema v2：交易所每日資料寫入 v2 的新路徑（只新增程式）（#47） |
 | 35-b-2 | PLANNED | Schema v2：移除 8 個領域的 v1 路徑與 v1 表 |
 | 35-c | PLANNED | Schema v2：月營收、財報、TDCC、公司行動、衍生資料的重新設計 |
 | 35-d | PLANNED | Schema v2：drop v1 基礎表，重新開始 migration 鏈 |
@@ -2000,7 +2000,7 @@ quarantine reason，讓三張報表照樣解析——但那要先證明無法對
 
 ## Step 35 — Schema v2
 
-狀態：**35-a MERGED（#46）；35-b-1 實作完成，待開 PR**。依據：ADR-0026、ADR-0027（2026-09-23 owner 決定）。
+狀態：**35-a MERGED（#46）；35-b-1 IN REVIEW（#47）**。依據：ADR-0026、ADR-0027（2026-09-23 owner 決定）。
 
 2026-09-23 對全部 61 張表逐張檢討「需不需要、拿掉會損失什麼」之後重新設計。原則見
 ADR-0027：官方代號當身分、一個 (股票, 來源, 日期) 一列的寬表、數字改變才新增列、
