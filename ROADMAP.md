@@ -613,8 +613,9 @@ explicit out-of-scope work
 | 32 | PLANNED | `my_stock_project` 切換與 v1 發布 |
 | 33 | PLANNED | 發行公司股利宣告（MOPS OpenAPI），存成獨立領域 |
 | 34 | SUPERSEDED | 新增證據目標時仍穩定的 publication-evidence hash |
-| 35-a | IN REVIEW | Schema v2：基礎表與交易所每日資料表、遷移 v1 歷史（ADR-0027，#46） |
-| 35-b | PLANNED | Schema v2：交易所每日資料的 ingestion 改寫到 v2，drop 對應的 v1 表 |
+| 35-a | MERGED | Schema v2：基礎表與交易所每日資料表、遷移 v1 歷史（ADR-0027，#46） |
+| 35-b-1 | PLANNED | Schema v2：交易所每日資料寫入 v2 的新路徑（只新增程式） |
+| 35-b-2 | PLANNED | Schema v2：移除 8 個領域的 v1 路徑與 v1 表 |
 | 35-c | PLANNED | Schema v2：月營收、財報、TDCC、公司行動、衍生資料的重新設計 |
 | 35-d | PLANNED | Schema v2：drop v1 基礎表，重新開始 migration 鏈 |
 
@@ -1999,7 +2000,7 @@ quarantine reason，讓三張報表照樣解析——但那要先證明無法對
 
 ## Step 35 — Schema v2
 
-狀態：**35-a IN REVIEW（#46）**。依據：ADR-0026、ADR-0027（2026-09-23 owner 決定）。
+狀態：**35-a MERGED（#46）；35-b-1 實作完成，待開 PR**。依據：ADR-0026、ADR-0027（2026-09-23 owner 決定）。
 
 2026-09-23 對全部 61 張表逐張檢討「需不需要、拿掉會損失什麼」之後重新設計。原則見
 ADR-0027：官方代號當身分、一個 (股票, 來源, 日期) 一列的寬表、數字改變才新增列、
@@ -2024,8 +2025,58 @@ ADR-0027：官方代號當身分、一個 (股票, 來源, 日期) 一列的寬�
 
 ### 35-b — ingestion 改寫
 
-各交易所每日資料的 adapter 改為寫入 v2 表並在 adapter 邊界套用 `stocks` 範圍；
-resolver 以 release rule 計算可用時間；之後 drop 該領域的 v1 表與其證據。
+依 CLAUDE.md §1 拆成兩段，各自可以獨立合併。
+
+**35-b-1：寫入 v2 的新路徑（只新增，不刪任何東西）**
+
+- 通用的 v2 執行器：抓取 → 保存原始檔並記錄 fetch → 以現有 adapter 的
+  `parse(content, request)` 解析 → 只保留 `stocks` 範圍內的股票 → 與每個 key 最新
+  一列逐欄比對，數字改變才新增列。解析失敗記 `quarantined`；已成功抓過的資源跳過，
+  中斷可續跑。
+- 8 組來源接上 v2：`twse_mi_index`／`tpex_otc_quotes` → `daily_prices`；
+  `twse_bwibbu_d`／`tpex_pe_qry_date` → `valuations`；`twse_t86`／
+  `tpex_insti_daily_trade` → `institutional_flows`；`twse_bfi82u`／
+  `tpex_insti_summary` → `institutional_market_flows`；`twse_mi_qfiis`／
+  `mops_t13sa150_otc` → `foreign_holdings`（MOPS 沿用 Step 20-c 的每台主機速率控管）；
+  `twse_mi_margn`／`tpex_margin_balance` → `margin_trading`；`twse_twt93u`／
+  `tpex_margin_sbl` → `securities_lending`；`twse_mi_index`／`tpex_index_summary`／
+  `twse_mi_5mins_hist` → `index_prices`（只收 126 個指數）。
+- release rule 改為程式常數：這 8 個領域都是 `exchange_daily_settled@1`（D+1 03:00）。
+  提供「某時點可見哪些列」的查詢：原始值以規則時刻為可用時間，更正值以 `recorded_at`。
+- 回補指令：依 `trading_days` 抓取日期區間。
+
+驗收：真實抓取數個交易日，寫入結果與既有 v2 資料逐列相同；同一天重跑不新增列；
+解析失敗保留原始檔並記 `quarantined`；範圍外股票不寫入；可見性查詢對原始值與
+更正值各有測試。
+
+- [x] 執行器與 17 個 job（`stock_data_center.v2.exchange_daily`），回補指令
+  （`python -m stock_data_center.v2.backfill`）
+- [x] 真實抓取 2020-01-02、2023-06-15、2026-09-11：31,148 列既有資料 0 列不同
+  （`scripts/verify_v2_write_path.py`，證據見 `docs/step_reports/step-35-b-1-acceptance-report.md`）
+- [x] 重跑不新增列、`quarantined` 保留原始檔、範圍外不寫入、原始值與更正值的可見性：
+  整合測試
+
+實作中的決策：
+
+- **寫入時照單全收，PIT 在讀取時決定**（owner 裁定）。抓到的列不論是否已過規則
+  時刻都寫入；client 看到什麼由可見性查詢決定。
+- **一個期間要在結算後抓過才算完成**（完整性規則，不是可見性）：最後一次抓取成功或
+  為空，且抓取時刻晚於該期間最後一天的規則時刻。D+1 03:00 前抓的檔案還可能變
+  （audit §7），當月的 TAIEX 月檔還缺後面的日子，下次回補都會再抓。
+- **`fetches.dataset` 沿用 v1 的 dataset code**（`daily_price`、`market_index`…），
+  resource key 也沿用 adapter 的，遷移過來的抓取紀錄因此直接可續跑：`stockdc_backfill`
+  2020-01-02 到 2026-09-11，16 個每日 job 待抓 0 個期間，TAIEX 只剩未結算的 2026-09。
+- **TAIEX OHLC 的收盤與 `MI_INDEX` 不同就整份 quarantine**（`close_mismatch`，CLAUDE.md
+  §52）；`MI_INDEX` 尚未存該日時放行，由 `scripts/reconcile_market_indices.py` 的對帳涵蓋。
+- **部分列被 adapter 拒絕**（TPEx 本益比）時，其餘列照寫，fetch 記 `succeeded` 並在
+  `reason_code = rows_rejected`、`reason_detail` 列出股票與原因，不另開表。
+
+**35-b-2：移除 v1 路徑**
+
+刪除 8 個領域的 v1 writer、服務、resolver 合約、coverage 宣告、CLI 子指令與測試，
+連同 Step 9 個股 pilot；一個 migration drop 8 張 v1 表、其 observations 表，以及
+`publication_evidence` 中屬於它們的約 2,105 萬列證據與外鍵欄位（降級在變更前拒絕）。
+在 `stockdc_backfill` 執行前須再經 owner 確認。
 
 ### 35-c — 其餘領域的重新設計
 
