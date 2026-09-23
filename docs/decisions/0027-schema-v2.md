@@ -100,7 +100,7 @@ Step 9 的個股 pilot 來源（`twse`、`tpex`）與 `tpex_insti_qfii` 不再�
 - 拿掉：`filing_key`、`period_start`／`period_end`（一律 1/1 起）、`currency`、業務 hash、
   seals（財報與事實同一交易寫入，表只新增，已保證完整不變）、observations。
 
-**`financial_facts`**：key 為 `(report_id, statement, concept, period_start, period_end)`。
+**`financial_report_facts`**：key 為 `(report_id, statement, concept, period_start, period_end)`。
 
 - 欄位：`statement`（同一筆現金同時是資產負債表 1100 與現金流量表 E00210）、
   `account_code`（legacy 的 key）、`concept`（完整 namespace qname，owner 決定不拆）、

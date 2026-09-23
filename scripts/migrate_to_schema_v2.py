@@ -17,9 +17,16 @@ What is copied, and what is not:
   sources (`twse`, `tpex`) and `tpex_insti_qfii` are not copied.
 - Every v1 key holds exactly one version today; the script refuses to run if
   that stops being true, because "latest version" would then need a rule.
+- Step 35-c-1 (ADR-0027 "35-c 定案"): monthly revenue, financial reports and
+  their facts, and TDCC distributions, for the stocks on today's list.
+  `published_at` is the version's one assertion of publication, if any. A
+  sealed aggregate (a report, a TDCC week) was recorded when it was sealed.
+  Monthly revenue keeps several versions per key; see `MONTHLY_REVENUES`.
 
 Each table is copied in its own transaction and skipped if it already holds
-rows, so an interrupted run resumes.
+rows, so an interrupted run resumes. `fetches` is the exception: every run adds
+the v1 ingest runs it does not hold yet, because v1 keeps ingesting the domains
+whose write path has not moved, and their copied rows name those runs.
 
     DATABASE_URL=postgresql+psycopg://stockdc:stockdc@localhost:5432/stockdc_backfill \
         .venv/bin/python scripts/migrate_to_schema_v2.py
@@ -64,6 +71,7 @@ SELECT r.id, r.dataset_code, r.source,
   -- An operational failure (adapter, dependency or writer error) has no
   -- quarantine row; v1 kept its reason on the resource's checkpoint.
   LEFT JOIN import_checkpoints k ON k.last_ingest_run_id = r.id
+ON CONFLICT (id) DO NOTHING
 """
 
 # The version a month was last seen with, not the highest id: v1 deduplicates on
@@ -163,6 +171,96 @@ SELECT source, trade_date, institution, ingested_at, buy, sell, net, ingest_run_
 """
 
 
+# 116 keys from 2026M02 hold two versions: MOPS's current value and the value
+# legacy captured first, which v1 imported from the archive about two hours
+# later. The legacy value was public first and the MOPS value corrects it, so
+# the archive version is placed one microsecond before the key's earliest
+# official version; otherwise "latest row" would be the overturned value.
+MONTHLY_REVENUES = """
+INSERT INTO monthly_revenues (stock_id, source, revenue_month, recorded_at, revenue,
+                              revenue_last_month, revenue_last_year_month,
+                              cumulative_revenue, cumulative_revenue_last_year,
+                              mom_pct, yoy_pct, cumulative_yoy_pct, note,
+                              published_at, fetch_id)
+SELECT s.security_code, v.source, v.revenue_period,
+       CASE WHEN o.artifact_origin = 'legacy_archive' AND official.first_at < v.ingested_at
+            THEN official.first_at - interval '1 microsecond'
+            ELSE v.ingested_at END,
+       v.revenue::bigint, v.revenue_last_month::bigint, v.revenue_last_year_month::bigint,
+       v.cumulative_revenue::bigint, v.cumulative_revenue_last_year::bigint,
+       v.mom_pct, v.yoy_pct, v.cumulative_yoy_pct, v.note, p.published_at, v.ingest_run_id
+  FROM monthly_revenue_versions v
+  JOIN security s ON s.id = v.security_id
+  JOIN stocks k ON k.stock_id = s.security_code
+  JOIN raw_artifact_observations o
+    ON o.raw_artifact_id = v.raw_artifact_id AND o.ingest_run_id = v.ingest_run_id
+  LEFT JOIN LATERAL (
+        SELECT min(w.ingested_at) AS first_at
+          FROM monthly_revenue_versions w
+          JOIN raw_artifact_observations ow
+            ON ow.raw_artifact_id = w.raw_artifact_id AND ow.ingest_run_id = w.ingest_run_id
+         WHERE w.security_id = v.security_id AND w.source = v.source
+           AND w.revenue_period = v.revenue_period AND w.id <> v.id
+           AND ow.artifact_origin = 'official_fetch') official ON true
+  LEFT JOIN publication_evidence p
+    ON p.monthly_revenue_version_id = v.id AND p.evidence_kind IN ('assertion', 'correction')
+"""
+
+# The v1 filing id becomes the report id, so the facts need no lookup.
+FINANCIAL_REPORTS = """
+INSERT INTO financial_reports (id, stock_id, report_year, report_quarter, report_category,
+                               published_at, recorded_at, fetch_id)
+SELECT v.id, s.security_code, v.report_year, v.report_quarter, v.report_category,
+       p.published_at, seal.ingested_at, v.ingest_run_id
+  FROM financial_filing_versions v
+  JOIN financial_filing_seals seal ON seal.filing_version_id = v.id
+  JOIN security s ON s.id = v.security_id
+  JOIN stocks k ON k.stock_id = s.security_code
+  LEFT JOIN publication_evidence p
+    ON p.financial_filing_version_id = v.id AND p.evidence_kind IN ('assertion', 'correction')
+"""
+
+# No stored fact has a dimension, scenario or segment; the unique key would
+# refuse two facts that only a context told apart, so none is silently merged.
+FINANCIAL_REPORT_FACTS = """
+INSERT INTO financial_report_facts (report_id, statement, account_code, concept,
+                                    period_start, period_end, unit, value)
+SELECT f.filing_version_id, f.statement, f.account_code, f.concept_qname,
+       CASE WHEN f.period_type = 'duration' THEN f.period_start END,
+       CASE WHEN f.period_type = 'instant' THEN f.instant_date ELSE f.period_end END,
+       f.unit_identity, f.numeric_value
+  FROM financial_facts f
+  JOIN financial_reports r ON r.id = f.filing_version_id
+"""
+
+_LEVEL = "max(d.{column}) FILTER (WHERE d.bucket_code = '{level}')"
+SHAREHOLDING = f"""
+INSERT INTO shareholding_distributions (
+    stock_id, source, snapshot_date, recorded_at,
+    {", ".join(f"holders_{n}, shares_{n}, percent_{n}" for n in range(1, 16))},
+    adjustment_shares, adjustment_percent, total_holders, total_shares, total_percent,
+    fetch_id)
+SELECT s.security_code, v.source, v.snapshot_date, seal.ingested_at,
+       {", ".join(
+           f"{_LEVEL.format(column='holder_count', level=n)}, "
+           f"{_LEVEL.format(column='shares', level=n)}::bigint, "
+           f"{_LEVEL.format(column='ownership_percent', level=n)}"
+           for n in range(1, 16))},
+       {_LEVEL.format(column='shares', level=16)}::bigint,
+       {_LEVEL.format(column='ownership_percent', level=16)},
+       {_LEVEL.format(column='holder_count', level=17)},
+       {_LEVEL.format(column='shares', level=17)}::bigint,
+       {_LEVEL.format(column='ownership_percent', level=17)},
+       v.ingest_run_id
+  FROM tdcc_snapshot_versions v
+  JOIN tdcc_snapshot_seals seal ON seal.snapshot_version_id = v.id
+  JOIN security s ON s.id = v.security_id
+  JOIN stocks k ON k.stock_id = s.security_code
+  JOIN tdcc_distribution d ON d.snapshot_version_id = v.id
+ GROUP BY v.id, s.security_code, seal.ingested_at
+"""
+
+
 def _single_version(connection, table: str, key: str, scope: str = "", params=None) -> None:
     """Refuse if any copied key has several v1 versions.
 
@@ -186,9 +284,10 @@ def main() -> int:
     engine = sa.create_engine(url)
     report: dict[str, dict] = {}
 
-    def step(name: str, run) -> None:
+    def step(name: str, run, *, every_run: bool = False) -> None:
         with engine.begin() as connection:
-            if connection.execute(sa.text(f"SELECT EXISTS (SELECT 1 FROM {name})")).scalar():
+            if not every_run and connection.execute(
+                    sa.text(f"SELECT EXISTS (SELECT 1 FROM {name})")).scalar():
                 report[name] = {"skipped": "already populated"}
                 return
             began = time.monotonic()
@@ -196,7 +295,9 @@ def main() -> int:
             report[name] = {"rows": rows, "seconds": round(time.monotonic() - began, 1)}
             print(f"{name}: {rows}", file=sys.stderr, flush=True)
 
-    step("fetches", lambda c: c.execute(sa.text(FETCHES)).rowcount)
+    # Every run, not once: v1 still ingests the 35-c domains until their write
+    # paths move, and a later copy step cites those runs as its fetch_id.
+    step("fetches", lambda c: c.execute(sa.text(FETCHES)).rowcount, every_run=True)
     def load_stocks(connection):
         loaded = load_universe(connection, git_commit=current_git_commit())
         refused = {market: result for market, result in loaded.items() if isinstance(result, str)}
@@ -246,6 +347,19 @@ def main() -> int:
         return connection.execute(sa.text(MARKET_FLOWS)).rowcount
 
     step("institutional_market_flows", copy_market_flows)
+
+    step("monthly_revenues", lambda c: c.execute(sa.text(MONTHLY_REVENUES)).rowcount)
+
+    def copy_reports(connection):
+        rows = connection.execute(sa.text(FINANCIAL_REPORTS)).rowcount
+        connection.execute(sa.text(
+            "SELECT setval(pg_get_serial_sequence('financial_reports', 'id'), "
+            "(SELECT max(id) FROM financial_reports))"))
+        return rows
+
+    step("financial_reports", copy_reports)
+    step("financial_report_facts", lambda c: c.execute(sa.text(FINANCIAL_REPORT_FACTS)).rowcount)
+    step("shareholding_distributions", lambda c: c.execute(sa.text(SHAREHOLDING)).rowcount)
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0
 
