@@ -7,9 +7,12 @@
 Dates come from `trading_days`, so a closure is never requested; a monthly job
 (TAIEX OHLC) asks once per month that has a trading day in the range. Each
 resource commits on its own, so an interrupted run loses at most the resource
-in flight, and a rerun skips every resource whose latest fetch succeeded or
-was empty. `--refetch` fetches them again anyway (a correction check): an
-unchanged file then logs its fetch and appends nothing.
+in flight, and a rerun skips every resource `pending` counts as done.
+`--refetch` fetches them again anyway (a correction check): an unchanged file
+then logs its fetch and appends nothing.
+
+A job with a check runs after the jobs it checks against, so a TAIEX month is
+compared with MI_INDEX closes written in the same run.
 
 Requests to one host are spaced by `HostRateGovernor`: 3 s for MOPS
 (Step 20-c), 1.5 s for TWSE and TPEx, the interval every v1 backfill used.
@@ -87,12 +90,12 @@ def run(
     report: dict[str, dict[str, int]] = {}
     with _unit(bind) as connection:
         stock_ids = frozenset(connection.scalars(sa.select(stocks.c.stock_id)))
-    for job in jobs:
+    for job in sorted(jobs, key=lambda job: job.check is not None):
         with _unit(bind) as connection:
             wanted = periods(connection, job, start, end)
             todo = wanted if refetch else pending(connection, job, wanted)
         counts = Counter(periods=len(wanted), skipped=len(wanted) - len(todo),
-                         appended=0, unchanged=0, out_of_scope=0)
+                         appended=0, unchanged=0, out_of_scope=0, unverified=0)
         for period in todo:
             with _unit(bind) as connection:
                 outcome = ingest(
@@ -103,6 +106,7 @@ def run(
             counts["appended"] += outcome.appended
             counts["unchanged"] += outcome.unchanged
             counts["out_of_scope"] += outcome.out_of_scope
+            counts["unverified"] += outcome.unverified
             if progress:
                 progress(job.key, period, outcome)
         report[job.key] = dict(counts)
@@ -144,8 +148,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         store=LocalRawArtifactStore(args.raw_root), refetch=args.refetch, progress=progress,
     )
     print(json.dumps(report, ensure_ascii=False, indent=2))
-    # A failed fetch is operational and left for a rerun; say so in the exit code.
-    return 1 if any(counts.get("failed") for counts in report.values()) else 0
+    # A failed fetch or an empty trading day is left for a rerun; say so.
+    return 1 if any(counts.get("failed") or counts.get("empty")
+                    for counts in report.values()) else 0
 
 
 if __name__ == "__main__":

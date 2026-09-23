@@ -8,7 +8,9 @@ differs from the key's latest row, so a write path that maps every column the
 way the migration did appends nothing; any appended row is printed, key and
 columns, for classification. One kind is expected and reported apart: a TAIEX
 request is a whole month, so it also returns trade dates later than the
-migrated history, which have no stored row to agree with.
+migrated history, which have no stored row to agree with. Those dates have no
+MI_INDEX close in the copy either, so the TAIEX check holds them back and the
+report counts them `unverified`.
 
 The backfill database is only read. The scratch database is created from the
 migration chain and dropped at the end unless `--keep`.
@@ -43,6 +45,7 @@ from stock_data_center.ingestion.lifecycle import current_git_commit
 from stock_data_center.v2.backfill import HOST_INTERVALS, run
 from stock_data_center.v2.exchange_daily import (
     JOBS,
+    TAIEX_LIST_NAME,
     key_columns,
     value_columns,
 )
@@ -88,11 +91,16 @@ def _copy(source, target, dates: list[date]) -> dict[str, int]:
     for table in VALUE_TABLES:
         condition = table.c.trade_date.in_(dates)
         if table is v2.index_prices:
-            # A TAIEX request is a whole month; its other dates must be there too.
+            # A TAIEX request is a whole month; its other dates must be there too,
+            # with the MI_INDEX close each is checked against.
             in_month = sa.or_(*(
                 sa.func.date_trunc("month", table.c.trade_date) == month for month in months
             ))
-            condition = sa.or_(condition, sa.and_(table.c.source == "twse_mi_5mins_hist", in_month))
+            taiex = sa.or_(
+                table.c.source == "twse_mi_5mins_hist",
+                sa.and_(table.c.source == "twse_mi_index", table.c.index_name == TAIEX_LIST_NAME),
+            )
+            condition = sa.or_(condition, sa.and_(taiex, in_month))
         selections[table] = sa.select(table).where(condition)
 
     copied: dict[str, int] = {}

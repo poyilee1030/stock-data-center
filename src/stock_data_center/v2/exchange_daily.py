@@ -9,11 +9,11 @@ the file. What is new is everything after the parse:
 
 and one `fetches` row per attempt, whatever its outcome. The fetch row and the
 rows it produced commit together, so a `succeeded` fetch always has its rows,
-and resuming is just skipping resources whose latest fetch succeeded.
+and resuming is just skipping resources whose latest fetch succeeded (`pending`).
 
 Publication time is not stored. Every job here follows one release rule,
 `exchange_daily_settled@1`: trade date D is public at 03:00 Asia/Taipei on
-D+1. An original value is available from that instant; a later, different
+D+1. The settled value is available from that instant; a later, different
 value from its own `recorded_at` (`visible`).
 """
 
@@ -172,8 +172,22 @@ def _taiex_rows(parsed, source: str) -> list[dict]:
 TAIEX_LIST_NAME = "指數/臺灣證券交易所:發行量加權股價指數"
 
 
-def _taiex_close_check(connection: Connection, rows: list[dict]) -> str | None:
-    """Dates whose list close is stored and differs; a date not yet listed passes."""
+@dataclass(frozen=True, slots=True)
+class Checked:
+    """A job check's verdict: the rows it could verify, and any disagreement."""
+
+    rows: list[dict]
+    mismatch: str | None = None
+    unverified: tuple[date, ...] = ()
+
+
+def _taiex_close_check(connection: Connection, rows: list[dict]) -> Checked:
+    """Compare each date's close with the stored MI_INDEX close.
+
+    A date the list does not hold yet is not written: letting it through would
+    make the check depend on which job ran first (CLAUDE.md §30, §52). The
+    fetch is logged `close_unverified`, so the month stays pending and the
+    next run checks it once the list has the date."""
     listed = _latest(
         connection,
         v2.index_prices,
@@ -181,13 +195,18 @@ def _taiex_close_check(connection: Connection, rows: list[dict]) -> str | None:
         dates={row["trade_date"] for row in rows},
         extra=v2.index_prices.c.index_name == TAIEX_LIST_NAME,
     )
-    wrong = [
-        f"{row['trade_date'].isoformat()}: {row['close_value']} vs {old['close_value']}"
-        for row in rows
-        if (old := listed.get(("twse_mi_index", TAIEX_LIST_NAME, row["trade_date"])))
-        and old["close_value"] != row["close_value"]
-    ]
-    return "; ".join(wrong) or None
+    verified, unverified, wrong = [], [], []
+    for row in rows:
+        old = listed.get(("twse_mi_index", TAIEX_LIST_NAME, row["trade_date"]))
+        if old is None:
+            unverified.append(row["trade_date"])
+        elif old["close_value"] != row["close_value"]:
+            wrong.append(
+                f"{row['trade_date'].isoformat()}: {row['close_value']} vs {old['close_value']}"
+            )
+        else:
+            verified.append(row)
+    return Checked(verified, "; ".join(wrong) or None, tuple(sorted(unverified)))
 
 
 _BOOKKEEPING = ("recorded_at", "fetch_id")
@@ -213,7 +232,7 @@ class Job:
     request_type: type
     rows_of: Callable[[object, str], list[dict]]
     monthly: bool = False
-    check: Callable[[Connection, list[dict]], str | None] | None = None
+    check: Callable[[Connection, list[dict]], Checked] | None = None
     release_rule: ReleaseRule = RELEASE_RULE
     key_columns: tuple[str, ...] = field(init=False)
 
@@ -314,7 +333,8 @@ JOBS: dict[str, Job] = _jobs()
 # operational failure, retried once live, never a quarantine (Step 19-d).
 _RETRY_LIVE = frozenset({"invalid_json", "unusable_response"})
 _EMPTY = frozenset({"no_data_for_date"})
-_SUCCEEDED = ("succeeded", "empty")
+# A succeeded fetch that held rows back is not done: the next run asks again.
+_UNFINISHED = frozenset({"close_unverified"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -325,6 +345,7 @@ class Outcome:
     appended: int = 0
     unchanged: int = 0
     out_of_scope: int = 0
+    unverified: int = 0
     reason_code: str | None = None
 
 
@@ -401,21 +422,27 @@ def _write(connection, job, rows, parsed, log, content, attempt, stock_ids) -> O
     if len(keys) != len(set(keys)):
         fetch_id = log("quarantined", content, "duplicate_key", "a key appears twice", attempt)
         return Outcome("quarantined", fetch_id, parsed_count, reason_code="duplicate_key")
-    problem = job.check(connection, rows) if job.check and rows else None
-    if problem:
-        fetch_id = log("quarantined", content, "close_mismatch", problem, attempt)
-        return Outcome("quarantined", fetch_id, parsed_count, reason_code="close_mismatch")
+    unverified: tuple[date, ...] = ()
+    if job.check and rows:
+        checked = job.check(connection, rows)
+        if checked.mismatch:
+            fetch_id = log("quarantined", content, "close_mismatch", checked.mismatch, attempt)
+            return Outcome("quarantined", fetch_id, parsed_count, reason_code="close_mismatch")
+        rows, unverified = checked.rows, checked.unverified
+        keys = [tuple(row[c] for c in job.key_columns) for row in rows]
 
     # Two writers of one source would both see "no latest row" and both append.
     connection.execute(
         sa.select(sa.func.pg_advisory_xact_lock(sa.func.hashtext(job.key)))
     )
     rejected = getattr(parsed, "rejected", ())
-    reason = "rows_rejected" if rejected else None
-    fetch_id = log(
-        "succeeded", content, reason,
-        "; ".join(f"{r.security_code}: {r.reason_code}" for r in rejected) or None, attempt,
-    )
+    if unverified:
+        reason = "close_unverified"
+        detail = "no list close yet: " + ", ".join(d.isoformat() for d in unverified)
+    else:
+        reason = "rows_rejected" if rejected else None
+        detail = "; ".join(f"{r.security_code}: {r.reason_code}" for r in rejected) or None
+    fetch_id = log("succeeded", content, reason, detail, attempt)
     latest = _latest(
         connection, job.table, source=job.source, dates={row["trade_date"] for row in rows}
     )
@@ -429,7 +456,7 @@ def _write(connection, job, rows, parsed, log, content, attempt, stock_ids) -> O
         connection.execute(sa.insert(job.table), changed)
     return Outcome(
         "succeeded", fetch_id, parsed_count, len(changed), len(rows) - len(changed),
-        out_of_scope, reason,
+        out_of_scope, len(unverified), reason,
     )
 
 
@@ -453,18 +480,20 @@ def _latest(connection, table, *, source, dates: Iterable[date], extra=None) -> 
 
 
 def pending(connection: Connection, job: Job, periods: Sequence[date]) -> list[date]:
-    """The periods not yet done: done means the latest fetch succeeded or was
-    empty, and was made after the period's last trade date settled.
+    """The periods not yet done: done means the latest fetch succeeded, held
+    no row back, and was made after the period's last trade date settled.
 
     A completeness rule, not a visibility one: a file fetched before D+1 03:00
     can still change (audit §7), and a current-month TAIEX file still lacks the
-    rest of the month, so either is fetched again by the next run. What a client
+    rest of the month, so either is fetched again by the next run. An empty
+    answer is not done either: periods come from `trading_days`, and no trading
+    day in 2020-2026 answered empty, so it is a gap to ask again. What a client
     sees is decided at read time by `visible`."""
     by_key = {job.adapter.resource(job.request(p)).resource_key: p for p in periods}
     f = v2.fetches
     latest = (
         connection.execute(
-            sa.select(f.c.resource_key, f.c.status, f.c.fetched_at)
+            sa.select(f.c.resource_key, f.c.status, f.c.reason_code, f.c.fetched_at)
             .where(f.c.dataset == job.dataset, f.c.source == job.source,
                    f.c.resource_key.in_(list(by_key)))
             .order_by(f.c.resource_key, f.c.fetched_at.desc(), f.c.attempt.desc())
@@ -472,8 +501,9 @@ def pending(connection: Connection, job: Job, periods: Sequence[date]) -> list[d
         ).all()
     )
     finished = {
-        key for key, status, fetched_at in latest
-        if status in _SUCCEEDED and fetched_at >= job.settled_at(by_key[key])
+        key for key, status, reason, fetched_at in latest
+        if status == "succeeded" and reason not in _UNFINISHED
+        and fetched_at >= job.settled_at(by_key[key])
     }
     return [period for key, period in by_key.items() if key not in finished]
 
@@ -493,16 +523,21 @@ def visible(
 ) -> list[sa.RowMapping]:
     """Each key's value as the market could know it at `as_of`.
 
-    A key's first row is available from the release-rule instant of its trade
-    date, however late the Data Center recorded it. Every later row is a
-    correction, available from its own `recorded_at` (never before the rule).
+    The rule says the settled file is public at its instant, so the first row
+    recorded at or after it is the settled value, available from the instant
+    however late the Data Center recorded it. A row recorded before the instant
+    is provisional: available from the instant too, but the settled row, being
+    recorded later, supersedes it there. Every row after the settled one is a
+    correction, available from its own `recorded_at`.
     """
     keys = [table.c[k] for k in key_columns(table)]
     released = available_from_sql(table.c.trade_date, rule)
-    first = sa.func.min(table.c.recorded_at).over(partition_by=keys)
+    recorded = table.c.recorded_at
+    settled = sa.func.min(recorded).filter(recorded >= released).over(partition_by=keys)
     available = sa.case(
-        (table.c.recorded_at == first, released),
-        else_=sa.func.greatest(released, table.c.recorded_at),
+        (recorded < released, released),
+        (recorded == settled, released),
+        else_=recorded,
     )
     inner = sa.select(table, available.label("available_at")).where(
         table.c.trade_date.between(start, end)

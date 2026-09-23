@@ -2042,7 +2042,7 @@ ADR-0027：官方代號當身分、一個 (股票, 來源, 日期) 一列的寬�
   `tpex_margin_sbl` → `securities_lending`；`twse_mi_index`／`tpex_index_summary`／
   `twse_mi_5mins_hist` → `index_prices`（只收 126 個指數）。
 - release rule 改為程式常數：這 8 個領域都是 `exchange_daily_settled@1`（D+1 03:00）。
-  提供「某時點可見哪些列」的查詢：原始值以規則時刻為可用時間，更正值以 `recorded_at`。
+  提供「某時點可見哪些列」的查詢：結算值以規則時刻為可用時間，更正值以 `recorded_at`。
 - 回補指令：依 `trading_days` 抓取日期區間。
 
 驗收：真實抓取數個交易日，寫入結果與既有 v2 資料逐列相同；同一天重跑不新增列；
@@ -2060,14 +2060,24 @@ ADR-0027：官方代號當身分、一個 (股票, 來源, 日期) 一列的寬�
 
 - **寫入時照單全收，PIT 在讀取時決定**（owner 裁定）。抓到的列不論是否已過規則
   時刻都寫入；client 看到什麼由可見性查詢決定。
-- **一個期間要在結算後抓過才算完成**（完整性規則，不是可見性）：最後一次抓取成功或
-  為空，且抓取時刻晚於該期間最後一天的規則時刻。D+1 03:00 前抓的檔案還可能變
+- **一個期間要在結算後抓過才算完成**（完整性規則，不是可見性）：最後一次抓取成功、
+  沒有擋下任何列，且抓取時刻晚於該期間最後一天的規則時刻。D+1 03:00 前抓的檔案還可能變
   （audit §7），當月的 TAIEX 月檔還缺後面的日子，下次回補都會再抓。
+- **交易日回應為空不算完成**（#47 review）：期間取自 `trading_days`，`stockdc_backfill`
+  的 77,332 次抓取中交易日沒有一次為空（唯一一筆 `no_data_for_date` 是休市的
+  2026-07-10），所以空回應是缺口：`fetches` 照記 `empty`，下次回補再抓，回補指令以
+  退出碼 1 回報。
+- **結算前記錄的列是暫時值**（#47 review）：規則時刻起，暫時值由規則時刻後記錄的第一
+  筆取代；那一筆即結算值，和回補多年後才抓到的第一筆一樣以規則時刻為可用時間。
+  沒有結算前列的 key 行為不變；之後不同的列才是更正值，以 `recorded_at` 為可用時間。
 - **`fetches.dataset` 沿用 v1 的 dataset code**（`daily_price`、`market_index`…），
   resource key 也沿用 adapter 的，遷移過來的抓取紀錄因此直接可續跑：`stockdc_backfill`
   2020-01-02 到 2026-09-11，16 個每日 job 待抓 0 個期間，TAIEX 只剩未結算的 2026-09。
 - **TAIEX OHLC 的收盤與 `MI_INDEX` 不同就整份 quarantine**（`close_mismatch`，CLAUDE.md
-  §52）；`MI_INDEX` 尚未存該日時放行，由 `scripts/reconcile_market_indices.py` 的對帳涵蓋。
+  §52）。`MI_INDEX` 尚未存該日的日期不寫入，fetch 記 `succeeded` 加 `close_unverified`，
+  該月維持待抓，下次有收盤時再比（#47 review：原本放行，結果取決於匯入順序，§30）。
+  回補把有檢查的 job 排在最後，同一次回補就能比到剛寫入的 `MI_INDEX`。
+  `stockdc_backfill` 全歷史 1,627 天兩者收盤 0 天不同。
 - **部分列被 adapter 拒絕**（TPEx 本益比）時，其餘列照寫，fetch 記 `succeeded` 並在
   `reason_code = rows_rejected`、`reason_detail` 列出股票與原因，不另開表。
 

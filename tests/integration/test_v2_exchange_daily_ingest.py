@@ -168,6 +168,55 @@ def test_visibility_uses_the_rule_for_an_original_and_recorded_at_for_a_correcti
     assert seen(corrected_at) == {"2317": 24204, "2330": 164403}
 
 
+def _recorded(db, store, trade_counts: dict[str, int], at: datetime) -> None:
+    """2330's MI_INDEX row with this trade count, recorded at `at`.
+
+    `recorded_at` is stamped by the database, so a row seen before the rule
+    instant can only be staged by writing it explicitly, as the migration did."""
+    fetch_id = record_fetch(
+        db,
+        FetchRecord("daily_price", "twse_mi_index", "t", None, "gap_fill", "t", "abc", at),
+        content=b"t", status="succeeded", store=store,
+    )
+    (row,) = [row for row in DAILY.rows(DAILY.adapter.parse(MI_INDEX, DAILY.request(DAY)))
+              if row["stock_id"] == "2330"]
+    db.execute(sa.insert(daily_prices).values(
+        {**row, "trade_count": trade_counts["2330"], "fetch_id": fetch_id, "recorded_at": at}
+    ))
+
+
+def _seen(db, as_of: datetime) -> dict[str, int]:
+    rows = xd.visible(db, daily_prices, as_of=as_of, start=DAY, end=DAY)
+    return {row["stock_id"]: row["trade_count"] for row in rows}
+
+
+def test_the_first_value_seen_after_the_rule_instant_supersedes_a_provisional_one(
+    db, store, universe
+) -> None:
+    # Code review of #47: a row recorded before D+1 03:00 is provisional. The
+    # rule says the settled file was public at 03:00, so the first row seen
+    # after it is available from 03:00 too, however late it was recorded.
+    released = xd.available_from(DAY)
+    corrected = released + timedelta(days=2)
+    _recorded(db, store, {"2330": 164401}, released - timedelta(hours=4))
+    _recorded(db, store, {"2330": 164402}, released + timedelta(hours=6))
+    _recorded(db, store, {"2330": 164403}, corrected)
+
+    assert _seen(db, released - timedelta(seconds=1)) == {}
+    assert _seen(db, released) == {"2330": 164402}
+    # A value that differs from the settled one is still a correction.
+    assert _seen(db, corrected - timedelta(microseconds=1)) == {"2330": 164402}
+    assert _seen(db, corrected) == {"2330": 164403}
+
+
+def test_a_provisional_value_alone_is_public_at_the_rule_instant(db, store, universe) -> None:
+    # The settled file repeated it, so nothing was appended after 03:00.
+    released = xd.available_from(DAY)
+    _recorded(db, store, {"2330": 164402}, released - timedelta(hours=4))
+    assert _seen(db, released - timedelta(seconds=1)) == {}
+    assert _seen(db, released) == {"2330": 164402}
+
+
 def test_the_sql_rule_instant_agrees_with_the_python_one(db) -> None:
     for day in (date(2020, 1, 2), DAY, date(2024, 12, 31)):
         assert db.scalar(sa.select(xd.available_from_sql(sa.literal(day)))) == (
@@ -212,16 +261,20 @@ def test_a_maintenance_page_is_retried_once_live(db, store, universe) -> None:
     assert statuses == [("failed", "invalid_json", 1), ("succeeded", None, 2)]
 
 
-def test_resume_skips_what_succeeded_or_was_empty_and_retries_the_rest(
-    db, store, universe
-) -> None:
+def test_resume_skips_what_succeeded_and_retries_the_rest(db, store, universe) -> None:
     other = date(2026, 9, 10)
-    closed = date(2024, 7, 24)
     _ingest(db, store, DAILY, DAY, MI_INDEX)
     _ingest(db, store, DAILY, other, httpx.ConnectError("refused"))
-    _ingest(db, store, DAILY, closed,
-            (FIXTURES / "twse_mi_index_allbut0999_20240724_closed.json").read_bytes())
-    assert xd.pending(db, DAILY, [closed, other, DAY]) == [other]
+    assert xd.pending(db, DAILY, [other, DAY]) == [other]
+
+
+def test_an_empty_answer_for_a_trading_day_is_asked_again(db, store, universe) -> None:
+    # Code review of #47: periods come from `trading_days`, and no trading day
+    # in 2020-2026 answered empty, so an empty file is a gap, never "done".
+    closed = (FIXTURES / "twse_mi_index_allbut0999_20240724_closed.json").read_bytes()
+    day = date(2024, 7, 24)
+    _ingest(db, store, DAILY, day, closed, at=xd.available_from(day) + timedelta(days=1))
+    assert xd.pending(db, DAILY, [day]) == [day]
 
 
 def test_market_flows_have_no_stock_filter(db, store) -> None:
@@ -243,17 +296,29 @@ TAIEX = xd.JOBS["index_prices/twse_mi_5mins_hist"]
 TAIEX_MONTH = (FIXTURES / "twse_mi_5mins_hist_202601.json").read_bytes()
 
 
-def _list_close(db, store, close: str) -> None:
+def _taiex_closes() -> dict[date, Decimal]:
+    parsed = TAIEX.adapter.parse(TAIEX_MONTH, TAIEX.request(date(2026, 1, 1)))
+    return {row["trade_date"]: row["close_value"] for row in TAIEX.rows(parsed)}
+
+
+def _list_close(db, store, close: str | None = None, *, dates=None) -> None:
+    """Store the MI_INDEX TAIEX close for `dates` (default: every date of the
+    January fixture), equal to the fixture's own close except 2026-01-02 when
+    `close` is given."""
     fetch_id = record_fetch(
         db,
         FetchRecord("market_index", "twse_mi_index", "t", None, "gap_fill", "t", "abc",
                     datetime.now(UTC)),
         content=b"list", status="succeeded", store=store,
     )
-    db.execute(sa.insert(index_prices).values(
-        source="twse_mi_index", index_name="指數/臺灣證券交易所:發行量加權股價指數",
-        trade_date=date(2026, 1, 2), close_value=Decimal(close), fetch_id=fetch_id,
-    ))
+    closes = _taiex_closes()
+    if close is not None:
+        closes[date(2026, 1, 2)] = Decimal(close)
+    for day in dates or closes:
+        db.execute(sa.insert(index_prices).values(
+            source="twse_mi_index", index_name=xd.TAIEX_LIST_NAME,
+            trade_date=day, close_value=closes[day], fetch_id=fetch_id,
+        ))
 
 
 def test_taiex_ohlc_is_written_when_its_close_matches_the_list(db, store) -> None:
@@ -269,6 +334,45 @@ def test_taiex_ohlc_whose_close_disagrees_is_quarantined(db, store) -> None:
     fetch = _fetch(db, outcome.fetch_id)
     assert fetch["reason_code"] == "close_mismatch"
     assert "2026-01-02" in fetch["reason_detail"]
+
+
+def test_taiex_dates_without_a_list_close_wait_for_it(db, store) -> None:
+    # Code review of #47: a date with no MI_INDEX close was let through
+    # unchecked, so a backfill that fetched TAIEX first checked nothing.
+    month = date(2026, 1, 1)
+    _list_close(db, store, dates=[date(2026, 1, 2)])
+    outcome = _ingest(db, store, TAIEX, month, TAIEX_MONTH)
+    assert (outcome.status, outcome.appended, outcome.unverified) == ("succeeded", 1, 20)
+    assert _fetch(db, outcome.fetch_id)["reason_code"] == "close_unverified"
+    assert xd.pending(db, TAIEX, [month]) == [month]
+    # Once the list has every date, the month is checked in full and done.
+    _list_close(db, store, dates=[d for d in _taiex_closes() if d != date(2026, 1, 2)])
+    again = _ingest(db, store, TAIEX, month, TAIEX_MONTH)
+    assert (again.appended, again.unchanged, again.unverified) == (20, 1, 0)
+    assert xd.pending(db, TAIEX, [month]) == []
+
+
+def test_a_late_list_close_that_disagrees_quarantines_the_month(db, store) -> None:
+    month = date(2026, 1, 1)
+    _ingest(db, store, TAIEX, month, TAIEX_MONTH)
+    _list_close(db, store, "29349.80")
+    outcome = _ingest(db, store, TAIEX, month, TAIEX_MONTH)
+    assert (outcome.status, outcome.reason_code) == ("quarantined", "close_mismatch")
+    assert db.scalar(sa.select(sa.func.count()).select_from(index_prices)
+                     .where(index_prices.c.source == "twse_mi_5mins_hist")) == 0
+
+
+def test_a_backfill_writes_the_list_before_the_ohlc_it_checks(db, store) -> None:
+    from stock_data_center.v2.backfill import run
+
+    _trading_days(db, store, DAY)
+    listed = xd.JOBS["index_prices/twse_mi_index"]
+    fetcher = Replay(MI_INDEX, TAIEX_MONTH)
+    run(db, [TAIEX, listed], DAY, DAY, fetcher=fetcher, git_commit="abc",
+        purpose="gap_fill", store=store)
+    assert [key.split(":")[0] for key in fetcher.requests] == [
+        "twse_mi_index", "twse_mi_5mins_hist"
+    ]
 
 
 class _CrashingAdapter:
@@ -330,11 +434,14 @@ def test_a_backfill_resumes_and_reports(db, store, universe) -> None:
                  git_commit="abc", purpose="gap_fill", store=store)
     assert report["daily_prices/twse_mi_index"] == {
         "periods": 2, "skipped": 0, "succeeded": 1, "empty": 1, "appended": 2,
-        "unchanged": 0, "out_of_scope": report["daily_prices/twse_mi_index"]["out_of_scope"],
+        "unchanged": 0, "unverified": 0,
+        "out_of_scope": report["daily_prices/twse_mi_index"]["out_of_scope"],
     }
-    again = run(db, [DAILY], date(2024, 1, 1), DAY, fetcher=Replay(), git_commit="abc",
+    # The empty day is a gap and is asked again; the day that succeeded is not.
+    again = run(db, [DAILY], date(2024, 1, 1), DAY, fetcher=Replay(closed), git_commit="abc",
                 purpose="gap_fill", store=store)
-    assert again["daily_prices/twse_mi_index"]["skipped"] == 2
+    assert (again["daily_prices/twse_mi_index"]["skipped"],
+            again["daily_prices/twse_mi_index"]["empty"]) == (1, 1)
     # --refetch fetches again, and an unchanged day appends nothing.
     refetched = run(db, [DAILY], DAY, DAY, fetcher=Replay(MI_INDEX), git_commit="abc",
                     purpose="correction_check", store=store, refetch=True)
@@ -365,6 +472,7 @@ def test_a_month_is_done_only_once_its_last_day_has_settled(db, store) -> None:
     later = _ingest(db, store, TAIEX, month, TAIEX_MONTH, at=xd.available_from(date(2026, 1, 31)))
     assert (later.appended, later.unchanged) == (0, outcome.parsed)
     assert xd.pending(db, TAIEX, [month]) == []
+
 
 def test_an_empty_answer_before_the_rule_instant_is_asked_again(db, store, universe) -> None:
     closed = (FIXTURES / "twse_mi_index_allbut0999_20240724_closed.json").read_bytes()
