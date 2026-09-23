@@ -603,8 +603,8 @@ explicit out-of-scope work
 | 24-b | IN REVIEW | TDCC 股權分散：376 週 backfill、涵蓋範圍與對帳 |
 | 25 | PLANNED | 還原價格 |
 | 26 | PLANNED | 標準衍生 v1（移植舊系統計算程式） |
-| 27 | PLANNED | 排程的前向抓取 |
-| 28 | PLANNED | 公開 REST API v1 |
+| 27 | PLANNED | 公開 REST API v1 |
+| 28 | PLANNED | 排程的前向抓取 |
 | 29 | PLANNED | Python SDK 與下游整合 |
 | 30 | PLANNED | 維運與可觀測性 |
 | 31 | PLANNED | 完整的正確性 CI 關卡 |
@@ -617,6 +617,8 @@ Steps 1–12 建立了儲存、PIT 和 raw-first 的基礎。它們的 writer �
 Step 編號是本 roadmap 自己的編號，不必與 GitHub pull request 編號一致。到 Step 14 為止兩者一致；之後 ADR-0020 沒有經過 pull request 直接 commit 到 `main`，所以 Step 16 開的是 GitHub #15。這沒有問題，也不會為了修正而重新編號：step 編號識別的是工作，pull request 編號識別的是審閱。每個 step 的驗收報告都記錄交付它的 pull request。
 
 Step 13 是必須重新確立 *step* 編號的地方：已放棄的股利彙總 pilot 佔了這個編號，但根本沒有開成 pull request（§21.3）。原本規劃的 Steps 14–33 在上表重新編成 14–32；33 是新的 step，不是舊編號的延續。原本的「Corporate-Action Identity Research Track」、「Official Reference-Price / Share-Count Pilot」和「Historical Corporate-Action Backfill」由 Step 19 取代。原本的「Source Capability Hook」併入 Step 15。原本的「Legacy Migration and Reconciliation」拆成 Steps 17-a–26 各領域的對帳驗收，以及切換用的 Step 32。原本的快取 step 已刪除。
+
+2026-09-23 起，公開 REST API 從 Step 28 提前為 Step 27，排程的前向抓取改為 Step 28，讓下游不必等前向抓取完成才能接上。在這之前寫成的 step 報告、ADR 和 migration 中，「Step 27」指前向抓取，「Step 28」指 API；它們是歷史紀錄，不改寫。
 
 ---
 
@@ -780,7 +782,7 @@ press_report_bound
 - backfill 執行的抓取不是首次看到的證據，所以不能否證規則。這類列的解析方式與未被抓取的歷史相同。
 - 2026M02 起的月營收，舊系統紀錄中沒有的 `_0` 列，在舊系統最後一次執行（15 日）時尚未公開。它不取得規則證據，以 Data Center 的抓取時間解析。
 - 在規則時刻之後才第一次抓到的 revision，只取得 `capture_bound`。更正絕不會在實際被看到之前可見。
-- 有記載的限制：在任何抓取紀錄之前的歷史，存的是最新更正後的值，並在規則時刻變為可見。這允許更正的前視偏差，舊系統也有這個問題。它影響 2026M02 之前的月營收、2025Q4 之前的 XBRL，以及前向抓取之前的所有交易所每日資料。Step 27 回報前向抓取的 revision 比率，以量測這個效應的大小。
+- 有記載的限制：在任何抓取紀錄之前的歷史，存的是最新更正後的值，並在規則時刻變為可見。這允許更正的前視偏差，舊系統也有這個問題。它影響 2026M02 之前的月營收、2025Q4 之前的 XBRL，以及前向抓取之前的所有交易所每日資料。Step 28 回報前向抓取的 revision 比率，以量測這個效應的大小。
 - 把 source policy（能力與可接受的證據類型）從通用的 raw-first 流程，移到各 adapter 的來源宣告。這吸收了原本的「source capability hook」PR。
 - 在 ingest run 上記錄 `purpose`——`first_capture`、`gap_fill` 或 `correction_check`——並由它推導證據類型（§3.1）。purpose 在請求抓取時設定，絕不事後推斷，所以一列因為查詢發現缺漏而在多年後才抓取的資料，不能在那個較晚的時刻宣稱 `capture_bound`。
 
@@ -821,7 +823,7 @@ Steps 16–24 的共通規則：
 
 Schema 影響：`trading_calendar_versions`（+ 它的觀察連結，以及第十七個 `publication_evidence` 目標）和 `dataset_expected_coverage`。ADR-0021 記錄了版本以月而不是以日為粒度的原因：月份是發布的 artifact，*也是* revision 的單位，所以更正一個休市日會改變日期清單，成為新版本。以日為粒度的表無法表達被更正的休市日，因為列永遠不會被刪除。
 
-驗證器必須先知道每個資料集應該有什麼，才能回報缺口。這項知識以可查詢的預期涵蓋宣告公開，而不是隱含在報告產生程式裡，因為 Step 27 要把它轉成抓取 job（§3.1）。
+驗證器必須先知道每個資料集應該有什麼，才能回報缺口。這項知識以可查詢的預期涵蓋宣告公開，而不是隱含在報告產生程式裡，因為 Step 28 要把它轉成抓取 job（§3.1）。
 
 驗收：
 
@@ -947,7 +949,7 @@ ROADMAP 要求先做 spike，才能承諾櫃買指數 OHLC。結果：audit §4.
 對應指數）發布 `Open/High/Low/Close/Change`。它**不接受任何參數**——`d=`、
 `date=`、`yr=/mn=` 都被忽略——而且不論名稱為何，永遠回傳當月資料，
 2026-09-16 時是 12 列。所以櫃買指數 OHLC 無法 backfill 2020–2026，這些日期
-保持 NULL。Step 27 的前向抓取可以從開始那天起累積。
+保持 NULL。Step 28 的前向抓取可以從開始那天起累積。
 
 和 `MI_5MINS_HIST` 一樣，它只涵蓋那一個主要指數，而不是 TPEx 發布的其他 33 個。
 
@@ -1286,7 +1288,7 @@ POST，cp950 HTML，每個日期約 550 KB）寫入 `foreign_holding_versions`�
   `f2b6d8a4c1e9` 宣告。MOPS 仍是 TPEx 宣告的涵蓋來源（`dataset_expected_coverage`
   每個市場一個來源，而 MOPS 帶有每個欄位）。`insti/qfii` 缺少大部分 ETF，也沒有
   發布陸資法令投資上限比率、異動原因和最近申報日期，這三欄在該來源保持 NULL。
-  消費端如何在兩個 TPEx 來源之間選擇，留給 Step 28 或另一份 ADR。
+  消費端如何在兩個 TPEx 來源之間選擇，留給 Step 27 或另一份 ADR。
 - **異動原因是一組代碼。** 一格可以有多個代碼（TWSE 每個代碼一個連結，以
   `<br>` 分隔；MOPS 把數字連在一起，如 `24`），儲存為遞增、逗號分隔（`2,4`）；
   空白為 NULL。連結指向每月換 URL 的申報頁，不儲存，所以連結改變不是 revision。
@@ -1484,7 +1486,7 @@ CLI `monthly-revenue`。
 
 - **只在 `_1` 頁出現的 KY／外國發行公司留 `unknown`。** 舊系統寫死 `_0` 網址，檔案裡
   一列都沒有它們，所以沒有任何東西可以證明它們何時公開。上市 95 家、上櫃 30 家（含
-  DR）在 Market PIT 下看不到，直到 Step 27 前向抓取給出真正的 `capture_bound`。
+  DR）在 Market PIT 下看不到，直到 Step 28 前向抓取給出真正的 `capture_bound`。
   因此 release rule **不宣告在來源上**，只由 archive importer 對「日期落在法定 10 日」
   的列逐列引用；宣告在來源上會讓每一個舊系統沒抓過的列都拿到同一個法定時刻。
 - **166 列已證實在舊系統抓取後被更正的列，照樣附上復原的公告日期。** 我們手上只有
@@ -1868,7 +1870,13 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 
 # 25. 規劃中的 PR——維運、API、切換
 
-## Step 27 — 排程的前向抓取
+## Step 27 — 公開 REST API v1
+
+狀態：**PLANNED**。依賴：Step 15 的決定、各資料 PR。
+
+提供正確的 Data Center 語意，而不暴露資料表。端點涵蓋舊系統使用者發出的查詢：每日面板、指數、估值、籌碼資料、月營收、財務 facts 與摘要、TDCC、公司行動、還原價格和衍生指標。每個回應都帶有其 PIT context 和 provenance。沒有來源的欄位被省略，或明確標示為無法取得。
+
+## Step 28 — 排程的前向抓取
 
 狀態：**PLANNED**。依賴：Steps 16–24。
 
@@ -1882,7 +1890,7 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 才有下一次執行，而缺口要靠人檢查才會發現。當時的因應是第二個計時器——23:30 加上
 03:00 的重試——這是用固定排程去猜需要幾次嘗試。
 
-Step 27 把它反過來。每小時，對每個宣告的 `(dataset, market)`：
+Step 28 把它反過來。每小時，對每個宣告的 `(dataset, market)`：
 
 ```text
 read the declaration  -> what should exist
@@ -1909,7 +1917,7 @@ dispatch              -> one job per still-missing period, and nothing else
 報表內**，全部在敘述文字裡，也沒有任何一處在帶 `ix:nonFraction` 的儲存格。所以
 沒有任何已儲存的值依賴這個字元，23-c 的 backfill 不受影響。
 
-Step 27 前向抓取要決定怎麼處理：猜一個使用者造字等於發明來源內容，所以不是加一個
+Step 28 前向抓取要決定怎麼處理：猜一個使用者造字等於發明來源內容，所以不是加一個
 寬鬆 codec 就算了。可能的方向是保留原始位元組、只對無法對映的位元組記錄位置與
 quarantine reason，讓三張報表照樣解析——但那要先證明無法對映的位元組永遠不落在
 報表內，而目前只有檔案庫這一份證據。
@@ -1962,12 +1970,6 @@ quarantine reason，讓三張報表照樣解析——但那要先證明無法對
 - 對同一個缺漏期間，排程執行和 gap-fill 執行產生不同的證據，而 gap-fill 的列以其 release rule 解析
 - 對已發布值有改變的期間做回溯重新抓取，會產生 revision；值沒有改變的則不產生
 - 在任何抓取發生之前，就可以列出待處理的 job 集合
-
-## Step 28 — 公開 REST API v1
-
-狀態：**PLANNED**。依賴：Step 15 的決定、各資料 PR。
-
-提供正確的 Data Center 語意，而不暴露資料表。端點涵蓋舊系統使用者發出的查詢：每日面板、指數、估值、籌碼資料、月營收、財務 facts 與摘要、TDCC、公司行動、還原價格和衍生指標。每個回應都帶有其 PIT context 和 provenance。沒有來源的欄位被省略，或明確標示為無法取得。
 
 ## Step 29 — Python SDK 與下游整合契約
 

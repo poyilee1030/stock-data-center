@@ -127,7 +127,7 @@ importer for the rows whose recovered date is the unshifted 10th. It is
 deliberately not declared on the source: a declaration would hand the same
 instant to every version the official importer writes, including the `_1`
 foreign and KY issuers the archive never held. Those keep `unknown` until
-Step 27's forward capture proves a real one.
+Step 28's forward capture proves a real one.
 
 A correction the issuer made after legacy captured the row is a separate
 version, and it stays Market-PIT invisible until a run that is the first to

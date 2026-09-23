@@ -25,7 +25,7 @@ Two windows, because the file holds two different things (audit §7.1, §7.4):
 
 What the archive does not hold, it does not prove. Legacy hard-coded the `_0`
 URL, so there is no foreign issuer in it at all; KY issuers keep `unknown`
-until Step 27's forward capture proves a real one (owner decision). An issuer
+until Step 28's forward capture proves a real one (owner decision). An issuer
 the official source no longer lists — 540 of them, Step 22-b — has no version
 to carry evidence, and no version is invented for it.
 """

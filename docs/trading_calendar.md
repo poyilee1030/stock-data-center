@@ -70,7 +70,7 @@ instant is at least the statutory deadline moved to the next business day.
 ## Expected coverage
 
 The validator cannot report a gap until it knows what a dataset *should* hold.
-That knowledge is a row, not logic inside a report, because Step 27 turns it into
+That knowledge is a row, not logic inside a report, because Step 28 turns it into
 fetch jobs:
 
 ```text

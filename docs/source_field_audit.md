@@ -249,7 +249,7 @@ and `openapi/v1/tpex_otc_index_history` both 404'd. Step 18-a's spike found
 `Open/High/Low/Close/Change` for `櫃買指數`. It accepts **no parameters** —
 `d=`, `date=` and `yr=/mn=` are all ignored — and always returns the current
 calendar month, 12 rows on 2026-09-16, despite its name. So OTC index OHLC
-cannot be obtained for past dates and stays NULL for 2020–2026; Step 27's
+cannot be obtained for past dates and stays NULL for 2020–2026; Step 28's
 forward capture can accumulate it from the day it starts. Like `MI_5MINS_HIST`,
 it covers the one headline index and not the other 33.
 
@@ -1033,7 +1033,7 @@ every one is in narrative text, and none is in a cell holding an
 The consequence is for the *official* path, not this backfill: re-fetching one
 of those documents quarantines it as `unreadable_document`. That is fail-closed
 and correct — a codec that guessed at a user-defined character would be
-inventing source content — but Step 27's forward capture has to handle it, and
+inventing source content — but Step 28's forward capture has to handle it, and
 ROADMAP records it there.
 
 **Legacy parity is a filter, not a parse.** The reconciliation lines legacy's
@@ -2029,7 +2029,7 @@ Measured 2026-09-20 on the whole window, 2020M01–2026M08, both markets:
   it became public, so it waits for a capture. Step 22-b imported today's
   pages as `gap_fill`, which proves nothing about publication (ADR-0020 §2),
   so for those rows the proof has to come from a later `correction_check` run
-  — Step 27's forward capture.
+  — Step 28's forward capture.
 
 Two consequences are accepted and recorded rather than fixed:
 

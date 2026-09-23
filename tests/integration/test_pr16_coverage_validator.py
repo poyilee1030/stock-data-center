@@ -2,7 +2,7 @@
 
 The validator cannot report a gap until it knows what a dataset *should* hold.
 That knowledge is a declaration in the database, queryable on its own, because
-Step 27 turns it into fetch jobs.
+Step 28 turns it into fetch jobs.
 """
 
 from __future__ import annotations
@@ -149,7 +149,7 @@ def store_price(db: Connection, security_id: int, trade_date: date) -> None:
 def test_expected_coverage_is_declared_and_queryable_on_its_own(
     db: Connection,
 ) -> None:
-    """Step 27 reads this directly; it is not a by-product of rendering a report."""
+    """Step 28 reads this directly; it is not a by-product of rendering a report."""
     migrated = {
         (row.dataset_code, row.market): row for row in EXPECTED.declarations(db)
     }

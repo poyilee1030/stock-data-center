@@ -16,7 +16,7 @@ The archive is read in two windows, because it holds two different things
   until something captures it.
 
 KY issuers are in neither window: legacy hard-coded the `_0` URL, so the
-archive has no foreign issuer at all. They keep `unknown` until Step 27's
+archive has no foreign issuer at all. They keep `unknown` until Step 28's
 forward capture proves one (owner decision, 2026-09-20).
 """
 

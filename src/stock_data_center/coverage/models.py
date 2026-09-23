@@ -11,7 +11,7 @@ class ExpectedCoverage:
     """What one dataset is expected to hold, for one market.
 
     This is a declaration in the database rather than logic inside a report,
-    because Step 27 turns it into fetch jobs.
+    because Step 28 turns it into fetch jobs.
     """
 
     dataset_code: str

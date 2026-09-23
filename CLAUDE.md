@@ -137,8 +137,8 @@ Step 23-c financial statements: backfill + reconcile    THIS STEP
 Step 24  TDCC distribution                             PLANNED
 Step 25  adjusted prices                               PLANNED
 Step 26  canonical derived v1 (legacy calculator ports) PLANNED
-Step 27  scheduled forward capture                     PLANNED
-Step 28  public REST API v1                            PLANNED
+Step 27  public REST API v1                            PLANNED
+Step 28  scheduled forward capture                     PLANNED
 Step 29  Python SDK + downstream integration           PLANNED
 Step 30  operations + observability                    PLANNED
 Step 31  full correctness CI gate                      PLANNED

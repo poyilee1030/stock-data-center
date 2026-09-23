@@ -41,7 +41,7 @@ mtime：2025Q4 起每日工作抓到的 4,895 份帶 `legacy_capture_bound`，�
 `published_at`。
 
 已知限制：2025Q4 之前沒有首見證據，所以真正延遲申報的公司在 Market PIT 下會偏早
-（audit §7.6）；官方路徑遇到 Big5 使用者造字的文件會 fail closed，留給 Step 27。
+（audit §7.6）；官方路徑遇到 Big5 使用者造字的文件會 fail closed，留給 Step 28。
 
 ## 技術棧
 

@@ -20,7 +20,7 @@ lands in one of four buckets:
 - `corrected_since_capture` — the statement rows differ, so MOPS has served a
   corrected filing since the archive was written. This is a real later
   revision, not archive damage: importing the archived copy stores what was
-  filed then, and Step 27's forward capture stores the correction as its own
+  filed then, and Step 28's forward capture stores the correction as its own
   version when it fetches it.
 - `no_longer_served` — MOPS answers `檔案不存在!` for both REPORT_IDs. The
   document existed when the archive was written and the endpoint no longer
