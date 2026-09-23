@@ -3,35 +3,51 @@
 狀態：IN REVIEW (#44)
 
 範圍：標準衍生資料的第一部分——derivation 服務基礎，以及第一個定義
-`technical_indicators:v1`。新增：
+`technical_indicators:v1`。依 ROADMAP §17，衍生資料**即時計算、不實體化**。新增：
 
-- `src/stock_data_center/derived/`：`definitions.py`（定義與冪等註冊）、
-  `indicators.py`（純函數計算器）、`service.py`（即時計算與滾動 as-of 實體化）、
-  `cli.py`
+- `src/stock_data_center/derived/`：`definitions.py`（定義與冪等註冊，
+  `storage_strategy = virtual`）、`indicators.py`（純函數計算器）、`service.py`
+  （`compute` 單一 PIT context、`rolling` 滾動 as-of 序列）
+- `src/stock_data_center/pit/history.py` 與 `PITResolver.market_history`：一次讀進
+  一段 key 範圍的所有版本與證據，在記憶體中以與 `resolve` 相同的規則選出可見版本
+- `ReleaseRuleService.instants_for`：一條 rule 讀一次，對多個期間求值
 - migration `c7f4a1e08b23`（`dataset_catalog` 的 `technical_indicators` 列，
   以及 `publication_evidence` 依證據目標查詢的索引）
-- `scripts/materialize_technical_indicators.sh`（分片、可續跑、自我終結）
 - `scripts/reconcile_technical_indicators.py`
 - fixture `tests/fixtures/step26a_technical_indicators_legacy.json`
 
+### 第一版曾經實體化，review 前改掉
+
+第一版照 §17 當時的文字，把滾動序列寫進 `derived_metric_versions`：2,582 支證券、
+75,990,376 列、約 56 GB，是它的輸入 `daily_price`（2 GB）的 28 倍。長格式每個
+metric-day 約 740 bytes，其中約 98% 是逐列重複的 lineage（`input_dataset_identity`、
+兩個 64 字元 hash、三個 PIT 時間戳、run id），真正的值只有一個 `numeric`。
+
+這些值是已版本化輸入的確定性函數，存下來不增加任何可稽核的事實，所以 §17 改成
+預設即時計算（2026-09-23 owner 決定），26-a 改寫成不寫任何結果列。
+`stockdc_backfill` 裡第一版寫入的定義、2,630 筆計算執行與 7,600 萬列已清除，
+資料庫從 94 GB 降到 38 GB。`derived_metric_versions` 的儲存契約保留，留給日後
+經量測證明需要實體化的指標。
+
 ## Step 26 為什麼拆成五個
 
-七個 derivation 各自要註冊定義、實作計算、實體化滾動序列、證明實體化與即時計算
-一致，再與舊系統逐欄對帳。舊系統的計算程式本身 1,791 行。拆的縫是輸入領域，
+七個 derivation 各自要註冊定義、實作計算、提供滾動序列、證明它與單一 PIT context
+的計算一致，再與舊系統逐欄對帳。舊系統的計算程式本身 1,791 行。拆的縫是輸入領域，
 每一段自己就是完整的契約（ROADMAP §24）。
 
-規模：`src/` +1,105 行，超過 CLAUDE.md §1 的約 800 行門檻。再往下拆會切在
-`service.py` 中間——即時計算與滾動實體化共用同一組輸入解析與分段邏輯，把其中
-一半先合併就是「合併了半個契約」，正是 §1 明文禁止的切法。所以這一段維持完整，
-而超出的部分在這裡記下來而不是假裝沒有。四個檔案的分佈：
+規模：`src/` 約 +1,140 行（含 PIT 套件的批次路徑），超過 CLAUDE.md §1 的約 800 行
+門檻。再往下拆會把 `market_history` 與使用它的 service 分開——批次路徑的正確性
+只能由「滾動序列等於逐點計算」證明，先合併其中一半就是「合併了半個契約」。
+所以這一段維持完整，超出的部分記在這裡。
 
 ```text
-service.py       495   分段、可見歷史、即時計算、實體化
+service.py       366   compute、rolling、分段
 indicators.py    244   純函數公式
-cli.py           177   分片與 manifest
 definitions.py   146   定義與冪等註冊
-__init__.py       31
-metadata.py      +12   索引宣告
+pit/history.py   121   一段 key 範圍的可見歷史
+pit/evidence.py  +45   批次證據查詢，與單筆共用選擇規則
+pit/resolver.py  +62   market_history
+release_rules.py +26   instants_for
 ```
 
 ## 移植的判準：對照舊系統自己的輸出，不是對照 pandas 文件
@@ -77,24 +93,36 @@ ROADMAP §17 只說「該日期截止點時可見的輸入」。這裡把它定�
 2026 年，而 2020 年的 knowledge cutoff 看不到它。這正是 CLAUDE.md §15 把兩條軸
 分開的理由，也是本 step 第一個被測試抓到的錯誤。
 
+### 一次讀進整段歷史，再在記憶體中解析
+
+逐日呼叫 resolver 是 O(N²)：2330 一支就是 260 萬次 resolve。改成一次讀進：
+
+版本的 authoritative 證據只取決於 knowledge cutoff 與來源政策，**與
+`information_as_of` 無關**。所以在固定的 `knowledge_as_of` 下，每個版本的證據只要
+決定一次；任何 information cutoff 的可見版本，都是對記憶體中資料的選擇。
+`market_history` 用兩個 statement 讀進一支證券的全部版本與證據，選擇規則
+（`visible_at`、`market_order`）抽成函數，由 `resolve` 與批次路徑共用，兩條路徑
+不可能各自漂移。測試逐一比對兩者在每個截止點選出的版本與證據。
+
 ### 分段，而不是逐日重算
 
-滾動序列不是對整段歷史做一次計算：一筆較早交易日的更正若在較晚才發布，它會改變
-那個瞬間之後的每一個值，而不會動到之前的。所以視窗在**那些瞬間**切段：段內可見
-歷史固定，一次計算產生段內每一列。沒有遲到的更正時只有一段。
-逐日重新解析會是 O(N²)——2330 一支就是 260 萬次 resolver 呼叫。
+一筆較早交易日的更正若在較晚才發布，它會改變那個瞬間之後的每一個值，而不會
+動到之前的。所以視窗在**那些瞬間**切段：段內可見歷史固定，一次計算產生段內每一列。
+切段條件：觀察日 D 併入前一日的段，除非有某個交易日 ≤ 前一日的版本，在兩個截止點
+之間發布。沒有遲到的更正時只有一段。
+
+一個交易日自己的價格晚於自己的截止點才發布時，那一天在滾動序列裡**沒有列**——
+在那個瞬間市場算不出它。
 
 ### 舊系統的 technical_indicators 是兩個 derivation
 
 法人連續買賣天數的輸入領域與 release 時刻都不同，合成一個 derivation 會讓一邊的
 可見性決定另一邊。連續天數是 26-b 的 `institutional_streaks:v1`。
 
-### 「還沒算得出來」是一個答案，要存
+### 「還沒算得出來」是一個答案
 
-`ma240` 在第四十天沒有值，這與「這一天不在序列裡」不同。沒有值的列以
-`json_value` 的 JSON null 寫入。`sa.null()` 與 Python `None` 在 JSON 欄位上不同：
-後者會被存成 JSON 的 `null`，不是 SQL NULL——第一版就是這樣違反了「恰好填一欄」
-的 CHECK。
+`ma240` 在第四十天沒有值，這與「這一天不在序列裡」不同。前者是那一列的 `None`，
+後者是沒有那一列。
 
 ## 踩到的坑
 
@@ -103,49 +131,45 @@ ROADMAP §17 只說「該日期截止點時可見的輸入」。這裡把它定�
 **原本以為**慢的是 resolver 要逐日呼叫。實測是單一次 resolve 要 600 ms：
 2,200 萬列的 `publication_evidence` 有 append 用的索引、有依資料集與發布順序
 解析的索引，就是沒有「這一個版本的證據」——而那是每一次 resolve 都在問的問題。
-匯入從來沒踩到：它寫證據，不查證據。
+匯入從來沒踩到：它寫證據，不查證據。批次路徑的 `target IN (...)` 也需要同一個
+索引。
 
-加上部分索引後，一支證券的可見歷史從 16 分鐘變成 3.1 秒；沒有它，全市場要 29 天。
+### release rule 每天讀一次資料庫
 
-### 一個 statement 綁不下一支證券的序列
+改成即時計算後第一次量測是每支 0.75 秒，剖析顯示七成時間在 `ReleaseRuleService`：
+每個觀察日都重新 SELECT 同一條 rule，一支證券 1,627 次。加上 `instants_for`
+（一條 rule 讀一次，求值共用 `resolve` 的同一段程式）後降到 0.19 秒。
 
-**原本以為**一次 insert 就好。1,622 個交易日 × 22 個指標 × 14 個參數 = 50 萬個
-bind 參數，遠超過 65,535 的上限。失敗的恰好是歷史最長、最值得要的那些證券，
-而五天份的 fixture 永遠測不到。回歸測試用 400 天的序列把它釘住。
+### 測試把知識截止點寫死成日期
 
-### 分片是必要的，不是優化
+第一版測試的 `KNOWLEDGE = 2026-09-23 00:00 UTC`，而 fixture 的證據
+`recorded_at` 是測試執行的當下。過了那個時刻，每條測試都看不到任何證據——一顆
+隔天就會引爆的定時炸彈。改成「現在 + 1 天」。
 
-單一程序 107k 列／分；四個分片 250k 列／分。證券之間彼此獨立，分片依排序後的
-位置切，寫入互不重疊。
+### 第一版實體化時的坑，現在已經不存在
 
-### 對帳的第一版會把自己撐爆
+一個 statement 綁不下一支證券的序列（50 萬個 bind 參數）、單一程序太慢而必須分片、
+對帳把 7,600 萬列讀進記憶體會 OOM——三者都隨著不寫結果列而消失。
+## 全市場即時計算
 
-**原本以為**兩邊各讀進記憶體再比對就好。我們有 7,600 萬列、舊系統 293 萬列——
-那不是比對，是 OOM。改成逐月切片，每個指標都以自己的觀察日為 key，所以一個月
-自成一段。
-
-## 全市場實體化
-
-```text
-scripts/materialize_technical_indicators.sh \
-    postgresql+psycopg://.../stockdc_backfill 2026-09-22T00:00:00+08:00 4
-```
+對帳腳本逐支證券呼叫 `rolling`，與讀者拿到的完全相同，並記錄每支的耗時：
 
 ```text
-來源              證券    列數          每分片耗時
-twse_mi_index    1,461   42,968,750    約 108 分鐘 × 4
-tpex_otc_quotes  1,121   33,021,626    約 84 分鐘 × 4
-合計             2,582   75,990,376    約 3.5 小時（牆鐘）
+證券      p50       p95       max       合計
+2,568    0.183 s   0.216 s   0.589 s   410 s
 ```
 
-八個分片的 `failures` 全部是空的。`derived_metric_versions` 約 56 GB。
-`(definition, security, observation_date, metric_code)` 重複 0 筆——分片依排序後的
-位置切，寫入互不重疊，而語意 identity 索引是最後一道保險。
-
+每支是 2020-01-02 → 2026-09-11 的完整序列（最長 1,627 個交易日 × 22 個指標）。
+`derived_metric_versions` 與 `derived_computation_runs` 在計算前後都是 0 列。
 ## 對帳
 
+即時計算版本重跑全市場與子集兩輪，結果與第一版實體化的逐項相同：證券日數、
+`legacy_only` 0、價格類 0 筆超過容差、子集 ma5 `null_mismatch` 40、vma5／vma10
+差異 4,508／9,008。以下數字為即時計算版本。
+
 ```text
-scripts/reconcile_technical_indicators.py --start 2020-01-02 --end 2026-09-11
+scripts/reconcile_technical_indicators.py --start 2020-01-02 --end 2026-09-11 \
+    --knowledge-as-of 2026-09-23T12:00:00+08:00
 ```
 
 ```text
@@ -179,7 +203,7 @@ NULL），舊 scraper 把它刪了（audit：`daily_quotes` 的最小成交量�
 
 **B. 舊系統凍結了 2026-03-27 的不完整成交量。** 交易日集合相同的子集裡，
 volume 不同的只有 **902 筆，全部在 2026-03-27**；close、high、low 差異 **0 筆**。
-這正是 ROADMAP Step 27 記載的舊系統缺陷：那天的檔案 14:10 寫入，在零股交易確定
+這正是 ROADMAP Step 28 記載的舊系統缺陷：那天的檔案 14:10 寫入，在零股交易確定
 之前，`skip if exists` 讓它再也沒被重抓。vma5 在子集裡差 4,508 筆 ≈ 902 × 5，
 vma10 差 9,008 ≈ 902 × 10，逐一對上視窗長度。
 
@@ -206,34 +230,34 @@ alpha = 1/3 的遞推衰減得夠快，舊系統每次增量重算的起點都�
 | ROADMAP 驗收條件 | 結果 |
 | --- | --- |
 | 每個公式對固定 fixture 的值與舊系統逐欄相同 | **PASS**。fixture 取自 legacy 自己的輸出，2330 與 1418 共 717 天 × 22 欄；移植前先對兩支證券的全部 6.7 年比對過，最大差異 1.28e-09 |
-| 實體化結果與同一個 PIT context 的即時計算完全相同 | **PASS**。`test_materialized_and_virtual_agree_for_one_context` |
-| 觀察日 D 不依賴 `cutoff(D)` 之後才可見的輸入 | **PASS**。`test_a_later_correction_does_not_reach_back_into_an_earlier_date`（7-01 的更正在 7-20 發布，7-05 的 ma5 維持 14 而不是 31.8）與 `test_a_day_after_the_window_cannot_change_a_materialised_value` |
+| 滾動序列每一列等於該日截止點的單一 PIT context 計算 | **PASS**。`test_rolling_and_on_demand_agree_for_one_context`，以及更正與遲到發布兩種情境下逐日比對（`test_a_correction_inside_the_window_splits_the_series_where_it_lands`、`test_a_price_published_after_its_own_cutoff_has_no_row_that_day`）。把切段邏輯改成永遠一段時，後兩條失敗 |
+| `market_history` 與逐 key 的 `resolve` 選出相同版本 | **PASS**。`test_the_history_resolves_every_key_as_resolve_does`：七個截止點 × 五個交易日，含晚到的第二個版本 |
+| 觀察日 D 不依賴 `cutoff(D)` 之後才可見的輸入 | **PASS**。`test_a_later_correction_does_not_reach_back_into_an_earlier_date`（7-01 的更正在 7-20 發布，7-05 的 ma5 維持 14 而不是 31.8）與 `test_a_day_after_the_window_cannot_change_a_value` |
 | 定義冪等註冊 | **PASS**。`test_registering_the_same_definition_twice_stores_one_row`；語意改了而版本沒改會被拒絕 |
 | 與舊系統 `technical_indicators` 的價量欄位對帳，差異逐類說明 | **PASS**。見上；價格類 0 筆超過容差，其餘三類全部歸因 |
+| 計算不寫入任何結果 | **PASS**。`test_computing_writes_nothing` |
 
-測試：14 條（5 條 unit、9 條 integration），全部先紅後綠。
+測試：19 條（5 條 unit、14 條 integration）。全套 1,185 條通過。
+## 量測到的、已經決定的事
 
-## 量測到的、要決定的事
-
-`derived_metric_versions` 是長格式，一個 metric-day 一列，實測約 **740 bytes／列**
-（7,600 萬列、56 GB，含九欄的語意 identity 索引）。26-b–26-e 還有六個 derivation，
-全部做完會落在數百 GB。這個 step 照 Step 10 既有的儲存契約做完，沒有自行改
-schema——但這個數字應該在 26-b 開始前決定要不要處理，而不是等到 Step 30。
-
+第一版量到長格式實體化約 740 bytes／metric-day、`technical_indicators:v1` 單獨
+56 GB。已決定：§17 改為預設即時計算，26-b–26-e 沿用同一個 service 形狀與
+`market_history`，只換計算器與輸入。
 ## 已知限制
 
+- **全市場的單日面板要逐支計算。** KD、RSI、MACD 是無限記憶的指數平均，必須從
+  證券第一筆可見行情開始暖機，不能只讀最近 240 天。目前單支 0.19 秒，全市場一天的
+  面板約 8 分鐘。Step 27（API）要依實際查詢型態決定：一次讀全市場的批次
+  `market_history`，或經量測後只實體化最常用的部分（§17 的正式路徑）。
 - **轉板的證券沒有連續序列。** 14 支證券在視窗內換過市場，每個來源各一條序列，
   指數類指標在轉板日重新暖機。這是 §30 的要求，不是缺陷，但下游若需要連續序列，
   需要一個明確的跨來源接續政策（要 ADR）。
-- **`derived_metric_versions` 沒有 source 欄位。** 序列是逐來源計算的，來源記在
-  `input_dataset_identity` 裡，不在語意 identity 索引裡。實測沒有任何
-  `(security, date, metric)` 重複，因為一支證券同一天只在一個市場交易；但 API
-  （Step 28）回傳時要讓讀者看得到是哪個來源。
 - **更正的路徑目前沒有真實資料驗證過。** 這份 2020–2026 的歷史裡
   `daily_price` 的修訂數是 0：每個 (證券, 來源, 交易日) 只有一個版本、一筆
-  assertion 證據，因為整段歷史是一次性補抓的，我們從來沒有「先看到原始值、
-  後看到更正值」。分段邏輯與「更正不往回改寫」的行為因此只有測試在驗證。
-  第一筆真正的 revision 要等 Step 27 的前向抓取回頭重抓最近期間才會出現，
+  assertion 證據。分段邏輯與「更正不往回改寫」的行為因此只有測試在驗證。
+  第一筆真正的 revision 要等 Step 28 的前向抓取回頭重抓最近期間才會出現，
   屆時應該回來重跑一次這個 step 的對帳。
+- **`market_history` 只支援單一版本表。** sealed aggregate（財報、TDCC）依 seal
+  可見，會被明確拒絕；26-c、26-e 需要時再擴充。
 - **`publication_evidence` 只補了 daily_price 目標的索引。** 其餘十六個證據目標
   維持原狀，等各自的 step 需要時再加。

@@ -13,6 +13,7 @@ Step 15-b):
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
@@ -76,6 +77,22 @@ class ReleaseRuleService:
             market=market,
         ).published_at
 
+    def instants_for(
+        self,
+        connection: Connection,
+        *,
+        rule_id: str,
+        version: int,
+        periods: Iterable[date],
+        market: str = CALENDAR_MARKET,
+    ) -> dict[date, datetime]:
+        """`instant_for` over many periods, reading the rule once."""
+        rule = self.rule(connection, rule_id=rule_id, version=version)
+        return {
+            period: self._evaluate(connection, rule, period, market).published_at
+            for period in periods
+        }
+
     def resolve(
         self,
         connection: Connection,
@@ -86,6 +103,15 @@ class ReleaseRuleService:
         market: str = CALENDAR_MARKET,
     ) -> ResolvedReleaseInstant:
         rule = self.rule(connection, rule_id=rule_id, version=version)
+        return self._evaluate(connection, rule, period, market)
+
+    def _evaluate(
+        self,
+        connection: Connection,
+        rule: ReleaseRule,
+        period: date,
+        market: str,
+    ) -> ResolvedReleaseInstant:
         zone = ZoneInfo(rule.timezone)
 
         if rule.rule_kind == "day_of_next_month":

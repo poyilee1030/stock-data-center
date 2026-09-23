@@ -1800,11 +1800,11 @@ short_interest_metrics:v1        SBL/short ratios and WoW changes
 
 ### 為什麼拆成五個
 
-七個 derivation 各自要註冊定義、實作計算、實體化滾動序列、證明實體化與即時
-計算一致，再與舊系統的七張表逐欄對帳。舊系統的計算程式本身就有 1,791 行，
+七個 derivation 各自要註冊定義、實作計算、提供即時計算的滾動序列、證明它與
+單一 PIT context 的計算一致，再與舊系統的七張表逐欄對帳。舊系統的計算程式本身就有 1,791 行，
 移植後加上 PIT 與 lineage 只會更多，遠超過 CLAUDE.md §1 的 800 行審閱上限。
 
-拆的縫是**輸入領域**：每一段自己就是完整的契約——定義、計算、實體化、對帳
+拆的縫是**輸入領域**：每一段自己就是完整的契約——定義、計算、對帳
 ——合併後不會留下半個契約。26-a 另外負擔所有 derivation 共用的基礎設施，
 所以它是第一個。
 
@@ -1834,7 +1834,9 @@ cutoff(D) = 該 derivation 所有必要輸入中，週期 D 最晚的 release �
 每個定義把自己的截止點寫進 `calendar_convention`，而不是由呼叫端猜。這個慣例
 同時就是無未來洩漏的判準：D+1 的行情在 D+2 03:00 才公開，永遠大於 cutoff(D)。
 
-滾動序列以 Market PIT 實體化，`information_as_of = knowledge_as_of = cutoff(D)`。
+滾動序列以 Market PIT 即時計算：`information_as_of = cutoff(D)`，`knowledge_as_of`
+是整條序列共用的知識截止點。兩者不能都取 `cutoff(D)`：證據的 `recorded_at` 是
+匯入的時刻，把知識截止點拉回 2020 年會什麼都看不到。
 
 ### 舊系統的 technical_indicators 是兩個 derivation
 
@@ -1858,29 +1860,32 @@ KD、RSI 和 MACD 都是無限記憶的指數移動平均。舊系統的增量�
 交付：
 
 - `derived` 套件：定義註冊（`derived_dataset_definitions`，含 `definition_hash`
-  與冪等註冊）、計算執行（`derived_computation_runs`）、結果寫入
-  （`derived_metric_versions`）
+  與冪等註冊，`storage_strategy = virtual`）
 - 純函數計算器：MA/VMA 5/10/20/60/120/240、KD（RSV 9 日、alpha 1/3）、
   RSI 6/12（Wilder，`com = window - 1`）、MACD（12/26/9）、Bollinger（20、2 倍
   樣本標準差）。全部以 raw close／volume 計算，`price_adjustment_convention`
   明寫 `raw_official_close`
-- 滾動 as-of 實體化 CLI，與同 context 的即時計算路徑
+- 即時計算的兩個入口：單一 PIT context 的 `compute`，與滾動 as-of 序列的 `rolling`。
+  依 §17 不實體化，不寫任何結果列
+- `PITResolver.market_history`：一次讀進一段 key 範圍的所有版本與證據，再用與
+  `resolve` 相同的規則在記憶體中選出可見版本
 - `scripts/reconcile_technical_indicators.py`
 
 驗收：
 
 - 每個公式對固定 fixture 的值與舊系統逐欄相同（容差在報告中寫明）
-- 實體化結果與同一個 PIT context 的即時計算完全相同
+- 滾動序列的每一列，都等於在該日截止點的單一 PIT context 即時計算的結果
+- `market_history` 在任何截止點選出的版本，都與逐 key 的 `resolve` 相同
 - 觀察日 D 的值不依賴任何 `cutoff(D)` 之後才可見的輸入；把 D+1 的行情加進資料庫
   不改變 D 的任何值
 - 定義冪等註冊：同樣的定義重跑不產生第二筆 `derived_dataset_definitions`
 - 與舊系統 `technical_indicators` 的價量欄位對帳，差異逐類說明
 
-全部通過（`docs/step_reports/step-26-a-acceptance-report.md`）。2,582 支證券、
-75,990,376 列、0 失敗。價格類指標與舊系統逐筆相同（最大差異 1.1e-13）；其餘差異
-分成三類並全部歸因：舊系統丟掉沒成交的日子（695 支、26,290 個證券日）、舊系統
-凍結的 2026-03-27 不完整成交量（902 支）、轉板證券的每來源一條序列（14 支）。
-沒有第四類。
+全部通過（`docs/step_reports/step-26-a-acceptance-report.md`）。全市場 2,568 支證券的
+滾動序列以即時計算產生，每支 p50 0.18 秒、p95 0.22 秒，全市場合計 410 秒，不寫任何
+結果列。價格類指標與舊系統逐筆相同（最大差異 1.1e-13）；其餘差異分成三類並全部
+歸因：舊系統丟掉沒成交的日子（695 支、26,290 個證券日）、舊系統凍結的 2026-03-27
+不完整成交量（902 筆）、轉板證券的每來源一條序列（14 支）。沒有第四類。
 
 範圍外：法人連續天數（26-b）；還原價格版本的指標。
 

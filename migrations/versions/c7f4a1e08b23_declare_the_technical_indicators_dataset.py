@@ -18,10 +18,10 @@ It also adds the index that makes evidence resolution by target row usable.
 `publication_evidence` had indexes for appending and for resolving a dataset's
 evidence in publication order, but none for "the evidence of this one version",
 which is the question every resolve asks. Ingestion never noticed: it writes
-evidence, it does not look it up. A rolling as-of series asks it once per
-observation date, and on the 22 million stored evidence rows that was 600 ms
-each — sixteen minutes for one security, twenty-nine days for the market.
-With the index it is 3 seconds per security.
+evidence, it does not look it up. On the 22 million stored evidence rows it was
+600 ms per version. The on-demand rolling series asks it for a whole security's
+versions in one statement (`target IN (...)`), which needs the same index; with
+it the full 2020–2026 series of one security is computed in about 0.2 s.
 
 The index is partial because only a small minority of evidence rows are daily
 prices. It changes no semantics; the other sixteen targets keep the behaviour

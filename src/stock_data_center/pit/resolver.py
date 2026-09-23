@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import datetime
 from typing import Any
 
 import sqlalchemy as sa
@@ -14,8 +15,17 @@ from stock_data_center.db.metadata import (
     raw_artifacts,
 )
 from stock_data_center.pit.contracts import DatasetContract, get_contract
-from stock_data_center.pit.errors import InvalidLogicalKeyError
+from stock_data_center.pit.errors import (
+    InvalidLogicalKeyError,
+    UnsupportedPITModeError,
+)
 from stock_data_center.pit.evidence import PublicationEvidenceResolver
+from stock_data_center.pit.history import (
+    MarketPITHistory,
+    build_history,
+    market_order,
+    visible_at,
+)
 from stock_data_center.pit.models import (
     AuthoritativeEvidence,
     MarketPITContext,
@@ -73,27 +83,17 @@ class PITResolver:
         evidence: AuthoritativeEvidence | None = None
         selected: RowMapping | None = None
         if isinstance(context, MarketPITContext):
-            eligible: list[tuple[object, int, RowMapping, AuthoritativeEvidence]] = []
+            eligible: list[tuple[RowMapping, AuthoritativeEvidence]] = []
             for row in candidates:
                 authoritative = self._evidence.resolve(
                     connection, contract, row["id"], context, policy
                 )
-                if (
-                    authoritative is not None
-                    and authoritative.affirms_publication
-                    and authoritative.published_at <= context.information_as_of
-                ):
-                    eligible.append(
-                        (
-                            authoritative.published_at,
-                            row["id"],
-                            row,
-                            authoritative,
-                        )
-                    )
+                if visible_at(authoritative, context.information_as_of):
+                    assert authoritative is not None
+                    eligible.append((row, authoritative))
             if eligible:
-                _, _, selected, evidence = max(
-                    eligible, key=lambda item: (item[0], item[1])
+                selected, evidence = max(
+                    eligible, key=lambda item: market_order(item[1], item[0]["id"])
                 )
         else:
             selected = max(
@@ -117,6 +117,68 @@ class PITResolver:
             data=data,
             provenance=provenance,
             evidence=evidence,
+        )
+
+    def market_history(
+        self,
+        connection: Connection,
+        *,
+        dataset_code: str,
+        key_filter: Mapping[str, Any],
+        through: Mapping[str, Any] | None = None,
+        knowledge_as_of: datetime,
+        source: str | None = None,
+    ) -> MarketPITHistory:
+        """Every version of a key range, with its evidence at `knowledge_as_of`.
+
+        Two statements for the whole range. `key_filter` fixes logical-key
+        columns by equality and `through` bounds them from above; the history's
+        `visible(information_as_of)` then gives, for every key in the range,
+        the version `resolve` would give at that market context.
+        """
+        contract = get_contract(dataset_code)
+        if contract.is_aggregate:
+            raise UnsupportedPITModeError(
+                f"{dataset_code} is a sealed aggregate; its history is resolved "
+                "one sealed version at a time"
+            )
+        bounds = dict(through or {})
+        unknown = (set(key_filter) | set(bounds)) - set(contract.logical_key_columns)
+        if unknown:
+            raise InvalidLogicalKeyError(
+                f"{dataset_code} has no logical-key column {sorted(unknown)!r}"
+            )
+        # Evidence selection reads only the knowledge cutoff, so the market
+        # context used for it needs no information cutoff of its own.
+        context = MarketPITContext(
+            information_as_of=knowledge_as_of, knowledge_as_of=knowledge_as_of
+        )
+        policy = self._source_policy.resolve(
+            connection, dataset_code, context, source
+        )
+        table = contract.version_table
+        conditions = [table.c.source == policy.source]
+        conditions += [table.c[column] == value for column, value in key_filter.items()]
+        conditions += [table.c[column] <= value for column, value in bounds.items()]
+
+        rows = connection.execute(
+            sa.select(table).where(*conditions)
+        ).mappings().all()
+        evidence = self._evidence.resolve_many(
+            connection,
+            contract,
+            sa.select(table.c.id).where(*conditions),
+            context,
+            policy,
+        )
+        return build_history(
+            dataset_code=dataset_code,
+            source=policy.source,
+            knowledge_as_of=context.knowledge_as_of,
+            logical_key_columns=contract.logical_key_columns,
+            rows=rows,
+            evidence=evidence,
+            internal_columns=frozenset(_INTERNAL_COLUMNS),
         )
 
     @staticmethod

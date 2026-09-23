@@ -1,4 +1,8 @@
-"""Step 26-a: the derivation service — definitions, rolling as-of, no leakage."""
+"""Step 26-a: the derivation service — definitions, rolling as-of, no leakage.
+
+Nothing is materialised (ROADMAP §17): the rolling series and every other PIT
+context are computed on demand, and these tests pin that the two agree.
+"""
 
 from __future__ import annotations
 
@@ -22,7 +26,7 @@ from stock_data_center.market_data import (
     MarketDataWriter,
     PublicationObservation,
 )
-from stock_data_center.pit import MarketPITContext
+from stock_data_center.pit import MarketPITContext, PITResolver
 
 pytestmark = pytest.mark.integration
 
@@ -161,9 +165,10 @@ def _seed(db: Connection, closes: dict[date, str]) -> int:
     return security_id
 
 
-# The evidence rows this suite writes are recorded now, so every run states the
-# same knowledge cutoff rather than inheriting the wall clock.
-KNOWLEDGE = datetime(2026, 9, 22, tzinfo=UTC) + timedelta(days=1)
+# The evidence rows this suite writes are recorded now, so the knowledge cutoff
+# has to be after now. A fixed date was the first version, and it stopped
+# seeing any evidence the day after it was written.
+KNOWLEDGE = datetime.now(UTC) + timedelta(days=1)
 
 WEEK = {
     date(2024, 7, 1): "10",
@@ -204,84 +209,75 @@ def test_a_changed_formula_may_not_reuse_its_derivation_version(
         REGISTRY.register(db, changed)
 
 
-def test_the_rolling_series_uses_each_date_own_release_cutoff(db: Connection) -> None:
-    security_id = _seed(db, WEEK)
-    REGISTRY.register(db, TECHNICAL_INDICATORS_V1)
-    written = SERVICE.materialize(
+def _rolling(db: Connection, end: date = date(2024, 7, 5)):
+    return SERVICE.rolling(
         db,
         security_code="9999",
         start_date=date(2024, 7, 1),
-        end_date=date(2024, 7, 5),
+        end_date=end,
         source=SOURCE,
         knowledge_as_of=KNOWLEDGE,
     )
-    assert written > 0
 
-    rows = db.execute(
-        sa.text(
-            """
-            SELECT observation_date, information_as_of, knowledge_as_of, system_as_of,
-                   metric_code, numeric_value, pit_mode
-              FROM derived_metric_versions
-             WHERE security_id = :security_id AND metric_code = 'ma5'
-             ORDER BY observation_date
-            """
+
+def _at(db: Connection, day: date, information_as_of: datetime):
+    rows = SERVICE.compute(
+        db,
+        security_code="9999",
+        start_date=day,
+        end_date=day,
+        context=MarketPITContext(
+            information_as_of=information_as_of, knowledge_as_of=KNOWLEDGE
         ),
-        {"security_id": security_id},
-    ).mappings().all()
+        source=SOURCE,
+    )
+    return rows[0] if rows else None
 
-    assert [row["observation_date"] for row in rows] == sorted(WEEK)
+
+def _assert_rolling_equals_compute_at_each_cutoff(db: Connection, rolling) -> None:
+    """Each rolling row is exactly what one context at that date's cutoff sees."""
+    for row in rolling:
+        single = _at(db, row.observation_date, _settled(row.observation_date))
+        assert single == row
+
+
+def test_the_rolling_series_uses_each_date_own_release_cutoff(db: Connection) -> None:
+    _seed(db, WEEK)
+    rows = _rolling(db)
+
+    assert [row.observation_date for row in rows] == sorted(WEEK)
     for row in rows:
-        assert row["pit_mode"] == "market"
-        assert row["system_as_of"] is None
-        assert row["information_as_of"] == _settled(row["observation_date"])
+        assert row.information_as_of == _settled(row.observation_date)
         # The market axis moves with the observation date; the Data Center's own
-        # axis is the run's, because the evidence was recorded when it was.
-        assert row["knowledge_as_of"] == KNOWLEDGE
+        # axis is the series', because the evidence was recorded when it was.
+        assert row.knowledge_as_of == KNOWLEDGE
+        assert row.source == SOURCE
+        assert (row.dataset_code, row.derivation_version) == ("technical_indicators", "v1")
 
     # ma5 only exists once five closes are visible: the fifth day, not before.
-    assert [row["numeric_value"] for row in rows[:4]] == [None, None, None, None]
-    assert rows[4]["numeric_value"] == Decimal("14")
+    assert [row.metrics["ma5"] for row in rows[:4]] == [None, None, None, None]
+    assert rows[4].metrics["ma5"] == pytest.approx(14)
+    assert [row.input_version_count for row in rows] == [1, 2, 3, 4, 5]
 
 
-def test_materialized_and_virtual_agree_for_one_context(db: Connection) -> None:
+def test_rolling_and_on_demand_agree_for_one_context(db: Connection) -> None:
     _seed(db, WEEK)
-    REGISTRY.register(db, TECHNICAL_INDICATORS_V1)
-    SERVICE.materialize(
-        db,
-        security_code="9999",
-        start_date=date(2024, 7, 1),
-        end_date=date(2024, 7, 5),
-        source=SOURCE,
-        knowledge_as_of=KNOWLEDGE,
-    )
-    cutoff = _settled(date(2024, 7, 5))
-    virtual = SERVICE.compute(
-        db,
-        security_code="9999",
-        start_date=date(2024, 7, 5),
-        end_date=date(2024, 7, 5),
-        context=MarketPITContext(
-            information_as_of=cutoff, knowledge_as_of=KNOWLEDGE
-        ),
-        source=SOURCE,
-    )
-    stored = db.execute(
+    _assert_rolling_equals_compute_at_each_cutoff(db, _rolling(db))
+
+
+def test_the_fingerprint_is_the_ordered_input_version_ids(db: Connection) -> None:
+    security_id = _seed(db, WEEK)
+    ids = db.scalars(
         sa.text(
-            """
-            SELECT metric_code, numeric_value FROM derived_metric_versions
-             WHERE observation_date = :day
-            """
+            "SELECT id FROM daily_price_versions WHERE security_id = :security "
+            "ORDER BY trade_date"
         ),
-        {"day": date(2024, 7, 5)},
-    ).mappings().all()
-    stored_by_code = {row["metric_code"]: row["numeric_value"] for row in stored}
-    assert stored_by_code
-    for metric_code, value in virtual[0].metrics.items():
-        if value is None:
-            assert stored_by_code[metric_code] is None
-        else:
-            assert float(stored_by_code[metric_code]) == pytest.approx(value, abs=1e-9)
+        {"security": security_id},
+    ).all()
+    import hashlib
+
+    expected = hashlib.sha256(",".join(str(i) for i in ids).encode()).hexdigest()
+    assert _rolling(db)[-1].input_fingerprint == expected
 
 
 def test_a_later_correction_does_not_reach_back_into_an_earlier_date(
@@ -289,70 +285,65 @@ def test_a_later_correction_does_not_reach_back_into_an_earlier_date(
 ) -> None:
     """A revision of 7-01 published after 7-05's cutoff must leave 7-05 alone."""
     security_id = _seed(db, WEEK)
-    REGISTRY.register(db, TECHNICAL_INDICATORS_V1)
-    lineage = _lineage(db, "b")
     _add_price(
         db,
         security_id=security_id,
         trade_date=date(2024, 7, 1),
         close="99",
-        lineage=lineage,
+        lineage=_lineage(db, "b"),
         published_at=_settled(date(2024, 7, 20)),
     )
-    SERVICE.materialize(
-        db,
-        security_code="9999",
-        start_date=date(2024, 7, 1),
-        end_date=date(2024, 7, 5),
-        source=SOURCE,
-        knowledge_as_of=KNOWLEDGE,
-    )
-    value = db.scalar(
-        sa.text(
-            "SELECT numeric_value FROM derived_metric_versions "
-            "WHERE observation_date = :day AND metric_code = 'ma5'"
-        ),
-        {"day": date(2024, 7, 5)},
-    )
     # The uncorrected week averages to 14; the correction would make it 31.8.
-    assert value == Decimal("14")
-
-    late = _settled(date(2024, 7, 21))
-    corrected = SERVICE.compute(
-        db,
-        security_code="9999",
-        start_date=date(2024, 7, 5),
-        end_date=date(2024, 7, 5),
-        context=MarketPITContext(
-            information_as_of=late, knowledge_as_of=KNOWLEDGE
-        ),
-        source=SOURCE,
-    )
-    assert corrected[0].metrics["ma5"] == pytest.approx(31.8)
+    assert _rolling(db)[-1].metrics["ma5"] == pytest.approx(14)
+    corrected = _at(db, date(2024, 7, 5), _settled(date(2024, 7, 21)))
+    assert corrected is not None
+    assert corrected.metrics["ma5"] == pytest.approx(31.8)
 
 
-def test_rematerialising_the_same_window_adds_nothing(db: Connection) -> None:
-    _seed(db, WEEK)
-    REGISTRY.register(db, TECHNICAL_INDICATORS_V1)
-    window = {
-        "security_code": "9999",
-        "start_date": date(2024, 7, 1),
-        "end_date": date(2024, 7, 5),
-        "source": SOURCE,
-        "knowledge_as_of": KNOWLEDGE,
-    }
-    SERVICE.materialize(db, **window)
-    before = db.scalar(sa.text("SELECT count(*) FROM derived_metric_versions"))
-    SERVICE.materialize(db, **window)
-    after = db.scalar(sa.text("SELECT count(*) FROM derived_metric_versions"))
-    assert before == after
-
-
-def test_a_day_after_the_window_cannot_change_a_materialised_value(
+def test_a_correction_inside_the_window_splits_the_series_where_it_lands(
     db: Connection,
 ) -> None:
+    """7-01 corrected at 7-03's cutoff: 7-01 and 7-02 keep the old close, the rest do not."""
     security_id = _seed(db, WEEK)
-    REGISTRY.register(db, TECHNICAL_INDICATORS_V1)
+    _add_price(
+        db,
+        security_id=security_id,
+        trade_date=date(2024, 7, 1),
+        close="99",
+        lineage=_lineage(db, "b"),
+        published_at=_settled(date(2024, 7, 2)) + timedelta(hours=1),
+    )
+    rows = _rolling(db)
+    _assert_rolling_equals_compute_at_each_cutoff(db, rows)
+    by_date = {row.observation_date: row for row in rows}
+    # 7-02 still read the original 7-01; from 7-03 on, the corrected one.
+    assert by_date[date(2024, 7, 2)].metrics["ma5"] is None
+    assert by_date[date(2024, 7, 5)].metrics["ma5"] == pytest.approx(31.8)
+    assert _at(db, date(2024, 7, 2), _settled(date(2024, 7, 2))) == by_date[date(2024, 7, 2)]
+
+
+def test_a_price_published_after_its_own_cutoff_has_no_row_that_day(
+    db: Connection,
+) -> None:
+    """7-03 lands a day late: the market could not compute 7-03 at 7-03's cutoff."""
+    security_id = _seed(db, {day: close for day, close in WEEK.items() if day != date(2024, 7, 3)})
+    _add_price(
+        db,
+        security_id=security_id,
+        trade_date=date(2024, 7, 3),
+        close="14",
+        lineage=_lineage(db, "b"),
+        published_at=_settled(date(2024, 7, 4)),
+    )
+    rows = _rolling(db)
+    _assert_rolling_equals_compute_at_each_cutoff(db, rows)
+    assert date(2024, 7, 3) not in {row.observation_date for row in rows}
+    later = {row.observation_date: row for row in rows}[date(2024, 7, 4)]
+    assert later.input_version_count == 4
+
+
+def test_a_day_after_the_window_cannot_change_a_value(db: Connection) -> None:
+    security_id = _seed(db, WEEK)
     expected = technical_indicators(
         tuple(
             DailyBar(
@@ -373,22 +364,73 @@ def test_a_day_after_the_window_cannot_change_a_materialised_value(
         close="100",
         lineage=_lineage(db, "c"),
     )
-    SERVICE.materialize(
+    rows = {row.observation_date: row for row in _rolling(db, end=date(2024, 7, 8))}
+    assert rows[date(2024, 7, 5)].metrics["ma5"] == pytest.approx(expected)
+
+
+def test_computing_writes_nothing(db: Connection) -> None:
+    _seed(db, WEEK)
+    before = db.scalar(sa.text("SELECT count(*) FROM derived_metric_versions"))
+    runs = db.scalar(sa.text("SELECT count(*) FROM derived_computation_runs"))
+    _rolling(db)
+    _at(db, date(2024, 7, 5), _settled(date(2024, 7, 5)))
+    assert db.scalar(sa.text("SELECT count(*) FROM derived_metric_versions")) == before
+    assert db.scalar(sa.text("SELECT count(*) FROM derived_computation_runs")) == runs
+
+
+def test_the_history_resolves_every_key_as_resolve_does(db: Connection) -> None:
+    """The batch path and the per-key resolver are one rule, at any cutoff."""
+    security_id = _seed(db, WEEK)
+    _add_price(
+        db,
+        security_id=security_id,
+        trade_date=date(2024, 7, 2),
+        close="50",
+        lineage=_lineage(db, "b"),
+        published_at=_settled(date(2024, 7, 3)),
+    )
+    resolver = PITResolver()
+    history = resolver.market_history(
+        db,
+        dataset_code="daily_price",
+        key_filter={"security_id": security_id},
+        through={"trade_date": date(2024, 7, 5)},
+        knowledge_as_of=KNOWLEDGE,
+        source=SOURCE,
+    )
+    for cutoff_day in [date(2024, 6, 30), *sorted(WEEK), date(2024, 7, 9)]:
+        information_as_of = _settled(cutoff_day)
+        visible = history.visible(information_as_of)
+        for day in sorted(WEEK):
+            single = resolver.resolve(
+                db,
+                dataset_code="daily_price",
+                logical_key={"security_id": security_id, "trade_date": day},
+                context=MarketPITContext(
+                    information_as_of=information_as_of, knowledge_as_of=KNOWLEDGE
+                ),
+                source=SOURCE,
+            )
+            batch = visible.get((security_id, day))
+            if single is None:
+                assert batch is None
+            else:
+                assert batch is not None
+                assert batch.version_id == single.provenance.version_id
+                assert batch.evidence == single.authoritative_evidence
+
+
+def test_a_knowledge_cutoff_before_the_evidence_sees_nothing(db: Connection) -> None:
+    _seed(db, WEEK)
+    rows = SERVICE.rolling(
         db,
         security_code="9999",
         start_date=date(2024, 7, 1),
-        end_date=date(2024, 7, 8),
+        end_date=date(2024, 7, 5),
         source=SOURCE,
-        knowledge_as_of=KNOWLEDGE,
+        knowledge_as_of=datetime(2024, 7, 10, tzinfo=UTC),
     )
-    value = db.scalar(
-        sa.text(
-            "SELECT numeric_value FROM derived_metric_versions "
-            "WHERE observation_date = :day AND metric_code = 'ma5'"
-        ),
-        {"day": date(2024, 7, 5)},
-    )
-    assert float(value) == pytest.approx(expected)
+    assert rows == ()
 
 
 def test_computed_at_is_never_offered_as_a_publication_time(db: Connection) -> None:
@@ -406,21 +448,11 @@ def test_computed_at_is_never_offered_as_a_publication_time(db: Connection) -> N
     assert {"computed_at", "input_fingerprint", "computation_run_id"} <= columns
 
 
-def test_a_long_history_is_written_rather_than_refused(db: Connection) -> None:
-    """One statement binds at most 65,535 parameters; a series easily exceeds it.
-
-    A security with real history has 1,600 trading days and 22 metrics each.
-    The securities that overflow are exactly the ones worth having, so the
-    failure would have been invisible in a five-day fixture and total in
-    production.
-    """
-    from datetime import timedelta
-
+def test_a_long_history_is_one_row_per_trade_date(db: Connection) -> None:
     days = [date(2024, 1, 1) + timedelta(days=offset) for offset in range(400)]
     closes = {day: str(10 + index % 7) for index, day in enumerate(days)}
     _seed(db, closes)
-    REGISTRY.register(db, TECHNICAL_INDICATORS_V1)
-    written = SERVICE.materialize(
+    rows = SERVICE.rolling(
         db,
         security_code="9999",
         start_date=days[0],
@@ -428,9 +460,5 @@ def test_a_long_history_is_written_rather_than_refused(db: Connection) -> None:
         source=SOURCE,
         knowledge_as_of=KNOWLEDGE,
     )
-    assert written == len(days) * len(METRIC_CODES)
-    assert db.scalar(
-        sa.text(
-            "SELECT count(DISTINCT observation_date) FROM derived_metric_versions"
-        )
-    ) == len(days)
+    assert [row.observation_date for row in rows] == days
+    assert all(set(row.metrics) == set(METRIC_CODES) for row in rows)

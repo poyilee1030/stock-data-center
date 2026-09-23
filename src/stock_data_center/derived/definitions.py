@@ -116,7 +116,7 @@ class DerivationRegistry:
 TECHNICAL_INDICATORS_V1 = DerivationDefinition(
     dataset_code="technical_indicators",
     derivation_version="v1",
-    storage_strategy="materialized",
+    storage_strategy="virtual",
     formula_specification=(
         "Ported from the legacy calculator so the consumers trained on those "
         "values keep reading the same series. MA and VMA over 5/10/20/60/120/240 "
@@ -133,10 +133,10 @@ TECHNICAL_INDICATORS_V1 = DerivationDefinition(
     calendar_timezone="Asia/Taipei",
     calendar_convention=(
         "Trading days of the security's own daily-price history, in order. The "
-        "rolling as-of series computes observation date D at the instant D's own "
-        "prices become public under the daily_price release rule "
-        "(exchange_daily_settled@1: 03:00 on D+1), which is why D's own close is "
-        "part of D's value and D+1's is not."
+        "rolling as-of series, computed on demand, computes observation date D at "
+        "the instant D's own prices become public under the daily_price release "
+        "rule (exchange_daily_settled@1: 03:00 on D+1), which is why D's own close "
+        "is part of D's value and D+1's is not."
     ),
     price_adjustment_convention=(
         "raw_official_close: no corporate-action adjustment. Legacy computed "

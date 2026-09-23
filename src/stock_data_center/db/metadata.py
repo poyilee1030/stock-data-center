@@ -1978,8 +1978,8 @@ sa.Index(
 
 # Step 26-a. Resolving one version's evidence is the question every PIT resolve
 # asks, and nothing indexed it: ingestion writes evidence and never looks it up,
-# so the whole-table scan only surfaced when a rolling as-of series asked it
-# once per observation date — 600 ms each on 22 million rows. Partial because
+# so the whole-table scan only surfaced when the rolling as-of series asked it
+# for a security's whole history — 600 ms per version on 22 million rows. Partial because
 # daily prices are a small minority of evidence rows; the other targets keep
 # the behaviour they have until a step needs theirs.
 sa.Index(

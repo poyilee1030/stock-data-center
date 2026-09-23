@@ -9,6 +9,7 @@ from stock_data_center.pit.errors import (
     UnknownDatasetError,
     UnsupportedPITModeError,
 )
+from stock_data_center.pit.history import HistoricalVersion, MarketPITHistory
 from stock_data_center.pit.models import (
     AuthoritativeEvidence,
     MarketPITContext,
@@ -22,9 +23,11 @@ from stock_data_center.pit.resolver import PITResolver
 __all__ = [
     "AmbiguousSourceError",
     "AuthoritativeEvidence",
+    "HistoricalVersion",
     "InvalidLogicalKeyError",
     "InvalidPITContextError",
     "MarketPITContext",
+    "MarketPITHistory",
     "PITResolutionError",
     "PITResolver",
     "Provenance",

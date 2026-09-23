@@ -150,17 +150,19 @@ and business hashing; an untyped quantity is rejected at the source boundary.
 | `dividend_declaration` | observed | security, dividend year, dividend period text, sequence | issuer board-resolution declarations; new `dividend_declaration_versions` table added by Step 33, never folded into `corporate_action_versions` | materialized | dividend research/API |
 | `security_tag` | **not in v1** | security, source, tag, effective-from | — | table exists, stays empty | — |
 | `xbrl_concept_catalog` | **not in v1** | source, concept QName | — | table exists, stays empty | — |
-| `technical_indicators:v1` | canonical derived | security/date/metric/PIT/input fingerprint | visibility inherited from PIT-safe prices; never from `computed_at` | materialized | both ML repos/API |
-| `shareholding_concentration:v1` | canonical derived | security/date/metric/PIT/input fingerprint | sealed TDCC inputs only | materialized | selection/API |
-| `valuation_metrics:v1` | canonical derived | security/date/metric/PIT/input fingerprint | PIT-safe prices and financial inputs | materialized | both ML repos/API |
-| `margin_metrics:v1` | canonical derived | security/date/metric/PIT/input fingerprint | PIT-safe margin inputs | materialized | selection/API |
-| `short_interest_metrics:v1` | canonical derived | security/date/metric/PIT/input fingerprint | PIT-safe margin/SBL inputs | materialized | selection/API |
+| `technical_indicators:v1` | canonical derived | security/date/metric/PIT/input fingerprint | visibility inherited from PIT-safe prices; never from `computed_at` | virtual (ROADMAP §17) | both ML repos/API |
+| `shareholding_concentration:v1` | canonical derived | security/date/metric/PIT/input fingerprint | sealed TDCC inputs only | virtual (ROADMAP §17) | selection/API |
+| `valuation_metrics:v1` | canonical derived | security/date/metric/PIT/input fingerprint | PIT-safe prices and financial inputs | virtual (ROADMAP §17) | both ML repos/API |
+| `margin_metrics:v1` | canonical derived | security/date/metric/PIT/input fingerprint | PIT-safe margin inputs | virtual (ROADMAP §17) | selection/API |
+| `short_interest_metrics:v1` | canonical derived | security/date/metric/PIT/input fingerprint | PIT-safe margin/SBL inputs | virtual (ROADMAP §17) | selection/API |
 | `monthly_revenue_growth:v1` | **not in v1** | security/month/metric/PIT/input fingerprint | — | — | superseded by the observed published comparatives (Step 22) |
-| `institutional_cumulative_flow:v1` | canonical derived proxy | security/date/category/PIT/input fingerprint | zero-origin cumulative PIT-safe net flows, optionally divided by PIT-safe issued shares; not absolute holdings | materialized | selection/API |
-| `institutional_streaks:v1` | canonical derived | security/date/category/PIT/input fingerprint | PIT-safe institutional flows | materialized | selection/API |
+| `institutional_cumulative_flow:v1` | canonical derived proxy | security/date/category/PIT/input fingerprint | zero-origin cumulative PIT-safe net flows, optionally divided by PIT-safe issued shares; not absolute holdings | virtual (ROADMAP §17) | selection/API |
+| `institutional_streaks:v1` | canonical derived | security/date/category/PIT/input fingerprint | PIT-safe institutional flows | virtual (ROADMAP §17) | selection/API |
 | `margin_market_summary:v1` | **not in v1** | market/date/metric/PIT/input fingerprint | — | — | no legacy consumer (ROADMAP §16) |
 
-Every materialized derived row references a `derived_dataset_definitions`
+v1 computes canonical derived data on demand (ROADMAP §17); a metric is
+materialized only by its own step after measurement. Every materialized derived
+row, when one exists, references a `derived_dataset_definitions`
 record, a `derived_computation_runs` record, an explicit market/system PIT
 context, canonical input dataset identities, and a deterministic input
 fingerprint. `computed_at` is operational provenance only. Backfill status for

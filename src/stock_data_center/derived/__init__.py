@@ -12,6 +12,7 @@ from stock_data_center.derived.indicators import (
     technical_indicators,
 )
 from stock_data_center.derived.service import (
+    DerivedRow,
     MissingReleaseRuleError,
     TechnicalIndicatorService,
     UnknownSecurityError,
@@ -23,6 +24,7 @@ __all__ = [
     "DailyBar",
     "DerivationDefinition",
     "DerivationRegistry",
+    "DerivedRow",
     "IndicatorRow",
     "MissingReleaseRuleError",
     "TechnicalIndicatorService",
