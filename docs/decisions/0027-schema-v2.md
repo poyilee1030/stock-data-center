@@ -21,8 +21,9 @@
    觸發器禁止 UPDATE / DELETE / TRUNCATE。
 4. **出處**：每列有 `fetch_id`；`fetches` 每次抓取一列，帶原始檔的 SHA-256，
    原始檔照舊內容定址存在 `data/raw/`。
-5. **公開時間不存**：交易所依固定排程發布的資料，可用時間由 release rule 計算；
-   更正後的值以其 `recorded_at` 為可用時間。
+5. **公開時間能算就不存**：交易所依固定排程發布的資料，可用時間由 release rule 計算；
+   更正後的值以其 `recorded_at` 為可用時間。公司各自申報、時間逐筆不同的資料
+   （月營收、財報）才存 `published_at`，見「35-c 定案」。
 6. **拿掉**：每列證據與 observations、業務 hash、`ingest_run_id`、沒有來源的欄位、
    空表、PIT 能力旗標、`import_manifests`／`import_checkpoints`／`import_quarantine`
    （併入 `fetches`）、`raw_artifacts`（併入 `fetches`）、`dataset_*` 設定表與
@@ -52,10 +53,102 @@
 
 Step 9 的個股 pilot 來源（`twse`、`tpex`）與 `tpex_insti_qfii` 不再保存。
 
-## 尚未討論（仍用 v1 表）
+## 35-c 定案（2026-09-23 owner 決定）
 
-月營收、財報、TDCC、公司行動、衍生資料。月營收與財報會被更正、公開時間逐筆
-不同，是否保留某種證據要在各自的討論中決定。
+逐個領域以同樣的「需不需要、拿掉會損失什麼」檢討，數字取自 `stockdc_backfill`
+（公司行動取自 `stockdc_step19d`）。實作前這些領域仍用 v1 表。
+
+### 可見性
+
+| 表 | 每個 key 的第一列 | 之後的列（更正） |
+|---|---|---|
+| `monthly_revenues` | `published_at`；NULL 為不可見 | 其 `recorded_at` |
+| `financial_reports` | `published_at`；NULL 為不可見 | 其 `recorded_at`（整份財報為一個版本） |
+| `shareholding_distributions` | release rule `tdcc_weekly@1`：資料日之後的週日 12:00 | 其 `recorded_at` |
+| `corporate_actions` | release rule `corporate_action_ex_date@1`：除權息日 00:00 | 其 `recorded_at` |
+
+以後的每日抓取（`first_capture`）寫入時直接把 `published_at` 設為抓取時刻。
+
+`corporate_action_ex_date@1` 的依據是 owner 決定：當年度的 TWT49U、TWTAUU、`revivt`
+檔案都已列出尚未到來的除權息日與算好的參考價（audit §4.10），所以事件在除權息日開盤
+前必然已公開。v1 沒有這條規則，公開時間只有回補抓取的時刻，因此歷史事件要到 2026-09
+才可見，還原股價在歷史上無法使用。
+
+### 表
+
+**`monthly_revenues`**：key 為 `(stock_id, source, revenue_month)`，`source` 是
+`mops_t21sc03_sii`／`mops_t21sc03_otc`，`revenue_month` 是每月 1 日。
+
+- 欄位：`revenue`、`revenue_last_month`、`revenue_last_year_month`、`cumulative_revenue`、
+  `cumulative_revenue_last_year`（`bigint` 元；官方千元 ×1,000，實測無小數）；
+  `mom_pct`、`yoy_pct`、`cumulative_yoy_pct`（2 位小數、8 位整數）；`note`（照官方，含「-」）；
+  `published_at`；`recorded_at`；`fetch_id`。
+- 公開時間必須存：公司在 1 日到 10 日各自公告，且每月有 13–311 家國內公司在 10 日之後
+  才申報，套用 10 日規則會 look-ahead。v1 的 150,757 個版本中，140,345 個有證明的時間
+  （market.csv 公告日、legacy 首次抓取、legacy 檔案證明當時已存在時的法定期限）；
+  KY 公司的 8,952 列與更正後的值沒有證明，`published_at` 為 NULL。
+- 拿掉：`currency`（全部 TWD）；證據類型（三種在 PIT 上意義相同，來源為 2026M01 以前的
+  market.csv 與之後的 legacy 抓取）；業務 hash、observations、`official`／`unknown` 證據。
+- 遷移：2026M02 起更正過的 key，legacy 首次抓取的值排在 MOPS 目前的值之前；v1 最後才
+  匯入檔案庫，`ingested_at` 的順序是反的。
+
+**`financial_reports`**：一份財報一列；財報內容有任何改變才新增一列（新版本帶完整的事實）。
+
+- 欄位：`id`、`stock_id`、`report_year`、`report_quarter`、`report_category`
+  （合併／個體，3,629 份是個體）、`published_at`、`recorded_at`、`fetch_id`。
+- 公開時間必須存：4,895 份有 legacy 檔案的首次抓取時刻，早於法定期限。
+- 拿掉：`filing_key`、`period_start`／`period_end`（一律 1/1 起）、`currency`、業務 hash、
+  seals（財報與事實同一交易寫入，表只新增，已保證完整不變）、observations。
+
+**`financial_facts`**：key 為 `(report_id, statement, concept, period_start, period_end)`。
+
+- 欄位：`statement`（同一筆現金同時是資產負債表 1100 與現金流量表 E00210）、
+  `account_code`（legacy 的 key）、`concept`（完整 namespace qname，owner 決定不拆）、
+  `period_start`（instant 為 NULL）、`period_end`、`unit`、`value`。
+- `concept` 與 `account_code` 都留：1,612 組 (報表, 代碼) 中有 108 組在不同年度對應不同 concept。
+- 拿掉：4 個 dimension／scenario／segment jsonb、`context_hash`、`entity_identifier`、
+  `text_value`、`is_nil`、`decimals`（由單位決定）、`period_type`、`id`。在 16,158,302 筆
+  事實中它們全空或可推得。
+- 覆寫 CLAUDE.md §33：我們存的三張報表沒有帶 dimension 的事實，adapter 遇到時整份
+  quarantine。約 10 GB 降到約 4 GB。
+- `quarterly_financial_summary`（EPS 彙總）與 `xbrl_concept_catalog_versions`（空）不留；
+  EPS 與 Q4 單季改為衍生資料。
+
+**`shareholding_distributions`**：寬表，key 為 `(stock_id, source, snapshot_date)`，
+`source` 目前只有 `tdcc_opendata`。
+
+- 欄位：級距 1–15 的 `holders_N`、`shares_N`、`percent_N`；級距 16 的 `adjustment_shares`、
+  `adjustment_percent`（帶正負號，沒有人數）；級距 17 的 `total_holders`、`total_shares`、
+  `total_percent`；`recorded_at`；`fetch_id`。
+- 百分比 2 位小數、3 位整數（實測 -35.90 到 135.00）。
+- 級距定義改為程式常數。1,404 萬列長表變成約 80 萬列，約 2.3 GB 降到約 0.3 GB。
+- 拿掉：`tdcc_distribution_schemas`、`tdcc_distribution_schema_buckets`、seals、observations、
+  業務 hash、證據（826,795 筆全為規則算出的時刻）。
+
+**`corporate_actions`**：key 為 `(stock_id, source, ex_date)`，15,367 列中唯一。
+
+- 欄位：`event_type`（官方文字：息、權、權息、除息、除權、除權息、退還股款、彌補虧損、
+  現金減資、變更股票面額）、`close_before`、`reference_price`、`rights_dividend_value`
+  （帶正負號）、`cash_dividend_per_share`、`free_share_ratio`、`rights_ratio`、
+  `subscription_price`、`old_shares`、`new_shares`、`cash_return_per_share`、`retracted`、
+  `recorded_at`、`fetch_id`。
+- 撤回（列從 feed 消失）新增一列 `retracted = true`（§51.5），2020–2026 發生 0 次。
+- 拿掉：
+  - 事件表與 `source_event_key`：key 即事件身分，仍是 §51.5 的 `feed + 執行日`。
+  - `action_type`、`capital_reduction_kind`：由 (來源, 官方文字) 決定，對照改為程式常數。
+  - `announcement_date`、`record_date`、`payment_date`、`earnings_stock_ratio`、
+    `capital_surplus_stock_ratio`：15,367 列全為 NULL，result feed 不發布。
+  - `source_terms` jsonb（漲跌停價、開盤競價基準等）：留在原始檔。
+  - 業務 hash、observations、`corporate_action_retractions`、證據。
+- ETF 分割（Step 19-e）不在普通股範圍內。資料重新抓進 v2（每個 feed 一年一個請求）。
+
+**衍生資料：0 張表。**
+
+- `derived_metric_versions`、`derived_computation_runs`：預設即時計算，不存結果。
+- `derived_dataset_definitions`：改為程式常數（26-a 的 `DerivationDefinition`）。§42 的
+  實作版本改為計算時回傳 git commit，登錄時間改看 git 歷史。
+- EPS 彙總、Q4 單季 EPS、還原股價（Step 25）都即時計算。
+- 某個指標實測太慢時，才由它自己的 step 以寬表實體化。
 
 ## 遷移
 
@@ -63,5 +156,5 @@ Step 9 的個股 pilot 來源（`twse`、`tpex`）與 `tpex_insti_qfii` 不再�
   v1 歷史（`recorded_at` = v1 `ingested_at`），只收今天的普通股與保留的來源。
 - 2026-09-23 在 `stockdc_backfill` 執行：六張個股表與 v1 篩選結果以 `EXCEPT`
   雙向比對皆為 0 差異。
-- 各領域在 ingestion 改寫到 v2 之後，才 drop 該領域的 v1 表；v1 基礎表在所有
-  領域都搬完後才 drop，並重新開始 migration 鏈。
+- v1 表與 v1 程式在所有領域都搬完後，於 35-d 一次刪除，並重新開始 migration 鏈
+  （原本每個領域搬完就 drop 的 35-b-2 已併入 35-d）。

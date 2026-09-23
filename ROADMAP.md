@@ -616,7 +616,7 @@ explicit out-of-scope work
 | 35-a | MERGED | Schema v2：基礎表與交易所每日資料表、遷移 v1 歷史（ADR-0027，#46） |
 | 35-b-1 | MERGED | Schema v2：交易所每日資料寫入 v2 的新路徑（只新增程式）（#47） |
 | 35-b-2 | SUPERSEDED | Schema v2：移除 8 個領域的 v1 路徑與 v1 表（併入 35-d） |
-| 35-c | PLANNED | Schema v2：月營收、財報、TDCC、公司行動、衍生資料的重新設計 |
+| 35-c | PLANNED | Schema v2：月營收、財報、TDCC、公司行動、衍生資料搬到 v2（設計已定案，ADR-0027） |
 | 35-d | PLANNED | Schema v2：刪除所有 v1 程式與表，重新開始 migration 鏈 |
 
 Steps 1–12 建立了儲存、PIT 和 raw-first 的基礎。它們的 writer 契約包含一些沒有任何來源會填入的欄位（§2.3）。這些欄位保持可為 null、不填值。不刪除它們，因為刪除不會帶來任何正確性上的好處。
@@ -2089,11 +2089,47 @@ ADR-0027：官方代號當身分、一個 (股票, 來源, 日期) 一列的寬�
 在那之前 v1 路徑留著但不再使用：每日抓取只走 `python -m stock_data_center.v2.backfill`，
 `stockdc_backfill` 多佔約 20 GB。
 
-### 35-c — 其餘領域的重新設計
+### 35-c — 其餘領域搬到 v2
 
-月營收、財報、TDCC、公司行動、衍生資料依同樣方式逐一檢討。月營收與財報會被更正、
-公開時間逐筆不同，是否保留某種證據在各自的討論中決定。26-a（#44）在衍生資料的
-討論時改接 v2。
+設計在 2026-09-23 逐個領域討論定案，全文見 ADR-0027「35-c 定案」：
+
+| 領域 | v1 | v2 | 第一列的可見時間 |
+|---|---|---|---|
+| 月營收 | 2 張表 + 29 萬列證據 | `monthly_revenues` | 存 `published_at`（逐列不同，NULL 為不可見） |
+| 財報 | 5 張表，約 10 GB | `financial_reports`、`financial_facts`（約 4 GB） | 存 `published_at` |
+| TDCC | 6 張表，約 2.3 GB | `shareholding_distributions` 寬表（約 0.3 GB） | `tdcc_weekly@1` |
+| 公司行動 | 5 張表 | `corporate_actions` | 新規則 `corporate_action_ex_date@1`：除權息日 00:00 |
+| 衍生資料 | 3 張表 | 0 張：即時計算，定義改為程式常數 | 繼承輸入 |
+
+更正一律新增一列，以其 `recorded_at` 為可見時間。依 CLAUDE.md §1 拆成四段，照 35-a／35-b-1
+的模式先建表、搬歷史，再改寫入路徑：
+
+**35-c-1：建表與搬移歷史**
+
+- 一個 migration 建 6 張表（只新增，觸發器禁止 UPDATE／DELETE／TRUNCATE）；兩條 release rule
+  寫成程式常數
+- 從 `stockdc_backfill` 的 v1 表搬月營收、財報、TDCC 的歷史，只收 `stocks` 內的股票；
+  月營收 2026M02 起更正過的 key 要把 legacy 首次抓取的值排在前面（v1 的 `ingested_at` 順序是反的）
+- 驗收：每張表與 v1 篩選結果雙向比對 0 差異；可見時間與 v1 的證據逐列一致（公司行動除外）
+
+**35-c-2：月營收、財報、TDCC 的寫入路徑**
+
+- 沿用 35-b-1 的執行器（抓取 → 原始檔 → fetch → 解析 → 有改變才新增）；月營收與財報在
+  `first_capture` 時把 `published_at` 設為抓取時刻；財報一份一個版本、同一交易寫入事實
+- 帶 dimension 的財報事實整份 quarantine（覆寫 CLAUDE.md §33）
+- 驗收：真實抓取數期，與搬過來的資料逐列相同
+
+**35-c-3：公司行動的寫入路徑與回補**
+
+- 6 個 result feed 接上 v2；`executed_through` 之後的列只計數不存（ADR-0019）；
+  從 feed 消失的列新增一列 `retracted = true`
+- 2020–2026 重新抓進 v2（每個 feed 一年一個請求），與 `stockdc_step19d` 的 v1 結果比對
+
+**35-c-4：衍生資料接 v2**
+
+- 26-a（#44）的 `technical_indicators:v1` 改讀 v2 `daily_prices` 的可見值；定義改為程式常數，
+  不寫入 `derived_dataset_definitions`
+- 計算器不變；與 legacy 的比對重跑一次
 
 ### 35-d — 收尾
 

@@ -48,7 +48,7 @@ The owner redesigned the schema on 2026-09-23 after reviewing every table for ne
 - **Small static configuration** (release rules, dataset declarations) lives in code, not tables.
 - **Before proposing any table or column, justify it**: what is lost without it.
 
-Domains not yet redesigned (monthly revenue, financial statements, TDCC, corporate actions, derived data) still use the v1 tables and the rules below until their Step 35 redesign.
+The remaining domains (monthly revenue, financial statements, TDCC, corporate actions, derived data) have their v2 design settled in ADR-0027 "35-c 定案" but still use the v1 tables and the rules below until Step 35-c implements them. From then on ADR-0027 governs them too, including its override of §33 (a fact with dimensions quarantines its document) and the new rule `corporate_action_ex_date@1`.
 
 ---
 
