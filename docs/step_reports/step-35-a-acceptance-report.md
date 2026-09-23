@@ -1,6 +1,6 @@
 # Step 35-a 驗收報告
 
-狀態：IN REVIEW
+狀態：IN REVIEW (#46)
 
 範圍：schema v2 的第一步（ADR-0026、ADR-0027）。新增基礎表與交易所每日資料表，
 抓取今天的普通股清單，把 v1 歷史複製過來並逐列驗證。v1 表與其 ingestion 不動，
