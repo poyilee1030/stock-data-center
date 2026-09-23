@@ -616,7 +616,10 @@ explicit out-of-scope work
 | 35-a | MERGED | Schema v2：基礎表與交易所每日資料表、遷移 v1 歷史（ADR-0027，#46） |
 | 35-b-1 | MERGED | Schema v2：交易所每日資料寫入 v2 的新路徑（只新增程式）（#47） |
 | 35-b-2 | SUPERSEDED | Schema v2：移除 8 個領域的 v1 路徑與 v1 表（併入 35-d） |
-| 35-c | PLANNED | Schema v2：月營收、財報、TDCC、公司行動、衍生資料搬到 v2（設計已定案，ADR-0027） |
+| 35-c-1 | IN REVIEW | Schema v2：月營收、財報、TDCC、公司行動的 v2 表與歷史搬移 |
+| 35-c-2 | PLANNED | Schema v2：月營收、財報、TDCC 的寫入路徑 |
+| 35-c-3 | PLANNED | Schema v2：公司行動的寫入路徑與回補 |
+| 35-c-4 | PLANNED | Schema v2：衍生資料接 v2（26-a） |
 | 35-d | PLANNED | Schema v2：刪除所有 v1 程式與表，重新開始 migration 鏈 |
 
 Steps 1–12 建立了儲存、PIT 和 raw-first 的基礎。它們的 writer 契約包含一些沒有任何來源會填入的欄位（§2.3）。這些欄位保持可為 null、不填值。不刪除它們，因為刪除不會帶來任何正確性上的好處。
@@ -2096,7 +2099,7 @@ ADR-0027：官方代號當身分、一個 (股票, 來源, 日期) 一列的寬�
 | 領域 | v1 | v2 | 第一列的可見時間 |
 |---|---|---|---|
 | 月營收 | 2 張表 + 29 萬列證據 | `monthly_revenues` | 存 `published_at`（逐列不同，NULL 為不可見） |
-| 財報 | 5 張表，約 10 GB | `financial_reports`、`financial_facts`（約 4 GB） | 存 `published_at` |
+| 財報 | 5 張表，約 10 GB | `financial_reports`、`financial_report_facts`（約 4 GB） | 存 `published_at` |
 | TDCC | 6 張表，約 2.3 GB | `shareholding_distributions` 寬表（約 0.3 GB） | `tdcc_weekly@1` |
 | 公司行動 | 5 張表 | `corporate_actions` | 新規則 `corporate_action_ex_date@1`：除權息日 00:00 |
 | 衍生資料 | 3 張表 | 0 張：即時計算，定義改為程式常數 | 繼承輸入 |
@@ -2106,11 +2109,17 @@ ADR-0027：官方代號當身分、一個 (股票, 來源, 日期) 一列的寬�
 
 **35-c-1：建表與搬移歷史**
 
-- 一個 migration 建 6 張表（只新增，觸發器禁止 UPDATE／DELETE／TRUNCATE）；兩條 release rule
+- 一個 migration 建 5 張表（只新增，觸發器禁止 UPDATE／DELETE／TRUNCATE）；兩條 release rule
   寫成程式常數
 - 從 `stockdc_backfill` 的 v1 表搬月營收、財報、TDCC 的歷史，只收 `stocks` 內的股票；
   月營收 2026M02 起更正過的 key 要把 legacy 首次抓取的值排在前面（v1 的 `ingested_at` 順序是反的）
 - 驗收：每張表與 v1 篩選結果雙向比對 0 差異；可見時間與 v1 的證據逐列一致（公司行動除外）
+
+- [x] 5 張表與 migration `76245e1b428b`；`stock_data_center.v2.release_rules`
+- [x] 搬移：月營收 149,191、財報 42,417 份與 16,062,417 筆事實、TDCC 692,660 週，雙向比對皆 0 差異；
+  TDCC 規則時刻與 v1 證據 0 週不同（`scripts/verify_schema_v2_35c.py`，見
+  `docs/step_reports/step-35-c-1-acceptance-report.md`）
+- 決策：v1 已有 `financial_facts`（共用 metadata），v2 的事實表命名為 `financial_report_facts`
 
 **35-c-2：月營收、財報、TDCC 的寫入路徑**
 

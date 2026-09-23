@@ -336,6 +336,202 @@ securities_lending = sa.Table(
     _daily_pk("securities_lending"),
 )
 
+# ---------------------------------------------------------------- issuer and TDCC
+# ADR-0027 "35-c 定案". Monthly revenue and financial reports are filed by each
+# issuer on its own day, so their first row stores `published_at` (NULL: nothing
+# proves when it was public, so no client sees it). TDCC and corporate actions
+# follow release rules (`stock_data_center.v2.release_rules`) and store none.
+# (integer digits, decimal places), from the 2020-2026 maxima.
+GROWTH_PERCENT = (8, 2)  # yoy 25,266,600.00
+HOLDING_PERCENT = (3, 2)  # TDCC totals reach 135.00
+FACT_VALUE = (14, 2)  # 9,375,654,727,000 TWD; EPS 275.06
+PER_SHARE = (4, 8)  # cash dividend 144.39154400
+RIGHTS_VALUE = (8, 6)  # 權值+息值 5,185.002642, signed
+SHARE_RATIO = (2, 12)  # 3.157029360970 shares per share
+SHARE_COUNT = (5, 8)  # 992.03164 new shares per 1,000
+
+monthly_revenues = sa.Table(
+    "monthly_revenues",
+    metadata,
+    _stock_id(),
+    sa.Column("source", sa.String(32), nullable=False),
+    sa.Column("revenue_month", sa.Date(), nullable=False),
+    _recorded_at(),
+    # TWD: the source's thousands times 1,000, which leaves no fraction.
+    sa.Column("revenue", sa.BigInteger(), nullable=False),
+    sa.Column("revenue_last_month", sa.BigInteger()),
+    sa.Column("revenue_last_year_month", sa.BigInteger()),
+    sa.Column("cumulative_revenue", sa.BigInteger()),
+    sa.Column("cumulative_revenue_last_year", sa.BigInteger()),
+    _decimal("mom_pct"),
+    _decimal("yoy_pct"),
+    _decimal("cumulative_yoy_pct"),
+    sa.Column("note", sa.Text()),
+    sa.Column("published_at", aware_timestamp),
+    _fetch_id(),
+    sa.PrimaryKeyConstraint(
+        "stock_id", "source", "revenue_month", "recorded_at", name="pk_monthly_revenues"
+    ),
+    sa.CheckConstraint(
+        "revenue_month = date_trunc('month', revenue_month)::date", name="revenue_month_first_day"
+    ),
+    *_decimal_checks(
+        {column: GROWTH_PERCENT for column in ("mom_pct", "yoy_pct", "cumulative_yoy_pct")}
+    ),
+)
+
+# One row per report version. A version is the whole report: a refiled report
+# with any fact changed is a new row carrying its full set of facts, which is
+# how a fact dropped by a restatement stays representable.
+financial_reports = sa.Table(
+    "financial_reports",
+    metadata,
+    sa.Column("id", sa.BigInteger(), sa.Identity(), primary_key=True),
+    _stock_id(),
+    sa.Column("report_year", sa.SmallInteger(), nullable=False),
+    sa.Column("report_quarter", sa.SmallInteger(), nullable=False),
+    sa.Column("report_category", sa.String(12), nullable=False),
+    sa.Column("published_at", aware_timestamp),
+    _recorded_at(),
+    _fetch_id(),
+    sa.UniqueConstraint(
+        "stock_id", "report_year", "report_quarter", "recorded_at",
+        name="uq_financial_reports_version",
+    ),
+    sa.CheckConstraint("report_quarter BETWEEN 1 AND 4", name="report_quarter_range"),
+    sa.CheckConstraint(
+        "report_category IN ('consolidated', 'individual')", name="report_category_value"
+    ),
+)
+
+# A fact's identity is its statement, concept and period; no stored fact has a
+# dimension, so a document with one is quarantined (ADR-0027, overriding
+# CLAUDE.md §33). An instant has no start.
+financial_report_facts = sa.Table(
+    "financial_report_facts",
+    metadata,
+    sa.Column(
+        "report_id",
+        sa.BigInteger(),
+        sa.ForeignKey("financial_reports.id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    sa.Column("statement", sa.String(16), nullable=False),
+    sa.Column("account_code", sa.String(16), nullable=False),
+    sa.Column("concept", sa.Text(), nullable=False),
+    sa.Column("period_start", sa.Date()),
+    sa.Column("period_end", sa.Date(), nullable=False),
+    sa.Column("unit", sa.String(32), nullable=False),
+    _decimal("value"),
+    sa.UniqueConstraint(
+        "report_id", "statement", "concept", "period_start", "period_end",
+        name="uq_financial_report_facts_identity",
+        postgresql_nulls_not_distinct=True,
+    ),
+    sa.CheckConstraint(
+        "statement IN ('balance_sheet', 'income_statement', 'cash_flow')",
+        name="statement_value",
+    ),
+    sa.CheckConstraint(
+        "period_start IS NULL OR period_start <= period_end", name="period_order"
+    ),
+    sa.CheckConstraint("concept ~ '^\\{[^{}]+\\}[^{}]+$'", name="concept_qname"),
+    sa.CheckConstraint("value IS NOT NULL", name="value_present"),
+    *_decimal_checks({"value": FACT_VALUE}),
+)
+
+shareholding_distributions = sa.Table(
+    "shareholding_distributions",
+    metadata,
+    *_daily_key()[:2],
+    sa.Column("snapshot_date", sa.Date(), nullable=False),
+    _recorded_at(),
+    # Levels 1-15 are holding ranges (`stock_data_center.v2.tdcc`), 16 is TDCC's
+    # signed reconciliation difference with no holder count, 17 its total.
+    *(
+        column
+        for level in range(1, 16)
+        for column in (
+            sa.Column(f"holders_{level}", sa.BigInteger()),
+            sa.Column(f"shares_{level}", sa.BigInteger()),
+            _decimal(f"percent_{level}"),
+        )
+    ),
+    sa.Column("adjustment_shares", sa.BigInteger()),
+    _decimal("adjustment_percent"),
+    sa.Column("total_holders", sa.BigInteger()),
+    sa.Column("total_shares", sa.BigInteger()),
+    _decimal("total_percent"),
+    _fetch_id(),
+    sa.PrimaryKeyConstraint(
+        "stock_id", "source", "snapshot_date", "recorded_at",
+        name="pk_shareholding_distributions",
+    ),
+    *_decimal_checks(
+        {
+            column: HOLDING_PERCENT
+            for column in (
+                *(f"percent_{level}" for level in range(1, 16)),
+                "adjustment_percent",
+                "total_percent",
+            )
+        }
+    ),
+    *_nonnegative(
+        *(f"{kind}_{level}" for level in range(1, 16) for kind in ("holders", "shares")),
+        "total_holders", "total_shares",
+    ),
+)
+
+# One row per executed event: the key is the event's identity, the feed plus its
+# execution date (CLAUDE.md §51.5). A row the feed drops is retracted by a new
+# row with `retracted`, never deleted.
+corporate_actions = sa.Table(
+    "corporate_actions",
+    metadata,
+    *_daily_key()[:2],
+    sa.Column("ex_date", sa.Date(), nullable=False),
+    _recorded_at(),
+    sa.Column("event_type", sa.Text(), nullable=False),
+    _decimal("close_before"),
+    _decimal("reference_price"),
+    _decimal("rights_dividend_value"),
+    _decimal("cash_dividend_per_share"),
+    _decimal("free_share_ratio"),
+    _decimal("rights_ratio"),
+    _decimal("subscription_price"),
+    _decimal("old_shares"),
+    _decimal("new_shares"),
+    _decimal("cash_return_per_share"),
+    sa.Column("retracted", sa.Boolean(), nullable=False, server_default=sa.false()),
+    _fetch_id(),
+    sa.PrimaryKeyConstraint(
+        "stock_id", "source", "ex_date", "recorded_at", name="pk_corporate_actions"
+    ),
+    sa.CheckConstraint("event_type <> ''", name="event_type_nonempty"),
+    sa.CheckConstraint(
+        "(old_shares IS NULL) = (new_shares IS NULL)", name="share_pair"
+    ),
+    *_decimal_checks(
+        {
+            "close_before": PRICE,
+            "reference_price": PRICE,
+            "subscription_price": PRICE,
+            "rights_dividend_value": RIGHTS_VALUE,
+            "cash_dividend_per_share": PER_SHARE,
+            "cash_return_per_share": PER_SHARE,
+            "free_share_ratio": SHARE_RATIO,
+            "rights_ratio": SHARE_RATIO,
+            "old_shares": SHARE_COUNT,
+            "new_shares": SHARE_COUNT,
+        }
+    ),
+    *_nonnegative(
+        "close_before", "reference_price", "subscription_price", "cash_dividend_per_share",
+        "cash_return_per_share", "free_share_ratio", "rights_ratio", "old_shares", "new_shares",
+    ),
+)
+
 # Append-only tables: every value table and the fetch log. `stocks` is reference
 # data refreshed in place from the latest list; `trading_days` is corrected in
 # place when the exchange revises its calendar.
@@ -349,4 +545,9 @@ APPEND_ONLY = (
     "foreign_holdings",
     "margin_trading",
     "securities_lending",
+    "monthly_revenues",
+    "financial_reports",
+    "financial_report_facts",
+    "shareholding_distributions",
+    "corporate_actions",
 )
