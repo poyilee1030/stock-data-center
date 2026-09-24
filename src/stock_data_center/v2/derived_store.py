@@ -193,7 +193,21 @@ FLOW_SOURCE = {price: flow for flow, price in PRICE_SOURCE.items()}
 
 def _streak_rows(connection: Connection, stock_id: str, source: str,
                  start: date | None) -> list[dict]:
-    since = _warm_up(connection, stock_id, source, start)
+    rows = _streaks_since(connection, stock_id, source, start,
+                          _warm_up(connection, stock_id, source, start))
+    # A count must equal a full recomputation exactly: a streak still unbroken
+    # on the first new date may have begun before the buffer, so count it from
+    # the series' start.
+    if start is not None and rows and rows[0]["_index"] + 1 in (
+            abs(rows[0][f"{party}_streak_days"]) for party in PARTIES):
+        rows = _streaks_since(connection, stock_id, source, start, None)
+    for row in rows:
+        del row["_index"]
+    return rows
+
+
+def _streaks_since(connection: Connection, stock_id: str, source: str,
+                   start: date | None, since: date | None) -> list[dict]:
     days = [
         day for day, volume in connection.execute(_latest(
             v2.daily_prices, stock_id, PRICE_SOURCE[source], since, "volume"))
@@ -210,7 +224,7 @@ def _streak_rows(connection: Connection, stock_id: str, source: str,
         for index, party in enumerate(PARTIES)
     }
     return [
-        {"stock_id": stock_id, "source": source, "trade_date": day,
+        {"stock_id": stock_id, "source": source, "trade_date": day, "_index": i,
          **{f"{party}_streak_days": streaks[party][i] for party in PARTIES}}
         for i, day in enumerate(days)
         if start is None or day >= start

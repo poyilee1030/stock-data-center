@@ -15,7 +15,7 @@
 | `src/stock_data_center/v2/streaks.py` | 連續買賣超天數的純函式（移植 `calculate_net_streak`） |
 | `src/stock_data_center/v2/derived.py` | 即時計算的定義改名 `TECHNICAL_INDICATORS_PIT_V1`／`technical_indicators_pit`；公式文字抽成常數，兩個資料集共用 |
 | scripts | `verify_derived_store.py`（存表 vs `_pit`、增量 vs 整段、涵蓋）；`reconcile_institutional_streaks.py`（新）；`reconcile_technical_indicators.py` 改讀存表 |
-| 測試 | `tests/unit/test_v2_streaks.py`（8）、`tests/integration/test_v2_derived_store.py`（21）；`test_schema_v2_baseline.py` 加一條；`test_v2_technical_indicators.py` 改名 |
+| 測試 | `tests/unit/test_v2_streaks.py`（8）、`tests/integration/test_v2_derived_store.py`（22）；`test_schema_v2_baseline.py` 加一條；`test_v2_technical_indicators.py` 改名 |
 | 文件 | ROADMAP §9、§10（拿掉 seal）、§17、§20、§29、Step 26（拆步表與 26-b）；ADR-0027 修訂段；CLAUDE.md §46、§65 與 step 快照；`derived_data.md`、`pit_semantics.md`、`schema.md`、domain inventory（md／json）、README |
 
 `src/` +410／−18 行。
@@ -126,6 +126,10 @@ scripts/verify_derived_store.py        834 秒，exit 0
 | 涵蓋：存表與輸入的日子不同的序列 | 0 |
 | 連續天數：比較的列／不同 | 7,272,022／0 |
 | 連續天數涵蓋不同的序列 | 0 |
+
+連續天數沒有固定視窗：增量執行只讀 500 天緩衝，若第一個新日期的連續天數從緩衝起點起一直沒斷，它可能早在緩衝之前就開始，
+這時該序列改從頭計算，所以增量結果與整段重算完全相等（code review 發現；`test_a_streak_longer_than_the_buffer_is_counted_from_its_start`）。
+上表的六個重啟點在 `stockdc_backfill` 上沒有碰到這種情形。
 
 指數類的殘差（都在容差內）：
 

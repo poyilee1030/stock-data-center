@@ -432,6 +432,23 @@ def test_a_new_price_day_alone_extends_the_streaks(db, fetch_id) -> None:
         db, institutional_streaks).items())] == [-1, -2, -3, 0]
 
 
+def test_a_streak_longer_than_the_buffer_is_counted_from_its_start(db, fetch_id) -> None:
+    # A count must equal a full recomputation exactly (CLAUDE.md §46), and a
+    # streak unbroken across the whole 500-day buffer began before it.
+    days = _trading_days(date(2021, 1, 1), 400)
+    _prices(db, fetch_id, days[:399])
+    for day in days:
+        _flow(db, fetch_id, day, foreign=-1, trust=1 if day >= days[300] else 0)
+    derived_store.run(db, STREAKS)
+    _prices(db, fetch_id, days[399:], closes=[_close(399)])
+
+    derived_store.run(db, STREAKS)
+
+    last = _stored(db, institutional_streaks)[days[399]]
+    assert days[399] - days[0] > timedelta(days=500)
+    assert (last["foreign_streak_days"], last["trust_streak_days"]) == (-400, 100)
+
+
 # ---------------------------------------------------------------- storage
 
 
