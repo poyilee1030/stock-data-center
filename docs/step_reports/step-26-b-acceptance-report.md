@@ -1,6 +1,6 @@
 # Step 26-b 驗收報告
 
-狀態：IN REVIEW
+狀態：IN REVIEW (#55)
 
 範圍：Step 26 的第一個子步驟。`technical_indicators:v1` 與 `institutional_streaks:v1` 存成寬表，以最新的輸入
 增量計算；共用的增量執行器；即時計算的定義改名 `technical_indicators_pit:v1`。Step 26 依 owner 決定（2026-09-24）
