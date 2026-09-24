@@ -117,7 +117,7 @@ Each required criterion must be PASS/FAIL with concrete evidence.
 
 ## Current Step Sequence
 
-ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–18, 19-a through 19-e, 20-a through 20-d, 21-a, 21-b, 22-a through 22-c, 23-a through 24-b, 35-a, 35-b-1, 35-c-1 and 35-c-2 as MERGED, 26-a as IN REVIEW, 35-b-2 as SUPERSEDED, and labels Step 35-c-3 as `THIS STEP` (a contextual marker, not an additional status value):
+ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–18, 19-a through 19-e, 20-a through 20-d, 21-a, 21-b, 22-a through 22-c, 23-a through 24-b, 35-a, 35-b-1 and 35-c-1 through 35-c-3 as MERGED, 26-a and 35-b-2 as SUPERSEDED, and labels Step 35-c-4 as `THIS STEP` (a contextual marker, not an additional status value):
 
 ```text
 Step 11  authoritative security lifecycle history        MERGED
@@ -154,7 +154,7 @@ Step 23-c financial statements: backfill + reconcile    MERGED
 Step 24-a TDCC distribution: adapters + import path      MERGED
 Step 24-b TDCC distribution: backfill + coverage        MERGED
 Step 25  adjusted prices                               PLANNED
-Step 26-a canonical derived: service + technical ind.  IN REVIEW (paused for Step 35)
+Step 26-a canonical derived: service + technical ind.  SUPERSEDED (folded into 35-c-4)
 Step 27  public REST API v1                            PLANNED
 Step 28  scheduled forward capture                     PLANNED
 Step 29  Python SDK + downstream integration           PLANNED
@@ -167,8 +167,8 @@ Step 35-b-1 schema v2: exchange-daily write path       MERGED
 Step 35-b-2 schema v2: drop the 8 domains' v1 path      SUPERSEDED (folded into 35-d)
 Step 35-c-1 schema v2: issuer + TDCC tables, history   MERGED
 Step 35-c-2 schema v2: revenue/financial/TDCC writes   MERGED
-Step 35-c-3 schema v2: corporate actions + backfill    THIS STEP
-Step 35-c-4 schema v2: derived data on v2              PLANNED
+Step 35-c-3 schema v2: corporate actions + backfill    MERGED
+Step 35-c-4 schema v2: derived data on v2              THIS STEP
 Step 35-d  schema v2: drop all v1 code and tables      PLANNED
 ```
 
@@ -683,7 +683,7 @@ Materialized canonical results preserve derivation version, input identity/finge
 
 Storage strategy is a performance choice. Financial definition and PIT semantics must match.
 
-v1 materializes one rolling as-of series per metric: each observation date uses inputs visible at that date's cutoff. Other PIT contexts are computed on demand. Both paths must agree for the same context (ROADMAP §17).
+v1 computes derived data on demand by default, including the rolling as-of series in which each observation date uses the inputs visible at that date's cutoff. A metric is materialized only by its own step, after measurement shows on-demand computation too slow, and the materialized result must equal the on-demand one for the same context (ROADMAP §17).
 
 ---
 
