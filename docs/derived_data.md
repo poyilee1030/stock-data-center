@@ -69,7 +69,9 @@ date is aligned to its publication (`valuation_metrics:v1`, Step 26).
    earlier one are the same case.
 3. The series restarts `BUFFER_DAYS` (500) calendar days before that date, like
    legacy, and further back when that span holds fewer rows than the longest
-   window (240), and the rows from the start date on are replaced.
+   window (240), and the rows from the start date on are replaced. A streak has
+   no window: when one is still unbroken on that date across the whole buffer,
+   it may have begun before it, so that series is counted from its first row.
 
 `--full` recomputes every series from its first row.
 

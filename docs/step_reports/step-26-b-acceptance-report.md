@@ -18,7 +18,7 @@
 | 測試 | `tests/unit/test_v2_streaks.py`（8）、`tests/integration/test_v2_derived_store.py`（22）；`test_schema_v2_baseline.py` 加一條；`test_v2_technical_indicators.py` 改名 |
 | 文件 | ROADMAP §9、§10（拿掉 seal）、§17、§20、§29、Step 26（拆步表與 26-b）；ADR-0027 修訂段；CLAUDE.md §46、§65 與 step 快照；`derived_data.md`、`pit_semantics.md`、`schema.md`、domain inventory（md／json）、README |
 
-`src/` +410／−18 行。
+`src/` +425／−18 行（含 code review 修正）。
 
 ## 每張表的理由
 

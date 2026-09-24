@@ -91,7 +91,8 @@ INSTITUTIONAL_STREAKS_V1 = Definition(
         "without a trade neither extends nor breaks a streak. Keyed by the "
         "institutional source: twse_t86 counts over twse_mi_index days, "
         "tpex_insti_daily_trade over tpex_otc_quotes days. An incremental run "
-        "restarts a series 500 calendar days before the first date it rewrites."
+        "restarts a series 500 calendar days before the first date it rewrites, "
+        "or at its first row when a streak on that date spans the whole buffer."
     ),
     price_adjustment_convention="not applicable: no price enters the value",
 )
