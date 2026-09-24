@@ -9,10 +9,10 @@ import sqlalchemy as sa
 from sqlalchemy import Connection, Table
 from sqlalchemy.dialects.postgresql import insert
 
-from stock_data_center.db import metadata
 from stock_data_center.db.batch import batched
 from stock_data_center.db.metadata import (
     corporate_action_retractions,
+    metadata,
     publication_evidence,
     publication_evidence_observations,
 )

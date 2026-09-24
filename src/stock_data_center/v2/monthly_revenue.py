@@ -17,7 +17,7 @@ from zoneinfo import ZoneInfo
 from stock_data_center.db import schema_v2 as v2
 from stock_data_center.ingestion import adapters as a
 from stock_data_center.ingestion import models as m
-from stock_data_center.monthly_revenue.models import RevenuePeriod
+from stock_data_center.ingestion.observations import RevenuePeriod
 from stock_data_center.v2.exchange_daily import Job, whole
 
 _AMOUNTS = (

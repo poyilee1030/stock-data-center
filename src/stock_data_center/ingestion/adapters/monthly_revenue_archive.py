@@ -38,7 +38,7 @@ from stock_data_center.ingestion.models import (
     SourceDataError,
     SourceResource,
 )
-from stock_data_center.monthly_revenue.ingestion import (
+from stock_data_center.ingestion.observations import (
     MonthlyRevenueObservation,
     RevenueScale,
     SourceRevenueAmount,

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from sqlalchemy import Table
 
-from stock_data_center.db import metadata
+from stock_data_center.db.metadata import metadata
 from stock_data_center.pit.errors import UnknownDatasetError
 
 

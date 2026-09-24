@@ -12,32 +12,28 @@ from enum import Enum
 from types import MappingProxyType
 from urllib.parse import urlencode
 
-from stock_data_center.institutional_financing.models import (
-    ForeignHoldingObservation,
-    InstitutionalInvestorObservation,
-    InstitutionalMarketSummaryObservation,
-    MarginTradingObservation,
-    SecuritiesLendingObservation,
-)
-from stock_data_center.market_data import (
-    DailyPriceObservation,
-    SecurityMetadataObservation,
-)
-from stock_data_center.market_reference.models import (
-    MarketIndexObservation,
-    OfficialValuationObservation,
-)
-from stock_data_center.financials.classification import SourceContextClassification
-from stock_data_center.financials.ingestion import FinancialFactObservation
-from stock_data_center.financials.ixbrl import (
+from stock_data_center.ingestion.ixbrl import (
     ParsedFact,
     ReportCategory,
     StatementSection,
 )
-from stock_data_center.financials.models import SummaryPeriodBasis
-from stock_data_center.monthly_revenue.ingestion import MonthlyRevenueObservation
-from stock_data_center.monthly_revenue.models import RevenuePeriod
-from stock_data_center.tdcc.models import TDCCSnapshotObservation
+from stock_data_center.ingestion.observations import (
+    DailyPriceObservation,
+    FinancialFactObservation,
+    ForeignHoldingObservation,
+    InstitutionalInvestorObservation,
+    InstitutionalMarketSummaryObservation,
+    MarginTradingObservation,
+    MarketIndexObservation,
+    MonthlyRevenueObservation,
+    OfficialValuationObservation,
+    RevenuePeriod,
+    SecuritiesLendingObservation,
+    SecurityMetadataObservation,
+    SourceContextClassification,
+    SummaryPeriodBasis,
+    TDCCSnapshotObservation,
+)
 
 # Re-exported: adapters and importers import the origin from here.
 from stock_data_center.provenance import ArtifactOrigin, IngestPurpose  # noqa: F401

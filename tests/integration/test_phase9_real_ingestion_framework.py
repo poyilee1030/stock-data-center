@@ -12,19 +12,21 @@ from uuid import uuid4
 import pytest
 import sqlalchemy as sa
 
-from stock_data_center.ingestion import (
-    DailyMarketImporter,
-    DailyMarketRequest,
-    FetchedArtifact,
-    LocalRawArtifactStore,
-    RawArtifactIntegrityError,
-    ResourceQuarantinedError,
-)
 from stock_data_center.ingestion.adapters import (
     TPExDailyMarketAdapter,
     TWSEDailyMarketAdapter,
 )
+from stock_data_center.ingestion.daily_market import DailyMarketImporter
 from stock_data_center.ingestion.http import HttpSourceFetcher
+from stock_data_center.ingestion.models import (
+    DailyMarketRequest,
+    FetchedArtifact,
+    ResourceQuarantinedError,
+)
+from stock_data_center.ingestion.raw_storage import (
+    LocalRawArtifactStore,
+    RawArtifactIntegrityError,
+)
 from stock_data_center.market_data import MarketDataService, MarketDataWriter
 from stock_data_center.pit import MarketPITContext, SystemPITContext
 

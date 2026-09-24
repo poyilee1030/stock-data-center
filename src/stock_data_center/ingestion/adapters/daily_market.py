@@ -17,7 +17,7 @@ from stock_data_center.ingestion.models import (
     SourceQuantityUnit,
     SourceResource,
 )
-from stock_data_center.market_data import DailyPriceObservation
+from stock_data_center.ingestion.observations import DailyPriceObservation
 
 _MISSING = frozenset({"", "--", "---", "----", "N/A"})
 

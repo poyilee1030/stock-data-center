@@ -9,7 +9,7 @@ from typing import Literal
 from uuid import UUID
 
 import sqlalchemy as sa
-from sqlalchemy import Connection, RowMapping
+from sqlalchemy import Connection
 from sqlalchemy.dialects.postgresql import insert
 
 from stock_data_center.db.metadata import (
@@ -28,6 +28,9 @@ from stock_data_center.financials.classification import (
 from stock_data_center.financials.models import (
     SummaryPeriodBasis,
     XBRLContext,
+)
+from stock_data_center.ingestion.observations import (
+    FinancialFactObservation,
 )
 
 
@@ -63,43 +66,6 @@ class FinancialFilingObservation:
         if len(currency) != 3 or not currency.isalpha():
             raise ValueError("currency must be a three-letter code")
         object.__setattr__(self, "currency", currency)
-
-
-@dataclass(frozen=True, slots=True)
-class FinancialFactObservation:
-    concept_qname: str
-    context: XBRLContext
-    unit_identity: str
-    numeric_value: Decimal | None = None
-    text_value: str | None = None
-    is_nil: bool = False
-    decimals: str | None = None
-    #: The statement whose table printed the row, and the 會計科目代碼 in its
-    #: first cell. The statement is part of fact identity, because one number
-    #: can be a row of two statements; the code is business content beside it.
-    statement: str | None = None
-    account_code: str | None = None
-
-    def __post_init__(self) -> None:
-        if self.statement not in (
-            None, "balance_sheet", "income_statement", "cash_flow"
-        ):
-            raise ValueError("statement must be one of the three MOPS statements")
-        qname = self.concept_qname
-        if not qname.startswith("{") or "}" not in qname[1:]:
-            raise ValueError("concept_qname must use canonical {namespace}local form")
-        namespace, local = qname[1:].split("}", 1)
-        if not namespace or not local or "{" in local or "}" in local:
-            raise ValueError("concept_qname must use canonical {namespace}local form")
-        value_count = int(self.numeric_value is not None) + int(
-            self.text_value is not None
-        )
-        if self.is_nil and value_count:
-            raise ValueError("nil facts cannot contain numeric or text values")
-        if not self.is_nil and value_count != 1:
-            raise ValueError(
-                "non-nil facts require exactly one numeric or text value"
-            )
 
 
 @dataclass(frozen=True, slots=True)

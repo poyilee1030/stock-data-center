@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, fields
 from datetime import UTC, date, datetime
-from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
@@ -21,42 +20,16 @@ from stock_data_center.db.metadata import (
     security,
     security_metadata_versions,
 )
+from stock_data_center.ingestion.observations import (
+    DailyPriceObservation,
+    SecurityMetadataObservation,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class LineageRef:
     raw_artifact_id: UUID
     ingest_run_id: UUID
-
-
-@dataclass(frozen=True, slots=True)
-class SecurityMetadataObservation:
-    effective_from: date
-    market: str
-    name: str
-    effective_to: date | None = None
-    industry: str | None = None
-    listed_on: date | None = None
-    delisted_on: date | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class DailyPriceObservation:
-    trade_date: date
-    open_price: Decimal | None = None
-    high_price: Decimal | None = None
-    low_price: Decimal | None = None
-    close_price: Decimal | None = None
-    volume: Decimal | None = None
-    trade_value: Decimal | None = None
-    trade_count: int | None = None
-    price_change: Decimal | None = None
-    price_direction: str | None = None
-    bid_snapshot: str | None = None
-    ask_snapshot: str | None = None
-    last_bid_price: Decimal | None = None
-    last_ask_price: Decimal | None = None
-    last_bid_volume: Decimal | None = None
-    last_ask_volume: Decimal | None = None
 
 
 @dataclass(frozen=True, slots=True)

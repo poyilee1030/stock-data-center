@@ -2,39 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import date
-from enum import Enum
 
 from stock_data_center.financials.models import EPSPeriodBasis, XBRLContext
-
-
-class SourcePeriodRole(str, Enum):
-    """Meaning established by a source-specific parser rule, not date math."""
-
-    CURRENT_SINGLE_QUARTER = "current_single_quarter"
-    CURRENT_YEAR_TO_DATE = "current_year_to_date"
-    CURRENT_FULL_YEAR = "current_full_year"
-    OTHER = "other"
-
-
-@dataclass(frozen=True, slots=True)
-class SourceContextClassification:
-    """Auditable result produced by a source adapter's context classifier."""
-
-    source_context_ref: str
-    classifier_rule: str
-    period_role: SourcePeriodRole
-    expected_start: date
-    expected_end: date
-
-    def __post_init__(self) -> None:
-        if not self.source_context_ref:
-            raise ValueError("source_context_ref must not be empty")
-        if not self.classifier_rule:
-            raise ValueError("classifier_rule must not be empty")
-        if self.expected_end < self.expected_start:
-            raise ValueError("classified context end must not precede start")
+from stock_data_center.ingestion.observations import (
+    SourceContextClassification,
+    SourcePeriodRole,
+)
 
 
 def classify_eps_period_basis(

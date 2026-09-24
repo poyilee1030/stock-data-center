@@ -1,6 +1,6 @@
 # Step 35-c-4 驗收報告
 
-狀態：IN REVIEW (#51)
+狀態：MERGED (#51)
 
 範圍：衍生資料接 schema v2（ADR-0027「衍生資料：0 張表」）。`technical_indicators:v1` 改從 v2
 `daily_prices` 即時計算；定義是程式常數，實作版本是計算時的 git commit。26-a（#44）在 v1 上做的版本

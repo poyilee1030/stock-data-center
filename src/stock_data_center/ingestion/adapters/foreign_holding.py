@@ -51,7 +51,7 @@ from stock_data_center.ingestion.models import (
     SourceDataError,
     SourceResource,
 )
-from stock_data_center.institutional_financing.models import (
+from stock_data_center.ingestion.observations import (
     ForeignHoldingObservation,
     QuantityScale,
     SourceShareQuantity,

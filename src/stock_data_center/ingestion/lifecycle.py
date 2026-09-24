@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import subprocess
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -31,13 +30,13 @@ from stock_data_center.ingestion.http import HttpSourceFetcher, SourceFetcher
 from stock_data_center.ingestion.models import (
     ArtifactOrigin,
     EvidenceContext,
-    IngestPurpose,
     ImportManifestResult,
+    IngestPurpose,
     ResourceImportResult,
     ResourceQuarantinedError,
     SourceDataError,
-    UnusableSourceResponseError,
     SourceResource,
+    UnusableSourceResponseError,
 )
 from stock_data_center.ingestion.raw_storage import (
     LocalRawArtifactStore,
@@ -45,6 +44,7 @@ from stock_data_center.ingestion.raw_storage import (
     StoredRawArtifact,
 )
 from stock_data_center.market_data import LineageRef
+from stock_data_center.v2.fetch_log import current_git_commit
 
 logger = logging.getLogger(__name__)
 
@@ -1184,33 +1184,6 @@ def _fingerprint(value: object) -> str:
 def _advisory_lock_key(import_id: UUID, resource_key: str) -> int:
     identity = f"{import_id}:{resource_key}".encode()
     return int.from_bytes(sha256(identity).digest()[:8], "big", signed=True)
-
-
-def current_git_commit() -> str:
-    """The commit a run stamps on its manifest, `-dirty` if the tree is.
-
-    Public because a range runner has to take it once for the whole walk: a
-    manifest whose commit disagrees with the run's is refused as changed
-    configuration, so asking per resource would make a long walk unresumable
-    across any commit made while it runs.
-    """
-
-    try:
-        commit = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
-        dirty = subprocess.run(
-            ["git", "status", "--porcelain"],
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout
-        return f"{commit}-dirty" if dirty else commit
-    except (OSError, subprocess.CalledProcessError):
-        return "unknown"
 
 
 def _optional_date(value: object) -> date | None:

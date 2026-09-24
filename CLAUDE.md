@@ -117,7 +117,7 @@ Each required criterion must be PASS/FAIL with concrete evidence.
 
 ## Current Step Sequence
 
-ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–18, 19-a through 19-e, 20-a through 20-d, 21-a, 21-b, 22-a through 22-c, 23-a through 24-b, 35-a, 35-b-1 and 35-c-1 through 35-c-3 as MERGED, 26-a and 35-b-2 as SUPERSEDED, and labels Step 35-c-4 as `THIS STEP` (a contextual marker, not an additional status value):
+ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–18, 19-a through 19-e, 20-a through 20-d, 21-a, 21-b, 22-a through 22-c, 23-a through 24-b, 35-a, 35-b-1 and 35-c-1 through 35-c-4 as MERGED, 26-a and 35-b-2 as SUPERSEDED, and labels Step 35-d-1 as `THIS STEP` (a contextual marker, not an additional status value):
 
 ```text
 Step 11  authoritative security lifecycle history        MERGED
@@ -168,8 +168,10 @@ Step 35-b-2 schema v2: drop the 8 domains' v1 path      SUPERSEDED (folded into 
 Step 35-c-1 schema v2: issuer + TDCC tables, history   MERGED
 Step 35-c-2 schema v2: revenue/financial/TDCC writes   MERGED
 Step 35-c-3 schema v2: corporate actions + backfill    MERGED
-Step 35-c-4 schema v2: derived data on v2              THIS STEP
-Step 35-d  schema v2: drop all v1 code and tables      PLANNED
+Step 35-c-4 schema v2: derived data on v2              MERGED
+Step 35-d-1 schema v2: v2 loads no v1 module          THIS STEP
+Step 35-d-2 schema v2: delete the v1 code              PLANNED
+Step 35-d-3 schema v2: baseline migration, drop v1     PLANNED
 ```
 
 `ROADMAP.md` remains authoritative if this snapshot becomes stale.
@@ -1386,6 +1388,8 @@ At the start of implementation:
 5. Inspect current main/head.
 6. Implement only the current PR when its correctness gates permit implementation.
 ```
+
+When a step's work is finished and verified — tests pass and the acceptance criteria are evaluated — commit it and push the step branch without waiting to be asked. The same holds for the fixes that answer a review of the step's pull request.
 
 At the end report:
 

@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from sqlalchemy import Connection, RowMapping, Table
 from sqlalchemy.dialects.postgresql import insert
 
-from stock_data_center.db import metadata as db_metadata
 from stock_data_center.db.batch import batched
+from stock_data_center.db.metadata import metadata as db_metadata
 from stock_data_center.db.metadata import (
     publication_evidence,
     publication_evidence_observations,
@@ -21,8 +21,8 @@ from stock_data_center.institutional_financing.models import (
     InstitutionalInvestorObservation,
     InstitutionalMarketSummaryObservation,
     MarginTradingObservation,
-    ShareQuantity,
     SecuritiesLendingObservation,
+    ShareQuantity,
     SourceLineageRef,
     SourcePublication,
     WrittenSourceVersion,

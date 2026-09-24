@@ -3,20 +3,13 @@ from __future__ import annotations
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-NAMING_CONVENTION = {
-    "ix": "ix_%(table_name)s_%(column_0_name)s",
-    "uq": "uq_%(table_name)s_%(column_0_name)s",
-    "ck": "ck_%(table_name)s_%(constraint_name)s",
-    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
-    "pk": "pk_%(table_name)s",
-}
-
-metadata = sa.MetaData(naming_convention=NAMING_CONVENTION)
-
-aware_timestamp = postgresql.TIMESTAMP(timezone=True)
-uuid_type = postgresql.UUID(as_uuid=True)
-jsonb_type = postgresql.JSONB()
-
+from stock_data_center.db.base import (  # noqa: F401 - re-exported to v1 callers
+    NAMING_CONVENTION,
+    aware_timestamp,
+    jsonb_type,
+    metadata,
+    uuid_type,
+)
 
 dataset_catalog = sa.Table(
     "dataset_catalog",
@@ -1978,6 +1971,6 @@ sa.Index(
 
 # Schema v2 (ADR-0027) registers its tables on this same metadata, so migrations
 # and the drift check see both generations while domains move across.
-from stock_data_center.db import schema_v2 as _schema_v2  # noqa: E402,F401
+from stock_data_center.db import schema_v2 as _schema_v2  # noqa: F401
 
 __all__ = ["metadata"]

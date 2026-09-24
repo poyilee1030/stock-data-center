@@ -14,7 +14,7 @@ from stock_data_center.ingestion.models import (
     SourceDataError,
     SourceResource,
 )
-from stock_data_center.market_data import SecurityMetadataObservation
+from stock_data_center.ingestion.observations import SecurityMetadataObservation
 
 _SECURITY_CODE = re.compile(r"^(?:[0-9]{4}|[0-9]{6})$")
 

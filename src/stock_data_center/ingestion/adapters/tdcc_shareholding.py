@@ -55,7 +55,7 @@ from stock_data_center.ingestion.models import (
     TDCCShareholdingRequest,
     TDCCShareholdingRow,
 )
-from stock_data_center.tdcc import (
+from stock_data_center.ingestion.observations import (
     TDCC_OPENDATA_V1,
     TDCCBucketObservation,
     TDCCSnapshotObservation,

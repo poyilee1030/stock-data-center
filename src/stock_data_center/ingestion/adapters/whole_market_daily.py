@@ -26,7 +26,7 @@ from stock_data_center.ingestion.models import (
     WholeMarketDailyRequest,
     WholeMarketDailyRow,
 )
-from stock_data_center.market_data import DailyPriceObservation
+from stock_data_center.ingestion.observations import DailyPriceObservation
 
 _MISSING = frozenset({"", "--", "---", "----", "N/A"})
 _TAGS = re.compile(r"<[^>]*>")

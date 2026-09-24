@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import sqlalchemy as sa
 
-from stock_data_center.db.metadata import aware_timestamp, metadata, uuid_type
+from stock_data_center.db.base import aware_timestamp, metadata, uuid_type
 
 # Decimal columns are unconstrained `numeric` with a CHECK, not `numeric(p, 2)`:
 # PostgreSQL casts to a column's typmod before any CHECK runs, so `numeric(10, 2)`

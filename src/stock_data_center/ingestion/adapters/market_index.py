@@ -39,7 +39,7 @@ from stock_data_center.ingestion.models import (
     TaiexHistoryRequest,
     TaiexHistoryRow,
 )
-from stock_data_center.market_reference.models import MarketIndexObservation
+from stock_data_center.ingestion.observations import MarketIndexObservation
 
 _MISSING = frozenset({"", "--", "---", "----", "N/A"})
 _TAGS = re.compile(r"<[^>]*>")
