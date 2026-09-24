@@ -2399,7 +2399,6 @@ stock-data-center/
 │   ├── data_domain_inventory.md
 │   ├── pit_semantics.md
 │   ├── schema.md
-│   ├── real_source_ingestion.md
 │   ├── derived_data.md
 │   ├── phase_reports/
 │   ├── step_reports/

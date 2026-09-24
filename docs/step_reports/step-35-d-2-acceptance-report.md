@@ -14,7 +14,10 @@ v2。資料庫不動：v1 的表、`db/metadata.py` 與 migration 鏈留到 35-d
 | 保留模組裡的死碼 | 19 個沒有任何引用的定義（v1 importer 的 request、parsed、manifest 型別，`EPSPeriodBasis` 等） | |
 | 測試 | 53 個檔、22,561 行：v1 的整合與契約測試，以及 5 個被刪 adapter 的測試；23-a、23-b 各刪掉只測 v1 EPS 分類與檔案庫 adapter 的測試函式 | 38 個檔：v2、保留的 adapter、iXBRL parser、HTTP fetcher，以及 v1 表的 schema 測試（35-d-3 刪） |
 | fixture | 8 個沒有任何測試引用的檔 | 107 個 |
+| 文件 | `docs/real_source_ingestion.md`：整份講 Step 9 pilot 與 v1 import 框架，指令要跑的 `live_source` 測試已刪；ROADMAP 目錄樹同步拿掉 | 其他 `docs/*.md` 的 v1 內容留給 35-d-3 |
 | scripts | 19 支：v1 的 reconcile／verify、`migrate_to_schema_v2.py`（v1→v2 搬移已完成）、`verify_schema_v2_35c.py`、呼叫 v1 CLI 的 `backfill_financial_filings.sh` | 4 支：`verify_v2_write_path.py`、`verify_v2_35c_write_path.py`、`verify_v2_corporate_actions.py`、`reconcile_technical_indicators.py` |
+
+`tests/conftest.py` 沒人用的 `date` import 與 `pyproject.toml` 已無測試使用的 `live_source` marker 一併刪掉。
 
 保留的 adapter 測試原本從 v1 位置 import 型別（例如 `market_reference.models.TwdAmount`），改成從
 `ingestion.observations`、`ingestion.ixbrl` import；兩支 v2 驗收腳本的 `current_git_commit` 改從
