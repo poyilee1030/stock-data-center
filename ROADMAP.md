@@ -606,7 +606,7 @@ explicit out-of-scope work
 | 24-b | MERGED | TDCC 股權分散：376 週 backfill、涵蓋範圍與對帳 |
 | 26-a | SUPERSEDED | 衍生服務與 `technical_indicators:v1`（#44，併入 35-c-4） |
 | 26-b | MERGED (#55) | 存表的衍生資料：`technical_indicators:v1` 與 `institutional_streaks:v1` |
-| 26-c | IN REVIEW | `institutional_cumulative_flow:v1` |
+| 26-c | IN REVIEW (#56) | `institutional_cumulative_flow:v1` |
 | 26-d | PLANNED | `shareholding_concentration:v1` |
 | 26-e | PLANNED | `margin_metrics:v1` 與 `short_interest_metrics:v1` |
 | 26-f | PLANNED | `valuation_metrics:v1` |
