@@ -17,8 +17,8 @@ import pytest
 import sqlalchemy as sa
 from sqlalchemy import Connection
 
-from stock_data_center.financials.models import XBRLContext
 from stock_data_center.ingestion.models import FetchedArtifact, SourceDataError
+from stock_data_center.ingestion.observations import XBRLContext
 from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
 from stock_data_center.v2 import financial_reports as fr
 from stock_data_center.v2.fetch_log import FetchRecord, record_fetch

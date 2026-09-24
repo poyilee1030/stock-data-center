@@ -672,10 +672,6 @@ class TDCCSnapshotObservation:
 def _frozen_mapping(value: Mapping[str, Any]) -> Mapping[str, Any]:
     return MappingProxyType(dict(value))
 
-class EPSPeriodBasis(str, Enum):
-    QUARTER = "quarter"
-    YTD = "ytd"
-    ANNUAL = "annual"
 
 class SummaryPeriodBasis(str, Enum):
     QUARTER = "quarter"

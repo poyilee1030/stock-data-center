@@ -25,7 +25,7 @@ from stock_data_center.ingestion.models import (
     OfficialValuationRequest,
     SourceDataError,
 )
-from stock_data_center.market_reference.models import TwdAmount
+from stock_data_center.ingestion.observations import TwdAmount
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 TWSE = (FIXTURES / "twse_bwibbu_d_20260911.json").read_bytes()

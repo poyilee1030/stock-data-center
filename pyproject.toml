@@ -26,7 +26,6 @@ addopts = "-ra"
 testpaths = ["tests"]
 markers = [
   "integration: requires PostgreSQL 18",
-  "live_source: calls official external source endpoints",
 ]
 
 [tool.hatch.build.targets.wheel]

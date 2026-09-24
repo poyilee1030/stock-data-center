@@ -95,33 +95,29 @@ Redis 為選配，且要等 Step 30 的延遲量測證實有需要才會啟用�
 
 `tests/integration/` 下的測試需要一個可連線的 PostgreSQL 18（見
 `tests/conftest.py` 的 `TEST_DATABASE_URL`，預設指向本機 `stockdc`
-資料庫）。標記為 `live_source` 的測試會呼叫真實官方端點，預設略過，
-需要時設定 `RUN_LIVE_SOURCE_TESTS=1` 才會執行。
+資料庫）。
 
 ## 執行資料匯入
 
-匯入指令走同一個 CLI 入口，尚未包裝成套件的 console script：
+schema v2（ADR-0027）的回補走同一個入口，每個 job 是 `<表>/<來源>`：
 
 ```bash
-.venv/bin/python -m stock_data_center.ingestion.cli --help
+.venv/bin/python -m stock_data_center.v2.backfill --help
+.venv/bin/python -m stock_data_center.v2.backfill --job daily_prices/twse_mi_index \
+    --start 2026-09-01 --end 2026-09-11 --purpose gap_fill
 ```
 
-各子指令（`daily-market`、`market-index`、`official-valuation`、`corporate-action` 等）對應
-`ROADMAP.md` 上已交付的資料網域；每個真實來源的匯入/回補都會產生
-import manifest（涵蓋範圍、筆數、去重、隔離等統計），並對照 legacy
-`stock_db` 做對帳（`CLAUDE.md` §78）。
+每次抓取在 `fetches` 記一列，原始檔存在 `data/raw/<ab>/<sha256>`；已完成的期間不會再抓。
+v1 的 CLI 與匯入路徑已在 Step 35-d-2 刪除。
 
 ## 專案結構
 
 ```text
 src/stock_data_center/
-  ingestion/       原始資料擷取（adapter、raw-first 生命週期、CLI）
-  db/              資料表 metadata
-  evidence/        發布證據政策（ADR-0020）
-  market_data/、market_reference/、market_calendar/
-                   已上線的業務資料網域
-  pit/             point-in-time 解析邏輯
-  provenance.py    來源/匯入批次共用型別
+  v2/              schema v2 的寫入路徑、回補、可見性、衍生資料（ADR-0027）
+  ingestion/       來源 adapter、observation 型別、iXBRL parser、HTTP fetcher、raw store
+  db/              schema v2 的表（`schema_v2.py`）；`metadata.py` 是 v1 的表，35-d-3 刪除
+  provenance.py    抓取目的等共用型別
 migrations/        Alembic 遷移腳本
 docs/decisions/    ADR（架構決策紀錄）
 docs/step_reports/ 各 step 的驗收報告（含真實資料證據）

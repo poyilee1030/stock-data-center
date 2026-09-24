@@ -30,7 +30,7 @@ from stock_data_center.ingestion.models import (
     ExchangeLocator,
     SourceDataError,
 )
-from stock_data_center.market_reference.models import (
+from stock_data_center.ingestion.observations import (
     CorporateActionObservation,
     MarketIndexObservation,
     SignedTwdAmount,

@@ -29,7 +29,6 @@ from stock_data_center.ingestion.observations import (
     OfficialValuationObservation,
     RevenuePeriod,
     SecuritiesLendingObservation,
-    SecurityMetadataObservation,
     SourceContextClassification,
     SummaryPeriodBasis,
     TDCCSnapshotObservation,
@@ -37,18 +36,6 @@ from stock_data_center.ingestion.observations import (
 
 # Re-exported: adapters and importers import the origin from here.
 from stock_data_center.provenance import ArtifactOrigin, IngestPurpose  # noqa: F401
-
-
-@dataclass(frozen=True, slots=True)
-class EvidenceContext:
-    """What a run declared, and when it actually fetched (ADR-0020 §5).
-
-    Passed to the business writer so the evidence a version receives follows
-    from the run that produced it, rather than from the clock at write time.
-    """
-
-    purpose: IngestPurpose
-    captured_at: datetime
 
 
 class SourceQuantityUnit(str, Enum):
@@ -68,18 +55,6 @@ class DailyMarketSourceSemantics:
     # Only the whole-market feeds publish a disclosed bid/ask level, so the
     # per-security pilots leave this undeclared rather than assuming one.
     disclosed_volume_unit: SourceQuantityUnit | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class DailyMarketRequest:
-    security_code: str
-    month: date
-
-    def __post_init__(self) -> None:
-        if not self.security_code or self.security_code.strip() != self.security_code:
-            raise ValueError("security_code must be nonempty and already trimmed")
-        if self.month.day != 1:
-            raise ValueError("month must be the first day of the requested month")
 
 
 @dataclass(frozen=True, slots=True)
@@ -309,29 +284,6 @@ class FinancialFilingRequest:
 
 
 @dataclass(frozen=True, slots=True)
-class FinancialFilingArchiveRequest:
-    """The legacy archive's copy of one filing (ROADMAP §14, CLAUDE.md §75).
-
-    The archive holds one file per filing and does not say which `REPORT_ID`
-    fetched it; the document's own `ReportCategory` does.
-    """
-
-    security_code: str
-    report_year: int
-    report_quarter: int
-
-    def __post_init__(self) -> None:
-        if not self.security_code:
-            raise ValueError("security_code must not be empty")
-        if not 1 <= self.report_quarter <= 4:
-            raise ValueError("report_quarter must be between 1 and 4")
-
-    @property
-    def period_label(self) -> str:
-        return f"{self.report_year:04d}Q{self.report_quarter}"
-
-
-@dataclass(frozen=True, slots=True)
 class StatementFact:
     """One statement row, with the statement and 會計科目代碼 it was printed in."""
 
@@ -413,42 +365,6 @@ class MonthlyRevenueRequest:
 
     period: RevenuePeriod
     page: RevenuePage
-
-
-@dataclass(frozen=True, slots=True)
-class MonthlyRevenueArchiveRequest:
-    """Request the legacy archive's `market.csv` for one month (Step 22-c)."""
-
-    period: RevenuePeriod
-
-
-@dataclass(frozen=True, slots=True)
-class MonthlyRevenueArchiveRow:
-    """One legacy row: what it held, and the day legacy's file dates it."""
-
-    security_code: str
-    observation: MonthlyRevenueObservation
-    captured_on: date
-
-
-@dataclass(frozen=True, slots=True)
-class ParsedMonthlyRevenueArchive:
-    """One market's rows out of one archive file."""
-
-    market: str
-    period: RevenuePeriod
-    rows: tuple[MonthlyRevenueArchiveRow, ...]
-    header_variant: str
-    source_fields: tuple[str, ...]
-    source_rows: int
-
-    @property
-    def coverage_start(self) -> date | None:
-        return date(self.period.year, self.period.month, 1) if self.rows else None
-
-    @property
-    def coverage_end(self) -> date | None:
-        return self.coverage_start
 
 
 @dataclass(frozen=True, slots=True)
@@ -815,13 +731,6 @@ class ParsedCorporateActionDetail:
 
 
 @dataclass(frozen=True, slots=True)
-class SecurityMetadataRequest:
-    """Request the source's current official security-metadata snapshot."""
-
-    expected_report_date: date | None = None
-
-
-@dataclass(frozen=True, slots=True)
 class TradingCalendarRequest:
     """Request one calendar month of actual trading days."""
 
@@ -848,58 +757,6 @@ class ParsedTradingCalendar:
     @property
     def coverage_end(self) -> date | None:
         return self.trading_days[-1] if self.trading_days else None
-
-
-@dataclass(frozen=True, slots=True)
-class SecurityLifecycleRequest:
-    """Request one official historical listing-lifecycle resource."""
-
-    year: int | None = None
-
-    def __post_init__(self) -> None:
-        if self.year is not None and not 1912 <= self.year <= 9999:
-            raise ValueError("year must be a Gregorian year from 1912 through 9999")
-
-
-@dataclass(frozen=True, slots=True)
-class SecurityLifecycleEvent:
-    security_code: str
-    name: str
-    effective_on: date
-    event_kind: str
-    market: str
-    transfer_from_market: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class ParsedSecurityLifecycle:
-    market: str
-    event_kind: str
-    rows: tuple[SecurityLifecycleEvent, ...]
-    source_fields: tuple[str, ...]
-    source_row_count: int
-
-    @property
-    def coverage_start(self) -> date | None:
-        return self.rows[0].effective_on if self.rows else None
-
-    @property
-    def coverage_end(self) -> date | None:
-        return self.rows[-1].effective_on if self.rows else None
-
-
-@dataclass(frozen=True, slots=True)
-class SecurityMetadataRecord:
-    security_code: str
-    observation: SecurityMetadataObservation
-
-
-@dataclass(frozen=True, slots=True)
-class ParsedSecurityMetadata:
-    report_date: date
-    market: str
-    rows: tuple[SecurityMetadataRecord, ...]
-    source_fields: tuple[str, ...]
 
 
 _REQUEST_METHODS = frozenset({"GET", "POST"})
@@ -1030,57 +887,6 @@ class FetchedArtifact:
         object.__setattr__(self, "fetched_at", self.fetched_at.astimezone(UTC))
 
 
-@dataclass(frozen=True, slots=True)
-class ParsedDailyMarket:
-    security_code: str
-    security_name: str
-    requested_month: date
-    rows: tuple[DailyPriceObservation, ...]
-    source_fields: tuple[str, ...]
-
-    @property
-    def coverage_start(self) -> date | None:
-        return self.rows[0].trade_date if self.rows else None
-
-    @property
-    def coverage_end(self) -> date | None:
-        return self.rows[-1].trade_date if self.rows else None
-
-
-@dataclass(frozen=True, slots=True)
-class ResourceImportResult:
-    resource_key: str
-    source: str
-    raw_artifact_hash: str | None
-    raw_artifact_created: bool
-    business_versions_created: int
-    business_versions_deduplicated: int
-    publication_evidence_created: int
-    publication_evidence_deduplicated: int
-    evidence_observations: int
-    unknown_publication_observations: int
-    normalized_rows: int
-    coverage_start: date | None
-    coverage_end: date | None
-    resumed_from_checkpoint: bool = False
-
-
-@dataclass(frozen=True, slots=True)
-class ImportManifestResult:
-    import_id: str
-    status: str
-    result_counts: Mapping[str, int]
-    reconciliation: Mapping[str, object]
-
-    def __post_init__(self) -> None:
-        object.__setattr__(
-            self, "result_counts", MappingProxyType(dict(self.result_counts))
-        )
-        object.__setattr__(
-            self, "reconciliation", MappingProxyType(dict(self.reconciliation))
-        )
-
-
 class SourceDataError(ValueError):
     """A source artifact cannot be mapped unambiguously to the contract."""
 
@@ -1089,19 +895,3 @@ class SourceDataError(ValueError):
         self.reason_code = reason_code
 
 
-class ResourceQuarantinedError(RuntimeError):
-    """The raw artifact was retained but its normalized writes were rejected."""
-
-
-class UnusableSourceResponseError(RuntimeError):
-    """A dependency answered with content that is not a source answer at all
-    (for example an HTML maintenance page), even after a live retry.
-
-    Deliberately not a `SourceDataError`: it is an operational failure, not a
-    row that cannot map to the contract, so it must leave the range resumable
-    rather than quarantine one row and let the range finish `succeeded`."""
-
-    def __init__(self, reason_code: str, resource_key: str, detail: str) -> None:
-        super().__init__(f"{resource_key} unusable after retry ({reason_code}): {detail}")
-        self.reason_code = reason_code
-        self.resource_key = resource_key

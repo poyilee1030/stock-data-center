@@ -61,7 +61,6 @@ from stock_data_center.ingestion.models import (
 )
 from stock_data_center.ingestion.observations import (
     FinancialFactObservation,
-    SourceContextClassification,
     SourcePeriodRole,
     SummaryPeriodBasis,
     XBRLContext,
@@ -71,7 +70,6 @@ HOST = "https://mopsov.twse.com.tw/server-java/t164sb01"
 #: What MOPS answers, under HTTP 200, when the filer files the other report.
 NO_SUCH_REPORT = "檔案不存在"
 #: The versioned rule that turns a document into one source filing revision.
-FILING_REVISION_RULE = "mops-filing-revision:v1"
 
 REPORT_IDS = {
     ReportCategory.CONSOLIDATED: "C",

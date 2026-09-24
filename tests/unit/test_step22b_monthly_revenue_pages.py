@@ -13,7 +13,7 @@ from pathlib import Path
 
 from stock_data_center.ingestion.adapters import MOPSSiiMonthlyRevenueAdapter
 from stock_data_center.ingestion.models import MonthlyRevenueRequest, RevenuePage
-from stock_data_center.monthly_revenue.models import RevenuePeriod
+from stock_data_center.ingestion.observations import RevenuePeriod
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 JULY = RevenuePeriod(2026, 7)
