@@ -624,7 +624,7 @@ explicit out-of-scope work
 | 35-c-1 | MERGED | Schema v2：月營收、財報、TDCC、公司行動的 v2 表與歷史搬移（#48） |
 | 35-c-2 | MERGED | Schema v2：月營收、財報、TDCC 的寫入路徑（#49） |
 | 35-c-3 | MERGED (#50) | Schema v2：公司行動的寫入路徑與回補 |
-| 35-c-4 | IN REVIEW | Schema v2：衍生資料接 v2（26-a） |
+| 35-c-4 | IN REVIEW (#51) | Schema v2：衍生資料接 v2（26-a） |
 | 35-d | PLANNED | Schema v2：刪除所有 v1 程式與表，重新開始 migration 鏈 |
 
 Steps 1–12 建立了儲存、PIT 和 raw-first 的基礎。它們的 writer 契約包含一些沒有任何來源會填入的欄位（§2.3）。這些欄位保持可為 null、不填值。不刪除它們，因為刪除不會帶來任何正確性上的好處。

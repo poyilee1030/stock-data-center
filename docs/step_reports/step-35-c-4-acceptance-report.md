@@ -1,6 +1,6 @@
 # Step 35-c-4 驗收報告
 
-狀態：IN REVIEW
+狀態：IN REVIEW (#51)
 
 範圍：衍生資料接 schema v2（ADR-0027「衍生資料：0 張表」）。`technical_indicators:v1` 改從 v2
 `daily_prices` 即時計算；定義是程式常數，實作版本是計算時的 git commit。26-a（#44）在 v1 上做的版本
@@ -122,4 +122,4 @@ scripts/reconcile_technical_indicators.py --start 2020-01-02 --end 2026-09-11 \
 - 35-d：刪除全部 v1 程式與表（含 `derived_dataset_definitions`、`derived_metric_versions`、
   `derived_computation_runs`）
 - 26-b–26-e：其餘衍生資料集沿用 `v2/derived.py` 的形狀
-- GitHub 上的 #44 需要關閉（owner 決定）
+- （已完成）GitHub 上的 #44 已關閉並註明由 #51 取代
