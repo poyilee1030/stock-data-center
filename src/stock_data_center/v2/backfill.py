@@ -43,14 +43,22 @@ from stock_data_center.ingestion.http import (
     SourceFetcher,
 )
 from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
-from stock_data_center.v2 import financial_reports, monthly_revenue, shareholding
+from stock_data_center.v2 import (
+    corporate_actions,
+    financial_reports,
+    monthly_revenue,
+    shareholding,
+)
 from stock_data_center.v2.exchange_daily import JOBS as EXCHANGE_JOBS
 from stock_data_center.v2.exchange_daily import Job, ingest, pending
 
 JOBS: dict[str, Job] = {**EXCHANGE_JOBS, **monthly_revenue.JOBS, **shareholding.JOBS}
 # Financial reports are one document per filer and quarter, written as a whole
 # version, so they have their own runner rather than a `Job`.
-ALL_KEYS = (*sorted(JOBS), financial_reports.KEY)
+# Corporate actions are a year's list plus per-event detail pages, with
+# retractions; they have their own runner too.
+CORPORATE_KEYS = {corporate_actions.key(source): source for source in corporate_actions.FEEDS}
+ALL_KEYS = (*sorted(JOBS), financial_reports.KEY, *sorted(CORPORATE_KEYS))
 
 EXCHANGE_MIN_INTERVAL_SECONDS = 1.5
 HOST_INTERVALS = {
@@ -159,6 +167,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     }
     report = run(engine, [JOBS[key] for key in keys if key in JOBS], args.start, args.end,
                  **common)
+    if sources := [CORPORATE_KEYS[key] for key in keys if key in CORPORATE_KEYS]:
+        report.update(corporate_actions.run(engine, sources, args.start, args.end,
+                                            unit=_unit, **common))
     if financial_reports.KEY in keys:
         report[financial_reports.KEY] = financial_reports.run(
             engine, args.start, args.end, unit=_unit, **common)

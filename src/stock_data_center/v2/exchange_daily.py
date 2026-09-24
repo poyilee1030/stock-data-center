@@ -212,7 +212,7 @@ def _taiex_close_check(connection: Connection, rows: list[dict]) -> Checked:
 
 # Written by the runner, never compared: a row differs from the key's latest row
 # only in its published values.
-_BOOKKEEPING = ("recorded_at", "fetch_id", "published_at")
+_BOOKKEEPING = ("recorded_at", "fetch_id", "detail_fetch_id", "published_at")
 _STOCK_KEY = ("stock_id", "source", "trade_date")
 
 
@@ -400,7 +400,7 @@ class Fetched:
     """A fetched, stored and parsed resource whose fetch row is not written yet.
 
     `log(status, reason, detail)` writes it, in the caller's transaction, once
-    the caller knows the outcome of its write."""
+    the caller knows the outcome of its write; `into=` names another one."""
 
     parsed: object
     value: object
@@ -441,9 +441,11 @@ def fetch_and_parse(
     )
 
     def logger(record, content, attempt):
-        def log(status, reason=None, detail=None):
+        # `into` writes the row on another transaction: a caller that fetches
+        # more before its write (corporate-action details) commits them apart.
+        def log(status, reason=None, detail=None, into=None):
             return record_fetch(
-                connection, record, content=content, status=status, store=store,
+                into or connection, record, content=content, status=status, store=store,
                 reason_code=reason, reason_detail=detail and detail[:2000], attempt=attempt,
             )
         return log

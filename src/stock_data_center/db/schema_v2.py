@@ -517,10 +517,20 @@ corporate_actions = sa.Table(
     _decimal("cash_return_per_share"),
     sa.Column("retracted", sa.Boolean(), nullable=False, server_default=sa.false()),
     _fetch_id(),
+    # TWT49U and TWTAUU publish a row's terms only on its detail page, a second
+    # raw file: `fetch_id` is the list, this the detail. NULL for the other feeds.
+    sa.Column(
+        "detail_fetch_id", uuid_type, sa.ForeignKey("fetches.id", ondelete="RESTRICT"),
+        nullable=True,
+    ),
     sa.PrimaryKeyConstraint(
         "stock_id", "source", "ex_date", "recorded_at", name="pk_corporate_actions"
     ),
     sa.CheckConstraint("event_type <> ''", name="event_type_nonempty"),
+    sa.CheckConstraint(
+        "(detail_fetch_id IS NOT NULL) = (source IN ('twse_twt49u', 'twse_twtauu'))",
+        name="detail_fetch_for_detail_feeds",
+    ),
     sa.CheckConstraint(
         "(old_shares IS NULL) = (new_shares IS NULL)", name="share_pair"
     ),
