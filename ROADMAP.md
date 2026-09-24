@@ -502,7 +502,11 @@ adjustment convention where relevant
 
 v1 的衍生資料集是移植舊系統使用者讀取的內容（Step 26）。舊系統的綜合「壓力分數」留在下游。
 
-v1 的實體化方式是每個指標存一條滾動的 as-of 序列：每個觀察日期都用該日期截止點時可見的輸入計算。其他 PIT context 在需要時才計算，不實體化。對同一個 PIT context，實體化結果和即時計算結果必須一致。
+v1 的衍生資料**預設即時計算，不實體化**（ADR-0027：衍生資料 0 張表）。滾動 as-of 序列（每個觀察日期都用該日期截止點時可見的輸入計算）和任何其他 PIT context，都在查詢時從已儲存的輸入算出。定義是程式常數；回傳的每一列帶著它的 PIT context、輸入 fingerprint 與計算時的 git commit，所以 lineage 不因為沒有實體化而消失。
+
+理由是 26-a 量測到的成本：長格式的 `derived_metric_versions` 每個 metric-day 約 740 bytes，其中約 98% 是逐列重複的 lineage；光是 `technical_indicators:v1` 就是 7,600 萬列、56 GB，是它的輸入 `daily_price`（2 GB）的 28 倍。這些值是輸入的確定性函數，存下來不增加任何可稽核的事實。
+
+只有量測證明即時計算太慢的指標才實體化，而且要有自己的 step：先量測查詢延遲與儲存成本，再選格式。實體化的結果必須和同一個 PIT context 的即時計算完全一致。
 
 ---
 
@@ -605,6 +609,7 @@ explicit out-of-scope work
 | 24-b | IN REVIEW | TDCC 股權分散：376 週 backfill、涵蓋範圍與對帳 |
 | 25 | PLANNED | 還原價格 |
 | 26 | PLANNED | 標準衍生 v1（移植舊系統計算程式） |
+| 26-a | SUPERSEDED | 衍生服務與 `technical_indicators:v1`（#44，併入 35-c-4） |
 | 27 | PLANNED | 公開 REST API v1 |
 | 28 | PLANNED | 排程的前向抓取 |
 | 29 | PLANNED | Python SDK 與下游整合 |
@@ -618,8 +623,8 @@ explicit out-of-scope work
 | 35-b-2 | SUPERSEDED | Schema v2：移除 8 個領域的 v1 路徑與 v1 表（併入 35-d） |
 | 35-c-1 | MERGED | Schema v2：月營收、財報、TDCC、公司行動的 v2 表與歷史搬移（#48） |
 | 35-c-2 | MERGED | Schema v2：月營收、財報、TDCC 的寫入路徑（#49） |
-| 35-c-3 | IN REVIEW (#50) | Schema v2：公司行動的寫入路徑與回補 |
-| 35-c-4 | PLANNED | Schema v2：衍生資料接 v2（26-a） |
+| 35-c-3 | MERGED (#50) | Schema v2：公司行動的寫入路徑與回補 |
+| 35-c-4 | IN REVIEW (#51) | Schema v2：衍生資料接 v2（26-a） |
 | 35-d | PLANNED | Schema v2：刪除所有 v1 程式與表，重新開始 migration 鏈 |
 
 Steps 1–12 建立了儲存、PIT 和 raw-first 的基礎。它們的 writer 契約包含一些沒有任何來源會填入的欄位（§2.3）。這些欄位保持可為 null、不填值。不刪除它們，因為刪除不會帶來任何正確性上的好處。
@@ -1794,7 +1799,7 @@ margin_metrics:v1                utilization and WoW changes
 short_interest_metrics:v1        SBL/short ratios and WoW changes
 ```
 
-實體化遵循 §17：只有滾動的 as-of 序列。
+計算方式遵循 §17：預設即時計算，包括滾動的 as-of 序列。`technical_indicators:v1` 由 35-c-4 在 schema v2 上交付（26-a #44 SUPERSEDED）。
 
 驗收：與舊系統的表對帳。因為 PIT 正確的輸入而產生的刻意差異要列出並解釋。
 
@@ -2172,9 +2177,20 @@ ADR-0027：官方代號當身分、一個 (股票, 來源, 日期) 一列的寬�
 
 **35-c-4：衍生資料接 v2**
 
-- 26-a（#44）的 `technical_indicators:v1` 改讀 v2 `daily_prices` 的可見值；定義改為程式常數，
+- [x] 26-a（#44）的 `technical_indicators:v1` 改讀 v2 `daily_prices` 的可見值；定義改為程式常數，
   不寫入 `derived_dataset_definitions`
-- 計算器不變；與 legacy 的比對重跑一次
+- [x] 計算器不變；與 legacy 的比對重跑一次：0 筆 `legacy_only`、0 筆無法歸因
+
+實作中裁決：
+
+- **26-a（#44）SUPERSEDED**：只帶進計算器 `indicators.py`（一行不改）與它的 fixture 測試；26-a 為 v1 寫的
+  `pit/history.py`、resolver／evidence 的批次路徑、`instants_for`、migration `c7f4a1e08b23` 與定義登錄都不需要
+- **v1 的 26-a service 是本 step 的對照組**：同一個知識截止點下，今天名單上 1,959 條序列在 v1 表與 v2 表
+  算出的結果逐位元相同；v2 每支 0.11 秒，v1 0.85 秒
+- **可見性與 `exchange_daily.visible` 同一條規則**：key 的第一列（settled 或 provisional）在 rule 時刻可見，
+  更正在自己的 `recorded_at`；`knowledge_as_of` 只保留當時已記錄的列
+- **實作版本是計算時的 git commit**，每一列帶著它（ADR-0027）
+- 對帳的差異歸因寫進腳本本體，任何一筆歸不了類就以退出碼 1 失敗
 
 ### 35-d — 收尾
 
