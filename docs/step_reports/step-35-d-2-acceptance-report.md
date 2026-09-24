@@ -1,6 +1,6 @@
 # Step 35-d-2 驗收報告
 
-狀態：IN REVIEW
+狀態：IN REVIEW (#53)
 
 範圍：刪除 v1 的程式、測試與只為 v1 寫的 scripts。35-d-1 已讓 v2 不載入任何 v1 模組，所以這一步只刪、不改
 v2。資料庫不動：v1 的表、`db/metadata.py` 與 migration 鏈留到 35-d-3。
