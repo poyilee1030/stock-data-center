@@ -67,6 +67,11 @@ def _price(db, fetch_id, day: date, close: str, *, recorded_at: datetime | None 
     db.execute(sa.insert(daily_prices).values(values))
 
 
+def _recorded(db, stock_id: str, source: str) -> datetime:
+    return db.scalar(sa.text("SELECT min(recorded_at) FROM daily_prices "
+                             "WHERE stock_id = :s AND source = :src"), {"s": stock_id, "src": source})
+
+
 def _seed(db, fetch_id, closes=WEEK) -> None:
     for day, close in sorted(closes.items()):
         _price(db, fetch_id, day, close, recorded_at=xd.available_from(day))
@@ -114,9 +119,19 @@ def test_the_fingerprint_is_the_ordered_input_rows(db, fetch_id) -> None:
     stored = db.execute(sa.text(
         "SELECT trade_date, recorded_at FROM daily_prices ORDER BY trade_date")).all()
     expected = hashlib.sha256(
-        ",".join(f"{day.isoformat()}@{at.isoformat()}" for day, at in stored).encode()
+        ",".join(f"{day.isoformat()}@{at.astimezone(UTC).isoformat()}"
+                 for day, at in stored).encode()
     ).hexdigest()
     assert _rolling(db)[-1].input_fingerprint == expected
+
+
+def test_the_fingerprint_does_not_depend_on_the_session_time_zone(db, fetch_id) -> None:
+    # psycopg returns timestamptz in the session's TimeZone (code review of #51).
+    _seed(db, fetch_id)
+    db.execute(sa.text("SET LOCAL TIME ZONE 'UTC'"))
+    utc = _rolling(db)[-1].input_fingerprint
+    db.execute(sa.text("SET LOCAL TIME ZONE 'Asia/Taipei'"))
+    assert _rolling(db)[-1].input_fingerprint == utc
 
 
 def test_a_later_correction_does_not_reach_back_into_an_earlier_date(db, fetch_id) -> None:
@@ -229,8 +244,10 @@ def test_a_long_history_is_one_row_per_trade_date(db, fetch_id) -> None:
 
 def test_a_stock_on_two_markets_needs_its_source_named(db, fetch_id) -> None:
     # CLAUDE.md §30: one series per source; a market transfer is two series.
-    _price(db, fetch_id, date(2024, 1, 24), "10", source="tpex_otc_quotes", stock_id="6446")
-    _price(db, fetch_id, date(2024, 1, 25), "11", stock_id="6446")
+    _price(db, fetch_id, date(2024, 1, 24), "10", source="tpex_otc_quotes", stock_id="6446",
+           recorded_at=xd.available_from(date(2024, 1, 24)))
+    _price(db, fetch_id, date(2024, 1, 25), "11", stock_id="6446",
+           recorded_at=xd.available_from(date(2024, 1, 25)))
     with pytest.raises(ValueError, match="tpex_otc_quotes, twse_mi_index"):
         SERVICE.rolling(db, stock_id="6446", start_date=date(2024, 1, 1),
                         end_date=date(2024, 1, 31), knowledge_as_of=KNOWLEDGE)
@@ -238,6 +255,13 @@ def test_a_stock_on_two_markets_needs_its_source_named(db, fetch_id) -> None:
                               end_date=date(2024, 1, 31), source="tpex_otc_quotes",
                               knowledge_as_of=KNOWLEDGE)
     assert only.observation_date == date(2024, 1, 24)
+    # A second source recorded after the knowledge cutoff did not exist then:
+    # the question at that cutoff has one source (code review of #51).
+    before_transfer = SERVICE.rolling(db, stock_id="6446", start_date=date(2024, 1, 1),
+                                      end_date=date(2024, 1, 31),
+                                      knowledge_as_of=_recorded(db, "6446", "twse_mi_index")
+                                      - timedelta(microseconds=1))
+    assert [row.source for row in before_transfer] == ["tpex_otc_quotes"]
     # One source: it need not be named.
     _seed(db, fetch_id)
     assert len(SERVICE.rolling(db, stock_id=STOCK, start_date=date(2024, 7, 1),

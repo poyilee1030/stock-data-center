@@ -69,7 +69,7 @@ import statistics
 import sys
 import time
 from collections import Counter
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 import sqlalchemy as sa
 
@@ -118,12 +118,16 @@ def _classify(metric: str, day: date, *, days: list[date], position: dict[date, 
 
 
 def _volume_days(ours_connection, legacy_connection, *, code: str, start: date,
-                 end: date) -> set[date]:
-    """The trading days whose volume differs between the two inputs."""
+                 end: date, knowledge_as_of: datetime) -> set[date]:
+    """The trading days whose volume differs between the two inputs.
+
+    Ours is each day's latest row recorded by the knowledge cutoff; a stock
+    trades on one market on any given day, so the day alone is the key."""
     ours = dict(ours_connection.execute(
-        sa.text("SELECT trade_date, volume FROM daily_prices WHERE stock_id = :code "
-                "AND trade_date BETWEEN :start AND :end"),
-        {"code": code, "start": start, "end": end}).all())
+        sa.text("SELECT DISTINCT ON (trade_date) trade_date, volume FROM daily_prices "
+                "WHERE stock_id = :code AND trade_date BETWEEN :start AND :end "
+                "AND recorded_at <= :knowledge ORDER BY trade_date, recorded_at DESC"),
+        {"code": code, "start": start, "end": end, "knowledge": knowledge_as_of}).all())
     theirs = {
         date.fromisoformat(day): volume
         for day, volume in legacy_connection.execute(
@@ -247,10 +251,12 @@ def main(argv: list[str] | None = None) -> int:
                 line.strip() for line in handle if line.strip()
             )
 
+    # Resolved once, so the series and the volume comparison share one cutoff.
     knowledge_as_of = (
-        datetime.fromisoformat(args.knowledge_as_of) if args.knowledge_as_of else None
+        datetime.fromisoformat(args.knowledge_as_of) if args.knowledge_as_of
+        else datetime.now(UTC)
     )
-    if knowledge_as_of is not None and knowledge_as_of.tzinfo is None:
+    if knowledge_as_of.tzinfo is None:
         parser.error("--knowledge-as-of must carry an offset")
 
     our_engine = sa.create_engine(args.database_url)
@@ -320,7 +326,8 @@ def main(argv: list[str] | None = None) -> int:
                 "position": position,
                 "dropped": sorted(day for _, day in ours.keys() - legacy.keys()),
                 "volume_days": _volume_days(ours_connection, legacy_connection, code=code,
-                                            start=start, end=end),
+                                            start=start, end=end,
+                                            knowledge_as_of=knowledge_as_of),
                 "transfer": len(by_code.get(code, ())) > 1,
             }
 

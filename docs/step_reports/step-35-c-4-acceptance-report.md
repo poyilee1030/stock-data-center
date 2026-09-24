@@ -14,7 +14,7 @@ SUPERSEDED，只帶進它的計算器與 fixture 測試。
 - `scripts/reconcile_technical_indicators.py`：改讀 v2，並把每一筆差異的歸因寫進腳本；任何一筆
   歸不了類或有 `legacy_only`，就以退出碼 1 失敗
 - 測試：`tests/unit/test_v2_indicators.py`（5，26-a 的 legacy fixture 測試）、
-  `tests/integration/test_v2_technical_indicators.py`（14）
+  `tests/integration/test_v2_technical_indicators.py`（15）
 - 文件：ROADMAP §17 與 CLAUDE.md §46 改為「預設即時計算」——這段 owner 在 2026-09-23 已決定，
   但修改只在 26-a 的 branch 上，main 一直還寫著實體化；domain inventory 的兩列一併更正
 
@@ -30,7 +30,7 @@ SUPERSEDED，只帶進它的計算器與 fixture 測試。
 | `information_as_of` | `rolling` 隨觀察日移動，是 D 自己的 rule 時刻（D+1 03:00 台北）；`compute` 是呼叫者給的 |
 | 分段 | 較早交易日的更正在兩個截止點之間變成可見時才切段；沒有更正就只有一段 |
 | 轉板 | 每個來源一條序列（§30）；股票有兩個來源時必須指定 |
-| lineage | 每一列帶 `input_count`、`input_fingerprint`（依序的 `<trade_date>@<recorded_at>` 的 SHA-256）、`git_commit` |
+| lineage | 每一列帶 `input_count`、`input_fingerprint`（依序的 `<trade_date>@<recorded_at，UTC>` 的 SHA-256）、`git_commit` |
 | 儲存 | 不寫任何東西 |
 
 ## 驗收
@@ -47,7 +47,7 @@ SUPERSEDED，只帶進它的計算器與 fixture 測試。
 每條測試都看過它紅；之後逐一把實作改壞（永遠一段、不看 `knowledge_as_of`、不用 release rule、settled 列
 等 `recorded_at`、更正也在 rule 時刻可見、用最後一個截止點算全部），每一種都至少讓一條測試失敗。
 
-全套測試：1331 passed、3 skipped（需 `RUN_LIVE_SOURCE_TESTS`）。
+全套測試：1332 passed、3 skipped（需 `RUN_LIVE_SOURCE_TESTS`）。
 
 ## 對照組：v1 的 26-a service
 
@@ -108,6 +108,16 @@ scripts/reconcile_technical_indicators.py --start 2020-01-02 --end 2026-09-11 \
 - 26-a 那條「價格晚於自己的截止點才發布，那一天沒有列」的測試在 v2 不存在：v2 裡 key 的第一列一定在自己的
   rule 時刻可見，只有更正會晚。
 - 測試夾具又踩一次 `AmbiguousParameter`（同一個 bind 參數用兩次）：35-b-1、35-c-2 之後第三次。
+
+## Code review 修正（#51）
+
+- **指紋隨連線時區改變**：psycopg 以連線的 `TimeZone` 回傳 `TIMESTAMPTZ`，`isoformat()` 在台北時區的連線是
+  `+08:00`，同一批輸入會得到不同的指紋（§45）。改為先轉 UTC 再格式化，補一條在兩種時區下比對的測試。
+- **未指定來源時，挑來源的查詢沒套 `knowledge_as_of`**：轉板後的第二個來源在截止點之後才寫入時，回頭查會誤報
+  「請指定來源」。改為只看截止點前已記錄的列，測試補上這個情境。
+- **對帳腳本的成交量比對每天隨便拿一列**：沒有 `knowledge_as_of` 也沒有排序，一天有多列時結果不定。改為取
+  截止點前最後記錄的那一列；截止點在程式開頭決定一次，序列與成交量比對共用。
+- 修正後重跑全市場對帳：數字與修正前逐項相同，0 筆 `legacy_only`、0 筆無法歸因。
 
 ## 已知限制
 

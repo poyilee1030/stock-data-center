@@ -161,8 +161,9 @@ class DerivedRow:
     """One observation date's metrics, with the context and inputs behind them.
 
     `input_fingerprint` is the SHA-256 of the comma-separated
-    `<trade_date>@<recorded_at>` of the rows the date read, in trade-date order:
-    those identify each input row of `daily_prices` for this stock and source.
+    `<trade_date>@<recorded_at in UTC>` of the rows the date read, in trade-date
+    order: those identify each input row of `daily_prices` for this stock and
+    source, whatever time zone the session reads timestamps in.
     """
 
     dataset_code: str
@@ -195,7 +196,8 @@ class TechnicalIndicators:
         if source is None:
             sources = connection.scalars(
                 sa.select(daily_prices.c.source).distinct()
-                .where(daily_prices.c.stock_id == stock_id, daily_prices.c.trade_date <= through)
+                .where(daily_prices.c.stock_id == stock_id, daily_prices.c.trade_date <= through,
+                       daily_prices.c.recorded_at <= knowledge_as_of)
                 .order_by(daily_prices.c.source)
             ).all()
             if len(sources) > 1:
@@ -258,7 +260,7 @@ class TechnicalIndicators:
         for index, row in enumerate(inputs):
             digest.update(
                 f"{',' if index else ''}{row.trade_date.isoformat()}@"
-                f"{row.recorded_at.isoformat()}".encode()
+                f"{row.recorded_at.astimezone(UTC).isoformat()}".encode()
             )
             if row.trade_date not in wanted_set:
                 continue
