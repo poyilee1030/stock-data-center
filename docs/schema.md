@@ -26,8 +26,11 @@ schema and audit §5 by `tests/unit/test_pr14_storage_contract_source_coverage.p
 | `financial_report_facts` | unique `report_id, statement, concept, period_start, period_end` | the numeric facts of the three statements |
 | `shareholding_distributions` | `stock_id, source, snapshot_date, recorded_at` | TDCC levels 1–17 as one wide row |
 | `corporate_actions` | `stock_id, source, ex_date, recorded_at` | executed events from the six result feeds |
+| `technical_indicators` | `stock_id, source, trade_date` | `technical_indicators:v1`: MA/VMA 5–240, K, D, RSI 6/12, MACD, Bollinger; `computed_at` |
+| `institutional_streaks` | `stock_id, source, trade_date` | `institutional_streaks:v1`: foreign/trust/dealer streak days; `computed_at` |
 
-Derived data has no tables; it is computed on demand (`docs/derived_data.md`).
+The last two are derived (Step 26-b): computed from the latest inputs and
+overwritten in place, so they are not append-only (`docs/derived_data.md`).
 Release rules, dataset declarations, the index list and the TDCC level profile
 are code constants, not tables.
 
@@ -38,7 +41,7 @@ are code constants, not tables.
 - **Append-only.** A value table gains a row only when a published value
   changes; `recorded_at` is `statement_timestamp()`, never caller-supplied.
   `stockdc_reject_mutation()` is the one trigger function: on every table except
-  `stocks` and `trading_days` it refuses `UPDATE` and `DELETE` per row and
+  `stocks`, `trading_days` and the derived tables it refuses `UPDATE` and `DELETE` per row and
   `TRUNCATE` per statement.
 - **Provenance is one hop.** Every row's `fetch_id` names the fetch it came
   from, and the fetch names its raw file by SHA-256, stored at
@@ -57,10 +60,14 @@ are code constants, not tables.
 
 ## Migrations
 
-The chain restarts at the baseline, which builds exactly the tables above, the
-trigger function and the triggers, and nothing else: no extension, view or
-sequence of its own. Its downgrade refuses before any change while a table holds
-a row, and on an empty database drops everything it built.
+The chain restarts at the baseline, which builds exactly the observed tables
+above, the trigger function and the triggers, and nothing else: no extension,
+view or sequence of its own. Its downgrade refuses before any change while a
+table holds a row, and on an empty database drops everything it built.
+
+`6ecc3eefb103` (Step 26-b) adds the two derived tables. Its downgrade drops them
+without a guard: every derived row is recomputed from stored inputs, so nothing
+it discards is history.
 
 A database built by the old 45-migration chain sits at its head `5c1e8d2a7b90`,
 with the v2 tables beside the v1 ones. `scripts/rebase_to_baseline.py` moves it

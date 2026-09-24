@@ -1,18 +1,16 @@
 #!/usr/bin/env python
-"""Reconcile `technical_indicators:v1` on schema v2 against legacy `stock_db`.
+"""Reconcile the stored `technical_indicators:v1` against legacy `stock_db`.
 
-Step 26-a wrote this against the v1 tables; Step 35-c-4 computes the series from
-v2 `daily_prices`, for the stocks on today's list (ADR-0026) only, on both
-sides. Nothing is materialised (ADR-0027), so "ours" is the rolling as-of series
-computed on demand, one stock at a time, exactly as a reader would get it; the
-run also times each stock, which is the latency that decides whether on-demand
-computation is fast enough.
+Step 26-b stores the series (`stock_data_center.v2.derived_store`), so "ours"
+is what a consumer reads: the rows of `technical_indicators`, for the stocks on
+today's list (ADR-0026) only, on both sides. Step 35-c-4 ran this against the
+on-demand series; a full run of the stored table equals that series bit for
+bit (`scripts/verify_derived_store.py`), so the two reconciliations must agree.
 
 Every derived step reconciles against the legacy tables its
 consumers read (CLAUDE.md §78), and for the price/volume indicators that table
 is `technical_indicators`. The legacy streak columns in the same table belong to
-`institutional_streaks:v1` and are Step 26-b's to reconcile; asking for them
-here would compare a series this step does not produce.
+`institutional_streaks:v1`, reconciled by `reconcile_institutional_streaks.py`.
 
 Three kinds of difference, and none of them is smoothed:
 
@@ -20,8 +18,8 @@ Three kinds of difference, and none of them is smoothed:
     The same security-date-metric exists on both sides with different numbers.
     Legacy recomputed incrementally from a 500-calendar-day buffer, so its
     exponential metrics (K, D, RSI, MACD) carry whatever warm-up the last run
-    happened to have; the rolling as-of series always warms up from the
-    security's first visible day. Differences are therefore reported by
+    happened to have; a full run of ours warms up from the security's first
+    day. Differences are therefore reported by
     magnitude rather than judged, and the report separates the exponential
     metrics from the windowed ones, where no such excuse exists.
 
@@ -56,8 +54,7 @@ Usage:
     python scripts/reconcile_technical_indicators.py \
         --database-url postgresql+psycopg://stockdc:stockdc@localhost:5432/stockdc_backfill \
         --legacy-database-url postgresql+psycopg://user:password@127.0.0.1:5419/stock_db \
-        --start 2020-01-02 --end 2026-09-11 \
-        --knowledge-as-of 2026-09-24T12:00:00+00:00
+        --start 2020-01-02 --end 2026-09-11
 """
 
 from __future__ import annotations
@@ -75,7 +72,6 @@ import sqlalchemy as sa
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from stock_data_center.v2.derived import TechnicalIndicators
 from stock_data_center.v2.indicators import METRIC_CODES
 
 SOURCES = ("twse_mi_index", "tpex_otc_quotes")
@@ -166,24 +162,20 @@ def _codes(connection, *, source: str, start: date, end: date) -> list[str]:
     )
 
 
-def _ours(service, connection, *, code: str, sources, start, end, knowledge_as_of):
-    """The security's rolling series, keyed like the legacy table.
+def _ours(connection, *, code: str, start, end) -> dict:
+    """The stored rows, keyed like the legacy table.
 
     A security that transferred market has one series per source (CLAUDE.md
     §30); it trades on one market on any given day, so the two never share a
     key.
     """
     out: dict = {}
-    for source in sources:
-        for row in service.rolling(
-            connection,
-            stock_id=code,
-            start_date=start,
-            end_date=end,
-            source=source,
-            knowledge_as_of=knowledge_as_of,
-        ):
-            out[(code, row.observation_date)] = dict(row.metrics)
+    for row in connection.execute(
+        sa.text("SELECT * FROM technical_indicators WHERE stock_id = :code "
+                "AND trade_date BETWEEN :start AND :end"),
+        {"code": code, "start": start, "end": end},
+    ).mappings():
+        out[(code, row["trade_date"])] = {metric: row[metric] for metric in METRIC_CODES}
     return out
 
 
@@ -224,8 +216,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--end", default="2026-09-11")
     parser.add_argument(
         "--knowledge-as-of",
-        help="the evidence cutoff the series is computed at, ISO with an "
-        "offset; defaults to now",
+        help="the cutoff for the input volumes compared with legacy, ISO with "
+        "an offset; defaults to now, the inputs the stored table was computed from",
     )
     parser.add_argument(
         "--securities-file",
@@ -251,7 +243,7 @@ def main(argv: list[str] | None = None) -> int:
                 line.strip() for line in handle if line.strip()
             )
 
-    # Resolved once, so the series and the volume comparison share one cutoff.
+    # Resolved once, so every volume comparison shares one cutoff.
     knowledge_as_of = (
         datetime.fromisoformat(args.knowledge_as_of) if args.knowledge_as_of
         else datetime.now(UTC)
@@ -261,7 +253,6 @@ def main(argv: list[str] | None = None) -> int:
 
     our_engine = sa.create_engine(args.database_url)
     legacy_engine = sa.create_engine(args.legacy_database_url)
-    service = TechnicalIndicators()
 
     keys = Counter()
     legacy_only_sample: list[str] = []
@@ -292,15 +283,7 @@ def main(argv: list[str] | None = None) -> int:
 
         for index, code in enumerate(codes, start=1):
             began = time.perf_counter()
-            ours = _ours(
-                service,
-                ours_connection,
-                code=code,
-                sources=by_code.get(code, ()),
-                start=start,
-                end=end,
-                knowledge_as_of=knowledge_as_of,
-            )
+            ours = _ours(ours_connection, code=code, start=start, end=end)
             if code in by_code:
                 seconds.append(time.perf_counter() - began)
             legacy = _legacy(
@@ -367,7 +350,7 @@ def main(argv: list[str] | None = None) -> int:
                                            "count": len(selected)}
         ),
         "keys": dict(keys),
-        "on_demand_seconds_per_security": (
+        "read_seconds_per_security": (
             {
                 "securities": len(seconds),
                 "p50": round(statistics.median(seconds), 3),

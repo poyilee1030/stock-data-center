@@ -31,7 +31,9 @@
       "source"
     ],
     "excluded_tables": {
-      "fetches": "Schema v2 fetch log (ADR-0027): one row per fetch attempt with the raw file's SHA-256; provenance, not source content."
+      "fetches": "Schema v2 fetch log (ADR-0027): one row per fetch attempt with the raw file's SHA-256; provenance, not source content.",
+      "technical_indicators": "Canonical derived technical_indicators:v1 (Step 26-b), computed from daily_prices; no column is a source field, and the formula is the code constant in stock_data_center.v2.derived_store.",
+      "institutional_streaks": "Canonical derived institutional_streaks:v1 (Step 26-b), computed from institutional_flows over the traded days of daily_prices; no column is a source field."
     },
     "tables": {
       "daily_prices": {
@@ -2196,7 +2198,7 @@
       "legacy_table": "trust_holding",
       "legacy_field": "date",
       "disposition": "identity",
-      "target": "institutional_cumulative_flow:v1 observation date (computed on demand)",
+      "target": "institutional_cumulative_flow:v1 observation date (stored, Step 26)",
       "reason": "Date is the domain observation, report, snapshot, or event logical key."
     },
     {
@@ -2231,14 +2233,14 @@
       "legacy_table": "trust_holding",
       "legacy_field": "trust_held_shares",
       "disposition": "canonical_derived",
-      "target": "institutional_cumulative_flow:v1.trust_cumulative_net_shares (computed on demand)",
+      "target": "institutional_cumulative_flow:v1.trust_cumulative_net_shares (stored, Step 26)",
       "reason": "The legacy zero-origin cumulative-flow value is reproducible, but without a real holding baseline it is a proxy and not absolute trust ownership."
     },
     {
       "legacy_table": "trust_holding",
       "legacy_field": "trust_held_ratio",
       "disposition": "canonical_derived",
-      "target": "institutional_cumulative_flow:v1.trust_cumulative_net_ratio (computed on demand)",
+      "target": "institutional_cumulative_flow:v1.trust_cumulative_net_ratio (stored, Step 26)",
       "reason": "This is cumulative trust net shares divided by PIT-safe issued shares; it is explicitly a proxy, not an absolute holding ratio."
     },
     {
@@ -2266,7 +2268,7 @@
       "legacy_table": "dealer_holding",
       "legacy_field": "date",
       "disposition": "identity",
-      "target": "institutional_cumulative_flow:v1 observation date (computed on demand)",
+      "target": "institutional_cumulative_flow:v1 observation date (stored, Step 26)",
       "reason": "Date is the domain observation, report, snapshot, or event logical key."
     },
     {
@@ -2301,14 +2303,14 @@
       "legacy_table": "dealer_holding",
       "legacy_field": "dealer_held_shares",
       "disposition": "canonical_derived",
-      "target": "institutional_cumulative_flow:v1.dealer_cumulative_net_shares (computed on demand)",
+      "target": "institutional_cumulative_flow:v1.dealer_cumulative_net_shares (stored, Step 26)",
       "reason": "The legacy zero-origin cumulative-flow value is reproducible, but without a real holding baseline it is a proxy and not absolute dealer ownership."
     },
     {
       "legacy_table": "dealer_holding",
       "legacy_field": "dealer_held_ratio",
       "disposition": "canonical_derived",
-      "target": "institutional_cumulative_flow:v1.dealer_cumulative_net_ratio (computed on demand)",
+      "target": "institutional_cumulative_flow:v1.dealer_cumulative_net_ratio (stored, Step 26)",
       "reason": "This is cumulative dealer net shares divided by PIT-safe issued shares; it is explicitly a proxy, not an absolute holding ratio."
     },
     {
@@ -2581,7 +2583,7 @@
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "date",
       "disposition": "identity",
-      "target": "margin_metrics:v1 observation date (computed on demand)",
+      "target": "margin_metrics:v1 observation date (stored, Step 26)",
       "reason": "Date is the domain observation, report, snapshot, or event logical key."
     },
     {
@@ -2609,78 +2611,78 @@
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "margin_long_balance",
       "disposition": "canonical_derived",
-      "target": "margin_metrics:v1.margin_long_balance (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "margin_metrics:v1.margin_long_balance (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "margin_long_limit",
       "disposition": "canonical_derived",
-      "target": "margin_metrics:v1.margin_long_limit (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "margin_metrics:v1.margin_long_limit (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "margin_usage_ratio",
       "disposition": "canonical_derived",
-      "target": "margin_metrics:v1.margin_usage_ratio (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "margin_metrics:v1.margin_usage_ratio (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "margin_long_balance_wow",
       "disposition": "canonical_derived",
-      "target": "margin_metrics:v1.margin_long_balance_wow (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "margin_metrics:v1.margin_long_balance_wow (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "margin_long_balance_wow_pct",
       "disposition": "canonical_derived",
-      "target": "margin_metrics:v1.margin_long_balance_wow_pct (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "margin_metrics:v1.margin_long_balance_wow_pct (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "margin_short_balance",
       "disposition": "canonical_derived",
-      "target": "margin_metrics:v1.margin_short_balance (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "margin_metrics:v1.margin_short_balance (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "margin_short_limit",
       "disposition": "canonical_derived",
-      "target": "margin_metrics:v1.margin_short_limit (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "margin_metrics:v1.margin_short_limit (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "short_usage_ratio",
       "disposition": "canonical_derived",
-      "target": "margin_metrics:v1.short_usage_ratio (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "margin_metrics:v1.short_usage_ratio (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "margin_short_balance_wow",
       "disposition": "canonical_derived",
-      "target": "margin_metrics:v1.margin_short_balance_wow (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "margin_metrics:v1.margin_short_balance_wow (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "margin_short_balance_wow_pct",
       "disposition": "canonical_derived",
-      "target": "margin_metrics:v1.margin_short_balance_wow_pct (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "margin_metrics:v1.margin_short_balance_wow_pct (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "short_cover_pressure",
       "disposition": "canonical_derived",
-      "target": "margin_metrics:v1.short_cover_pressure (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "margin_metrics:v1.short_cover_pressure (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
@@ -2714,7 +2716,7 @@
       "legacy_table": "short_interest_analysis",
       "legacy_field": "date",
       "disposition": "identity",
-      "target": "short_interest_metrics:v1 observation date (computed on demand)",
+      "target": "short_interest_metrics:v1 observation date (stored, Step 26)",
       "reason": "Date is the domain observation, report, snapshot, or event logical key."
     },
     {
@@ -2742,64 +2744,64 @@
       "legacy_table": "short_interest_analysis",
       "legacy_field": "sbl_balance",
       "disposition": "canonical_derived",
-      "target": "short_interest_metrics:v1.sbl_balance (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "short_interest_metrics:v1.sbl_balance (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "short_interest_analysis",
       "legacy_field": "sbl_balance_wow",
       "disposition": "canonical_derived",
-      "target": "short_interest_metrics:v1.sbl_balance_wow (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "short_interest_metrics:v1.sbl_balance_wow (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "short_interest_analysis",
       "legacy_field": "sbl_balance_wow_pct",
       "disposition": "canonical_derived",
-      "target": "short_interest_metrics:v1.sbl_balance_wow_pct (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "short_interest_metrics:v1.sbl_balance_wow_pct (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "short_interest_analysis",
       "legacy_field": "sbl_sell",
       "disposition": "canonical_derived",
-      "target": "short_interest_metrics:v1.sbl_sell (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "short_interest_metrics:v1.sbl_sell (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "short_interest_analysis",
       "legacy_field": "sbl_repay",
       "disposition": "canonical_derived",
-      "target": "short_interest_metrics:v1.sbl_repay (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "short_interest_metrics:v1.sbl_repay (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "short_interest_analysis",
       "legacy_field": "sbl_sell_repay_ratio",
       "disposition": "canonical_derived",
-      "target": "short_interest_metrics:v1.sbl_sell_repay_ratio (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "short_interest_metrics:v1.sbl_sell_repay_ratio (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "short_interest_analysis",
       "legacy_field": "margin_short_balance",
       "disposition": "canonical_derived",
-      "target": "short_interest_metrics:v1.margin_short_balance (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "short_interest_metrics:v1.margin_short_balance (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "short_interest_analysis",
       "legacy_field": "margin_short_balance_wow",
       "disposition": "canonical_derived",
-      "target": "short_interest_metrics:v1.margin_short_balance_wow (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "short_interest_metrics:v1.margin_short_balance_wow (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "short_interest_analysis",
       "legacy_field": "margin_short_balance_wow_pct",
       "disposition": "canonical_derived",
-      "target": "short_interest_metrics:v1.margin_short_balance_wow_pct (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "short_interest_metrics:v1.margin_short_balance_wow_pct (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "short_interest_analysis",
@@ -3022,7 +3024,7 @@
       "legacy_table": "shareholding_concentration",
       "legacy_field": "date",
       "disposition": "identity",
-      "target": "shareholding_concentration:v1 observation date (computed on demand)",
+      "target": "shareholding_concentration:v1 observation date (stored, Step 26)",
       "reason": "Date is the domain observation, report, snapshot, or event logical key."
     },
     {
@@ -3036,71 +3038,71 @@
       "legacy_table": "shareholding_concentration",
       "legacy_field": "large_holder_ratio",
       "disposition": "canonical_derived",
-      "target": "shareholding_concentration:v1.large_holder_ratio (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "shareholding_concentration:v1.large_holder_ratio (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "shareholding_concentration",
       "legacy_field": "small_holder_ratio",
       "disposition": "canonical_derived",
-      "target": "shareholding_concentration:v1.small_holder_ratio (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "shareholding_concentration:v1.small_holder_ratio (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "shareholding_concentration",
       "legacy_field": "mid_holder_ratio",
       "disposition": "canonical_derived",
-      "target": "shareholding_concentration:v1.mid_holder_ratio (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "shareholding_concentration:v1.mid_holder_ratio (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "shareholding_concentration",
       "legacy_field": "concentration_spread",
       "disposition": "canonical_derived",
-      "target": "shareholding_concentration:v1.concentration_spread (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "shareholding_concentration:v1.concentration_spread (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "shareholding_concentration",
       "legacy_field": "large_holder_count",
       "disposition": "canonical_derived",
-      "target": "shareholding_concentration:v1.large_holder_count (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "shareholding_concentration:v1.large_holder_count (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "shareholding_concentration",
       "legacy_field": "small_holder_count",
       "disposition": "canonical_derived",
-      "target": "shareholding_concentration:v1.small_holder_count (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "shareholding_concentration:v1.small_holder_count (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "shareholding_concentration",
       "legacy_field": "large_holder_ratio_wow",
       "disposition": "canonical_derived",
-      "target": "shareholding_concentration:v1.large_holder_ratio_wow (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "shareholding_concentration:v1.large_holder_ratio_wow (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "shareholding_concentration",
       "legacy_field": "small_holder_ratio_wow",
       "disposition": "canonical_derived",
-      "target": "shareholding_concentration:v1.small_holder_ratio_wow (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "shareholding_concentration:v1.small_holder_ratio_wow (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "shareholding_concentration",
       "legacy_field": "mid_holder_ratio_wow",
       "disposition": "canonical_derived",
-      "target": "shareholding_concentration:v1.mid_holder_ratio_wow (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "shareholding_concentration:v1.mid_holder_ratio_wow (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "shareholding_concentration",
       "legacy_field": "concentration_spread_wow",
       "disposition": "canonical_derived",
-      "target": "shareholding_concentration:v1.concentration_spread_wow (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "shareholding_concentration:v1.concentration_spread_wow (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "shareholding_concentration",
@@ -4653,7 +4655,7 @@
       "legacy_table": "valuation_daily",
       "legacy_field": "date",
       "disposition": "identity",
-      "target": "valuation_metrics:v1 observation date (computed on demand)",
+      "target": "valuation_metrics:v1 observation date (stored, Step 26)",
       "reason": "Date is the domain observation, report, snapshot, or event logical key."
     },
     {
@@ -4674,8 +4676,8 @@
       "legacy_table": "valuation_daily",
       "legacy_field": "ttm_eps_official",
       "disposition": "canonical_derived",
-      "target": "valuation_metrics:v1.ttm_eps_official (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "valuation_metrics:v1.ttm_eps_official (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "valuation_daily",
@@ -4688,15 +4690,15 @@
       "legacy_table": "valuation_daily",
       "legacy_field": "pe_percentile_official",
       "disposition": "canonical_derived",
-      "target": "valuation_metrics:v1.pe_percentile_official (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "valuation_metrics:v1.pe_percentile_official (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "valuation_daily",
       "legacy_field": "roe_official",
       "disposition": "canonical_derived",
-      "target": "valuation_metrics:v1.roe_official (computed on demand)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, computed on demand from PIT-visible inputs (ROADMAP §17)."
+      "target": "valuation_metrics:v1.roe_official (stored, Step 26)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "valuation_daily",

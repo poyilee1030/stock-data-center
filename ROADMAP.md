@@ -346,13 +346,9 @@ published_at = NULL
 
 # 9. 不可變 Aggregate 語意
 
-XBRL 申報和 TDCC 快照這類複雜資料集是不可變的 aggregate：
+一份財報與它的全部事實是一個版本，在同一個交易寫入，所以不會出現不完整的財報（CLAUDE.md §20）。schema v2 沒有 seal（ADR-0027）：同一個交易就是 seal 過去保證的事。TDCC 一週是一列寬表，本身就是完整的。
 
-```text
-draft → children written / validated → seal → visible + immutable
-```
-
-只有 seal 會讓複雜 aggregate 變得可見。seal 之後，資料庫的 constraint 和 trigger 必須拒絕 parent／child 的修改。優先使用各資料集專屬、有真正 foreign key 的 seal 表。
+每張值表只新增，資料庫拒絕 UPDATE、DELETE 和 TRUNCATE。Step 26 的衍生表例外：它們以最新的輸入計算、就地覆寫（§17）。
 
 ---
 
@@ -360,8 +356,8 @@ draft → children written / validated → seal → visible + immutable
 
 一般呼叫端不可提供權威的歷史 `ingested_at`。
 
-- 單列不可變版本的系統 ingestion 時間，由受信任的儲存層／資料庫邏輯產生。
-- 複雜 aggregate 的權威系統可見時間，在 aggregate seal 時產生。
+- 每一列的 `recorded_at` 是 PostgreSQL 的 `statement_timestamp()`。
+- 一份財報與它的事實同一個交易寫入，所以同一個 `recorded_at` 讓它們一起可見。
 
 必須保留時間戳記的歷史 migration，需要另一條受信任的 migration 路徑，並具備明確的 provenance 和測試。
 
@@ -505,9 +501,9 @@ v1 的衍生資料集是移植舊系統使用者讀取的內容（Step 26）。�
 - **一個指標集一張寬表**，key 是 `(stock_id, source, 日期)`，每個指標一欄，另有 `computed_at`。不逐列存 derivation version、git commit、lineage 或 hash：公式或程式改了就整張重算（owner 決定，2026-09-24），所以不會重演長表 `derived_metric_versions` 的 56 GB（每個 metric-day 約 740 bytes，約 98% 是重複的 lineage）。
 - **以最新的輸入計算，沒有知識時間軸。** 輸入被更正時，受影響的日期重算並直接覆寫；衍生表不照其他 v2 表的只新增規則。依據：2026-09-24 量測 `stockdc_backfill`，Step 26 的輸入表（日行情、法人、融資融券、借券、外資持股、TDCC、財報）沒有任何一個 key 有第二列，所以「最新值」與 PIT 在歷史上算出的結果相同。之後前向抓取遇到更正時，衍生值跟著最新的輸入走；這是刻意的簡化，要對下游揭露，就像 ADR-0026 揭露生存者偏差一樣。
 - **仍然不能用到未來的資料。** 日期 D 的值只用資料日期不晚於 D 的輸入；在資料日期之後才公開的輸入要依公開時間對齊：`valuation_metrics:v1` 在日期 D 只用 D 當時已公布的財報（舊系統以法定期限對齊）；TDCC 以資料日期為 key，並標明在之後的週日才公開。
-- **增量計算，仿照舊系統**：每次執行從上次算到的日期往後算，另外從上次之後有新輸入列的最早日期往後重算；都往前讀一段暖機緩衝（舊系統是 500 天）。增量結果必須與整段重算一致，由測試保證。
+- **增量計算，仿照舊系統**：每次執行從上次之後有新輸入列的最早日期往後重算（新的交易日與較早日期的更正是同一種情況），往前讀 500 個日曆日的暖機緩衝（與舊系統相同），且至少涵蓋最長視窗的 240 列。視窗類指標與計數與整段重算逐位相同；指數類指標（K、D、RSI、MACD）永遠記得起點，與整段重算的差在實測的容差內（owner 決定，2026-09-24：MACD 在收盤價的 1e-5 以內，K、D、RSI 在 1e-6 以內）。
 
-即時計算的技術指標（Step 35-c-4）改名 `technical_indicators_pit:v1`，維持即時計算、不存表，它是 PIT 的參考實作：輸入沒有更正時，存表的技術指標必須與它逐位相同。
+即時計算的技術指標（Step 35-c-4）改名 `technical_indicators_pit:v1`，維持即時計算、不存表，它是 PIT 的參考實作：輸入沒有更正時，整段重算的存表技術指標必須與它逐位相同。
 
 ---
 
@@ -606,10 +602,14 @@ explicit out-of-scope work
 | 23-a | MERGED | 財務報表：iXBRL parser 與文件契約 |
 | 23-b | MERGED | 財務報表：官方 adapter、檔案庫 adapter 與匯入路徑 |
 | 23-c | MERGED | 財務報表：全量 backfill、抽樣關卡與對帳 |
-| 24-a | IN REVIEW | TDCC 股權分散：adapter 與匯入路徑 |
-| 24-b | IN REVIEW | TDCC 股權分散：376 週 backfill、涵蓋範圍與對帳 |
-| 26 | PLANNED | 標準衍生 v1（移植舊系統計算程式） |
+| 24-a | MERGED | TDCC 股權分散：adapter 與匯入路徑 |
+| 24-b | MERGED | TDCC 股權分散：376 週 backfill、涵蓋範圍與對帳 |
 | 26-a | SUPERSEDED | 衍生服務與 `technical_indicators:v1`（#44，併入 35-c-4） |
+| 26-b | IN REVIEW | 存表的衍生資料：`technical_indicators:v1` 與 `institutional_streaks:v1` |
+| 26-c | PLANNED | `institutional_cumulative_flow:v1` |
+| 26-d | PLANNED | `shareholding_concentration:v1` |
+| 26-e | PLANNED | `margin_metrics:v1` 與 `short_interest_metrics:v1` |
+| 26-f | PLANNED | `valuation_metrics:v1` |
 | 27 | PLANNED | 公開 REST API v1 |
 | 28 | PLANNED | 排程的前向抓取 |
 | 29 | SUPERSEDED | Python SDK 與下游整合（owner 決定移除，2026-09-24） |
@@ -1789,7 +1789,7 @@ importer 以資料日期欄位為 key，絕不用檔名：`20200619.CSV` 和 `20
 
 ## Step 26 — 標準衍生 v1（移植舊系統計算程式）
 
-狀態：**PLANNED**。依賴：Steps 17-c–24。
+狀態：**26-a SUPERSEDED（#44，併入 35-c-4）；26-b IN REVIEW；26-c–26-f PLANNED**。依賴：Steps 17-c–24。
 
 定義，每個都從舊系統的計算程式移植，並與舊系統的表對帳：
 
@@ -1812,16 +1812,42 @@ short_interest_metrics:v1        SBL/short ratios and WoW changes
 35-c-4 在 schema v2 上交付的即時計算版本（26-a #44 SUPERSEDED）改名 `technical_indicators_pit:v1`，維持即時
 計算、不存表，當作存表的 `technical_indicators:v1` 的對照組。每張新表在設計時都要回答「需不需要、拿掉會損失什麼」。
 
-驗收：
+驗收（每個子步驟對自己的資料集）：
 
 - 與舊系統的表對帳，差異逐一分類
-- 增量計算與整段重算的結果逐位相同
-- 輸入沒有更正時，`technical_indicators:v1` 與即時計算的 `technical_indicators_pit:v1` 逐位相同
+- 增量計算與整段重算：視窗類指標與計數逐位相同；指數類指標在 §17 的容差內（owner 決定，2026-09-24）
+- 輸入沒有更正時，整段重算的 `technical_indicators:v1` 與即時計算的 `technical_indicators_pit:v1` 逐位相同
 - 沒有用到未來的資料：日期 D 的值只用資料日期不晚於 D、且在需要時已公開的輸入（`valuation_metrics:v1` 的財報依公開時間對齊）
 
 範圍外：綜合壓力分數（下游）；指標的還原價格版本（之後的 derivation version）。
 
----
+### 拆步（owner 決定，2026-09-24）
+
+七個資料集加上改名，`src/` 會超過 CLAUDE.md §1 的 800 行，所以依輸入領域拆開。編號從 26-b 起：26-a 是已
+SUPERSEDED 的 #44。
+
+| Step | 資料集 | 輸入 | 舊系統計算程式 → 表 |
+|---|---|---|---|
+| 26-b | `technical_indicators:v1`、`institutional_streaks:v1`，以及共用的增量執行器與改名 | `daily_prices`、`institutional_flows` | `calculate_daily.py` → `technical_indicators` |
+| 26-c | `institutional_cumulative_flow:v1` | `institutional_flows`、`foreign_holdings` | `calculate_trust_holding.py`、`calculate_dealer_holding.py` → `trust_holding`、`dealer_holding` |
+| 26-d | `shareholding_concentration:v1` | `shareholding_distributions` | `calculate_shareholding_concentration.py` → `shareholding_concentration` |
+| 26-e | `margin_metrics:v1`、`short_interest_metrics:v1` | `margin_trading`、`securities_lending` | `calculate_margin_pressure_analysis.py`、`calculate_short_interest_analysis.py` |
+| 26-f | `valuation_metrics:v1` | `daily_prices`、`valuations`、`financial_reports` | `calculate_valuation.py` → `valuation_daily` |
+
+### Step 26-b — 存表的技術指標與連續買賣超天數
+
+狀態：**IN REVIEW**。
+
+- 兩張寬表 `technical_indicators`、`institutional_streaks`，key `(stock_id, source, trade_date)`，加 `computed_at`；
+  migration `6ecc3eefb103`，不加只新增的 trigger。
+  - `technical_indicators`：拿掉它，全市場單日面板要逐支從第一筆行情暖機，約 3.5 分鐘（35-c-4 實測）。
+  - `institutional_streaks`：連續天數沒有固定視窗，拿掉它，每次查詢都要從每支股票的法人歷史起點數起。
+- `stock_data_center.v2.derived_store`：增量執行器。以輸入寫入端的 advisory lock（共享）固定 `computed_at`，
+  從上次 `computed_at` 之後有新輸入列的最早日期往後重算，暖機 500 天且至少 240 列；`--full` 整段重算。
+- `institutional_streaks:v1` 的日子是股票有成交（成交量大於 0）的交易日，與舊系統的 `daily_quotes` 相同；
+  有成交但沒有法人列的日子是淨額 0，會中斷連續。key 的來源是法人來源（`twse_t86`、`tpex_insti_daily_trade`）。
+- 改名：`v2/derived.py` 的即時計算定義改為 `technical_indicators_pit:v1`。
+- 驗收證據：`docs/step_reports/step-26-b-acceptance-report.md`。
 
 ## Step 34 — 穩定的 Publication-Evidence Hash
 
@@ -2416,7 +2442,7 @@ stock-data-center/
 │   └── raw/                    只作為以內容定址的 artifact 儲存區
 │       └── <ab>/<sha256>       由 LocalRawArtifactStore 寫入；不放來源
 │                               檔案庫，也沒有 processed/ 暫存層
-├── migrations/versions/        一個 baseline（Step 35-d-3）
+├── migrations/versions/        baseline（Step 35-d-3）與其後的 migration
 ├── scripts/                    驗收與對帳腳本、rebase_to_baseline.py
 ├── docs/
 │   ├── source_field_audit.md
@@ -2451,9 +2477,9 @@ stock-data-center/
 - §16 中標為 v1 的每個領域都涵蓋 2020-01-02 起的歷史。資料來自官方端點，但早於前向抓取的 TDCC 週資料除外，那些來自兩個有記載的檔案庫（§14）。
 - 每個領域都有舊系統對帳報告，每個差異都已分類。
 - 前向抓取依交易日曆無人值守地執行。
-- 在核准的 Step 15 政策下，Market PIT 可用於歷史資料。如果 owner 拒絕由規則推導的證據，API 要記載歷史資料只有 System PIT。
+- Market PIT 以 release rule 與 `published_at`（ADR-0020、ADR-0027）用於歷史資料；沒有證明的列在 Market PIT 下不可見。
 - System PIT 精確重建實際的 ingestion。
-- 每張表只新增：數字改變才新增一列，更正以自己的 `recorded_at` 可見（ADR-0027）。
+- 每張值表只新增：數字改變才新增一列，更正以自己的 `recorded_at` 可見（ADR-0027）。衍生表以最新的輸入計算並就地覆寫（§17）。
 - 一份財報與它的全部事實在同一個交易寫入，不會出現不完整的財報。
 - 財報事實保留 namespace-aware 的 concept；帶 dimension 的文件整份 quarantine（ADR-0027）。
 - 公司行動只來自通過 identity 關卡的交易所結果資料。公告型資料保持未正規化。

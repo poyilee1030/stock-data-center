@@ -166,12 +166,16 @@ key and `recorded_at`, its `available_at` and why (the rule, or the stored
 effective cutoff. An unsupported source or PIT combination fails explicitly; it
 never falls back to current state.
 
-## Derived PIT inheritance
+## Derived data
 
-Canonical derived results are computed on demand from inputs resolved under the
-same explicit PIT context. `knowledge_as_of` keeps only the input rows recorded
-by then; `information_as_of` decides which of them were public. In a rolling
-as-of series each observation date is computed at the instant its own inputs
-became public, so no value can see a later price. The computation time is
-provenance only and is never a publication or visibility time. See
-[Canonical Derived Data](derived_data.md).
+Stored derived datasets (Step 26) are computed from the latest inputs and have
+no knowledge-time axis: a corrected input recomputes and overwrites the dates it
+reaches. The value for date D still uses only inputs dated on or before D, and
+an input published late is aligned to its publication. `computed_at` is
+provenance only, never a publication or visibility time.
+
+`technical_indicators_pit:v1` is computed on demand under the full PIT context.
+`knowledge_as_of` keeps only the input rows recorded by then; `information_as_of`
+decides which of them were public. In a rolling as-of series each observation
+date is computed at the instant its own inputs became public, so no value can
+see a later price. See [Canonical Derived Data](derived_data.md).
