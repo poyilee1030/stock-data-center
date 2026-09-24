@@ -25,7 +25,8 @@ pytestmark = pytest.mark.integration
 
 V2_TABLES = set(metadata.tables)
 # Step 26: derived tables follow the latest inputs and are recomputed in place.
-DERIVED = {"technical_indicators", "institutional_streaks", "institutional_cumulative_flow"}
+DERIVED = {"technical_indicators", "institutional_streaks", "institutional_cumulative_flow",
+           "shareholding_concentration"}
 BASELINE_TABLES = V2_TABLES - DERIVED
 # `stocks` is today's list, replaced when the list changes; `trading_days` is a
 # calendar. Every other table holds history and only grows.

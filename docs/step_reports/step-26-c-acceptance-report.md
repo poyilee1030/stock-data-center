@@ -1,6 +1,6 @@
 # Step 26-c 驗收報告
 
-狀態：IN REVIEW (#56)
+狀態：MERGED (#56)
 
 範圍：`institutional_cumulative_flow:v1`，移植舊系統 `calculate_trust_holding.py`、`calculate_dealer_holding.py`，
 沿用 26-b 的增量執行器。

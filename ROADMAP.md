@@ -606,8 +606,8 @@ explicit out-of-scope work
 | 24-b | MERGED | TDCC 股權分散：376 週 backfill、涵蓋範圍與對帳 |
 | 26-a | SUPERSEDED | 衍生服務與 `technical_indicators:v1`（#44，併入 35-c-4） |
 | 26-b | MERGED (#55) | 存表的衍生資料：`technical_indicators:v1` 與 `institutional_streaks:v1` |
-| 26-c | IN REVIEW (#56) | `institutional_cumulative_flow:v1` |
-| 26-d | PLANNED | `shareholding_concentration:v1` |
+| 26-c | MERGED (#56) | `institutional_cumulative_flow:v1` |
+| 26-d | IN REVIEW | `shareholding_concentration:v1` |
 | 26-e | PLANNED | `margin_metrics:v1` 與 `short_interest_metrics:v1` |
 | 26-f | PLANNED | `valuation_metrics:v1` |
 | 27 | PLANNED | 公開 REST API v1 |
@@ -1789,7 +1789,7 @@ importer 以資料日期欄位為 key，絕不用檔名：`20200619.CSV` 和 `20
 
 ## Step 26 — 標準衍生 v1（移植舊系統計算程式）
 
-狀態：**26-a SUPERSEDED（#44，併入 35-c-4）；26-b MERGED（#55）；26-c IN REVIEW；26-d–26-f PLANNED**。依賴：Steps 17-c–24。
+狀態：**26-a SUPERSEDED（#44，併入 35-c-4）；26-b MERGED（#55）；26-c MERGED（#56）；26-d IN REVIEW；26-e–26-f PLANNED**。依賴：Steps 17-c–24。
 
 定義，每個都從舊系統的計算程式移植，並與舊系統的表對帳：
 
@@ -1851,7 +1851,7 @@ SUPERSEDED 的 #44。
 
 ### Step 26-c — 法人累積淨流量
 
-狀態：**IN REVIEW**。
+狀態：**MERGED**（#56）。
 
 - 寬表 `institutional_cumulative_flow`，key `(stock_id, source, trade_date)`：投信、自營商各一欄累積淨股數與一欄比率，
   加 `computed_at`；migration `0f6386ea08db`。拿掉它，每次查詢都要從每支股票的法人歷史起點加總；比率還要找對同一天、
@@ -1862,6 +1862,27 @@ SUPERSEDED 的 #44。
 - 發行股數：`twse_t86` 取 `twse_mi_qfiis`，`tpex_insti_daily_trade` 取 `mops_t13sa150_otc`。
 - 加總永遠記得起點，所以每次重寫的序列都從第一列讀起，沒有暖機緩衝、沒有容差：增量與整段逐位相同。
 - 驗收證據：`docs/step_reports/step-26-c-acceptance-report.md`。
+
+### Step 26-d — 股權集中度
+
+狀態：**IN REVIEW**。
+
+- 寬表 `shareholding_concentration`，key `(stock_id, source, snapshot_date)`：大、中、小戶持股比率，大減小的
+  spread，大、小戶人數，三個比率與 spread 的週變化，加 `computed_at`；migration `c3f1f515e3df`。key 用集保的
+  快照日而不是交易日：有 48 個快照日不是交易日（2019 年、補班週六、2021-02-09 交易所整週未開的那一週）。
+  拿掉這張表，資料正確性沒有損失，比率是同一列 15 個級距的加總，週變化只多讀前一週一列；owner 仍依 Step 26 的決定
+  存表（2026-09-25），讓每個衍生資料集走同一條讀取路徑。spread 與 spread 的週變化可以從大、小戶兩欄逐位算回，
+  owner 選擇照舊系統存。
+- 移植舊系統 `calculate_shareholding_concentration.py`：小戶是級距 1–8（50 張以下），中戶 9–11（400 張以下），
+  大戶 12–15；比率是各組 `percent_N` 的和，人數是小、大戶的 `holders_N` 的和（舊系統沒有中戶人數，不新增）。
+  週變化對的是同一支股票的前一個快照，不論隔幾週，同舊系統的 LAG；第一個快照為 NULL。舊系統以 double 加總後
+  `ROUND(x::numeric, 4)`；集保百分比是兩位小數，精確的十進位和就是那個結果，所以這裡精確加總，逐位相同。
+  舊系統的 `COALESCE(x, 0)` 在它自己的資料上從未觸發；來源沒發布的級距，讓需要它的欄位為 NULL，不當成 0。
+- 週變化需要重寫起點之前的那一個快照，一支股票的序列只有數百週，所以每次重寫都從第一個快照讀起：增量與整段逐位相同，
+  沒有暖機、沒有容差。
+- `derived_store` 取輸入寫入者的鎖，改從 `backfill.JOBS` 取：原本只看 `exchange_daily.JOBS`，TDCC 的寫入者
+  （`shareholding.JOBS`）不在裡面。新增測試檢查每個資料集的每張輸入表都有寫入者的鎖。
+- 驗收證據：`docs/step_reports/step-26-d-acceptance-report.md`。
 
 ## Step 34 — 穩定的 Publication-Evidence Hash
 
