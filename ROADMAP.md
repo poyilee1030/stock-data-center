@@ -605,8 +605,8 @@ explicit out-of-scope work
 | 24-a | MERGED | TDCC 股權分散：adapter 與匯入路徑 |
 | 24-b | MERGED | TDCC 股權分散：376 週 backfill、涵蓋範圍與對帳 |
 | 26-a | SUPERSEDED | 衍生服務與 `technical_indicators:v1`（#44，併入 35-c-4） |
-| 26-b | IN REVIEW (#55) | 存表的衍生資料：`technical_indicators:v1` 與 `institutional_streaks:v1` |
-| 26-c | PLANNED | `institutional_cumulative_flow:v1` |
+| 26-b | MERGED (#55) | 存表的衍生資料：`technical_indicators:v1` 與 `institutional_streaks:v1` |
+| 26-c | IN REVIEW (#56) | `institutional_cumulative_flow:v1` |
 | 26-d | PLANNED | `shareholding_concentration:v1` |
 | 26-e | PLANNED | `margin_metrics:v1` 與 `short_interest_metrics:v1` |
 | 26-f | PLANNED | `valuation_metrics:v1` |
@@ -1789,7 +1789,7 @@ importer 以資料日期欄位為 key，絕不用檔名：`20200619.CSV` 和 `20
 
 ## Step 26 — 標準衍生 v1（移植舊系統計算程式）
 
-狀態：**26-a SUPERSEDED（#44，併入 35-c-4）；26-b IN REVIEW；26-c–26-f PLANNED**。依賴：Steps 17-c–24。
+狀態：**26-a SUPERSEDED（#44，併入 35-c-4）；26-b MERGED（#55）；26-c IN REVIEW；26-d–26-f PLANNED**。依賴：Steps 17-c–24。
 
 定義，每個都從舊系統的計算程式移植，並與舊系統的表對帳：
 
@@ -1836,7 +1836,7 @@ SUPERSEDED 的 #44。
 
 ### Step 26-b — 存表的技術指標與連續買賣超天數
 
-狀態：**IN REVIEW**。
+狀態：**MERGED（#55）**。
 
 - 兩張寬表 `technical_indicators`、`institutional_streaks`，key `(stock_id, source, trade_date)`，加 `computed_at`；
   migration `6ecc3eefb103`，不加只新增的 trigger。
@@ -1848,6 +1848,20 @@ SUPERSEDED 的 #44。
   有成交但沒有法人列的日子是淨額 0，會中斷連續。key 的來源是法人來源（`twse_t86`、`tpex_insti_daily_trade`）。
 - 改名：`v2/derived.py` 的即時計算定義改為 `technical_indicators_pit:v1`。
 - 驗收證據：`docs/step_reports/step-26-b-acceptance-report.md`。
+
+### Step 26-c — 法人累積淨流量
+
+狀態：**IN REVIEW**。
+
+- 寬表 `institutional_cumulative_flow`，key `(stock_id, source, trade_date)`：投信、自營商各一欄累積淨股數與一欄比率，
+  加 `computed_at`；migration `0f6386ea08db`。拿掉它，每次查詢都要從每支股票的法人歷史起點加總；比率還要找對同一天、
+  同一市場的外資持股來源。
+- 移植舊系統 `trust_holding`／`dealer_holding`：法人檔每一天一列，淨額從序列第一天起累加；比率是
+  `ROUND((累積 / 發行股數 * 100)::numeric, 4)`，以 double 計算、轉 numeric 保留 15 位有效數字、四捨五入遠離零，
+  當天沒有外資持股列時為 NULL。名稱是累積淨流量，不是持股（沒有期初持股）。
+- 發行股數：`twse_t86` 取 `twse_mi_qfiis`，`tpex_insti_daily_trade` 取 `mops_t13sa150_otc`。
+- 加總永遠記得起點，所以每次重寫的序列都從第一列讀起，沒有暖機緩衝、沒有容差：增量與整段逐位相同。
+- 驗收證據：`docs/step_reports/step-26-c-acceptance-report.md`。
 
 ## Step 34 — 穩定的 Publication-Evidence Hash
 

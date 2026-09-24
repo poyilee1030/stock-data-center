@@ -14,6 +14,8 @@ never forget where they started, so theirs is within `within_tolerance` of the
 full series, not equal to it; the owner accepted that residue on 2026-09-24. A full
 run (`--full`) reads each series from its first row and equals the on-demand
 `technical_indicators_pit:v1` bit for bit while no input has a correction.
+A running sum forgets nothing either, and needs no tolerance: the cumulative
+flow reads each series it rewrites from its first row.
 
 No value uses an input dated after it: every formula here is causal along the
 trade date.
@@ -34,6 +36,7 @@ import sqlalchemy as sa
 from sqlalchemy import Connection
 
 from stock_data_center.db import schema_v2 as v2
+from stock_data_center.v2 import cumulative_flow
 from stock_data_center.v2.derived import TECHNICAL_INDICATORS_FORMULA, Definition
 from stock_data_center.v2.exchange_daily import JOBS
 from stock_data_center.v2.indicators import MA_WINDOWS, DailyBar, technical_indicators
@@ -93,6 +96,28 @@ INSTITUTIONAL_STREAKS_V1 = Definition(
         "tpex_insti_daily_trade over tpex_otc_quotes days. An incremental run "
         "restarts a series 500 calendar days before the first date it rewrites, "
         "or at its first row when a streak on that date spans the whole buffer."
+    ),
+    price_adjustment_convention="not applicable: no price enters the value",
+)
+
+INSTITUTIONAL_CUMULATIVE_FLOW_V1 = Definition(
+    dataset_code="institutional_cumulative_flow",
+    derivation_version="v1",
+    formula_specification=(
+        "Ported from legacy calculate_trust_holding.py and calculate_dealer_holding.py. "
+        "For investment trusts and for dealers (proprietary plus hedging), the running "
+        "sum of the daily net shares from the series' first day, a zero-origin proxy "
+        "and not a holding; and that sum as a percentage of the same day's issued "
+        "shares, ROUND((sum / issued * 100)::numeric, 4) in double precision as "
+        "legacy computed it, NULL without a foreign-holding row that day."
+    ),
+    input_tables=("institutional_flows", "foreign_holdings"),
+    calendar_timezone="Asia/Taipei",
+    calendar_convention=(
+        "The days of the institutional file, one series per institutional source: "
+        "twse_t86 takes issued shares from twse_mi_qfiis, tpex_insti_daily_trade "
+        "from mops_t13sa150_otc. A sum never forgets its first day, so every run "
+        "sums each series it rewrites from that day."
     ),
     price_adjustment_convention="not applicable: no price enters the value",
 )
@@ -232,6 +257,38 @@ def _streaks_since(connection: Connection, stock_id: str, source: str,
     ]
 
 
+# The foreign-holding source of each market's institutional source, for the
+# issued shares a cumulative ratio divides by.
+HOLDING_SOURCE = {"twse_t86": "twse_mi_qfiis", "tpex_insti_daily_trade": "mops_t13sa150_otc"}
+_FLOW_OF_HOLDING = {holding: flow for flow, holding in HOLDING_SOURCE.items()}
+
+
+def _cumulative_rows(connection: Connection, stock_id: str, source: str,
+                     start: date | None) -> list[dict]:
+    parties = cumulative_flow.PARTIES
+    flows = connection.execute(_latest(
+        v2.institutional_flows, stock_id, source, None,
+        *(f"{party}_net" for party in parties))).all()
+    issued = dict(connection.execute(_latest(
+        v2.foreign_holdings, stock_id, HOLDING_SOURCE[source], None, "issued_shares")).all())
+    sums = {
+        party: cumulative_flow.cumulative_flows([row[index + 1] for row in flows])
+        for index, party in enumerate(parties)
+    }
+    out = []
+    for i, row in enumerate(flows):
+        day = row[0]
+        if start is not None and day < start:
+            continue
+        values = {}
+        for party in parties:
+            values[f"{party}_cumulative_net_shares"] = sums[party][i]
+            values[f"{party}_cumulative_net_ratio"] = cumulative_flow.held_ratio(
+                sums[party][i], issued.get(day))
+        out.append({"stock_id": stock_id, "source": source, "trade_date": day, **values})
+    return out
+
+
 TECHNICAL_INDICATORS = StoredDataset(
     TECHNICAL_INDICATORS_V1, v2.technical_indicators, (v2.daily_prices,),
     lambda source: source, _technical_rows,
@@ -241,7 +298,15 @@ INSTITUTIONAL_STREAKS = StoredDataset(
     (v2.daily_prices, v2.institutional_flows),
     lambda source: FLOW_SOURCE.get(source, source), _streak_rows,
 )
-DATASETS = {d.definition.dataset_code: d for d in (TECHNICAL_INDICATORS, INSTITUTIONAL_STREAKS)}
+INSTITUTIONAL_CUMULATIVE_FLOW = StoredDataset(
+    INSTITUTIONAL_CUMULATIVE_FLOW_V1, v2.institutional_cumulative_flow,
+    (v2.institutional_flows, v2.foreign_holdings),
+    lambda source: _FLOW_OF_HOLDING.get(source, source), _cumulative_rows,
+)
+DATASETS = {
+    d.definition.dataset_code: d
+    for d in (TECHNICAL_INDICATORS, INSTITUTIONAL_STREAKS, INSTITUTIONAL_CUMULATIVE_FLOW)
+}
 
 
 # ---------------------------------------------------------------- run
@@ -291,19 +356,29 @@ def run(connection: Connection, dataset: StoredDataset, *, full: bool = False) -
     changed = _changed(connection, dataset, None if full or previous is None else previous)
     if full:
         connection.execute(sa.delete(table))
-    written = 0
-    for (stock_id, source), first in sorted(changed.items()):
-        start = None if full or previous is None else first
-        rows = dataset.compute(connection, stock_id, source, start)
-        if start is not None:
-            connection.execute(sa.delete(table).where(
-                table.c.stock_id == stock_id, table.c.source == source,
-                table.c.trade_date >= start))
-        if rows:
-            connection.execute(sa.insert(table), [{**row, "computed_at": computed_at}
-                                                  for row in rows])
-            written += len(rows)
+    written = sum(
+        rewrite(connection, dataset, stock_id, source,
+                None if full or previous is None else first, computed_at)
+        for (stock_id, source), first in sorted(changed.items())
+    )
     return RunResult(computed_at, previous, len(changed), written)
+
+
+def rewrite(connection: Connection, dataset: StoredDataset, stock_id: str, source: str,
+            start: date | None, computed_at: datetime) -> int:
+    """Replace one series' rows from `start` on with freshly computed ones, and
+    return how many were written. `start=None` computes the whole series and
+    expects its rows gone already."""
+    table = dataset.table
+    rows = dataset.compute(connection, stock_id, source, start)
+    if start is not None:
+        connection.execute(sa.delete(table).where(
+            table.c.stock_id == stock_id, table.c.source == source,
+            table.c.trade_date >= start))
+    if rows:
+        connection.execute(sa.insert(table), [{**row, "computed_at": computed_at}
+                                              for row in rows])
+    return len(rows)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

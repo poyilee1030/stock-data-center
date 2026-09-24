@@ -1,6 +1,6 @@
 # Step 26-b 驗收報告
 
-狀態：IN REVIEW (#55)
+狀態：MERGED (#55)
 
 範圍：Step 26 的第一個子步驟。`technical_indicators:v1` 與 `institutional_streaks:v1` 存成寬表，以最新的輸入
 增量計算；共用的增量執行器；即時計算的定義改名 `technical_indicators_pit:v1`。Step 26 依 owner 決定（2026-09-24）
@@ -114,7 +114,11 @@ scripts/verify_derived_store.py        834 秒，exit 0
 ```
 
 每條序列在 2021-06-01、2022-06-01、2023-06-01、2024-06-03、2025-06-02、2026-09-01 各重啟一次，把增量執行會寫的
-列與存表的整段序列比較：
+列與存表的整段序列比較。
+
+> 26-c 的 code review 發現，這裡的比較只呼叫計算函式，沒有經過 `run` 的刪除與寫入。26-c 把那一步抽成
+> `derived_store.rewrite`，驗收腳本改為在會 rollback 的交易裡執行它再讀回；三個資料集重跑的數字與下表相同
+> （`docs/step_reports/step-26-c-acceptance-report.md`）。重算起點怎麼選只由整合測試驗證。
 
 | | 結果 |
 |---|---|

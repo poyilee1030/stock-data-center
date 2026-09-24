@@ -161,7 +161,7 @@ changes, and each row names the fetch it came from (ADR-0027).
 | `margin_metrics:v1` | canonical derived | planned table (Step 26) | latest margin inputs | selection/API |
 | `short_interest_metrics:v1` | canonical derived | planned table (Step 26) | latest margin/SBL inputs | selection/API |
 | `monthly_revenue_growth:v1` | **not in v1** | — | — | superseded by the observed published comparatives (Step 22) |
-| `institutional_cumulative_flow:v1` | canonical derived proxy | planned table (Step 26) | zero-origin cumulative net flows, optionally divided by issued shares; not absolute holdings | selection/API |
+| `institutional_cumulative_flow:v1` | canonical derived proxy | `institutional_cumulative_flow (stock_id, source, trade_date)` | zero-origin cumulative net flows and their ratio to the same day's issued shares; latest inputs; not absolute holdings | selection/API |
 | `institutional_streaks:v1` | canonical derived | `institutional_streaks (stock_id, source, trade_date)` | latest inputs; D uses flows and prices dated on or before D | selection/API |
 | `margin_market_summary:v1` | **not in v1** | — | — | no legacy consumer (ROADMAP §16) |
 
@@ -171,6 +171,7 @@ affected dates and overwrites them (ROADMAP §17, disclosed downstream).
 
 Backfill status: every observed dataset except the Step 33 declarations holds
 2020-01-02 onward in `stockdc_backfill` (Steps 17-c through 24-b, 35-c-3).
-`technical_indicators:v1` and `institutional_streaks:v1` hold every date of
-2020-01-02 onward (Step 26-b); the other canonical derived datasets are
-**not started** and belong to Steps 26-c through 26-f.
+`technical_indicators:v1`, `institutional_streaks:v1` (Step 26-b) and
+`institutional_cumulative_flow:v1` (Step 26-c) hold every date of 2020-01-02
+onward; the other canonical derived datasets are **not started** and belong to
+Steps 26-d through 26-f.

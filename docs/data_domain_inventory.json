@@ -33,7 +33,8 @@
     "excluded_tables": {
       "fetches": "Schema v2 fetch log (ADR-0027): one row per fetch attempt with the raw file's SHA-256; provenance, not source content.",
       "technical_indicators": "Canonical derived technical_indicators:v1 (Step 26-b), computed from daily_prices; no column is a source field, and the formula is the code constant in stock_data_center.v2.derived_store.",
-      "institutional_streaks": "Canonical derived institutional_streaks:v1 (Step 26-b), computed from institutional_flows over the traded days of daily_prices; no column is a source field."
+      "institutional_streaks": "Canonical derived institutional_streaks:v1 (Step 26-b), computed from institutional_flows over the traded days of daily_prices; no column is a source field.",
+      "institutional_cumulative_flow": "Canonical derived institutional_cumulative_flow:v1 (Step 26-c), computed from institutional_flows and the issued shares in foreign_holdings; no column is a source field."
     },
     "tables": {
       "daily_prices": {

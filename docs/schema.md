@@ -28,8 +28,9 @@ schema and audit §5 by `tests/unit/test_pr14_storage_contract_source_coverage.p
 | `corporate_actions` | `stock_id, source, ex_date, recorded_at` | executed events from the six result feeds |
 | `technical_indicators` | `stock_id, source, trade_date` | `technical_indicators:v1`: MA/VMA 5–240, K, D, RSI 6/12, MACD, Bollinger; `computed_at` |
 | `institutional_streaks` | `stock_id, source, trade_date` | `institutional_streaks:v1`: foreign/trust/dealer streak days; `computed_at` |
+| `institutional_cumulative_flow` | `stock_id, source, trade_date` | `institutional_cumulative_flow:v1`: trust/dealer cumulative net shares and ratio; `computed_at` |
 
-The last two are derived (Step 26-b): computed from the latest inputs and
+The last three are derived (Steps 26-b, 26-c): computed from the latest inputs and
 overwritten in place, so they are not append-only (`docs/derived_data.md`).
 Release rules, dataset declarations, the index list and the TDCC level profile
 are code constants, not tables.
@@ -65,9 +66,9 @@ above, the trigger function and the triggers, and nothing else: no extension,
 view or sequence of its own. Its downgrade refuses before any change while a
 table holds a row, and on an empty database drops everything it built.
 
-`6ecc3eefb103` (Step 26-b) adds the two derived tables. Its downgrade drops them
-without a guard: every derived row is recomputed from stored inputs, so nothing
-it discards is history.
+`6ecc3eefb103` (Step 26-b) adds the first two derived tables and `0f6386ea08db`
+(Step 26-c) the third. Their downgrades drop them without a guard: every derived
+row is recomputed from stored inputs, so nothing they discard is history.
 
 A database built by the old 45-migration chain sits at its head `5c1e8d2a7b90`,
 with the v2 tables beside the v1 ones. `scripts/rebase_to_baseline.py` moves it

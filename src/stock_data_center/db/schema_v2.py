@@ -19,6 +19,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 from stock_data_center.db.base import aware_timestamp, metadata, uuid_type
+from stock_data_center.v2.cumulative_flow import PARTIES as CUMULATIVE_PARTIES
 from stock_data_center.v2.indicators import METRIC_CODES
 from stock_data_center.v2.streaks import PARTIES
 
@@ -596,6 +597,23 @@ institutional_streaks = sa.Table(
     _computed_at(),
     sa.PrimaryKeyConstraint("stock_id", "source", "trade_date",
                             name="pk_institutional_streaks"),
+)
+
+institutional_cumulative_flow = sa.Table(
+    "institutional_cumulative_flow",
+    metadata,
+    *_derived_key(),
+    *(
+        column
+        for party in CUMULATIVE_PARTIES
+        for column in (
+            sa.Column(f"{party}_cumulative_net_shares", sa.BigInteger(), nullable=False),
+            sa.Column(f"{party}_cumulative_net_ratio", postgresql.DOUBLE_PRECISION()),
+        )
+    ),
+    _computed_at(),
+    sa.PrimaryKeyConstraint("stock_id", "source", "trade_date",
+                            name="pk_institutional_cumulative_flow"),
 )
 
 # Append-only tables: every value table and the fetch log. `stocks` is reference
