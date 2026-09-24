@@ -159,7 +159,7 @@ TWSE / TPEx / MOPS / TDCC
         | FastAPI / Public API |
         +----------+-----------+
                    ^
-             HTTP / SDK
+                HTTP
                    |
           +--------+---------+
           |                  |
@@ -211,7 +211,7 @@ v1 不建 queue，也不拆獨立服務。上面的流程是形狀，不是部�
 
 ## Invariant D — 下游系統絕不直接存取 PostgreSQL
 
-只有 Data Center 的 API／SDK 是公開的。
+只有 Data Center 的 API 是公開的。
 
 ## Invariant E — PIT 語意由 Data Center 強制執行
 
@@ -435,9 +435,7 @@ v1 依賴一些官方端點無法重現的檔案庫：TDCC `shareholding` 檔案
 `revswarm.db` 本身不是依賴；它的結果已經在 CSV 裡。
 
 依 owner 決定，這些檔案庫目前全部留在
-`~/GitHubLL/my_stock_project/data/raw`，TDCC 檔案庫也不例外。只要 v1
-的重建仍依賴這個 repository 以外的路徑，Step 32 就不可宣告 cutover
-完成。
+`~/GitHubLL/my_stock_project/data/raw`，TDCC 檔案庫也不例外。
 
 因此 `stock-data-center/data/raw` 只是以內容定址的 artifact 儲存區，
 不放別的東西。不把來源檔案庫放進去，不只是為了整潔：
@@ -475,7 +473,7 @@ MOPS iXBRL 文件提供帶有明確 dimensions、units 和 decimals 的 context�
 | 財務報表 | Step 23 | MOPS `t164sb01` iXBRL（§4.8） | 排除金融業，與舊系統相同 |
 | 發行公司股利宣告 | Step 33 | MOPS `t05st09sub`，每個市場每年一次；OpenAPI `t187ap45_L`／`mopsfin_t187ap39_O` 作為交叉核對（§4.13） | 新領域；公積拆分只從民國 110 年起 |
 | TDCC | Step 24 | OpenData + 合併檔案庫，376 週（§4.9） | 2023-10-20 是有記載的截斷週 |
-| 還原價格 | Step 25 | 由交易所參考價推導 | |
+| 還原價格 | Step 36 | 由交易所參考價推導 | |
 | 標準衍生指標 | Step 26 | 衍生 | 移植舊系統的計算程式 |
 | 股票標籤、XBRL codebook、信用交易市場彙總 | 不在 v1 | — | 沒有官方來源或沒有使用者 |
 | 月營收成長率 | 不在 v1 | MOPS `t21sc03` 有發布（§4.7） | `monthly_revenue_growth:v1` 被觀察到的已發布比較值取代（Step 22） |
@@ -502,11 +500,14 @@ adjustment convention where relevant
 
 v1 的衍生資料集是移植舊系統使用者讀取的內容（Step 26）。舊系統的綜合「壓力分數」留在下游。
 
-v1 的衍生資料**預設即時計算，不實體化**（ADR-0027：衍生資料 0 張表）。滾動 as-of 序列（每個觀察日期都用該日期截止點時可見的輸入計算）和任何其他 PIT context，都在查詢時從已儲存的輸入算出。定義是程式常數；回傳的每一列帶著它的 PIT context、輸入 fingerprint 與計算時的 git commit，所以 lineage 不因為沒有實體化而消失。
+**Step 26 的衍生資料存表，並且以最新的資料計算**（owner 決定，2026-09-24，ADR-0027「衍生資料」修訂）：
 
-理由是 26-a 量測到的成本：長格式的 `derived_metric_versions` 每個 metric-day 約 740 bytes，其中約 98% 是逐列重複的 lineage；光是 `technical_indicators:v1` 就是 7,600 萬列、56 GB，是它的輸入 `daily_price`（2 GB）的 28 倍。這些值是輸入的確定性函數，存下來不增加任何可稽核的事實。
+- **一個指標集一張寬表**，key 是 `(stock_id, source, 日期)`，每個指標一欄，另有 `computed_at`。不逐列存 derivation version、git commit、lineage 或 hash：公式或程式改了就整張重算（owner 決定，2026-09-24），所以不會重演長表 `derived_metric_versions` 的 56 GB（每個 metric-day 約 740 bytes，約 98% 是重複的 lineage）。
+- **以最新的輸入計算，沒有知識時間軸。** 輸入被更正時，受影響的日期重算並直接覆寫；衍生表不照其他 v2 表的只新增規則。依據：2026-09-24 量測 `stockdc_backfill`，Step 26 的輸入表（日行情、法人、融資融券、借券、外資持股、TDCC、財報）沒有任何一個 key 有第二列，所以「最新值」與 PIT 在歷史上算出的結果相同。之後前向抓取遇到更正時，衍生值跟著最新的輸入走；這是刻意的簡化，要對下游揭露，就像 ADR-0026 揭露生存者偏差一樣。
+- **仍然不能用到未來的資料。** 日期 D 的值只用資料日期不晚於 D 的輸入；在資料日期之後才公開的輸入要依公開時間對齊：`valuation_metrics:v1` 在日期 D 只用 D 當時已公布的財報（舊系統以法定期限對齊）；TDCC 以資料日期為 key，並標明在之後的週日才公開。
+- **增量計算，仿照舊系統**：每次執行從上次算到的日期往後算，另外從上次之後有新輸入列的最早日期往後重算；都往前讀一段暖機緩衝（舊系統是 500 天）。增量結果必須與整段重算一致，由測試保證。
 
-只有量測證明即時計算太慢的指標才實體化，而且要有自己的 step：先量測查詢延遲與儲存成本，再選格式。實體化的結果必須和同一個 PIT context 的即時計算完全一致。
+即時計算的技術指標（Step 35-c-4）改名 `technical_indicators_pit:v1`，維持即時計算、不存表，它是 PIT 的參考實作：輸入沒有更正時，存表的技術指標必須與它逐位相同。
 
 ---
 
@@ -607,15 +608,14 @@ explicit out-of-scope work
 | 23-c | MERGED | 財務報表：全量 backfill、抽樣關卡與對帳 |
 | 24-a | IN REVIEW | TDCC 股權分散：adapter 與匯入路徑 |
 | 24-b | IN REVIEW | TDCC 股權分散：376 週 backfill、涵蓋範圍與對帳 |
-| 25 | PLANNED | 還原價格 |
 | 26 | PLANNED | 標準衍生 v1（移植舊系統計算程式） |
 | 26-a | SUPERSEDED | 衍生服務與 `technical_indicators:v1`（#44，併入 35-c-4） |
 | 27 | PLANNED | 公開 REST API v1 |
 | 28 | PLANNED | 排程的前向抓取 |
-| 29 | PLANNED | Python SDK 與下游整合 |
+| 29 | SUPERSEDED | Python SDK 與下游整合（owner 決定移除，2026-09-24） |
 | 30 | PLANNED | 維運與可觀測性 |
 | 31 | PLANNED | 完整的正確性 CI 關卡 |
-| 32 | PLANNED | `my_stock_project` 切換與 v1 發布 |
+| 32 | SUPERSEDED | `my_stock_project` 切換與 v1 發布（owner 決定移除，2026-09-24） |
 | 33 | PLANNED | 發行公司股利宣告（MOPS OpenAPI），存成獨立領域 |
 | 34 | SUPERSEDED | 新增證據目標時仍穩定的 publication-evidence hash |
 | 35-a | MERGED | Schema v2：基礎表與交易所每日資料表、遷移 v1 歷史（ADR-0027，#46） |
@@ -627,15 +627,18 @@ explicit out-of-scope work
 | 35-c-4 | MERGED (#51) | Schema v2：衍生資料接 v2（26-a） |
 | 35-d-1 | MERGED (#52) | Schema v2：v2 不再載入任何 v1 模組 |
 | 35-d-2 | MERGED (#53) | Schema v2：刪除 v1 程式、測試與 scripts |
-| 35-d-3 | IN REVIEW (#54) | Schema v2：baseline migration，刪除 v1 表 |
+| 35-d-3 | MERGED (#54) | Schema v2：baseline migration，刪除 v1 表 |
+| 36 | PLANNED | 還原價格（原 Step 25） |
 
 Steps 1–12 建立了儲存、PIT 和 raw-first 的基礎。它們的 writer 契約包含一些沒有任何來源會填入的欄位（§2.3）。這些欄位保持可為 null、不填值。不刪除它們，因為刪除不會帶來任何正確性上的好處。
 
 Step 編號是本 roadmap 自己的編號，不必與 GitHub pull request 編號一致。到 Step 14 為止兩者一致；之後 ADR-0020 沒有經過 pull request 直接 commit 到 `main`，所以 Step 16 開的是 GitHub #15。這沒有問題，也不會為了修正而重新編號：step 編號識別的是工作，pull request 編號識別的是審閱。每個 step 的驗收報告都記錄交付它的 pull request。
 
-Step 13 是必須重新確立 *step* 編號的地方：已放棄的股利彙總 pilot 佔了這個編號，但根本沒有開成 pull request（§21.3）。原本規劃的 Steps 14–33 在上表重新編成 14–32；33 是新的 step，不是舊編號的延續。原本的「Corporate-Action Identity Research Track」、「Official Reference-Price / Share-Count Pilot」和「Historical Corporate-Action Backfill」由 Step 19 取代。原本的「Source Capability Hook」併入 Step 15。原本的「Legacy Migration and Reconciliation」拆成 Steps 17-a–26 各領域的對帳驗收，以及切換用的 Step 32。原本的快取 step 已刪除。
+Step 13 是必須重新確立 *step* 編號的地方：已放棄的股利彙總 pilot 佔了這個編號，但根本沒有開成 pull request（§21.3）。原本規劃的 Steps 14–33 在上表重新編成 14–32；33 是新的 step，不是舊編號的延續。原本的「Corporate-Action Identity Research Track」、「Official Reference-Price / Share-Count Pilot」和「Historical Corporate-Action Backfill」由 Step 19 取代。原本的「Source Capability Hook」併入 Step 15。原本的「Legacy Migration and Reconciliation」拆成 Steps 17-a–26 各領域的對帳驗收，以及切換用的 Step 32（2026-09-24 owner 決定移除，連同 Step 29）。原本的快取 step 已刪除。
 
 2026-09-23 起，公開 REST API 從 Step 28 提前為 Step 27，排程的前向抓取改為 Step 28，讓下游不必等前向抓取完成才能接上。在這之前寫成的 step 報告、ADR 和 migration 中，「Step 27」指前向抓取，「Step 28」指 API；它們是歷史紀錄，不改寫。
+
+2026-09-24 起，還原價格從 Step 25 改為 Step 36（owner 決定）。在這之前寫成的 step 報告與 ADR 中，「Step 25」指還原價格；它們同樣不改寫。
 
 ---
 
@@ -1173,7 +1176,7 @@ identity 重複數為零，而 `twse_twt49u` 與舊系統 `dividend` 對帳乾�
 
 ### Step 19-e — ETF 分割與反分割結果資料
 
-狀態：**MERGED** (#27)。依賴：Step 19-c。Step 25 需要它。
+狀態：**MERGED** (#27)。依賴：Step 19-c。Step 36 需要它。
 
 在 19-a 發現：ETF 分割和反分割有自己的結果資料——TWSE `rwd/zh/split/TWTCAU`
 （`ETF分割(反分割)恢復買賣參考價格`，列出 0050 在 2025-06-18 的分割）、TPEx
@@ -1196,7 +1199,7 @@ identity 重複數為零，而 `twse_twt49u` 與舊系統 `dividend` 對帳乾�
   `(feed, code, locator date)` 重複數為零
 - 無法判斷方向／類型的列附上理由被 quarantine，而不是猜測
 
-整個 Step 19 的範圍外：MOPS 彙總資料的正規化；還原因子（Step 25）。
+整個 Step 19 的範圍外：MOPS 彙總資料的正規化；還原因子（Step 36）。
 
 ## Step 20 — 法人買賣、法人買賣彙總、外資持股
 
@@ -1770,7 +1773,7 @@ importer 以資料日期欄位為 key，絕不用檔名：`20200619.CSV` 和 `20
 
 # 24. 規劃中的 PR——衍生資料
 
-## Step 25 — 還原價格
+## Step 36 — 還原價格
 
 狀態：**PLANNED**。依賴：Step 16、Step 17-c、Steps 19-a–e。
 
@@ -1786,13 +1789,14 @@ importer 以資料日期欄位為 key，絕不用檔名：`20200619.CSV` 和 `20
 
 ## Step 26 — 標準衍生 v1（移植舊系統計算程式）
 
-狀態：**PLANNED**。依賴：Steps 17-c–25，依各指標的需要。
+狀態：**PLANNED**。依賴：Steps 17-c–24。
 
 定義，每個都從舊系統的計算程式移植，並與舊系統的表對帳：
 
 ```text
 technical_indicators:v1          MA/VMA 5-240, KD, RSI 6/12, MACD, Bollinger
-                                 (raw close, as legacy consumers were trained)
+                                 (raw close, as legacy consumers were trained);
+                                 stored and computed from the latest inputs
 institutional_streaks:v1         foreign/trust/dealer streak days
 institutional_cumulative_flow:v1 legacy trust/dealer "holding" proxies
 shareholding_concentration:v1    large/mid/small holder ratios and WoW
@@ -1801,9 +1805,19 @@ margin_metrics:v1                utilization and WoW changes
 short_interest_metrics:v1        SBL/short ratios and WoW changes
 ```
 
-計算方式遵循 §17：預設即時計算，包括滾動的 as-of 序列。`technical_indicators:v1` 由 35-c-4 在 schema v2 上交付（26-a #44 SUPERSEDED）。
+命名：資料集名稱區分語意，冒號後面只是公式版本。存表、最新值的是常態，不帶標記；PIT 的即時計算對照組
+加 `_pit`。兩者公式相同，所以都是 `:v1`；公式改了就一起升版。
 
-驗收：與舊系統的表對帳。因為 PIT 正確的輸入而產生的刻意差異要列出並解釋。
+計算方式遵循 §17：每個指標集存成一張寬表，以最新的輸入增量計算，仿照舊系統；輸入更正時重算並覆寫受影響的日期。
+35-c-4 在 schema v2 上交付的即時計算版本（26-a #44 SUPERSEDED）改名 `technical_indicators_pit:v1`，維持即時
+計算、不存表，當作存表的 `technical_indicators:v1` 的對照組。每張新表在設計時都要回答「需不需要、拿掉會損失什麼」。
+
+驗收：
+
+- 與舊系統的表對帳，差異逐一分類
+- 增量計算與整段重算的結果逐位相同
+- 輸入沒有更正時，`technical_indicators:v1` 與即時計算的 `technical_indicators_pit:v1` 逐位相同
+- 沒有用到未來的資料：日期 D 的值只用資料日期不晚於 D、且在需要時已公開的輸入（`valuation_metrics:v1` 的財報依公開時間對齊）
 
 範圍外：綜合壓力分數（下游）；指標的還原價格版本（之後的 derivation version）。
 
@@ -1885,7 +1899,7 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 
 ---
 
-# 25. 規劃中的 PR——維運、API、切換
+# 25. 規劃中的 PR——維運、API
 
 ## Step 27 — 公開 REST API v1
 
@@ -1988,10 +2002,6 @@ quarantine reason，讓三張報表照樣解析——但那要先證明無法對
 - 對已發布值有改變的期間做回溯重新抓取，會產生 revision；值沒有改變的則不產生
 - 在任何抓取發生之前，就可以列出待處理的 job 集合
 
-## Step 29 — Python SDK 與下游整合契約
-
-狀態：**PLANNED**。下游 repository 不需要 PostgreSQL 帳密。
-
 ## Step 30 — 維運與可觀測性
 
 狀態：**PLANNED**。涵蓋 ingest 進度、quarantine、涵蓋與對帳狀態，以及 PIT／資料庫延遲。
@@ -2000,17 +2010,11 @@ quarantine reason，讓三張報表照樣解析——但那要先證明無法對
 
 狀態：**PLANNED**。CI 涵蓋 PostgreSQL 18、Alembic、PIT、publication evidence、來源能力、raw-first 重新啟動、公司行動 identity 與 revision、還原價格、衍生資料集，以及 API。公司行動的 CI 包括結果資料重複掃描、更正回歸測試，以及公告型資料拒絕 fixture。
 
-## Step 32 — `my_stock_project` 切換與 v1 發布
-
-狀態：**PLANNED**。依賴：Steps 25–31。
-
-`my_stock_project` 使用 API／SDK，並停止維護一個相互競爭的權威資料庫。最終對帳比較使用者讀取的每張舊系統資料表與 API 結果，每個差異都已分類。
-
 ---
 
 ## Step 35 — Schema v2
 
-狀態：**35-a MERGED（#46）；35-b-1 MERGED（#47）；35-b-2 SUPERSEDED（併入 35-d）；35-c-1–35-c-4 MERGED（#48–#51）；35-d-1、35-d-2 MERGED（#52、#53）；35-d-3 IN REVIEW（#54）**。依據：ADR-0026、ADR-0027（2026-09-23 owner 決定）。
+狀態：**35-a MERGED（#46）；35-b-1 MERGED（#47）；35-b-2 SUPERSEDED（併入 35-d）；35-c-1–35-c-4 MERGED（#48–#51）；35-d-1、35-d-2 MERGED（#52、#53）；35-d-3 MERGED（#54）**。依據：ADR-0026、ADR-0027（2026-09-23 owner 決定）。
 
 2026-09-23 對全部 61 張表逐張檢討「需不需要、拿掉會損失什麼」之後重新設計。原則見
 ADR-0027：官方代號當身分、一個 (股票, 來源, 日期) 一列的寬表、數字改變才新增列、
@@ -2444,19 +2448,19 @@ stock-data-center/
 第 1 版在以下條件都成立時完成：
 
 - PostgreSQL 18 是唯一的權威資料儲存。
-- §16 中標為 v1 的每個領域都涵蓋 2020-01-02 到切換為止。資料來自官方端點，但早於前向抓取的 TDCC 週資料除外，那些來自兩個有記載的檔案庫（§14）。
+- §16 中標為 v1 的每個領域都涵蓋 2020-01-02 起的歷史。資料來自官方端點，但早於前向抓取的 TDCC 週資料除外，那些來自兩個有記載的檔案庫（§14）。
 - 每個領域都有舊系統對帳報告，每個差異都已分類。
 - 前向抓取依交易日曆無人值守地執行。
 - 在核准的 Step 15 政策下，Market PIT 可用於歷史資料。如果 owner 拒絕由規則推導的證據，API 要記載歷史資料只有 System PIT。
 - System PIT 精確重建實際的 ingestion。
-- 業務 revision 和 publication-evidence revision 是分開的。
-- 複雜 aggregate 在併發下安全，並受 seal 保護。
-- 支援 XBRL 完整的 context identity。
+- 每張表只新增：數字改變才新增一列，更正以自己的 `recorded_at` 可見（ADR-0027）。
+- 一份財報與它的全部事實在同一個交易寫入，不會出現不完整的財報。
+- 財報事實保留 namespace-aware 的 concept；帶 dimension 的文件整份 quarantine（ADR-0027）。
 - 公司行動只來自通過 identity 關卡的交易所結果資料。公告型資料保持未正規化。
 - 還原價格使用參考價慣例，並有經審閱的不連續報告。
 - 標準衍生 v1 指標重現舊系統的計算程式，PIT 造成的差異都有解釋。
 - 除非有經驗證的來源欄位填入，否則任何 API 欄位都不會以資料的形式呈現。
-- 下游 ML repo 只使用 API／SDK。
+- 下游 ML repo 只使用 API。
 
 ---
 

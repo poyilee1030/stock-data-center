@@ -114,7 +114,7 @@ Each required criterion must be PASS/FAIL with concrete evidence.
 
 ## Current Step Sequence
 
-ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–18, 19-a through 19-e, 20-a through 20-d, 21-a, 21-b, 22-a through 22-c, 23-a through 24-b, 35-a, 35-b-1, 35-c-1 through 35-c-4, 35-d-1 and 35-d-2 as MERGED, 26-a and 35-b-2 as SUPERSEDED, and labels Step 35-d-3 as `THIS STEP` (a contextual marker, not an additional status value):
+ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–18, 19-a through 19-e, 20-a through 20-d, 21-a, 21-b, 22-a through 22-c, 23-a through 24-b, 35-a, 35-b-1, 35-c-1 through 35-c-4, 35-d-1 and 35-d-2 as MERGED, 26-a, 29, 32 and 35-b-2 as SUPERSEDED, and labels Step 35-d-3 as `THIS STEP` (a contextual marker, not an additional status value):
 
 ```text
 Step 11  authoritative security lifecycle history        MERGED
@@ -150,14 +150,13 @@ Step 23-b financial statements: adapters + import path  MERGED
 Step 23-c financial statements: backfill + reconcile    MERGED
 Step 24-a TDCC distribution: adapters + import path      MERGED
 Step 24-b TDCC distribution: backfill + coverage        MERGED
-Step 25  adjusted prices                               PLANNED
 Step 26-a canonical derived: service + technical ind.  SUPERSEDED (folded into 35-c-4)
 Step 27  public REST API v1                            PLANNED
 Step 28  scheduled forward capture                     PLANNED
-Step 29  Python SDK + downstream integration           PLANNED
+Step 29  Python SDK + downstream integration           SUPERSEDED (removed by owner)
 Step 30  operations + observability                    PLANNED
 Step 31  full correctness CI gate                      PLANNED
-Step 32  my_stock_project cutover + v1 release          PLANNED
+Step 32  my_stock_project cutover + v1 release          SUPERSEDED (removed by owner)
 Step 33  issuer dividend declarations                  PLANNED (depends on 19)
 Step 35-a schema v2: foundation + exchange daily tables  MERGED (ADR-0027)
 Step 35-b-1 schema v2: exchange-daily write path       MERGED
@@ -169,6 +168,7 @@ Step 35-c-4 schema v2: derived data on v2              MERGED
 Step 35-d-1 schema v2: v2 loads no v1 module          MERGED
 Step 35-d-2 schema v2: delete the v1 code              MERGED
 Step 35-d-3 schema v2: baseline migration, drop v1     THIS STEP
+Step 36  adjusted prices (was Step 25)                 PLANNED
 ```
 
 `ROADMAP.md` remains authoritative if this snapshot becomes stale.
@@ -187,7 +187,7 @@ Columns the audit lists as unsourced stay NULL and must not be presented as data
 
 ## v1 Scope and Deferred Work
 
-v1 rebuilds the legacy consumer scope with PIT, normally from 2020-01-02 through cutover. Honor domain-specific history windows in ROADMAP, including Step 33's ROC 107–115 declaration requests.
+v1 rebuilds the legacy consumer scope with PIT, normally from 2020-01-02 onward. Honor domain-specific history windows in ROADMAP, including Step 33's ROC 107–115 declaration requests.
 
 The security universe is the common stocks (`股票` category) on today's TWSE ISIN lists for 上市 (`sii`) and 上櫃 (`otc`) (ADR-0026): no ETFs, ETNs, preferred shares, TDRs, beneficiary certificates, innovation-board stocks or warrants, and no company delisted before today. Where an endpoint offers a market selector, request those two values and reject `rotc` and `pub` at the adapter boundary.
 
@@ -384,7 +384,7 @@ Raw files are immutable and content-addressed. They are evidence/provenance.
 
 v1 uses the local `data/raw/` store behind a storage abstraction. It contains only content-addressed files (`<ab>/<sha256>`), never source archives or a `processed/` staging layer: an archive inside the store root would sit where only content-addressed files are expected.
 
-Under ROADMAP §14, required legacy archives remain at `~/GitHubLL/my_stock_project/data/raw` by owner decision. Step 32 cannot declare cutover complete while a v1 rebuild depends on a path outside this repository. Do not relocate archives as an incidental adapter change.
+Under ROADMAP §14, required legacy archives remain at `~/GitHubLL/my_stock_project/data/raw` by owner decision. Do not relocate archives as an incidental adapter change.
 
 ---
 
@@ -565,7 +565,7 @@ ML repositories own model-specific transformations, features, labels, and traini
 
 # 39. Canonical Derived Dataset Rule
 
-Canonical derived datasets must be deterministic, cross-repo reusable, financially well-defined, model-independent, and reconstructible from PIT-safe inputs.
+Canonical derived datasets must be deterministic, cross-repo reusable, financially well-defined, model-independent, and reconstructible from stored inputs.
 
 ---
 
@@ -577,7 +577,7 @@ Do not put model-specific features such as selection scores or experiment-specif
 
 # 41. Derivation Version Is Mandatory
 
-Every canonical derived dataset has an explicit `derivation_version`. Formula changes require a new version.
+Every canonical derived dataset has an explicit `derivation_version`, part of its code-constant definition. Formula changes require a new version. Stored derived rows do not carry it: a formula or implementation change recomputes the whole table.
 
 ---
 
@@ -595,13 +595,17 @@ calendar/timezone convention
 price-adjustment convention
 ```
 
-The definition is a code constant; its registration time is its git history, and every result carries the git commit it was computed with (ADR-0027).
+The definition is a code constant; its registration time and implementation version are its git history. The on-demand `technical_indicators_pit:v1` returns the git commit it computed with; stored derived rows carry no commit (ADR-0027 revision).
 
 ---
 
-# 43. Derived PIT Rule
+# 43. Derived Data Uses the Latest Inputs, Never Future Ones
 
-Derived visibility inherits from PIT-safe input visibility. Do not set `published_at = computed_at`.
+Step 26's derived datasets are computed from the latest stored inputs and have no knowledge-time axis: a corrected input recomputes the affected dates and overwrites them (owner decision 2026-09-24, ADR-0027 revision). This is a disclosed simplification: measured on `stockdc_backfill`, none of their inputs has a corrected row, so on history the latest values equal the PIT ones.
+
+What never changes: the value for date D uses only inputs whose data date is not after D, and an input published after its data date is aligned to its publication — `valuation_metrics:v1` on D uses only reports already public on D. Do not set `published_at = computed_at`.
+
+`technical_indicators_pit:v1` (delivered by Step 35-c-4 as `technical_indicators:v1`) stays computed on demand under full PIT (§15) as the reference implementation. Adjusted prices (Step 36) keep PIT corporate-action visibility (§51.3).
 
 ---
 
@@ -613,15 +617,15 @@ Derived visibility inherits from PIT-safe input visibility. Do not set `publishe
 
 # 45. Derived Lineage Rule
 
-Materialized canonical results preserve derivation version, input identity/fingerprint, PIT context, computation provenance, and business-content hash.
+Stored derived rows carry only their key, their metric values, and `computed_at`. No per-row derivation version, git commit, lineage, hash, or PIT context is stored; a formula or code change recomputes the table.
 
 ---
 
 # 46. Materialized vs Virtual Derived Data
 
-Storage strategy is a performance choice. Financial definition and PIT semantics must match.
+Step 26 stores each metric set as one wide table keyed by `(stock_id, source, date)` and computes it incrementally like the legacy calculators: forward from the last computed date, and again from the earliest date with a newly recorded input, each with a warm-up buffer. The incremental result must equal a full recomputation. Every derived table is justified in its own step: what is lost without it (ROADMAP §17).
 
-v1 computes derived data on demand by default, including the rolling as-of series in which each observation date uses the inputs visible at that date's cutoff. A metric is materialized only by its own step, after measurement shows on-demand computation too slow, and the materialized result must equal the on-demand one for the same context (ROADMAP §17).
+A dataset code names the semantics and the number after the colon names only the formula: stored latest-value datasets carry no marker (`technical_indicators:v1`), the on-demand PIT reference carries `_pit` (`technical_indicators_pit:v1`). Both share one formula version; with uncorrected inputs they must be equal bit for bit.
 
 ---
 
@@ -933,7 +937,7 @@ They must not know PostgreSQL table names or Alembic internals.
 
 # 56. Downstream Credential Rule
 
-Downstream ML repos must not require PostgreSQL credentials. They use API/SDK only.
+Downstream ML repos must not require PostgreSQL credentials. They use the API only.
 
 ---
 
@@ -968,7 +972,7 @@ Do not claim SSD benefit without measurement.
 
 # 65. Testing Derived Correctness
 
-Every canonical derived dataset tests deterministic formulas, derivation versions, PIT-safe inputs, no future leakage, lineage, and materialized/virtual equivalence where applicable.
+Every canonical derived dataset tests deterministic formulas, derivation versions, no future leakage along the data date (including publication alignment where an input is published late), incremental-equals-full-recomputation, and, for technical indicators, equality with the on-demand v1 reference.
 
 ---
 
@@ -988,7 +992,7 @@ correction visibility
 report and facts written atomically
 source capability isolation
 XBRL dimensions
-derived PIT inheritance
+derived no-future-leakage
 corporate-action identity collision
 corporate-action correction-stability
 publication-vs-event identity
@@ -1174,7 +1178,7 @@ Corporate-action identity ambiguity is a quarantine/blocker condition, not a pro
 
 Actual calculators belong in dedicated derived PRs unless a minimal implementation is required solely for contract validation.
 
-For adjusted-price calculations (Step 25):
+For adjusted-price calculations (Step 36):
 
 ```text
 raw official OHLC
@@ -1185,7 +1189,7 @@ raw official OHLC
 
 v1 uses `factor(D) = official_reference_price(D) / close_before(D)` for ex-right/ex-dividend and capital-reduction/par-value resumption dates. This includes cash dividends and produces a dividend-reinvested, total-return-style series. Do not apply events before their effective date or outside their PIT visibility.
 
-Step 26 ports legacy calculators, including `technical_indicators:v1` on raw close. It depends on Steps 17–25 as each metric requires and does not bypass readiness gates. Adjusted-price indicator variants and a price-only adjusted series wait for a consumer need. Institutional cumulative-flow "holding" values are proxies; composite pressure scores remain downstream.
+Step 26 ports legacy calculators into stored, incrementally computed tables (§43, §46), including `technical_indicators:v1` on raw close. It depends on Steps 17-c–24 and does not bypass readiness gates. Adjusted-price indicator variants and a price-only adjusted series wait for a consumer need. Institutional cumulative-flow "holding" values are proxies; composite pressure scores remain downstream.
 
 ---
 
@@ -1304,7 +1308,7 @@ For derived-price/indicator PRs additionally:
 adjustment convention explicit/versioned
 no future corporate action leaks backward
 raw vs adjusted distinguishable
-derived inputs PIT-safe and lineage-complete
+derived values use no input dated or published after their date
 ```
 
 Then publish/update PR acceptance evidence.

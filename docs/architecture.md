@@ -11,7 +11,7 @@ published-value history, publication time, temporal visibility, source
 selection, canonical reusable derived definitions, PostgreSQL storage, and the
 public data API.
 
-Downstream systems consume resolved responses through the public API or SDK.
+Downstream systems consume resolved responses through the public API.
 They must not connect directly to PostgreSQL and must not reproduce PIT or
 source-selection rules.
 

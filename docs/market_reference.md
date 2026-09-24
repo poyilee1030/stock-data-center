@@ -69,5 +69,5 @@ declaration domain); the limit prices and other terms v1 kept in
 
 A corporate action is never inferred from a price jump, and official daily
 prices are never rewritten by one. Adjustment factors and adjusted prices are
-Step 25, computed from `reference_price / close_before` on and after the
+Step 36, computed from `reference_price / close_before` on and after the
 ex-date only.

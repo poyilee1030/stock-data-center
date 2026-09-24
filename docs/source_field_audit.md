@@ -1477,7 +1477,7 @@ with a subscription price. An adapter treats a disagreement as a quarantine.
 **Not in Step 19's contract, found on the way; verified live for Step 19-e on
 2026-09-17.** ETF splits and reverse splits have result feeds of their own.
 None of the six Step 19 feeds lists those events, and an adjusted 0050 series
-is wrong without them. ROADMAP records them as follow-up work before Step 25.
+is wrong without them. ROADMAP records them as follow-up work before Step 36 (then numbered 25).
 
 - **TWSE `rwd/zh/split/TWTCAU?startDate=YYYYMMDD&endDate=YYYYMMDD&response=json`**
   (`ETF分割(反分割)恢復買賣參考價格`): 恢復買賣日期 (ROC slashed, `113/12/11`), ETF代號,

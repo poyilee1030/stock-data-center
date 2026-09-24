@@ -1,6 +1,6 @@
 # Step 35-d-3 驗收報告
 
-狀態：IN REVIEW (#54)
+狀態：MERGED (#54)
 
 範圍：以一個 baseline migration 重新開始 migration 鏈、刪除 `db/metadata.py` 與所有 v1 表，並把 CLAUDE.md、
 domain inventory、source audit 與各份 `docs/*.md` 裡 v1 專屬的內容改寫成 schema v2。拆 a／b 兩步的提議

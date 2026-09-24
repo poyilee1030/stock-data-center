@@ -146,13 +146,34 @@ Step 9 的個股 pilot 來源（`twse`、`tpex`）與 `tpex_insti_qfii` 不再�
   - 業務 hash、observations、`corporate_action_retractions`、證據。
 - ETF 分割（Step 19-e）不在普通股範圍內。資料重新抓進 v2（每個 feed 一年一個請求）。
 
-**衍生資料：0 張表。**
+**衍生資料：0 張表。**（2026-09-24 修訂，見下方）
 
 - `derived_metric_versions`、`derived_computation_runs`：預設即時計算，不存結果。
 - `derived_dataset_definitions`：改為程式常數（26-a 的 `DerivationDefinition`）。§42 的
   實作版本改為計算時回傳 git commit，登錄時間改看 git 歷史。
 - EPS 彙總、Q4 單季 EPS、還原股價（Step 25）都即時計算。
 - 某個指標實測太慢時，才由它自己的 step 以寬表實體化。
+
+### 2026-09-24 修訂：Step 26 的衍生資料存表、以最新的資料計算（owner 決定）
+
+取代上面「預設即時計算」對 Step 26 的適用；定義仍是程式常數，即時計算的技術指標改名 `technical_indicators_pit:v1`、仍即時計算。
+
+- **存表**：一個指標集一張寬表，key 為 `(stock_id, source, 日期)`，每個指標一欄，另有
+  `computed_at`。不逐列存 derivation version、git commit、lineage、hash 或 PIT context：定義
+  仍是程式常數，公式或程式改了就整張重算。
+  每張表在它的 step 裡各自檢討「需不需要、拿掉會損失什麼」。
+- **最新的資料、可覆寫**：沒有知識時間軸；輸入更正時重算受影響的日期並覆寫，不照其他 v2 表的
+  只新增規則。依據：`stockdc_backfill` 的日行情、法人、融資融券、借券、外資持股（各 260–287 萬個
+  key）、TDCC（692,660 週）、財報（42,417 份）沒有一個 key 有第二列（2026-09-24 量測），歷史上
+  最新值與 PIT 的結果相同。之後出現的更正，衍生值跟著最新值走；這是刻意的簡化，要對下游揭露。
+- **仍不用未來的資料**：日期 D 只用資料日期不晚於 D 的輸入；資料日期之後才公開的輸入依公開
+  時間對齊（`valuation_metrics:v1` 的財報，舊系統以法定期限對齊）。
+- **增量計算**：仿照舊系統，從上次算到的日期往後算，並從上次之後有新輸入列的最早日期往後重算，
+  都帶暖機緩衝；增量與整段重算必須一致。
+- **命名**：資料集名稱區分語意，冒號後只是公式版本。存表、最新值的是常態：`technical_indicators:v1`
+  與 Step 26 其他指標；PIT 的即時計算對照組加 `_pit`：`technical_indicators_pit:v1`（原
+  `technical_indicators:v1`，Step 35-c-4）。兩者公式相同，公式改了一起升版。
+- 還原股價（Step 36，原 Step 25）不在此修訂內，仍依 PIT 的公司行動計算。
 
 ## 遷移
 
