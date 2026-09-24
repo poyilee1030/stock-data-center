@@ -1,0 +1,7351 @@
+{
+"source": "legacy stock_db: institutional_investors trust_net/dealer_net and foreign_holding issued_shares (inputs), trust_holding / dealer_holding (expected); 2020; generated 2026-09-24 for Step 26-c. 6446 has no legacy foreign_holding row in 2020, so its ratios are NULL.",
+"securities": {
+"2330": [
+{
+"date": "2020-01-02",
+"trust_net": -179000,
+"dealer_net": -17000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -179000,
+"trust_cumulative_net_ratio": "-0.0007",
+"dealer_cumulative_net_shares": -17000,
+"dealer_cumulative_net_ratio": "-0.0001"
+},
+{
+"date": "2020-01-03",
+"trust_net": 197000,
+"dealer_net": -1108000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 18000,
+"trust_cumulative_net_ratio": "0.0001",
+"dealer_cumulative_net_shares": -1125000,
+"dealer_cumulative_net_ratio": "-0.0043"
+},
+{
+"date": "2020-01-06",
+"trust_net": -864000,
+"dealer_net": 822000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -846000,
+"trust_cumulative_net_ratio": "-0.0033",
+"dealer_cumulative_net_shares": -303000,
+"dealer_cumulative_net_ratio": "-0.0012"
+},
+{
+"date": "2020-01-07",
+"trust_net": -302000,
+"dealer_net": 631000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -1148000,
+"trust_cumulative_net_ratio": "-0.0044",
+"dealer_cumulative_net_shares": 328000,
+"dealer_cumulative_net_ratio": "0.0013"
+},
+{
+"date": "2020-01-08",
+"trust_net": -19000,
+"dealer_net": -423000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -1167000,
+"trust_cumulative_net_ratio": "-0.0045",
+"dealer_cumulative_net_shares": -95000,
+"dealer_cumulative_net_ratio": "-0.0004"
+},
+{
+"date": "2020-01-09",
+"trust_net": 60000,
+"dealer_net": -682000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -1107000,
+"trust_cumulative_net_ratio": "-0.0043",
+"dealer_cumulative_net_shares": -777000,
+"dealer_cumulative_net_ratio": "-0.0030"
+},
+{
+"date": "2020-01-10",
+"trust_net": -78000,
+"dealer_net": -879000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -1185000,
+"trust_cumulative_net_ratio": "-0.0046",
+"dealer_cumulative_net_shares": -1656000,
+"dealer_cumulative_net_ratio": "-0.0064"
+},
+{
+"date": "2020-01-13",
+"trust_net": -236000,
+"dealer_net": 140000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -1421000,
+"trust_cumulative_net_ratio": "-0.0055",
+"dealer_cumulative_net_shares": -1516000,
+"dealer_cumulative_net_ratio": "-0.0058"
+},
+{
+"date": "2020-01-14",
+"trust_net": -262000,
+"dealer_net": 714000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -1683000,
+"trust_cumulative_net_ratio": "-0.0065",
+"dealer_cumulative_net_shares": -802000,
+"dealer_cumulative_net_ratio": "-0.0031"
+},
+{
+"date": "2020-01-15",
+"trust_net": -935585,
+"dealer_net": -322990,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -2618585,
+"trust_cumulative_net_ratio": "-0.0101",
+"dealer_cumulative_net_shares": -1124990,
+"dealer_cumulative_net_ratio": "-0.0043"
+},
+{
+"date": "2020-01-16",
+"trust_net": -147000,
+"dealer_net": 2603000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -2765585,
+"trust_cumulative_net_ratio": "-0.0107",
+"dealer_cumulative_net_shares": 1478010,
+"dealer_cumulative_net_ratio": "0.0057"
+},
+{
+"date": "2020-01-17",
+"trust_net": -1277000,
+"dealer_net": 33000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -4042585,
+"trust_cumulative_net_ratio": "-0.0156",
+"dealer_cumulative_net_shares": 1511010,
+"dealer_cumulative_net_ratio": "0.0058"
+},
+{
+"date": "2020-01-20",
+"trust_net": -601000,
+"dealer_net": 1169000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -4643585,
+"trust_cumulative_net_ratio": "-0.0179",
+"dealer_cumulative_net_shares": 2680010,
+"dealer_cumulative_net_ratio": "0.0103"
+},
+{
+"date": "2020-01-30",
+"trust_net": -1955000,
+"dealer_net": -1955000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -6598585,
+"trust_cumulative_net_ratio": "-0.0254",
+"dealer_cumulative_net_shares": 725010,
+"dealer_cumulative_net_ratio": "0.0028"
+},
+{
+"date": "2020-01-31",
+"trust_net": -76000,
+"dealer_net": -402000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -6674585,
+"trust_cumulative_net_ratio": "-0.0257",
+"dealer_cumulative_net_shares": 323010,
+"dealer_cumulative_net_ratio": "0.0012"
+},
+{
+"date": "2020-02-03",
+"trust_net": 330000,
+"dealer_net": 1309000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -6344585,
+"trust_cumulative_net_ratio": "-0.0245",
+"dealer_cumulative_net_shares": 1632010,
+"dealer_cumulative_net_ratio": "0.0063"
+},
+{
+"date": "2020-02-04",
+"trust_net": -306000,
+"dealer_net": -1557994,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -6650585,
+"trust_cumulative_net_ratio": "-0.0256",
+"dealer_cumulative_net_shares": 74016,
+"dealer_cumulative_net_ratio": "0.0003"
+},
+{
+"date": "2020-02-05",
+"trust_net": -44000,
+"dealer_net": -1427000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -6694585,
+"trust_cumulative_net_ratio": "-0.0258",
+"dealer_cumulative_net_shares": -1352984,
+"dealer_cumulative_net_ratio": "-0.0052"
+},
+{
+"date": "2020-02-06",
+"trust_net": 29504,
+"dealer_net": 1274000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -6665081,
+"trust_cumulative_net_ratio": "-0.0257",
+"dealer_cumulative_net_shares": -78984,
+"dealer_cumulative_net_ratio": "-0.0003"
+},
+{
+"date": "2020-02-07",
+"trust_net": -145000,
+"dealer_net": 62000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -6810081,
+"trust_cumulative_net_ratio": "-0.0263",
+"dealer_cumulative_net_shares": -16984,
+"dealer_cumulative_net_ratio": "-0.0001"
+},
+{
+"date": "2020-02-10",
+"trust_net": -713000,
+"dealer_net": 427906,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -7523081,
+"trust_cumulative_net_ratio": "-0.0290",
+"dealer_cumulative_net_shares": 410922,
+"dealer_cumulative_net_ratio": "0.0016"
+},
+{
+"date": "2020-02-11",
+"trust_net": 24000,
+"dealer_net": -211000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -7499081,
+"trust_cumulative_net_ratio": "-0.0289",
+"dealer_cumulative_net_shares": 199922,
+"dealer_cumulative_net_ratio": "0.0008"
+},
+{
+"date": "2020-02-12",
+"trust_net": 11000,
+"dealer_net": 819000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -7488081,
+"trust_cumulative_net_ratio": "-0.0289",
+"dealer_cumulative_net_shares": 1018922,
+"dealer_cumulative_net_ratio": "0.0039"
+},
+{
+"date": "2020-02-13",
+"trust_net": -366000,
+"dealer_net": -1018986,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -7854081,
+"trust_cumulative_net_ratio": "-0.0303",
+"dealer_cumulative_net_shares": -64,
+"dealer_cumulative_net_ratio": "0.0000"
+},
+{
+"date": "2020-02-14",
+"trust_net": -80000,
+"dealer_net": -310000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -7934081,
+"trust_cumulative_net_ratio": "-0.0306",
+"dealer_cumulative_net_shares": -310064,
+"dealer_cumulative_net_ratio": "-0.0012"
+},
+{
+"date": "2020-02-17",
+"trust_net": -302000,
+"dealer_net": 52000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -8236081,
+"trust_cumulative_net_ratio": "-0.0318",
+"dealer_cumulative_net_shares": -258064,
+"dealer_cumulative_net_ratio": "-0.0010"
+},
+{
+"date": "2020-02-18",
+"trust_net": -554000,
+"dealer_net": 1448000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -8790081,
+"trust_cumulative_net_ratio": "-0.0339",
+"dealer_cumulative_net_shares": 1189936,
+"dealer_cumulative_net_ratio": "0.0046"
+},
+{
+"date": "2020-02-19",
+"trust_net": -64000,
+"dealer_net": 1858016,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -8854081,
+"trust_cumulative_net_ratio": "-0.0341",
+"dealer_cumulative_net_shares": 3047952,
+"dealer_cumulative_net_ratio": "0.0118"
+},
+{
+"date": "2020-02-20",
+"trust_net": -355000,
+"dealer_net": 250621,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -9209081,
+"trust_cumulative_net_ratio": "-0.0355",
+"dealer_cumulative_net_shares": 3298573,
+"dealer_cumulative_net_ratio": "0.0127"
+},
+{
+"date": "2020-02-21",
+"trust_net": -222000,
+"dealer_net": -622000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -9431081,
+"trust_cumulative_net_ratio": "-0.0364",
+"dealer_cumulative_net_shares": 2676573,
+"dealer_cumulative_net_ratio": "0.0103"
+},
+{
+"date": "2020-02-24",
+"trust_net": 231000,
+"dealer_net": 49025,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -9200081,
+"trust_cumulative_net_ratio": "-0.0355",
+"dealer_cumulative_net_shares": 2725598,
+"dealer_cumulative_net_ratio": "0.0105"
+},
+{
+"date": "2020-02-25",
+"trust_net": -117000,
+"dealer_net": 1144072,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -9317081,
+"trust_cumulative_net_ratio": "-0.0359",
+"dealer_cumulative_net_shares": 3869670,
+"dealer_cumulative_net_ratio": "0.0149"
+},
+{
+"date": "2020-02-26",
+"trust_net": 246000,
+"dealer_net": 391016,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -9071081,
+"trust_cumulative_net_ratio": "-0.0350",
+"dealer_cumulative_net_shares": 4260686,
+"dealer_cumulative_net_ratio": "0.0164"
+},
+{
+"date": "2020-02-27",
+"trust_net": 235000,
+"dealer_net": -444985,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -8836081,
+"trust_cumulative_net_ratio": "-0.0341",
+"dealer_cumulative_net_shares": 3815701,
+"dealer_cumulative_net_ratio": "0.0147"
+},
+{
+"date": "2020-03-02",
+"trust_net": 492000,
+"dealer_net": 2951000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -8344081,
+"trust_cumulative_net_ratio": "-0.0322",
+"dealer_cumulative_net_shares": 6766701,
+"dealer_cumulative_net_ratio": "0.0261"
+},
+{
+"date": "2020-03-03",
+"trust_net": -341000,
+"dealer_net": -975964,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -8685081,
+"trust_cumulative_net_ratio": "-0.0335",
+"dealer_cumulative_net_shares": 5790737,
+"dealer_cumulative_net_ratio": "0.0223"
+},
+{
+"date": "2020-03-04",
+"trust_net": 490000,
+"dealer_net": -1659000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -8195081,
+"trust_cumulative_net_ratio": "-0.0316",
+"dealer_cumulative_net_shares": 4131737,
+"dealer_cumulative_net_ratio": "0.0159"
+},
+{
+"date": "2020-03-05",
+"trust_net": -144000,
+"dealer_net": -746000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -8339081,
+"trust_cumulative_net_ratio": "-0.0322",
+"dealer_cumulative_net_shares": 3385737,
+"dealer_cumulative_net_ratio": "0.0131"
+},
+{
+"date": "2020-03-06",
+"trust_net": 31000,
+"dealer_net": -1183970,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -8308081,
+"trust_cumulative_net_ratio": "-0.0320",
+"dealer_cumulative_net_shares": 2201767,
+"dealer_cumulative_net_ratio": "0.0085"
+},
+{
+"date": "2020-03-09",
+"trust_net": 357000,
+"dealer_net": -2123748,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -7951081,
+"trust_cumulative_net_ratio": "-0.0307",
+"dealer_cumulative_net_shares": 78019,
+"dealer_cumulative_net_ratio": "0.0003"
+},
+{
+"date": "2020-03-10",
+"trust_net": 419000,
+"dealer_net": 1270000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -7532081,
+"trust_cumulative_net_ratio": "-0.0290",
+"dealer_cumulative_net_shares": 1348019,
+"dealer_cumulative_net_ratio": "0.0052"
+},
+{
+"date": "2020-03-11",
+"trust_net": 114576,
+"dealer_net": -4314986,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -7417505,
+"trust_cumulative_net_ratio": "-0.0286",
+"dealer_cumulative_net_shares": -2966967,
+"dealer_cumulative_net_ratio": "-0.0114"
+},
+{
+"date": "2020-03-12",
+"trust_net": -147000,
+"dealer_net": -3715995,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -7564505,
+"trust_cumulative_net_ratio": "-0.0292",
+"dealer_cumulative_net_shares": -6682962,
+"dealer_cumulative_net_ratio": "-0.0258"
+},
+{
+"date": "2020-03-13",
+"trust_net": 694000,
+"dealer_net": 1686000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -6870505,
+"trust_cumulative_net_ratio": "-0.0265",
+"dealer_cumulative_net_shares": -4996962,
+"dealer_cumulative_net_ratio": "-0.0193"
+},
+{
+"date": "2020-03-16",
+"trust_net": 175000,
+"dealer_net": -5213981,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -6695505,
+"trust_cumulative_net_ratio": "-0.0258",
+"dealer_cumulative_net_shares": -10210943,
+"dealer_cumulative_net_ratio": "-0.0394"
+},
+{
+"date": "2020-03-17",
+"trust_net": 458000,
+"dealer_net": -214000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -6237505,
+"trust_cumulative_net_ratio": "-0.0241",
+"dealer_cumulative_net_shares": -10424943,
+"dealer_cumulative_net_ratio": "-0.0402"
+},
+{
+"date": "2020-03-18",
+"trust_net": 502000,
+"dealer_net": -3879000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -5735505,
+"trust_cumulative_net_ratio": "-0.0221",
+"dealer_cumulative_net_shares": -14303943,
+"dealer_cumulative_net_ratio": "-0.0552"
+},
+{
+"date": "2020-03-19",
+"trust_net": 1413942,
+"dealer_net": -4529000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -4321563,
+"trust_cumulative_net_ratio": "-0.0167",
+"dealer_cumulative_net_shares": -18832943,
+"dealer_cumulative_net_ratio": "-0.0726"
+},
+{
+"date": "2020-03-20",
+"trust_net": 1587053,
+"dealer_net": -2250000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -2734510,
+"trust_cumulative_net_ratio": "-0.0105",
+"dealer_cumulative_net_shares": -21082943,
+"dealer_cumulative_net_ratio": "-0.0813"
+},
+{
+"date": "2020-03-23",
+"trust_net": 716000,
+"dealer_net": -1328968,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -2018510,
+"trust_cumulative_net_ratio": "-0.0078",
+"dealer_cumulative_net_shares": -22411911,
+"dealer_cumulative_net_ratio": "-0.0864"
+},
+{
+"date": "2020-03-24",
+"trust_net": -14000,
+"dealer_net": -404000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -2032510,
+"trust_cumulative_net_ratio": "-0.0078",
+"dealer_cumulative_net_shares": -22815911,
+"dealer_cumulative_net_ratio": "-0.0880"
+},
+{
+"date": "2020-03-25",
+"trust_net": 54000,
+"dealer_net": -3188000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -1978510,
+"trust_cumulative_net_ratio": "-0.0076",
+"dealer_cumulative_net_shares": -26003911,
+"dealer_cumulative_net_ratio": "-0.1003"
+},
+{
+"date": "2020-03-26",
+"trust_net": -11180,
+"dealer_net": -694000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -1989690,
+"trust_cumulative_net_ratio": "-0.0077",
+"dealer_cumulative_net_shares": -26697911,
+"dealer_cumulative_net_ratio": "-0.1030"
+},
+{
+"date": "2020-03-27",
+"trust_net": -452000,
+"dealer_net": -2113000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -2441690,
+"trust_cumulative_net_ratio": "-0.0094",
+"dealer_cumulative_net_shares": -28810911,
+"dealer_cumulative_net_ratio": "-0.1111"
+},
+{
+"date": "2020-03-30",
+"trust_net": -731000,
+"dealer_net": -11996,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -3172690,
+"trust_cumulative_net_ratio": "-0.0122",
+"dealer_cumulative_net_shares": -28822907,
+"dealer_cumulative_net_ratio": "-0.1112"
+},
+{
+"date": "2020-03-31",
+"trust_net": 208000,
+"dealer_net": -1587000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -2964690,
+"trust_cumulative_net_ratio": "-0.0114",
+"dealer_cumulative_net_shares": -30409907,
+"dealer_cumulative_net_ratio": "-0.1173"
+},
+{
+"date": "2020-04-01",
+"trust_net": 661000,
+"dealer_net": -1032500,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -2303690,
+"trust_cumulative_net_ratio": "-0.0089",
+"dealer_cumulative_net_shares": -31442407,
+"dealer_cumulative_net_ratio": "-0.1213"
+},
+{
+"date": "2020-04-06",
+"trust_net": -558000,
+"dealer_net": 1389000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -2861690,
+"trust_cumulative_net_ratio": "-0.0110",
+"dealer_cumulative_net_shares": -30053407,
+"dealer_cumulative_net_ratio": "-0.1159"
+},
+{
+"date": "2020-04-07",
+"trust_net": 205000,
+"dealer_net": -254000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -2656690,
+"trust_cumulative_net_ratio": "-0.0102",
+"dealer_cumulative_net_shares": -30307407,
+"dealer_cumulative_net_ratio": "-0.1169"
+},
+{
+"date": "2020-04-08",
+"trust_net": 1213000,
+"dealer_net": -1109000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -1443690,
+"trust_cumulative_net_ratio": "-0.0056",
+"dealer_cumulative_net_shares": -31416407,
+"dealer_cumulative_net_ratio": "-0.1212"
+},
+{
+"date": "2020-04-09",
+"trust_net": -123000,
+"dealer_net": -188000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -1566690,
+"trust_cumulative_net_ratio": "-0.0060",
+"dealer_cumulative_net_shares": -31604407,
+"dealer_cumulative_net_ratio": "-0.1219"
+},
+{
+"date": "2020-04-10",
+"trust_net": -542000,
+"dealer_net": 493000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -2108690,
+"trust_cumulative_net_ratio": "-0.0081",
+"dealer_cumulative_net_shares": -31111407,
+"dealer_cumulative_net_ratio": "-0.1200"
+},
+{
+"date": "2020-04-13",
+"trust_net": 39424,
+"dealer_net": -1194000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -2069266,
+"trust_cumulative_net_ratio": "-0.0080",
+"dealer_cumulative_net_shares": -32305407,
+"dealer_cumulative_net_ratio": "-0.1246"
+},
+{
+"date": "2020-04-14",
+"trust_net": 322000,
+"dealer_net": 945000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -1747266,
+"trust_cumulative_net_ratio": "-0.0067",
+"dealer_cumulative_net_shares": -31360407,
+"dealer_cumulative_net_ratio": "-0.1209"
+},
+{
+"date": "2020-04-15",
+"trust_net": 729000,
+"dealer_net": -2037000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -1018266,
+"trust_cumulative_net_ratio": "-0.0039",
+"dealer_cumulative_net_shares": -33397407,
+"dealer_cumulative_net_ratio": "-0.1288"
+},
+{
+"date": "2020-04-16",
+"trust_net": 301000,
+"dealer_net": -188000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -717266,
+"trust_cumulative_net_ratio": "-0.0028",
+"dealer_cumulative_net_shares": -33585407,
+"dealer_cumulative_net_ratio": "-0.1295"
+},
+{
+"date": "2020-04-17",
+"trust_net": 2427000,
+"dealer_net": -490000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 1709734,
+"trust_cumulative_net_ratio": "0.0066",
+"dealer_cumulative_net_shares": -34075407,
+"dealer_cumulative_net_ratio": "-0.1314"
+},
+{
+"date": "2020-04-20",
+"trust_net": -13000,
+"dealer_net": -613000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 1696734,
+"trust_cumulative_net_ratio": "0.0065",
+"dealer_cumulative_net_shares": -34688407,
+"dealer_cumulative_net_ratio": "-0.1338"
+},
+{
+"date": "2020-04-21",
+"trust_net": -282000,
+"dealer_net": -1675000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 1414734,
+"trust_cumulative_net_ratio": "0.0055",
+"dealer_cumulative_net_shares": -36363407,
+"dealer_cumulative_net_ratio": "-0.1402"
+},
+{
+"date": "2020-04-22",
+"trust_net": -323000,
+"dealer_net": -214000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 1091734,
+"trust_cumulative_net_ratio": "0.0042",
+"dealer_cumulative_net_shares": -36577407,
+"dealer_cumulative_net_ratio": "-0.1411"
+},
+{
+"date": "2020-04-23",
+"trust_net": -120000,
+"dealer_net": -387000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 971734,
+"trust_cumulative_net_ratio": "0.0037",
+"dealer_cumulative_net_shares": -36964407,
+"dealer_cumulative_net_ratio": "-0.1426"
+},
+{
+"date": "2020-04-24",
+"trust_net": 70000,
+"dealer_net": -101000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 1041734,
+"trust_cumulative_net_ratio": "0.0040",
+"dealer_cumulative_net_shares": -37065407,
+"dealer_cumulative_net_ratio": "-0.1429"
+},
+{
+"date": "2020-04-27",
+"trust_net": 132000,
+"dealer_net": 217000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 1173734,
+"trust_cumulative_net_ratio": "0.0045",
+"dealer_cumulative_net_shares": -36848407,
+"dealer_cumulative_net_ratio": "-0.1421"
+},
+{
+"date": "2020-04-28",
+"trust_net": -968000,
+"dealer_net": 335000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 205734,
+"trust_cumulative_net_ratio": "0.0008",
+"dealer_cumulative_net_shares": -36513407,
+"dealer_cumulative_net_ratio": "-0.1408"
+},
+{
+"date": "2020-04-29",
+"trust_net": 169000,
+"dealer_net": -1392000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 374734,
+"trust_cumulative_net_ratio": "0.0014",
+"dealer_cumulative_net_shares": -37905407,
+"dealer_cumulative_net_ratio": "-0.1462"
+},
+{
+"date": "2020-04-30",
+"trust_net": 1803000,
+"dealer_net": 628000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 2177734,
+"trust_cumulative_net_ratio": "0.0084",
+"dealer_cumulative_net_shares": -37277407,
+"dealer_cumulative_net_ratio": "-0.1438"
+},
+{
+"date": "2020-05-04",
+"trust_net": 453000,
+"dealer_net": -744000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 2630734,
+"trust_cumulative_net_ratio": "0.0101",
+"dealer_cumulative_net_shares": -38021407,
+"dealer_cumulative_net_ratio": "-0.1466"
+},
+{
+"date": "2020-05-05",
+"trust_net": 27978,
+"dealer_net": 34000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 2658712,
+"trust_cumulative_net_ratio": "0.0103",
+"dealer_cumulative_net_shares": -37987407,
+"dealer_cumulative_net_ratio": "-0.1465"
+},
+{
+"date": "2020-05-06",
+"trust_net": 360000,
+"dealer_net": -1276000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 3018712,
+"trust_cumulative_net_ratio": "0.0116",
+"dealer_cumulative_net_shares": -39263407,
+"dealer_cumulative_net_ratio": "-0.1514"
+},
+{
+"date": "2020-05-07",
+"trust_net": 141000,
+"dealer_net": 987000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 3159712,
+"trust_cumulative_net_ratio": "0.0122",
+"dealer_cumulative_net_shares": -38276407,
+"dealer_cumulative_net_ratio": "-0.1476"
+},
+{
+"date": "2020-05-08",
+"trust_net": -51000,
+"dealer_net": 476000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 3108712,
+"trust_cumulative_net_ratio": "0.0120",
+"dealer_cumulative_net_shares": -37800407,
+"dealer_cumulative_net_ratio": "-0.1458"
+},
+{
+"date": "2020-05-11",
+"trust_net": 465000,
+"dealer_net": 567000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 3573712,
+"trust_cumulative_net_ratio": "0.0138",
+"dealer_cumulative_net_shares": -37233407,
+"dealer_cumulative_net_ratio": "-0.1436"
+},
+{
+"date": "2020-05-12",
+"trust_net": 178000,
+"dealer_net": 179007,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 3751712,
+"trust_cumulative_net_ratio": "0.0145",
+"dealer_cumulative_net_shares": -37054400,
+"dealer_cumulative_net_ratio": "-0.1429"
+},
+{
+"date": "2020-05-13",
+"trust_net": 718000,
+"dealer_net": -88990,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 4469712,
+"trust_cumulative_net_ratio": "0.0172",
+"dealer_cumulative_net_shares": -37143390,
+"dealer_cumulative_net_ratio": "-0.1432"
+},
+{
+"date": "2020-05-14",
+"trust_net": 451000,
+"dealer_net": 43001,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 4920712,
+"trust_cumulative_net_ratio": "0.0190",
+"dealer_cumulative_net_shares": -37100389,
+"dealer_cumulative_net_ratio": "-0.1431"
+},
+{
+"date": "2020-05-15",
+"trust_net": 933000,
+"dealer_net": 120000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 5853712,
+"trust_cumulative_net_ratio": "0.0226",
+"dealer_cumulative_net_shares": -36980389,
+"dealer_cumulative_net_ratio": "-0.1426"
+},
+{
+"date": "2020-05-18",
+"trust_net": -245000,
+"dealer_net": -289990,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 5608712,
+"trust_cumulative_net_ratio": "0.0216",
+"dealer_cumulative_net_shares": -37270379,
+"dealer_cumulative_net_ratio": "-0.1437"
+},
+{
+"date": "2020-05-19",
+"trust_net": 1171000,
+"dealer_net": 160014,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 6779712,
+"trust_cumulative_net_ratio": "0.0261",
+"dealer_cumulative_net_shares": -37110365,
+"dealer_cumulative_net_ratio": "-0.1431"
+},
+{
+"date": "2020-05-20",
+"trust_net": 150000,
+"dealer_net": 122007,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 6929712,
+"trust_cumulative_net_ratio": "0.0267",
+"dealer_cumulative_net_shares": -36988358,
+"dealer_cumulative_net_ratio": "-0.1426"
+},
+{
+"date": "2020-05-21",
+"trust_net": 166000,
+"dealer_net": 808000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 7095712,
+"trust_cumulative_net_ratio": "0.0274",
+"dealer_cumulative_net_shares": -36180358,
+"dealer_cumulative_net_ratio": "-0.1395"
+},
+{
+"date": "2020-05-22",
+"trust_net": 104000,
+"dealer_net": 97000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 7199712,
+"trust_cumulative_net_ratio": "0.0278",
+"dealer_cumulative_net_shares": -36083358,
+"dealer_cumulative_net_ratio": "-0.1392"
+},
+{
+"date": "2020-05-25",
+"trust_net": -41805,
+"dealer_net": 369000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 7157907,
+"trust_cumulative_net_ratio": "0.0276",
+"dealer_cumulative_net_shares": -35714358,
+"dealer_cumulative_net_ratio": "-0.1377"
+},
+{
+"date": "2020-05-26",
+"trust_net": 719000,
+"dealer_net": 199000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 7876907,
+"trust_cumulative_net_ratio": "0.0304",
+"dealer_cumulative_net_shares": -35515358,
+"dealer_cumulative_net_ratio": "-0.1370"
+},
+{
+"date": "2020-05-27",
+"trust_net": -173000,
+"dealer_net": -85000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 7703907,
+"trust_cumulative_net_ratio": "0.0297",
+"dealer_cumulative_net_shares": -35600358,
+"dealer_cumulative_net_ratio": "-0.1373"
+},
+{
+"date": "2020-05-28",
+"trust_net": -439000,
+"dealer_net": 526000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 7264907,
+"trust_cumulative_net_ratio": "0.0280",
+"dealer_cumulative_net_shares": -35074358,
+"dealer_cumulative_net_ratio": "-0.1353"
+},
+{
+"date": "2020-05-29",
+"trust_net": -254000,
+"dealer_net": 1685000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 7010907,
+"trust_cumulative_net_ratio": "0.0270",
+"dealer_cumulative_net_shares": -33389358,
+"dealer_cumulative_net_ratio": "-0.1288"
+},
+{
+"date": "2020-06-01",
+"trust_net": -13000,
+"dealer_net": 145000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 6997907,
+"trust_cumulative_net_ratio": "0.0270",
+"dealer_cumulative_net_shares": -33244358,
+"dealer_cumulative_net_ratio": "-0.1282"
+},
+{
+"date": "2020-06-02",
+"trust_net": 208000,
+"dealer_net": 84000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 7205907,
+"trust_cumulative_net_ratio": "0.0278",
+"dealer_cumulative_net_shares": -33160358,
+"dealer_cumulative_net_ratio": "-0.1279"
+},
+{
+"date": "2020-06-03",
+"trust_net": 376000,
+"dealer_net": 4470000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 7581907,
+"trust_cumulative_net_ratio": "0.0292",
+"dealer_cumulative_net_shares": -28690358,
+"dealer_cumulative_net_ratio": "-0.1106"
+},
+{
+"date": "2020-06-04",
+"trust_net": 405000,
+"dealer_net": 467000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 7986907,
+"trust_cumulative_net_ratio": "0.0308",
+"dealer_cumulative_net_shares": -28223358,
+"dealer_cumulative_net_ratio": "-0.1088"
+},
+{
+"date": "2020-06-05",
+"trust_net": 286000,
+"dealer_net": 768000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 8272907,
+"trust_cumulative_net_ratio": "0.0319",
+"dealer_cumulative_net_shares": -27455358,
+"dealer_cumulative_net_ratio": "-0.1059"
+},
+{
+"date": "2020-06-08",
+"trust_net": 1572000,
+"dealer_net": -94000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 9844907,
+"trust_cumulative_net_ratio": "0.0380",
+"dealer_cumulative_net_shares": -27549358,
+"dealer_cumulative_net_ratio": "-0.1062"
+},
+{
+"date": "2020-06-09",
+"trust_net": -363000,
+"dealer_net": -272000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 9481907,
+"trust_cumulative_net_ratio": "0.0366",
+"dealer_cumulative_net_shares": -27821358,
+"dealer_cumulative_net_ratio": "-0.1073"
+},
+{
+"date": "2020-06-10",
+"trust_net": -536000,
+"dealer_net": 705997,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 8945907,
+"trust_cumulative_net_ratio": "0.0345",
+"dealer_cumulative_net_shares": -27115361,
+"dealer_cumulative_net_ratio": "-0.1046"
+},
+{
+"date": "2020-06-11",
+"trust_net": -146000,
+"dealer_net": -1404000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 8799907,
+"trust_cumulative_net_ratio": "0.0339",
+"dealer_cumulative_net_shares": -28519361,
+"dealer_cumulative_net_ratio": "-0.1100"
+},
+{
+"date": "2020-06-12",
+"trust_net": -39000,
+"dealer_net": 958000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 8760907,
+"trust_cumulative_net_ratio": "0.0338",
+"dealer_cumulative_net_shares": -27561361,
+"dealer_cumulative_net_ratio": "-0.1063"
+},
+{
+"date": "2020-06-15",
+"trust_net": 385000,
+"dealer_net": -276980,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 9145907,
+"trust_cumulative_net_ratio": "0.0353",
+"dealer_cumulative_net_shares": -27838341,
+"dealer_cumulative_net_ratio": "-0.1074"
+},
+{
+"date": "2020-06-16",
+"trust_net": -97194,
+"dealer_net": 1477000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 9048713,
+"trust_cumulative_net_ratio": "0.0349",
+"dealer_cumulative_net_shares": -26361341,
+"dealer_cumulative_net_ratio": "-0.1017"
+},
+{
+"date": "2020-06-17",
+"trust_net": -18000,
+"dealer_net": -666000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 9030713,
+"trust_cumulative_net_ratio": "0.0348",
+"dealer_cumulative_net_shares": -27027341,
+"dealer_cumulative_net_ratio": "-0.1042"
+},
+{
+"date": "2020-06-18",
+"trust_net": -33000,
+"dealer_net": -2376000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 8997713,
+"trust_cumulative_net_ratio": "0.0347",
+"dealer_cumulative_net_shares": -29403341,
+"dealer_cumulative_net_ratio": "-0.1134"
+},
+{
+"date": "2020-06-19",
+"trust_net": -265000,
+"dealer_net": -1012000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 8732713,
+"trust_cumulative_net_ratio": "0.0337",
+"dealer_cumulative_net_shares": -30415341,
+"dealer_cumulative_net_ratio": "-0.1173"
+},
+{
+"date": "2020-06-22",
+"trust_net": -140000,
+"dealer_net": 76000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 8592713,
+"trust_cumulative_net_ratio": "0.0331",
+"dealer_cumulative_net_shares": -30339341,
+"dealer_cumulative_net_ratio": "-0.1170"
+},
+{
+"date": "2020-06-23",
+"trust_net": 491000,
+"dealer_net": 196000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 9083713,
+"trust_cumulative_net_ratio": "0.0350",
+"dealer_cumulative_net_shares": -30143341,
+"dealer_cumulative_net_ratio": "-0.1162"
+},
+{
+"date": "2020-06-24",
+"trust_net": -167000,
+"dealer_net": 716000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 8916713,
+"trust_cumulative_net_ratio": "0.0344",
+"dealer_cumulative_net_shares": -29427341,
+"dealer_cumulative_net_ratio": "-0.1135"
+},
+{
+"date": "2020-06-29",
+"trust_net": 760000,
+"dealer_net": -333000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 9676713,
+"trust_cumulative_net_ratio": "0.0373",
+"dealer_cumulative_net_shares": -29760341,
+"dealer_cumulative_net_ratio": "-0.1148"
+},
+{
+"date": "2020-06-30",
+"trust_net": -115000,
+"dealer_net": 503005,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 9561713,
+"trust_cumulative_net_ratio": "0.0369",
+"dealer_cumulative_net_shares": -29257336,
+"dealer_cumulative_net_ratio": "-0.1128"
+},
+{
+"date": "2020-07-01",
+"trust_net": 122000,
+"dealer_net": -389000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 9683713,
+"trust_cumulative_net_ratio": "0.0373",
+"dealer_cumulative_net_shares": -29646336,
+"dealer_cumulative_net_ratio": "-0.1143"
+},
+{
+"date": "2020-07-02",
+"trust_net": 472000,
+"dealer_net": 100000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 10155713,
+"trust_cumulative_net_ratio": "0.0392",
+"dealer_cumulative_net_shares": -29546336,
+"dealer_cumulative_net_ratio": "-0.1139"
+},
+{
+"date": "2020-07-03",
+"trust_net": 3316000,
+"dealer_net": -354000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 13471713,
+"trust_cumulative_net_ratio": "0.0520",
+"dealer_cumulative_net_shares": -29900336,
+"dealer_cumulative_net_ratio": "-0.1153"
+},
+{
+"date": "2020-07-06",
+"trust_net": -8000,
+"dealer_net": 945000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 13463713,
+"trust_cumulative_net_ratio": "0.0519",
+"dealer_cumulative_net_shares": -28955336,
+"dealer_cumulative_net_ratio": "-0.1117"
+},
+{
+"date": "2020-07-07",
+"trust_net": -204000,
+"dealer_net": 73000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 13259713,
+"trust_cumulative_net_ratio": "0.0511",
+"dealer_cumulative_net_shares": -28882336,
+"dealer_cumulative_net_ratio": "-0.1114"
+},
+{
+"date": "2020-07-08",
+"trust_net": -81000,
+"dealer_net": 1096000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 13178713,
+"trust_cumulative_net_ratio": "0.0508",
+"dealer_cumulative_net_shares": -27786336,
+"dealer_cumulative_net_ratio": "-0.1072"
+},
+{
+"date": "2020-07-09",
+"trust_net": 86000,
+"dealer_net": 136000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 13264713,
+"trust_cumulative_net_ratio": "0.0512",
+"dealer_cumulative_net_shares": -27650336,
+"dealer_cumulative_net_ratio": "-0.1066"
+},
+{
+"date": "2020-07-10",
+"trust_net": 24676,
+"dealer_net": -129000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 13289389,
+"trust_cumulative_net_ratio": "0.0513",
+"dealer_cumulative_net_shares": -27779336,
+"dealer_cumulative_net_ratio": "-0.1071"
+},
+{
+"date": "2020-07-13",
+"trust_net": -390500,
+"dealer_net": 576000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 12898889,
+"trust_cumulative_net_ratio": "0.0497",
+"dealer_cumulative_net_shares": -27203336,
+"dealer_cumulative_net_ratio": "-0.1049"
+},
+{
+"date": "2020-07-14",
+"trust_net": -373000,
+"dealer_net": 997000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 12525889,
+"trust_cumulative_net_ratio": "0.0483",
+"dealer_cumulative_net_shares": -26206336,
+"dealer_cumulative_net_ratio": "-0.1011"
+},
+{
+"date": "2020-07-15",
+"trust_net": -483356,
+"dealer_net": -560000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 12042533,
+"trust_cumulative_net_ratio": "0.0464",
+"dealer_cumulative_net_shares": -26766336,
+"dealer_cumulative_net_ratio": "-0.1032"
+},
+{
+"date": "2020-07-16",
+"trust_net": -1000,
+"dealer_net": 929000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 12041533,
+"trust_cumulative_net_ratio": "0.0464",
+"dealer_cumulative_net_shares": -25837336,
+"dealer_cumulative_net_ratio": "-0.0996"
+},
+{
+"date": "2020-07-17",
+"trust_net": 682000,
+"dealer_net": -2311000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 12723533,
+"trust_cumulative_net_ratio": "0.0491",
+"dealer_cumulative_net_shares": -28148336,
+"dealer_cumulative_net_ratio": "-0.1086"
+},
+{
+"date": "2020-07-20",
+"trust_net": -1149000,
+"dealer_net": -844000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 11574533,
+"trust_cumulative_net_ratio": "0.0446",
+"dealer_cumulative_net_shares": -28992336,
+"dealer_cumulative_net_ratio": "-0.1118"
+},
+{
+"date": "2020-07-21",
+"trust_net": -370000,
+"dealer_net": -955000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 11204533,
+"trust_cumulative_net_ratio": "0.0432",
+"dealer_cumulative_net_shares": -29947336,
+"dealer_cumulative_net_ratio": "-0.1155"
+},
+{
+"date": "2020-07-22",
+"trust_net": -611000,
+"dealer_net": -605000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 10593533,
+"trust_cumulative_net_ratio": "0.0409",
+"dealer_cumulative_net_shares": -30552336,
+"dealer_cumulative_net_ratio": "-0.1178"
+},
+{
+"date": "2020-07-23",
+"trust_net": -121000,
+"dealer_net": -495000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 10472533,
+"trust_cumulative_net_ratio": "0.0404",
+"dealer_cumulative_net_shares": -31047336,
+"dealer_cumulative_net_ratio": "-0.1197"
+},
+{
+"date": "2020-07-24",
+"trust_net": 50000,
+"dealer_net": -1819985,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 10522533,
+"trust_cumulative_net_ratio": "0.0406",
+"dealer_cumulative_net_shares": -32867321,
+"dealer_cumulative_net_ratio": "-0.1268"
+},
+{
+"date": "2020-07-27",
+"trust_net": -1554369,
+"dealer_net": 864987,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 8968164,
+"trust_cumulative_net_ratio": "0.0346",
+"dealer_cumulative_net_shares": -32002334,
+"dealer_cumulative_net_ratio": "-0.1234"
+},
+{
+"date": "2020-07-28",
+"trust_net": -1528000,
+"dealer_net": -124008,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 7440164,
+"trust_cumulative_net_ratio": "0.0287",
+"dealer_cumulative_net_shares": -32126342,
+"dealer_cumulative_net_ratio": "-0.1239"
+},
+{
+"date": "2020-07-29",
+"trust_net": -1767300,
+"dealer_net": -1690000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 5672864,
+"trust_cumulative_net_ratio": "0.0219",
+"dealer_cumulative_net_shares": -33816342,
+"dealer_cumulative_net_ratio": "-0.1304"
+},
+{
+"date": "2020-07-30",
+"trust_net": -290000,
+"dealer_net": 574000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 5382864,
+"trust_cumulative_net_ratio": "0.0208",
+"dealer_cumulative_net_shares": -33242342,
+"dealer_cumulative_net_ratio": "-0.1282"
+},
+{
+"date": "2020-07-31",
+"trust_net": -242000,
+"dealer_net": 962000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 5140864,
+"trust_cumulative_net_ratio": "0.0198",
+"dealer_cumulative_net_shares": -32280342,
+"dealer_cumulative_net_ratio": "-0.1245"
+},
+{
+"date": "2020-08-03",
+"trust_net": -122000,
+"dealer_net": 327000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 5018864,
+"trust_cumulative_net_ratio": "0.0194",
+"dealer_cumulative_net_shares": -31953342,
+"dealer_cumulative_net_ratio": "-0.1232"
+},
+{
+"date": "2020-08-04",
+"trust_net": 66000,
+"dealer_net": -175000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 5084864,
+"trust_cumulative_net_ratio": "0.0196",
+"dealer_cumulative_net_shares": -32128342,
+"dealer_cumulative_net_ratio": "-0.1239"
+},
+{
+"date": "2020-08-05",
+"trust_net": 114628,
+"dealer_net": -159000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 5199492,
+"trust_cumulative_net_ratio": "0.0201",
+"dealer_cumulative_net_shares": -32287342,
+"dealer_cumulative_net_ratio": "-0.1245"
+},
+{
+"date": "2020-08-06",
+"trust_net": 62000,
+"dealer_net": 130000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 5261492,
+"trust_cumulative_net_ratio": "0.0203",
+"dealer_cumulative_net_shares": -32157342,
+"dealer_cumulative_net_ratio": "-0.1240"
+},
+{
+"date": "2020-08-07",
+"trust_net": 65000,
+"dealer_net": -307000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 5326492,
+"trust_cumulative_net_ratio": "0.0205",
+"dealer_cumulative_net_shares": -32464342,
+"dealer_cumulative_net_ratio": "-0.1252"
+},
+{
+"date": "2020-08-10",
+"trust_net": 105000,
+"dealer_net": 412000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 5431492,
+"trust_cumulative_net_ratio": "0.0209",
+"dealer_cumulative_net_shares": -32052342,
+"dealer_cumulative_net_ratio": "-0.1236"
+},
+{
+"date": "2020-08-11",
+"trust_net": 82000,
+"dealer_net": -179000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 5513492,
+"trust_cumulative_net_ratio": "0.0213",
+"dealer_cumulative_net_shares": -32231342,
+"dealer_cumulative_net_ratio": "-0.1243"
+},
+{
+"date": "2020-08-12",
+"trust_net": 254000,
+"dealer_net": -1686000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 5767492,
+"trust_cumulative_net_ratio": "0.0222",
+"dealer_cumulative_net_shares": -33917342,
+"dealer_cumulative_net_ratio": "-0.1308"
+},
+{
+"date": "2020-08-13",
+"trust_net": 550000,
+"dealer_net": -856000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 6317492,
+"trust_cumulative_net_ratio": "0.0244",
+"dealer_cumulative_net_shares": -34773342,
+"dealer_cumulative_net_ratio": "-0.1341"
+},
+{
+"date": "2020-08-14",
+"trust_net": -192000,
+"dealer_net": 155000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 6125492,
+"trust_cumulative_net_ratio": "0.0236",
+"dealer_cumulative_net_shares": -34618342,
+"dealer_cumulative_net_ratio": "-0.1335"
+},
+{
+"date": "2020-08-17",
+"trust_net": 162000,
+"dealer_net": 1348000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 6287492,
+"trust_cumulative_net_ratio": "0.0242",
+"dealer_cumulative_net_shares": -33270342,
+"dealer_cumulative_net_ratio": "-0.1283"
+},
+{
+"date": "2020-08-18",
+"trust_net": 88000,
+"dealer_net": -95000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 6375492,
+"trust_cumulative_net_ratio": "0.0246",
+"dealer_cumulative_net_shares": -33365342,
+"dealer_cumulative_net_ratio": "-0.1287"
+},
+{
+"date": "2020-08-19",
+"trust_net": 100418,
+"dealer_net": -57000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 6475910,
+"trust_cumulative_net_ratio": "0.0250",
+"dealer_cumulative_net_shares": -33422342,
+"dealer_cumulative_net_ratio": "-0.1289"
+},
+{
+"date": "2020-08-20",
+"trust_net": -594000,
+"dealer_net": -1647000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 5881910,
+"trust_cumulative_net_ratio": "0.0227",
+"dealer_cumulative_net_shares": -35069342,
+"dealer_cumulative_net_ratio": "-0.1352"
+},
+{
+"date": "2020-08-21",
+"trust_net": 200000,
+"dealer_net": -132000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 6081910,
+"trust_cumulative_net_ratio": "0.0235",
+"dealer_cumulative_net_shares": -35201342,
+"dealer_cumulative_net_ratio": "-0.1358"
+},
+{
+"date": "2020-08-24",
+"trust_net": 102907,
+"dealer_net": 921000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 6184817,
+"trust_cumulative_net_ratio": "0.0239",
+"dealer_cumulative_net_shares": -34280342,
+"dealer_cumulative_net_ratio": "-0.1322"
+},
+{
+"date": "2020-08-25",
+"trust_net": 19000,
+"dealer_net": 274000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 6203817,
+"trust_cumulative_net_ratio": "0.0239",
+"dealer_cumulative_net_shares": -34006342,
+"dealer_cumulative_net_ratio": "-0.1311"
+},
+{
+"date": "2020-08-26",
+"trust_net": -140582,
+"dealer_net": 491000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 6063235,
+"trust_cumulative_net_ratio": "0.0234",
+"dealer_cumulative_net_shares": -33515342,
+"dealer_cumulative_net_ratio": "-0.1293"
+},
+{
+"date": "2020-08-27",
+"trust_net": 156000,
+"dealer_net": -605000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 6219235,
+"trust_cumulative_net_ratio": "0.0240",
+"dealer_cumulative_net_shares": -34120342,
+"dealer_cumulative_net_ratio": "-0.1316"
+},
+{
+"date": "2020-08-28",
+"trust_net": 162000,
+"dealer_net": 670000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 6381235,
+"trust_cumulative_net_ratio": "0.0246",
+"dealer_cumulative_net_shares": -33450342,
+"dealer_cumulative_net_ratio": "-0.1290"
+},
+{
+"date": "2020-08-31",
+"trust_net": 97470,
+"dealer_net": 137000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 6478705,
+"trust_cumulative_net_ratio": "0.0250",
+"dealer_cumulative_net_shares": -33313342,
+"dealer_cumulative_net_ratio": "-0.1285"
+},
+{
+"date": "2020-09-01",
+"trust_net": -290841,
+"dealer_net": -463000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 6187864,
+"trust_cumulative_net_ratio": "0.0239",
+"dealer_cumulative_net_shares": -33776342,
+"dealer_cumulative_net_ratio": "-0.1303"
+},
+{
+"date": "2020-09-02",
+"trust_net": 132000,
+"dealer_net": -145000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 6319864,
+"trust_cumulative_net_ratio": "0.0244",
+"dealer_cumulative_net_shares": -33921342,
+"dealer_cumulative_net_ratio": "-0.1308"
+},
+{
+"date": "2020-09-03",
+"trust_net": -1574419,
+"dealer_net": -241000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 4745445,
+"trust_cumulative_net_ratio": "0.0183",
+"dealer_cumulative_net_shares": -34162342,
+"dealer_cumulative_net_ratio": "-0.1317"
+},
+{
+"date": "2020-09-04",
+"trust_net": -15000,
+"dealer_net": 530000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 4730445,
+"trust_cumulative_net_ratio": "0.0182",
+"dealer_cumulative_net_shares": -33632342,
+"dealer_cumulative_net_ratio": "-0.1297"
+},
+{
+"date": "2020-09-07",
+"trust_net": 178000,
+"dealer_net": 86000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 4908445,
+"trust_cumulative_net_ratio": "0.0189",
+"dealer_cumulative_net_shares": -33546342,
+"dealer_cumulative_net_ratio": "-0.1294"
+},
+{
+"date": "2020-09-08",
+"trust_net": 56424,
+"dealer_net": -241000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 4964869,
+"trust_cumulative_net_ratio": "0.0191",
+"dealer_cumulative_net_shares": -33787342,
+"dealer_cumulative_net_ratio": "-0.1303"
+},
+{
+"date": "2020-09-09",
+"trust_net": 4000,
+"dealer_net": 70000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 4968869,
+"trust_cumulative_net_ratio": "0.0192",
+"dealer_cumulative_net_shares": -33717342,
+"dealer_cumulative_net_ratio": "-0.1300"
+},
+{
+"date": "2020-09-10",
+"trust_net": 226000,
+"dealer_net": -435000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 5194869,
+"trust_cumulative_net_ratio": "0.0200",
+"dealer_cumulative_net_shares": -34152342,
+"dealer_cumulative_net_ratio": "-0.1317"
+},
+{
+"date": "2020-09-11",
+"trust_net": 298000,
+"dealer_net": -368000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 5492869,
+"trust_cumulative_net_ratio": "0.0212",
+"dealer_cumulative_net_shares": -34520342,
+"dealer_cumulative_net_ratio": "-0.1331"
+},
+{
+"date": "2020-09-14",
+"trust_net": 192000,
+"dealer_net": 385000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 5684869,
+"trust_cumulative_net_ratio": "0.0219",
+"dealer_cumulative_net_shares": -34135342,
+"dealer_cumulative_net_ratio": "-0.1316"
+},
+{
+"date": "2020-09-15",
+"trust_net": -129585,
+"dealer_net": 522000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 5555284,
+"trust_cumulative_net_ratio": "0.0214",
+"dealer_cumulative_net_shares": -33613342,
+"dealer_cumulative_net_ratio": "-0.1296"
+},
+{
+"date": "2020-09-16",
+"trust_net": 382000,
+"dealer_net": 234000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 5937284,
+"trust_cumulative_net_ratio": "0.0229",
+"dealer_cumulative_net_shares": -33379342,
+"dealer_cumulative_net_ratio": "-0.1287"
+},
+{
+"date": "2020-09-17",
+"trust_net": -1193482,
+"dealer_net": -1186000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 4743802,
+"trust_cumulative_net_ratio": "0.0183",
+"dealer_cumulative_net_shares": -34565342,
+"dealer_cumulative_net_ratio": "-0.1333"
+},
+{
+"date": "2020-09-18",
+"trust_net": -638000,
+"dealer_net": 307000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 4105802,
+"trust_cumulative_net_ratio": "0.0158",
+"dealer_cumulative_net_shares": -34258342,
+"dealer_cumulative_net_ratio": "-0.1321"
+},
+{
+"date": "2020-09-21",
+"trust_net": -871242,
+"dealer_net": -2173984,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 3234560,
+"trust_cumulative_net_ratio": "0.0125",
+"dealer_cumulative_net_shares": -36432326,
+"dealer_cumulative_net_ratio": "-0.1405"
+},
+{
+"date": "2020-09-22",
+"trust_net": -746435,
+"dealer_net": -1646985,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 2488125,
+"trust_cumulative_net_ratio": "0.0096",
+"dealer_cumulative_net_shares": -38079311,
+"dealer_cumulative_net_ratio": "-0.1469"
+},
+{
+"date": "2020-09-23",
+"trust_net": -3349227,
+"dealer_net": -2397975,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -861102,
+"trust_cumulative_net_ratio": "-0.0033",
+"dealer_cumulative_net_shares": -40477286,
+"dealer_cumulative_net_ratio": "-0.1561"
+},
+{
+"date": "2020-09-24",
+"trust_net": 279000,
+"dealer_net": -624000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -582102,
+"trust_cumulative_net_ratio": "-0.0022",
+"dealer_cumulative_net_shares": -41101286,
+"dealer_cumulative_net_ratio": "-0.1585"
+},
+{
+"date": "2020-09-25",
+"trust_net": -392000,
+"dealer_net": -1226000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -974102,
+"trust_cumulative_net_ratio": "-0.0038",
+"dealer_cumulative_net_shares": -42327286,
+"dealer_cumulative_net_ratio": "-0.1632"
+},
+{
+"date": "2020-09-28",
+"trust_net": 365000,
+"dealer_net": -23000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -609102,
+"trust_cumulative_net_ratio": "-0.0023",
+"dealer_cumulative_net_shares": -42350286,
+"dealer_cumulative_net_ratio": "-0.1633"
+},
+{
+"date": "2020-09-29",
+"trust_net": 47000,
+"dealer_net": -46000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -562102,
+"trust_cumulative_net_ratio": "-0.0022",
+"dealer_cumulative_net_shares": -42396286,
+"dealer_cumulative_net_ratio": "-0.1635"
+},
+{
+"date": "2020-09-30",
+"trust_net": 43000,
+"dealer_net": 236010,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -519102,
+"trust_cumulative_net_ratio": "-0.0020",
+"dealer_cumulative_net_shares": -42160276,
+"dealer_cumulative_net_ratio": "-0.1626"
+},
+{
+"date": "2020-10-05",
+"trust_net": 10000,
+"dealer_net": 1123000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -509102,
+"trust_cumulative_net_ratio": "-0.0020",
+"dealer_cumulative_net_shares": -41037276,
+"dealer_cumulative_net_ratio": "-0.1583"
+},
+{
+"date": "2020-10-06",
+"trust_net": 96000,
+"dealer_net": -102000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -413102,
+"trust_cumulative_net_ratio": "-0.0016",
+"dealer_cumulative_net_shares": -41139276,
+"dealer_cumulative_net_ratio": "-0.1587"
+},
+{
+"date": "2020-10-07",
+"trust_net": 20000,
+"dealer_net": 324000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -393102,
+"trust_cumulative_net_ratio": "-0.0015",
+"dealer_cumulative_net_shares": -40815276,
+"dealer_cumulative_net_ratio": "-0.1574"
+},
+{
+"date": "2020-10-08",
+"trust_net": 601000,
+"dealer_net": 134000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 207898,
+"trust_cumulative_net_ratio": "0.0008",
+"dealer_cumulative_net_shares": -40681276,
+"dealer_cumulative_net_ratio": "-0.1569"
+},
+{
+"date": "2020-10-12",
+"trust_net": 44000,
+"dealer_net": -92000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 251898,
+"trust_cumulative_net_ratio": "0.0010",
+"dealer_cumulative_net_shares": -40773276,
+"dealer_cumulative_net_ratio": "-0.1572"
+},
+{
+"date": "2020-10-13",
+"trust_net": 340000,
+"dealer_net": -219000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 591898,
+"trust_cumulative_net_ratio": "0.0023",
+"dealer_cumulative_net_shares": -40992276,
+"dealer_cumulative_net_ratio": "-0.1581"
+},
+{
+"date": "2020-10-14",
+"trust_net": 229000,
+"dealer_net": -636000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 820898,
+"trust_cumulative_net_ratio": "0.0032",
+"dealer_cumulative_net_shares": -41628276,
+"dealer_cumulative_net_ratio": "-0.1605"
+},
+{
+"date": "2020-10-15",
+"trust_net": 124000,
+"dealer_net": -272000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 944898,
+"trust_cumulative_net_ratio": "0.0036",
+"dealer_cumulative_net_shares": -41900276,
+"dealer_cumulative_net_ratio": "-0.1616"
+},
+{
+"date": "2020-10-16",
+"trust_net": -367000,
+"dealer_net": -1307995,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 577898,
+"trust_cumulative_net_ratio": "0.0022",
+"dealer_cumulative_net_shares": -43208271,
+"dealer_cumulative_net_ratio": "-0.1666"
+},
+{
+"date": "2020-10-19",
+"trust_net": -139000,
+"dealer_net": -1239000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 438898,
+"trust_cumulative_net_ratio": "0.0017",
+"dealer_cumulative_net_shares": -44447271,
+"dealer_cumulative_net_ratio": "-0.1714"
+},
+{
+"date": "2020-10-20",
+"trust_net": -123000,
+"dealer_net": -407000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 315898,
+"trust_cumulative_net_ratio": "0.0012",
+"dealer_cumulative_net_shares": -44854271,
+"dealer_cumulative_net_ratio": "-0.1730"
+},
+{
+"date": "2020-10-21",
+"trust_net": -48000,
+"dealer_net": -3908000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 267898,
+"trust_cumulative_net_ratio": "0.0010",
+"dealer_cumulative_net_shares": -48762271,
+"dealer_cumulative_net_ratio": "-0.1881"
+},
+{
+"date": "2020-10-22",
+"trust_net": -30000,
+"dealer_net": -602000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 237898,
+"trust_cumulative_net_ratio": "0.0009",
+"dealer_cumulative_net_shares": -49364271,
+"dealer_cumulative_net_ratio": "-0.1904"
+},
+{
+"date": "2020-10-23",
+"trust_net": -21000,
+"dealer_net": 299000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 216898,
+"trust_cumulative_net_ratio": "0.0008",
+"dealer_cumulative_net_shares": -49065271,
+"dealer_cumulative_net_ratio": "-0.1892"
+},
+{
+"date": "2020-10-26",
+"trust_net": -39000,
+"dealer_net": -338000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 177898,
+"trust_cumulative_net_ratio": "0.0007",
+"dealer_cumulative_net_shares": -49403271,
+"dealer_cumulative_net_ratio": "-0.1905"
+},
+{
+"date": "2020-10-27",
+"trust_net": 22000,
+"dealer_net": -727963,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 199898,
+"trust_cumulative_net_ratio": "0.0008",
+"dealer_cumulative_net_shares": -50131234,
+"dealer_cumulative_net_ratio": "-0.1933"
+},
+{
+"date": "2020-10-28",
+"trust_net": -180000,
+"dealer_net": -2944460,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 19898,
+"trust_cumulative_net_ratio": "0.0001",
+"dealer_cumulative_net_shares": -53075694,
+"dealer_cumulative_net_ratio": "-0.2047"
+},
+{
+"date": "2020-10-29",
+"trust_net": -15000,
+"dealer_net": -887000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 4898,
+"trust_cumulative_net_ratio": "0.0000",
+"dealer_cumulative_net_shares": -53962694,
+"dealer_cumulative_net_ratio": "-0.2081"
+},
+{
+"date": "2020-10-30",
+"trust_net": -16000,
+"dealer_net": -1379998,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -11102,
+"trust_cumulative_net_ratio": "0.0000",
+"dealer_cumulative_net_shares": -55342692,
+"dealer_cumulative_net_ratio": "-0.2134"
+},
+{
+"date": "2020-11-02",
+"trust_net": 13000,
+"dealer_net": 141410,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 1898,
+"trust_cumulative_net_ratio": "0.0000",
+"dealer_cumulative_net_shares": -55201282,
+"dealer_cumulative_net_ratio": "-0.2129"
+},
+{
+"date": "2020-11-03",
+"trust_net": 71000,
+"dealer_net": 227000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 72898,
+"trust_cumulative_net_ratio": "0.0003",
+"dealer_cumulative_net_shares": -54974282,
+"dealer_cumulative_net_ratio": "-0.2120"
+},
+{
+"date": "2020-11-04",
+"trust_net": 122000,
+"dealer_net": 799495,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 194898,
+"trust_cumulative_net_ratio": "0.0008",
+"dealer_cumulative_net_shares": -54174787,
+"dealer_cumulative_net_ratio": "-0.2089"
+},
+{
+"date": "2020-11-05",
+"trust_net": 154000,
+"dealer_net": -69000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 348898,
+"trust_cumulative_net_ratio": "0.0013",
+"dealer_cumulative_net_shares": -54243787,
+"dealer_cumulative_net_ratio": "-0.2092"
+},
+{
+"date": "2020-11-06",
+"trust_net": -117000,
+"dealer_net": -594000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 231898,
+"trust_cumulative_net_ratio": "0.0009",
+"dealer_cumulative_net_shares": -54837787,
+"dealer_cumulative_net_ratio": "-0.2115"
+},
+{
+"date": "2020-11-09",
+"trust_net": -170000,
+"dealer_net": 835721,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 61898,
+"trust_cumulative_net_ratio": "0.0002",
+"dealer_cumulative_net_shares": -54002066,
+"dealer_cumulative_net_ratio": "-0.2083"
+},
+{
+"date": "2020-11-10",
+"trust_net": 19000,
+"dealer_net": -1133151,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 80898,
+"trust_cumulative_net_ratio": "0.0003",
+"dealer_cumulative_net_shares": -55135217,
+"dealer_cumulative_net_ratio": "-0.2126"
+},
+{
+"date": "2020-11-11",
+"trust_net": -159000,
+"dealer_net": 2410643,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -78102,
+"trust_cumulative_net_ratio": "-0.0003",
+"dealer_cumulative_net_shares": -52724574,
+"dealer_cumulative_net_ratio": "-0.2033"
+},
+{
+"date": "2020-11-12",
+"trust_net": -79000,
+"dealer_net": 52855,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -157102,
+"trust_cumulative_net_ratio": "-0.0006",
+"dealer_cumulative_net_shares": -52671719,
+"dealer_cumulative_net_ratio": "-0.2031"
+},
+{
+"date": "2020-11-13",
+"trust_net": -649000,
+"dealer_net": 552933,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -806102,
+"trust_cumulative_net_ratio": "-0.0031",
+"dealer_cumulative_net_shares": -52118786,
+"dealer_cumulative_net_ratio": "-0.2010"
+},
+{
+"date": "2020-11-16",
+"trust_net": -179000,
+"dealer_net": 1788735,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -985102,
+"trust_cumulative_net_ratio": "-0.0038",
+"dealer_cumulative_net_shares": -50330051,
+"dealer_cumulative_net_ratio": "-0.1941"
+},
+{
+"date": "2020-11-17",
+"trust_net": -499864,
+"dealer_net": -1060989,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -1484966,
+"trust_cumulative_net_ratio": "-0.0057",
+"dealer_cumulative_net_shares": -51391040,
+"dealer_cumulative_net_ratio": "-0.1982"
+},
+{
+"date": "2020-11-18",
+"trust_net": -122000,
+"dealer_net": -1052000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -1606966,
+"trust_cumulative_net_ratio": "-0.0062",
+"dealer_cumulative_net_shares": -52443040,
+"dealer_cumulative_net_ratio": "-0.2022"
+},
+{
+"date": "2020-11-19",
+"trust_net": -616000,
+"dealer_net": 646236,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -2222966,
+"trust_cumulative_net_ratio": "-0.0086",
+"dealer_cumulative_net_shares": -51796804,
+"dealer_cumulative_net_ratio": "-0.1998"
+},
+{
+"date": "2020-11-20",
+"trust_net": -25000,
+"dealer_net": 852004,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -2247966,
+"trust_cumulative_net_ratio": "-0.0087",
+"dealer_cumulative_net_shares": -50944800,
+"dealer_cumulative_net_ratio": "-0.1965"
+},
+{
+"date": "2020-11-23",
+"trust_net": -37000,
+"dealer_net": 89043,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -2284966,
+"trust_cumulative_net_ratio": "-0.0088",
+"dealer_cumulative_net_shares": -50855757,
+"dealer_cumulative_net_ratio": "-0.1961"
+},
+{
+"date": "2020-11-24",
+"trust_net": 105000,
+"dealer_net": 498909,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -2179966,
+"trust_cumulative_net_ratio": "-0.0084",
+"dealer_cumulative_net_shares": -50356848,
+"dealer_cumulative_net_ratio": "-0.1942"
+},
+{
+"date": "2020-11-25",
+"trust_net": -392000,
+"dealer_net": -648974,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -2571966,
+"trust_cumulative_net_ratio": "-0.0099",
+"dealer_cumulative_net_shares": -51005822,
+"dealer_cumulative_net_ratio": "-0.1967"
+},
+{
+"date": "2020-11-26",
+"trust_net": -150000,
+"dealer_net": 466000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -2721966,
+"trust_cumulative_net_ratio": "-0.0105",
+"dealer_cumulative_net_shares": -50539822,
+"dealer_cumulative_net_ratio": "-0.1949"
+},
+{
+"date": "2020-11-27",
+"trust_net": -194000,
+"dealer_net": -133998,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -2915966,
+"trust_cumulative_net_ratio": "-0.0112",
+"dealer_cumulative_net_shares": -50673820,
+"dealer_cumulative_net_ratio": "-0.1954"
+},
+{
+"date": "2020-11-30",
+"trust_net": -42400,
+"dealer_net": 1225960,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -2958366,
+"trust_cumulative_net_ratio": "-0.0114",
+"dealer_cumulative_net_shares": -49447860,
+"dealer_cumulative_net_ratio": "-0.1907"
+},
+{
+"date": "2020-12-01",
+"trust_net": 211300,
+"dealer_net": 396996,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -2747066,
+"trust_cumulative_net_ratio": "-0.0106",
+"dealer_cumulative_net_shares": -49050864,
+"dealer_cumulative_net_ratio": "-0.1892"
+},
+{
+"date": "2020-12-02",
+"trust_net": 106300,
+"dealer_net": -415004,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -2640766,
+"trust_cumulative_net_ratio": "-0.0102",
+"dealer_cumulative_net_shares": -49465868,
+"dealer_cumulative_net_ratio": "-0.1908"
+},
+{
+"date": "2020-12-03",
+"trust_net": 13000,
+"dealer_net": -57000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -2627766,
+"trust_cumulative_net_ratio": "-0.0101",
+"dealer_cumulative_net_shares": -49522868,
+"dealer_cumulative_net_ratio": "-0.1910"
+},
+{
+"date": "2020-12-04",
+"trust_net": 76500,
+"dealer_net": -340482,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -2551266,
+"trust_cumulative_net_ratio": "-0.0098",
+"dealer_cumulative_net_shares": -49863350,
+"dealer_cumulative_net_ratio": "-0.1923"
+},
+{
+"date": "2020-12-07",
+"trust_net": 1258300,
+"dealer_net": -409984,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": -1292966,
+"trust_cumulative_net_ratio": "-0.0050",
+"dealer_cumulative_net_shares": -50273334,
+"dealer_cumulative_net_ratio": "-0.1939"
+},
+{
+"date": "2020-12-08",
+"trust_net": 2363000,
+"dealer_net": -229000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 1070034,
+"trust_cumulative_net_ratio": "0.0041",
+"dealer_cumulative_net_shares": -50502334,
+"dealer_cumulative_net_ratio": "-0.1948"
+},
+{
+"date": "2020-12-09",
+"trust_net": 1125900,
+"dealer_net": -24266,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 2195934,
+"trust_cumulative_net_ratio": "0.0085",
+"dealer_cumulative_net_shares": -50526600,
+"dealer_cumulative_net_ratio": "-0.1949"
+},
+{
+"date": "2020-12-10",
+"trust_net": 1322500,
+"dealer_net": -1289949,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 3518434,
+"trust_cumulative_net_ratio": "0.0136",
+"dealer_cumulative_net_shares": -51816549,
+"dealer_cumulative_net_ratio": "-0.1998"
+},
+{
+"date": "2020-12-11",
+"trust_net": 1820300,
+"dealer_net": -553729,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 5338734,
+"trust_cumulative_net_ratio": "0.0206",
+"dealer_cumulative_net_shares": -52370278,
+"dealer_cumulative_net_ratio": "-0.2020"
+},
+{
+"date": "2020-12-14",
+"trust_net": 513600,
+"dealer_net": -416153,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 5852334,
+"trust_cumulative_net_ratio": "0.0226",
+"dealer_cumulative_net_shares": -52786431,
+"dealer_cumulative_net_ratio": "-0.2036"
+},
+{
+"date": "2020-12-15",
+"trust_net": 837700,
+"dealer_net": -620095,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 6690034,
+"trust_cumulative_net_ratio": "0.0258",
+"dealer_cumulative_net_shares": -53406526,
+"dealer_cumulative_net_ratio": "-0.2060"
+},
+{
+"date": "2020-12-16",
+"trust_net": 363000,
+"dealer_net": -155000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 7053034,
+"trust_cumulative_net_ratio": "0.0272",
+"dealer_cumulative_net_shares": -53561526,
+"dealer_cumulative_net_ratio": "-0.2066"
+},
+{
+"date": "2020-12-17",
+"trust_net": -474210,
+"dealer_net": -237773,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 6578824,
+"trust_cumulative_net_ratio": "0.0254",
+"dealer_cumulative_net_shares": -53799299,
+"dealer_cumulative_net_ratio": "-0.2075"
+},
+{
+"date": "2020-12-18",
+"trust_net": -1714490,
+"dealer_net": -698176,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 4864334,
+"trust_cumulative_net_ratio": "0.0188",
+"dealer_cumulative_net_shares": -54497475,
+"dealer_cumulative_net_ratio": "-0.2102"
+},
+{
+"date": "2020-12-21",
+"trust_net": 317000,
+"dealer_net": -544901,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 5181334,
+"trust_cumulative_net_ratio": "0.0200",
+"dealer_cumulative_net_shares": -55042376,
+"dealer_cumulative_net_ratio": "-0.2123"
+},
+{
+"date": "2020-12-22",
+"trust_net": 78800,
+"dealer_net": -253619,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 5260134,
+"trust_cumulative_net_ratio": "0.0203",
+"dealer_cumulative_net_shares": -55295995,
+"dealer_cumulative_net_ratio": "-0.2132"
+},
+{
+"date": "2020-12-23",
+"trust_net": -13000,
+"dealer_net": 175000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 5247134,
+"trust_cumulative_net_ratio": "0.0202",
+"dealer_cumulative_net_shares": -55120995,
+"dealer_cumulative_net_ratio": "-0.2126"
+},
+{
+"date": "2020-12-24",
+"trust_net": 25970,
+"dealer_net": 266765,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 5273104,
+"trust_cumulative_net_ratio": "0.0203",
+"dealer_cumulative_net_shares": -54854230,
+"dealer_cumulative_net_ratio": "-0.2115"
+},
+{
+"date": "2020-12-25",
+"trust_net": -420000,
+"dealer_net": 578690,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 4853104,
+"trust_cumulative_net_ratio": "0.0187",
+"dealer_cumulative_net_shares": -54275540,
+"dealer_cumulative_net_ratio": "-0.2093"
+},
+{
+"date": "2020-12-28",
+"trust_net": 26000,
+"dealer_net": 557170,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 4879104,
+"trust_cumulative_net_ratio": "0.0188",
+"dealer_cumulative_net_shares": -53718370,
+"dealer_cumulative_net_ratio": "-0.2072"
+},
+{
+"date": "2020-12-29",
+"trust_net": -88180,
+"dealer_net": -1276000,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 4790924,
+"trust_cumulative_net_ratio": "0.0185",
+"dealer_cumulative_net_shares": -54994370,
+"dealer_cumulative_net_ratio": "-0.2121"
+},
+{
+"date": "2020-12-30",
+"trust_net": 257000,
+"dealer_net": 2340998,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 5047924,
+"trust_cumulative_net_ratio": "0.0195",
+"dealer_cumulative_net_shares": -52653372,
+"dealer_cumulative_net_ratio": "-0.2031"
+},
+{
+"date": "2020-12-31",
+"trust_net": 419000,
+"dealer_net": 145827,
+"issued_shares": 25930380458,
+"trust_cumulative_net_shares": 5466924,
+"trust_cumulative_net_ratio": "0.0211",
+"dealer_cumulative_net_shares": -52507545,
+"dealer_cumulative_net_ratio": "-0.2025"
+}
+],
+"8069": [
+{
+"date": "2020-01-02",
+"trust_net": -90000,
+"dealer_net": 628000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -90000,
+"trust_cumulative_net_ratio": "-0.0079",
+"dealer_cumulative_net_shares": 628000,
+"dealer_cumulative_net_ratio": "0.0551"
+},
+{
+"date": "2020-01-03",
+"trust_net": -439000,
+"dealer_net": -596000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -529000,
+"trust_cumulative_net_ratio": "-0.0464",
+"dealer_cumulative_net_shares": 32000,
+"dealer_cumulative_net_ratio": "0.0028"
+},
+{
+"date": "2020-01-06",
+"trust_net": 0,
+"dealer_net": -11000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -529000,
+"trust_cumulative_net_ratio": "-0.0464",
+"dealer_cumulative_net_shares": 21000,
+"dealer_cumulative_net_ratio": "0.0018"
+},
+{
+"date": "2020-01-07",
+"trust_net": -434000,
+"dealer_net": -101000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -963000,
+"trust_cumulative_net_ratio": "-0.0844",
+"dealer_cumulative_net_shares": -80000,
+"dealer_cumulative_net_ratio": "-0.0070"
+},
+{
+"date": "2020-01-08",
+"trust_net": -550000,
+"dealer_net": -92000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1513000,
+"trust_cumulative_net_ratio": "-0.1327",
+"dealer_cumulative_net_shares": -172000,
+"dealer_cumulative_net_ratio": "-0.0151"
+},
+{
+"date": "2020-01-09",
+"trust_net": 0,
+"dealer_net": -89000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1513000,
+"trust_cumulative_net_ratio": "-0.1327",
+"dealer_cumulative_net_shares": -261000,
+"dealer_cumulative_net_ratio": "-0.0229"
+},
+{
+"date": "2020-01-10",
+"trust_net": 0,
+"dealer_net": -98000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1513000,
+"trust_cumulative_net_ratio": "-0.1327",
+"dealer_cumulative_net_shares": -359000,
+"dealer_cumulative_net_ratio": "-0.0315"
+},
+{
+"date": "2020-01-13",
+"trust_net": 0,
+"dealer_net": -6000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1513000,
+"trust_cumulative_net_ratio": "-0.1327",
+"dealer_cumulative_net_shares": -365000,
+"dealer_cumulative_net_ratio": "-0.0320"
+},
+{
+"date": "2020-01-14",
+"trust_net": 0,
+"dealer_net": 667000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1513000,
+"trust_cumulative_net_ratio": "-0.1327",
+"dealer_cumulative_net_shares": 302000,
+"dealer_cumulative_net_ratio": "0.0265"
+},
+{
+"date": "2020-01-15",
+"trust_net": 0,
+"dealer_net": -637000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1513000,
+"trust_cumulative_net_ratio": "-0.1327",
+"dealer_cumulative_net_shares": -335000,
+"dealer_cumulative_net_ratio": "-0.0294"
+},
+{
+"date": "2020-01-16",
+"trust_net": -6000,
+"dealer_net": -61000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1519000,
+"trust_cumulative_net_ratio": "-0.1332",
+"dealer_cumulative_net_shares": -396000,
+"dealer_cumulative_net_ratio": "-0.0347"
+},
+{
+"date": "2020-01-17",
+"trust_net": -20000,
+"dealer_net": -235000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1539000,
+"trust_cumulative_net_ratio": "-0.1349",
+"dealer_cumulative_net_shares": -631000,
+"dealer_cumulative_net_ratio": "-0.0553"
+},
+{
+"date": "2020-01-20",
+"trust_net": 0,
+"dealer_net": -80000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1539000,
+"trust_cumulative_net_ratio": "-0.1349",
+"dealer_cumulative_net_shares": -711000,
+"dealer_cumulative_net_ratio": "-0.0623"
+},
+{
+"date": "2020-01-30",
+"trust_net": 0,
+"dealer_net": -247000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1539000,
+"trust_cumulative_net_ratio": "-0.1349",
+"dealer_cumulative_net_shares": -958000,
+"dealer_cumulative_net_ratio": "-0.0840"
+},
+{
+"date": "2020-01-31",
+"trust_net": 0,
+"dealer_net": 201000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1539000,
+"trust_cumulative_net_ratio": "-0.1349",
+"dealer_cumulative_net_shares": -757000,
+"dealer_cumulative_net_ratio": "-0.0664"
+},
+{
+"date": "2020-02-03",
+"trust_net": 0,
+"dealer_net": -314000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1539000,
+"trust_cumulative_net_ratio": "-0.1349",
+"dealer_cumulative_net_shares": -1071000,
+"dealer_cumulative_net_ratio": "-0.0939"
+},
+{
+"date": "2020-02-04",
+"trust_net": -35000,
+"dealer_net": -57000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1574000,
+"trust_cumulative_net_ratio": "-0.1380",
+"dealer_cumulative_net_shares": -1128000,
+"dealer_cumulative_net_ratio": "-0.0989"
+},
+{
+"date": "2020-02-05",
+"trust_net": -35000,
+"dealer_net": -87000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1609000,
+"trust_cumulative_net_ratio": "-0.1411",
+"dealer_cumulative_net_shares": -1215000,
+"dealer_cumulative_net_ratio": "-0.1065"
+},
+{
+"date": "2020-02-06",
+"trust_net": -35000,
+"dealer_net": 14000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1644000,
+"trust_cumulative_net_ratio": "-0.1442",
+"dealer_cumulative_net_shares": -1201000,
+"dealer_cumulative_net_ratio": "-0.1053"
+},
+{
+"date": "2020-02-07",
+"trust_net": 0,
+"dealer_net": -59000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1644000,
+"trust_cumulative_net_ratio": "-0.1442",
+"dealer_cumulative_net_shares": -1260000,
+"dealer_cumulative_net_ratio": "-0.1105"
+},
+{
+"date": "2020-02-10",
+"trust_net": 0,
+"dealer_net": 90000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1644000,
+"trust_cumulative_net_ratio": "-0.1442",
+"dealer_cumulative_net_shares": -1170000,
+"dealer_cumulative_net_ratio": "-0.1026"
+},
+{
+"date": "2020-02-11",
+"trust_net": 0,
+"dealer_net": -60000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1644000,
+"trust_cumulative_net_ratio": "-0.1442",
+"dealer_cumulative_net_shares": -1230000,
+"dealer_cumulative_net_ratio": "-0.1079"
+},
+{
+"date": "2020-02-12",
+"trust_net": 0,
+"dealer_net": 454000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1644000,
+"trust_cumulative_net_ratio": "-0.1442",
+"dealer_cumulative_net_shares": -776000,
+"dealer_cumulative_net_ratio": "-0.0680"
+},
+{
+"date": "2020-02-13",
+"trust_net": 0,
+"dealer_net": 170000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1644000,
+"trust_cumulative_net_ratio": "-0.1442",
+"dealer_cumulative_net_shares": -606000,
+"dealer_cumulative_net_ratio": "-0.0531"
+},
+{
+"date": "2020-02-14",
+"trust_net": 0,
+"dealer_net": 442000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1644000,
+"trust_cumulative_net_ratio": "-0.1442",
+"dealer_cumulative_net_shares": -164000,
+"dealer_cumulative_net_ratio": "-0.0144"
+},
+{
+"date": "2020-02-17",
+"trust_net": 0,
+"dealer_net": 310000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1644000,
+"trust_cumulative_net_ratio": "-0.1442",
+"dealer_cumulative_net_shares": 146000,
+"dealer_cumulative_net_ratio": "0.0128"
+},
+{
+"date": "2020-02-18",
+"trust_net": 0,
+"dealer_net": 537000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1644000,
+"trust_cumulative_net_ratio": "-0.1442",
+"dealer_cumulative_net_shares": 683000,
+"dealer_cumulative_net_ratio": "0.0599"
+},
+{
+"date": "2020-02-19",
+"trust_net": -60000,
+"dealer_net": 93000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1704000,
+"trust_cumulative_net_ratio": "-0.1494",
+"dealer_cumulative_net_shares": 776000,
+"dealer_cumulative_net_ratio": "0.0680"
+},
+{
+"date": "2020-02-20",
+"trust_net": -1000,
+"dealer_net": -27000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1705000,
+"trust_cumulative_net_ratio": "-0.1495",
+"dealer_cumulative_net_shares": 749000,
+"dealer_cumulative_net_ratio": "0.0657"
+},
+{
+"date": "2020-02-21",
+"trust_net": 0,
+"dealer_net": 290000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1705000,
+"trust_cumulative_net_ratio": "-0.1495",
+"dealer_cumulative_net_shares": 1039000,
+"dealer_cumulative_net_ratio": "0.0911"
+},
+{
+"date": "2020-02-24",
+"trust_net": 0,
+"dealer_net": -99000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1705000,
+"trust_cumulative_net_ratio": "-0.1495",
+"dealer_cumulative_net_shares": 940000,
+"dealer_cumulative_net_ratio": "0.0824"
+},
+{
+"date": "2020-02-25",
+"trust_net": -6000,
+"dealer_net": 281000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1711000,
+"trust_cumulative_net_ratio": "-0.1500",
+"dealer_cumulative_net_shares": 1221000,
+"dealer_cumulative_net_ratio": "0.1071"
+},
+{
+"date": "2020-02-26",
+"trust_net": 6000,
+"dealer_net": -43000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1705000,
+"trust_cumulative_net_ratio": "-0.1495",
+"dealer_cumulative_net_shares": 1178000,
+"dealer_cumulative_net_ratio": "0.1033"
+},
+{
+"date": "2020-02-27",
+"trust_net": 0,
+"dealer_net": -37000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1705000,
+"trust_cumulative_net_ratio": "-0.1495",
+"dealer_cumulative_net_shares": 1141000,
+"dealer_cumulative_net_ratio": "0.1000"
+},
+{
+"date": "2020-03-02",
+"trust_net": 0,
+"dealer_net": 287000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1705000,
+"trust_cumulative_net_ratio": "-0.1495",
+"dealer_cumulative_net_shares": 1428000,
+"dealer_cumulative_net_ratio": "0.1252"
+},
+{
+"date": "2020-03-03",
+"trust_net": 0,
+"dealer_net": 265000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1705000,
+"trust_cumulative_net_ratio": "-0.1495",
+"dealer_cumulative_net_shares": 1693000,
+"dealer_cumulative_net_ratio": "0.1484"
+},
+{
+"date": "2020-03-04",
+"trust_net": 0,
+"dealer_net": -20000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1705000,
+"trust_cumulative_net_ratio": "-0.1495",
+"dealer_cumulative_net_shares": 1673000,
+"dealer_cumulative_net_ratio": "0.1467"
+},
+{
+"date": "2020-03-05",
+"trust_net": 0,
+"dealer_net": 377000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1705000,
+"trust_cumulative_net_ratio": "-0.1495",
+"dealer_cumulative_net_shares": 2050000,
+"dealer_cumulative_net_ratio": "0.1798"
+},
+{
+"date": "2020-03-06",
+"trust_net": 0,
+"dealer_net": -118000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1705000,
+"trust_cumulative_net_ratio": "-0.1495",
+"dealer_cumulative_net_shares": 1932000,
+"dealer_cumulative_net_ratio": "0.1694"
+},
+{
+"date": "2020-03-09",
+"trust_net": 0,
+"dealer_net": -16000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1705000,
+"trust_cumulative_net_ratio": "-0.1495",
+"dealer_cumulative_net_shares": 1916000,
+"dealer_cumulative_net_ratio": "0.1680"
+},
+{
+"date": "2020-03-10",
+"trust_net": 0,
+"dealer_net": -146000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1705000,
+"trust_cumulative_net_ratio": "-0.1495",
+"dealer_cumulative_net_shares": 1770000,
+"dealer_cumulative_net_ratio": "0.1552"
+},
+{
+"date": "2020-03-11",
+"trust_net": 0,
+"dealer_net": 30000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1705000,
+"trust_cumulative_net_ratio": "-0.1495",
+"dealer_cumulative_net_shares": 1800000,
+"dealer_cumulative_net_ratio": "0.1578"
+},
+{
+"date": "2020-03-12",
+"trust_net": 0,
+"dealer_net": 160000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1705000,
+"trust_cumulative_net_ratio": "-0.1495",
+"dealer_cumulative_net_shares": 1960000,
+"dealer_cumulative_net_ratio": "0.1719"
+},
+{
+"date": "2020-03-13",
+"trust_net": 100000,
+"dealer_net": 854000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1605000,
+"trust_cumulative_net_ratio": "-0.1407",
+"dealer_cumulative_net_shares": 2814000,
+"dealer_cumulative_net_ratio": "0.2467"
+},
+{
+"date": "2020-03-16",
+"trust_net": 0,
+"dealer_net": 991000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1605000,
+"trust_cumulative_net_ratio": "-0.1407",
+"dealer_cumulative_net_shares": 3805000,
+"dealer_cumulative_net_ratio": "0.3336"
+},
+{
+"date": "2020-03-17",
+"trust_net": 200000,
+"dealer_net": -20000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1405000,
+"trust_cumulative_net_ratio": "-0.1232",
+"dealer_cumulative_net_shares": 3785000,
+"dealer_cumulative_net_ratio": "0.3319"
+},
+{
+"date": "2020-03-18",
+"trust_net": -6000,
+"dealer_net": -525000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1411000,
+"trust_cumulative_net_ratio": "-0.1237",
+"dealer_cumulative_net_shares": 3260000,
+"dealer_cumulative_net_ratio": "0.2858"
+},
+{
+"date": "2020-03-19",
+"trust_net": -289000,
+"dealer_net": -108000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1700000,
+"trust_cumulative_net_ratio": "-0.1491",
+"dealer_cumulative_net_shares": 3152000,
+"dealer_cumulative_net_ratio": "0.2764"
+},
+{
+"date": "2020-03-20",
+"trust_net": -1081000,
+"dealer_net": 96000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -2781000,
+"trust_cumulative_net_ratio": "-0.2438",
+"dealer_cumulative_net_shares": 3248000,
+"dealer_cumulative_net_ratio": "0.2848"
+},
+{
+"date": "2020-03-23",
+"trust_net": -1000000,
+"dealer_net": -319000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -3781000,
+"trust_cumulative_net_ratio": "-0.3315",
+"dealer_cumulative_net_shares": 2929000,
+"dealer_cumulative_net_ratio": "0.2568"
+},
+{
+"date": "2020-03-24",
+"trust_net": -1000000,
+"dealer_net": -8000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -4781000,
+"trust_cumulative_net_ratio": "-0.4192",
+"dealer_cumulative_net_shares": 2921000,
+"dealer_cumulative_net_ratio": "0.2561"
+},
+{
+"date": "2020-03-25",
+"trust_net": -1002000,
+"dealer_net": 69000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -5783000,
+"trust_cumulative_net_ratio": "-0.5071",
+"dealer_cumulative_net_shares": 2990000,
+"dealer_cumulative_net_ratio": "0.2622"
+},
+{
+"date": "2020-03-26",
+"trust_net": 0,
+"dealer_net": 17000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -5783000,
+"trust_cumulative_net_ratio": "-0.5071",
+"dealer_cumulative_net_shares": 3007000,
+"dealer_cumulative_net_ratio": "0.2637"
+},
+{
+"date": "2020-03-27",
+"trust_net": 0,
+"dealer_net": -574000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -5783000,
+"trust_cumulative_net_ratio": "-0.5071",
+"dealer_cumulative_net_shares": 2433000,
+"dealer_cumulative_net_ratio": "0.2133"
+},
+{
+"date": "2020-03-30",
+"trust_net": 140000,
+"dealer_net": 52000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -5643000,
+"trust_cumulative_net_ratio": "-0.4948",
+"dealer_cumulative_net_shares": 2485000,
+"dealer_cumulative_net_ratio": "0.2179"
+},
+{
+"date": "2020-03-31",
+"trust_net": 0,
+"dealer_net": -636000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -5643000,
+"trust_cumulative_net_ratio": "-0.4948",
+"dealer_cumulative_net_shares": 1849000,
+"dealer_cumulative_net_ratio": "0.1621"
+},
+{
+"date": "2020-04-01",
+"trust_net": 1000,
+"dealer_net": -21000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -5642000,
+"trust_cumulative_net_ratio": "-0.4947",
+"dealer_cumulative_net_shares": 1828000,
+"dealer_cumulative_net_ratio": "0.1603"
+},
+{
+"date": "2020-04-06",
+"trust_net": 0,
+"dealer_net": 59000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -5642000,
+"trust_cumulative_net_ratio": "-0.4947",
+"dealer_cumulative_net_shares": 1887000,
+"dealer_cumulative_net_ratio": "0.1655"
+},
+{
+"date": "2020-04-07",
+"trust_net": 175000,
+"dealer_net": 21000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -5467000,
+"trust_cumulative_net_ratio": "-0.4794",
+"dealer_cumulative_net_shares": 1908000,
+"dealer_cumulative_net_ratio": "0.1673"
+},
+{
+"date": "2020-04-08",
+"trust_net": 175000,
+"dealer_net": 1084000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -5292000,
+"trust_cumulative_net_ratio": "-0.4640",
+"dealer_cumulative_net_shares": 2992000,
+"dealer_cumulative_net_ratio": "0.2623"
+},
+{
+"date": "2020-04-09",
+"trust_net": 1700000,
+"dealer_net": -990000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -3592000,
+"trust_cumulative_net_ratio": "-0.3150",
+"dealer_cumulative_net_shares": 2002000,
+"dealer_cumulative_net_ratio": "0.1755"
+},
+{
+"date": "2020-04-10",
+"trust_net": 170000,
+"dealer_net": -40000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -3422000,
+"trust_cumulative_net_ratio": "-0.3001",
+"dealer_cumulative_net_shares": 1962000,
+"dealer_cumulative_net_ratio": "0.1720"
+},
+{
+"date": "2020-04-13",
+"trust_net": 0,
+"dealer_net": -803000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -3422000,
+"trust_cumulative_net_ratio": "-0.3001",
+"dealer_cumulative_net_shares": 1159000,
+"dealer_cumulative_net_ratio": "0.1016"
+},
+{
+"date": "2020-04-14",
+"trust_net": 0,
+"dealer_net": 15000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -3422000,
+"trust_cumulative_net_ratio": "-0.3001",
+"dealer_cumulative_net_shares": 1174000,
+"dealer_cumulative_net_ratio": "0.1029"
+},
+{
+"date": "2020-04-15",
+"trust_net": 0,
+"dealer_net": -108000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -3422000,
+"trust_cumulative_net_ratio": "-0.3001",
+"dealer_cumulative_net_shares": 1066000,
+"dealer_cumulative_net_ratio": "0.0935"
+},
+{
+"date": "2020-04-16",
+"trust_net": 0,
+"dealer_net": 82000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -3422000,
+"trust_cumulative_net_ratio": "-0.3001",
+"dealer_cumulative_net_shares": 1148000,
+"dealer_cumulative_net_ratio": "0.1007"
+},
+{
+"date": "2020-04-17",
+"trust_net": 0,
+"dealer_net": -34000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -3422000,
+"trust_cumulative_net_ratio": "-0.3001",
+"dealer_cumulative_net_shares": 1114000,
+"dealer_cumulative_net_ratio": "0.0977"
+},
+{
+"date": "2020-04-20",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -3422000,
+"trust_cumulative_net_ratio": "-0.3001",
+"dealer_cumulative_net_shares": 1114000,
+"dealer_cumulative_net_ratio": "0.0977"
+},
+{
+"date": "2020-04-21",
+"trust_net": 0,
+"dealer_net": -77000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -3422000,
+"trust_cumulative_net_ratio": "-0.3001",
+"dealer_cumulative_net_shares": 1037000,
+"dealer_cumulative_net_ratio": "0.0909"
+},
+{
+"date": "2020-04-22",
+"trust_net": 0,
+"dealer_net": 16000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -3422000,
+"trust_cumulative_net_ratio": "-0.3001",
+"dealer_cumulative_net_shares": 1053000,
+"dealer_cumulative_net_ratio": "0.0923"
+},
+{
+"date": "2020-04-23",
+"trust_net": 0,
+"dealer_net": -38000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -3422000,
+"trust_cumulative_net_ratio": "-0.3001",
+"dealer_cumulative_net_shares": 1015000,
+"dealer_cumulative_net_ratio": "0.0890"
+},
+{
+"date": "2020-04-24",
+"trust_net": 0,
+"dealer_net": 68000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -3422000,
+"trust_cumulative_net_ratio": "-0.3001",
+"dealer_cumulative_net_shares": 1083000,
+"dealer_cumulative_net_ratio": "0.0950"
+},
+{
+"date": "2020-04-27",
+"trust_net": 0,
+"dealer_net": 317000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -3422000,
+"trust_cumulative_net_ratio": "-0.3001",
+"dealer_cumulative_net_shares": 1400000,
+"dealer_cumulative_net_ratio": "0.1228"
+},
+{
+"date": "2020-04-28",
+"trust_net": 966000,
+"dealer_net": -171000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -2456000,
+"trust_cumulative_net_ratio": "-0.2154",
+"dealer_cumulative_net_shares": 1229000,
+"dealer_cumulative_net_ratio": "0.1078"
+},
+{
+"date": "2020-04-29",
+"trust_net": 0,
+"dealer_net": 140000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -2456000,
+"trust_cumulative_net_ratio": "-0.2154",
+"dealer_cumulative_net_shares": 1369000,
+"dealer_cumulative_net_ratio": "0.1200"
+},
+{
+"date": "2020-04-30",
+"trust_net": 0,
+"dealer_net": -19000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -2456000,
+"trust_cumulative_net_ratio": "-0.2154",
+"dealer_cumulative_net_shares": 1350000,
+"dealer_cumulative_net_ratio": "0.1184"
+},
+{
+"date": "2020-05-04",
+"trust_net": 0,
+"dealer_net": -118000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -2456000,
+"trust_cumulative_net_ratio": "-0.2154",
+"dealer_cumulative_net_shares": 1232000,
+"dealer_cumulative_net_ratio": "0.1080"
+},
+{
+"date": "2020-05-05",
+"trust_net": 1000000,
+"dealer_net": 54000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1456000,
+"trust_cumulative_net_ratio": "-0.1277",
+"dealer_cumulative_net_shares": 1286000,
+"dealer_cumulative_net_ratio": "0.1128"
+},
+{
+"date": "2020-05-06",
+"trust_net": 0,
+"dealer_net": 46382,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1456000,
+"trust_cumulative_net_ratio": "-0.1277",
+"dealer_cumulative_net_shares": 1332382,
+"dealer_cumulative_net_ratio": "0.1168"
+},
+{
+"date": "2020-05-07",
+"trust_net": 0,
+"dealer_net": 87000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1456000,
+"trust_cumulative_net_ratio": "-0.1277",
+"dealer_cumulative_net_shares": 1419382,
+"dealer_cumulative_net_ratio": "0.1245"
+},
+{
+"date": "2020-05-08",
+"trust_net": 1238000,
+"dealer_net": 481000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -218000,
+"trust_cumulative_net_ratio": "-0.0191",
+"dealer_cumulative_net_shares": 1900382,
+"dealer_cumulative_net_ratio": "0.1666"
+},
+{
+"date": "2020-05-11",
+"trust_net": -113000,
+"dealer_net": 323000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -331000,
+"trust_cumulative_net_ratio": "-0.0290",
+"dealer_cumulative_net_shares": 2223382,
+"dealer_cumulative_net_ratio": "0.1950"
+},
+{
+"date": "2020-05-12",
+"trust_net": 1350000,
+"dealer_net": 78000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 1019000,
+"trust_cumulative_net_ratio": "0.0893",
+"dealer_cumulative_net_shares": 2301382,
+"dealer_cumulative_net_ratio": "0.2018"
+},
+{
+"date": "2020-05-13",
+"trust_net": 278000,
+"dealer_net": 280000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 1297000,
+"trust_cumulative_net_ratio": "0.1137",
+"dealer_cumulative_net_shares": 2581382,
+"dealer_cumulative_net_ratio": "0.2263"
+},
+{
+"date": "2020-05-14",
+"trust_net": 446000,
+"dealer_net": -258000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 1743000,
+"trust_cumulative_net_ratio": "0.1528",
+"dealer_cumulative_net_shares": 2323382,
+"dealer_cumulative_net_ratio": "0.2037"
+},
+{
+"date": "2020-05-15",
+"trust_net": 130000,
+"dealer_net": -107000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 1873000,
+"trust_cumulative_net_ratio": "0.1642",
+"dealer_cumulative_net_shares": 2216382,
+"dealer_cumulative_net_ratio": "0.1943"
+},
+{
+"date": "2020-05-18",
+"trust_net": 1244000,
+"dealer_net": 109000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 3117000,
+"trust_cumulative_net_ratio": "0.2733",
+"dealer_cumulative_net_shares": 2325382,
+"dealer_cumulative_net_ratio": "0.2039"
+},
+{
+"date": "2020-05-19",
+"trust_net": 1600000,
+"dealer_net": -11000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 4717000,
+"trust_cumulative_net_ratio": "0.4136",
+"dealer_cumulative_net_shares": 2314382,
+"dealer_cumulative_net_ratio": "0.2029"
+},
+{
+"date": "2020-05-20",
+"trust_net": 251000,
+"dealer_net": 2723000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 4968000,
+"trust_cumulative_net_ratio": "0.4356",
+"dealer_cumulative_net_shares": 5037382,
+"dealer_cumulative_net_ratio": "0.4417"
+},
+{
+"date": "2020-05-21",
+"trust_net": 465000,
+"dealer_net": -133000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 5433000,
+"trust_cumulative_net_ratio": "0.4764",
+"dealer_cumulative_net_shares": 4904382,
+"dealer_cumulative_net_ratio": "0.4300"
+},
+{
+"date": "2020-05-22",
+"trust_net": 2142000,
+"dealer_net": 528000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 7575000,
+"trust_cumulative_net_ratio": "0.6642",
+"dealer_cumulative_net_shares": 5432382,
+"dealer_cumulative_net_ratio": "0.4763"
+},
+{
+"date": "2020-05-25",
+"trust_net": 2866000,
+"dealer_net": -49000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 10441000,
+"trust_cumulative_net_ratio": "0.9155",
+"dealer_cumulative_net_shares": 5383382,
+"dealer_cumulative_net_ratio": "0.4720"
+},
+{
+"date": "2020-05-26",
+"trust_net": 911000,
+"dealer_net": -297000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 11352000,
+"trust_cumulative_net_ratio": "0.9954",
+"dealer_cumulative_net_shares": 5086382,
+"dealer_cumulative_net_ratio": "0.4460"
+},
+{
+"date": "2020-05-27",
+"trust_net": 576000,
+"dealer_net": 59000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 11928000,
+"trust_cumulative_net_ratio": "1.0459",
+"dealer_cumulative_net_shares": 5145382,
+"dealer_cumulative_net_ratio": "0.4512"
+},
+{
+"date": "2020-05-28",
+"trust_net": 351000,
+"dealer_net": 135000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 12279000,
+"trust_cumulative_net_ratio": "1.0767",
+"dealer_cumulative_net_shares": 5280382,
+"dealer_cumulative_net_ratio": "0.4630"
+},
+{
+"date": "2020-05-29",
+"trust_net": 150000,
+"dealer_net": -116000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 12429000,
+"trust_cumulative_net_ratio": "1.0898",
+"dealer_cumulative_net_shares": 5164382,
+"dealer_cumulative_net_ratio": "0.4528"
+},
+{
+"date": "2020-06-01",
+"trust_net": 1650000,
+"dealer_net": 1268000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 14079000,
+"trust_cumulative_net_ratio": "1.2345",
+"dealer_cumulative_net_shares": 6432382,
+"dealer_cumulative_net_ratio": "0.5640"
+},
+{
+"date": "2020-06-02",
+"trust_net": 1659000,
+"dealer_net": -288000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 15738000,
+"trust_cumulative_net_ratio": "1.3800",
+"dealer_cumulative_net_shares": 6144382,
+"dealer_cumulative_net_ratio": "0.5388"
+},
+{
+"date": "2020-06-03",
+"trust_net": 401000,
+"dealer_net": -26000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 16139000,
+"trust_cumulative_net_ratio": "1.4151",
+"dealer_cumulative_net_shares": 6118382,
+"dealer_cumulative_net_ratio": "0.5365"
+},
+{
+"date": "2020-06-04",
+"trust_net": -225000,
+"dealer_net": -157000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 15914000,
+"trust_cumulative_net_ratio": "1.3954",
+"dealer_cumulative_net_shares": 5961382,
+"dealer_cumulative_net_ratio": "0.5227"
+},
+{
+"date": "2020-06-05",
+"trust_net": -300000,
+"dealer_net": -361000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 15614000,
+"trust_cumulative_net_ratio": "1.3691",
+"dealer_cumulative_net_shares": 5600382,
+"dealer_cumulative_net_ratio": "0.4911"
+},
+{
+"date": "2020-06-08",
+"trust_net": 500000,
+"dealer_net": -90000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 16114000,
+"trust_cumulative_net_ratio": "1.4129",
+"dealer_cumulative_net_shares": 5510382,
+"dealer_cumulative_net_ratio": "0.4832"
+},
+{
+"date": "2020-06-09",
+"trust_net": -1858000,
+"dealer_net": -446000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 14256000,
+"trust_cumulative_net_ratio": "1.2500",
+"dealer_cumulative_net_shares": 5064382,
+"dealer_cumulative_net_ratio": "0.4441"
+},
+{
+"date": "2020-06-10",
+"trust_net": 341000,
+"dealer_net": 11000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 14597000,
+"trust_cumulative_net_ratio": "1.2799",
+"dealer_cumulative_net_shares": 5075382,
+"dealer_cumulative_net_ratio": "0.4450"
+},
+{
+"date": "2020-06-11",
+"trust_net": -1306000,
+"dealer_net": -86000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 13291000,
+"trust_cumulative_net_ratio": "1.1654",
+"dealer_cumulative_net_shares": 4989382,
+"dealer_cumulative_net_ratio": "0.4375"
+},
+{
+"date": "2020-06-12",
+"trust_net": -354000,
+"dealer_net": -117000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 12937000,
+"trust_cumulative_net_ratio": "1.1344",
+"dealer_cumulative_net_shares": 4872382,
+"dealer_cumulative_net_ratio": "0.4272"
+},
+{
+"date": "2020-06-15",
+"trust_net": -85000,
+"dealer_net": -116000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 12852000,
+"trust_cumulative_net_ratio": "1.1269",
+"dealer_cumulative_net_shares": 4756382,
+"dealer_cumulative_net_ratio": "0.4171"
+},
+{
+"date": "2020-06-16",
+"trust_net": -1551000,
+"dealer_net": 894000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 11301000,
+"trust_cumulative_net_ratio": "0.9909",
+"dealer_cumulative_net_shares": 5650382,
+"dealer_cumulative_net_ratio": "0.4954"
+},
+{
+"date": "2020-06-17",
+"trust_net": -980000,
+"dealer_net": -46000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 10321000,
+"trust_cumulative_net_ratio": "0.9050",
+"dealer_cumulative_net_shares": 5604382,
+"dealer_cumulative_net_ratio": "0.4914"
+},
+{
+"date": "2020-06-18",
+"trust_net": -206000,
+"dealer_net": 1361000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 10115000,
+"trust_cumulative_net_ratio": "0.8869",
+"dealer_cumulative_net_shares": 6965382,
+"dealer_cumulative_net_ratio": "0.6107"
+},
+{
+"date": "2020-06-19",
+"trust_net": 295000,
+"dealer_net": -98000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 10410000,
+"trust_cumulative_net_ratio": "0.9128",
+"dealer_cumulative_net_shares": 6867382,
+"dealer_cumulative_net_ratio": "0.6022"
+},
+{
+"date": "2020-06-22",
+"trust_net": 78000,
+"dealer_net": -351000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 10488000,
+"trust_cumulative_net_ratio": "0.9196",
+"dealer_cumulative_net_shares": 6516382,
+"dealer_cumulative_net_ratio": "0.5714"
+},
+{
+"date": "2020-06-23",
+"trust_net": 0,
+"dealer_net": -41000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 10488000,
+"trust_cumulative_net_ratio": "0.9196",
+"dealer_cumulative_net_shares": 6475382,
+"dealer_cumulative_net_ratio": "0.5678"
+},
+{
+"date": "2020-06-24",
+"trust_net": 0,
+"dealer_net": -117000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 10488000,
+"trust_cumulative_net_ratio": "0.9196",
+"dealer_cumulative_net_shares": 6358382,
+"dealer_cumulative_net_ratio": "0.5575"
+},
+{
+"date": "2020-06-29",
+"trust_net": -406000,
+"dealer_net": 17000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 10082000,
+"trust_cumulative_net_ratio": "0.8840",
+"dealer_cumulative_net_shares": 6375382,
+"dealer_cumulative_net_ratio": "0.5590"
+},
+{
+"date": "2020-06-30",
+"trust_net": 0,
+"dealer_net": -59000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 10082000,
+"trust_cumulative_net_ratio": "0.8840",
+"dealer_cumulative_net_shares": 6316382,
+"dealer_cumulative_net_ratio": "0.5538"
+},
+{
+"date": "2020-07-01",
+"trust_net": 347000,
+"dealer_net": 1577000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 10429000,
+"trust_cumulative_net_ratio": "0.9144",
+"dealer_cumulative_net_shares": 7893382,
+"dealer_cumulative_net_ratio": "0.6921"
+},
+{
+"date": "2020-07-02",
+"trust_net": 0,
+"dealer_net": 82000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 10429000,
+"trust_cumulative_net_ratio": "0.9144",
+"dealer_cumulative_net_shares": 7975382,
+"dealer_cumulative_net_ratio": "0.6993"
+},
+{
+"date": "2020-07-03",
+"trust_net": 75000,
+"dealer_net": -105000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 10504000,
+"trust_cumulative_net_ratio": "0.9210",
+"dealer_cumulative_net_shares": 7870382,
+"dealer_cumulative_net_ratio": "0.6901"
+},
+{
+"date": "2020-07-06",
+"trust_net": -92000,
+"dealer_net": 637000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 10412000,
+"trust_cumulative_net_ratio": "0.9130",
+"dealer_cumulative_net_shares": 8507382,
+"dealer_cumulative_net_ratio": "0.7460"
+},
+{
+"date": "2020-07-07",
+"trust_net": -755000,
+"dealer_net": -662000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 9657000,
+"trust_cumulative_net_ratio": "0.8468",
+"dealer_cumulative_net_shares": 7845382,
+"dealer_cumulative_net_ratio": "0.6879"
+},
+{
+"date": "2020-07-08",
+"trust_net": -696000,
+"dealer_net": 152000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 8961000,
+"trust_cumulative_net_ratio": "0.7857",
+"dealer_cumulative_net_shares": 7997382,
+"dealer_cumulative_net_ratio": "0.7012"
+},
+{
+"date": "2020-07-09",
+"trust_net": 2107000,
+"dealer_net": -353000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 11068000,
+"trust_cumulative_net_ratio": "0.9705",
+"dealer_cumulative_net_shares": 7644382,
+"dealer_cumulative_net_ratio": "0.6703"
+},
+{
+"date": "2020-07-10",
+"trust_net": 1398000,
+"dealer_net": -75000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 12466000,
+"trust_cumulative_net_ratio": "1.0931",
+"dealer_cumulative_net_shares": 7569382,
+"dealer_cumulative_net_ratio": "0.6637"
+},
+{
+"date": "2020-07-13",
+"trust_net": 516000,
+"dealer_net": 543000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 12982000,
+"trust_cumulative_net_ratio": "1.1383",
+"dealer_cumulative_net_shares": 8112382,
+"dealer_cumulative_net_ratio": "0.7113"
+},
+{
+"date": "2020-07-14",
+"trust_net": 2200000,
+"dealer_net": -1027000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 15182000,
+"trust_cumulative_net_ratio": "1.3312",
+"dealer_cumulative_net_shares": 7085382,
+"dealer_cumulative_net_ratio": "0.6213"
+},
+{
+"date": "2020-07-15",
+"trust_net": 1567000,
+"dealer_net": 17000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 16749000,
+"trust_cumulative_net_ratio": "1.4686",
+"dealer_cumulative_net_shares": 7102382,
+"dealer_cumulative_net_ratio": "0.6228"
+},
+{
+"date": "2020-07-16",
+"trust_net": -5000,
+"dealer_net": 1074000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 16744000,
+"trust_cumulative_net_ratio": "1.4682",
+"dealer_cumulative_net_shares": 8176382,
+"dealer_cumulative_net_ratio": "0.7169"
+},
+{
+"date": "2020-07-17",
+"trust_net": -8000,
+"dealer_net": -1301000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 16736000,
+"trust_cumulative_net_ratio": "1.4675",
+"dealer_cumulative_net_shares": 6875382,
+"dealer_cumulative_net_ratio": "0.6029"
+},
+{
+"date": "2020-07-20",
+"trust_net": 1000,
+"dealer_net": -68000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 16737000,
+"trust_cumulative_net_ratio": "1.4676",
+"dealer_cumulative_net_shares": 6807382,
+"dealer_cumulative_net_ratio": "0.5969"
+},
+{
+"date": "2020-07-21",
+"trust_net": 0,
+"dealer_net": -66000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 16737000,
+"trust_cumulative_net_ratio": "1.4676",
+"dealer_cumulative_net_shares": 6741382,
+"dealer_cumulative_net_ratio": "0.5911"
+},
+{
+"date": "2020-07-22",
+"trust_net": -454000,
+"dealer_net": -471000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 16283000,
+"trust_cumulative_net_ratio": "1.4277",
+"dealer_cumulative_net_shares": 6270382,
+"dealer_cumulative_net_ratio": "0.5498"
+},
+{
+"date": "2020-07-23",
+"trust_net": 0,
+"dealer_net": -1183000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 16283000,
+"trust_cumulative_net_ratio": "1.4277",
+"dealer_cumulative_net_shares": 5087382,
+"dealer_cumulative_net_ratio": "0.4461"
+},
+{
+"date": "2020-07-24",
+"trust_net": 0,
+"dealer_net": -564000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 16283000,
+"trust_cumulative_net_ratio": "1.4277",
+"dealer_cumulative_net_shares": 4523382,
+"dealer_cumulative_net_ratio": "0.3966"
+},
+{
+"date": "2020-07-27",
+"trust_net": -80000,
+"dealer_net": -578000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 16203000,
+"trust_cumulative_net_ratio": "1.4207",
+"dealer_cumulative_net_shares": 3945382,
+"dealer_cumulative_net_ratio": "0.3459"
+},
+{
+"date": "2020-07-28",
+"trust_net": -484000,
+"dealer_net": 580000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 15719000,
+"trust_cumulative_net_ratio": "1.3783",
+"dealer_cumulative_net_shares": 4525382,
+"dealer_cumulative_net_ratio": "0.3968"
+},
+{
+"date": "2020-07-29",
+"trust_net": -33000,
+"dealer_net": -150000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 15686000,
+"trust_cumulative_net_ratio": "1.3754",
+"dealer_cumulative_net_shares": 4375382,
+"dealer_cumulative_net_ratio": "0.3836"
+},
+{
+"date": "2020-07-30",
+"trust_net": 0,
+"dealer_net": -90000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 15686000,
+"trust_cumulative_net_ratio": "1.3754",
+"dealer_cumulative_net_shares": 4285382,
+"dealer_cumulative_net_ratio": "0.3758"
+},
+{
+"date": "2020-07-31",
+"trust_net": -250000,
+"dealer_net": -282000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 15436000,
+"trust_cumulative_net_ratio": "1.3535",
+"dealer_cumulative_net_shares": 4003382,
+"dealer_cumulative_net_ratio": "0.3510"
+},
+{
+"date": "2020-08-03",
+"trust_net": -500000,
+"dealer_net": 136000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 14936000,
+"trust_cumulative_net_ratio": "1.3096",
+"dealer_cumulative_net_shares": 4139382,
+"dealer_cumulative_net_ratio": "0.3630"
+},
+{
+"date": "2020-08-04",
+"trust_net": -650000,
+"dealer_net": 197000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 14286000,
+"trust_cumulative_net_ratio": "1.2526",
+"dealer_cumulative_net_shares": 4336382,
+"dealer_cumulative_net_ratio": "0.3802"
+},
+{
+"date": "2020-08-05",
+"trust_net": 0,
+"dealer_net": -106000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 14286000,
+"trust_cumulative_net_ratio": "1.2526",
+"dealer_cumulative_net_shares": 4230382,
+"dealer_cumulative_net_ratio": "0.3709"
+},
+{
+"date": "2020-08-06",
+"trust_net": -1101000,
+"dealer_net": 67000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 13185000,
+"trust_cumulative_net_ratio": "1.1561",
+"dealer_cumulative_net_shares": 4297382,
+"dealer_cumulative_net_ratio": "0.3768"
+},
+{
+"date": "2020-08-07",
+"trust_net": -438000,
+"dealer_net": -122000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 12747000,
+"trust_cumulative_net_ratio": "1.1177",
+"dealer_cumulative_net_shares": 4175382,
+"dealer_cumulative_net_ratio": "0.3661"
+},
+{
+"date": "2020-08-10",
+"trust_net": -1871000,
+"dealer_net": 1280000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 10876000,
+"trust_cumulative_net_ratio": "0.9536",
+"dealer_cumulative_net_shares": 5455382,
+"dealer_cumulative_net_ratio": "0.4783"
+},
+{
+"date": "2020-08-11",
+"trust_net": -607000,
+"dealer_net": -816000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 10269000,
+"trust_cumulative_net_ratio": "0.9004",
+"dealer_cumulative_net_shares": 4639382,
+"dealer_cumulative_net_ratio": "0.4068"
+},
+{
+"date": "2020-08-12",
+"trust_net": -1085000,
+"dealer_net": -702000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 9184000,
+"trust_cumulative_net_ratio": "0.8053",
+"dealer_cumulative_net_shares": 3937382,
+"dealer_cumulative_net_ratio": "0.3452"
+},
+{
+"date": "2020-08-13",
+"trust_net": -750000,
+"dealer_net": 2591000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 8434000,
+"trust_cumulative_net_ratio": "0.7395",
+"dealer_cumulative_net_shares": 6528382,
+"dealer_cumulative_net_ratio": "0.5724"
+},
+{
+"date": "2020-08-14",
+"trust_net": 250000,
+"dealer_net": -1116000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 8684000,
+"trust_cumulative_net_ratio": "0.7614",
+"dealer_cumulative_net_shares": 5412382,
+"dealer_cumulative_net_ratio": "0.4746"
+},
+{
+"date": "2020-08-17",
+"trust_net": -954000,
+"dealer_net": 203000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 7730000,
+"trust_cumulative_net_ratio": "0.6778",
+"dealer_cumulative_net_shares": 5615382,
+"dealer_cumulative_net_ratio": "0.4924"
+},
+{
+"date": "2020-08-18",
+"trust_net": -920000,
+"dealer_net": -506000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 6810000,
+"trust_cumulative_net_ratio": "0.5971",
+"dealer_cumulative_net_shares": 5109382,
+"dealer_cumulative_net_ratio": "0.4480"
+},
+{
+"date": "2020-08-19",
+"trust_net": -1000000,
+"dealer_net": -1189000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 5810000,
+"trust_cumulative_net_ratio": "0.5094",
+"dealer_cumulative_net_shares": 3920382,
+"dealer_cumulative_net_ratio": "0.3438"
+},
+{
+"date": "2020-08-20",
+"trust_net": -1000000,
+"dealer_net": -1129000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 4810000,
+"trust_cumulative_net_ratio": "0.4218",
+"dealer_cumulative_net_shares": 2791382,
+"dealer_cumulative_net_ratio": "0.2448"
+},
+{
+"date": "2020-08-21",
+"trust_net": -2499000,
+"dealer_net": -117000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 2311000,
+"trust_cumulative_net_ratio": "0.2026",
+"dealer_cumulative_net_shares": 2674382,
+"dealer_cumulative_net_ratio": "0.2345"
+},
+{
+"date": "2020-08-24",
+"trust_net": 0,
+"dealer_net": -846000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 2311000,
+"trust_cumulative_net_ratio": "0.2026",
+"dealer_cumulative_net_shares": 1828382,
+"dealer_cumulative_net_ratio": "0.1603"
+},
+{
+"date": "2020-08-25",
+"trust_net": -456000,
+"dealer_net": 704000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 1855000,
+"trust_cumulative_net_ratio": "0.1627",
+"dealer_cumulative_net_shares": 2532382,
+"dealer_cumulative_net_ratio": "0.2220"
+},
+{
+"date": "2020-08-26",
+"trust_net": -500000,
+"dealer_net": -166000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 1355000,
+"trust_cumulative_net_ratio": "0.1188",
+"dealer_cumulative_net_shares": 2366382,
+"dealer_cumulative_net_ratio": "0.2075"
+},
+{
+"date": "2020-08-27",
+"trust_net": -250000,
+"dealer_net": 89000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 1105000,
+"trust_cumulative_net_ratio": "0.0969",
+"dealer_cumulative_net_shares": 2455382,
+"dealer_cumulative_net_ratio": "0.2153"
+},
+{
+"date": "2020-08-28",
+"trust_net": -874000,
+"dealer_net": 1206000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 231000,
+"trust_cumulative_net_ratio": "0.0203",
+"dealer_cumulative_net_shares": 3661382,
+"dealer_cumulative_net_ratio": "0.3210"
+},
+{
+"date": "2020-08-31",
+"trust_net": 0,
+"dealer_net": -215000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 231000,
+"trust_cumulative_net_ratio": "0.0203",
+"dealer_cumulative_net_shares": 3446382,
+"dealer_cumulative_net_ratio": "0.3022"
+},
+{
+"date": "2020-09-01",
+"trust_net": 0,
+"dealer_net": -10000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 231000,
+"trust_cumulative_net_ratio": "0.0203",
+"dealer_cumulative_net_shares": 3436382,
+"dealer_cumulative_net_ratio": "0.3013"
+},
+{
+"date": "2020-09-02",
+"trust_net": 0,
+"dealer_net": 133000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 231000,
+"trust_cumulative_net_ratio": "0.0203",
+"dealer_cumulative_net_shares": 3569382,
+"dealer_cumulative_net_ratio": "0.3130"
+},
+{
+"date": "2020-09-03",
+"trust_net": 0,
+"dealer_net": -357000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 231000,
+"trust_cumulative_net_ratio": "0.0203",
+"dealer_cumulative_net_shares": 3212382,
+"dealer_cumulative_net_ratio": "0.2817"
+},
+{
+"date": "2020-09-04",
+"trust_net": 0,
+"dealer_net": -107000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 231000,
+"trust_cumulative_net_ratio": "0.0203",
+"dealer_cumulative_net_shares": 3105382,
+"dealer_cumulative_net_ratio": "0.2723"
+},
+{
+"date": "2020-09-07",
+"trust_net": 0,
+"dealer_net": -8000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 231000,
+"trust_cumulative_net_ratio": "0.0203",
+"dealer_cumulative_net_shares": 3097382,
+"dealer_cumulative_net_ratio": "0.2716"
+},
+{
+"date": "2020-09-08",
+"trust_net": 0,
+"dealer_net": -68000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 231000,
+"trust_cumulative_net_ratio": "0.0203",
+"dealer_cumulative_net_shares": 3029382,
+"dealer_cumulative_net_ratio": "0.2656"
+},
+{
+"date": "2020-09-09",
+"trust_net": 1262000,
+"dealer_net": 430000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 1493000,
+"trust_cumulative_net_ratio": "0.1309",
+"dealer_cumulative_net_shares": 3459382,
+"dealer_cumulative_net_ratio": "0.3033"
+},
+{
+"date": "2020-09-10",
+"trust_net": 1000000,
+"dealer_net": -300000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 2493000,
+"trust_cumulative_net_ratio": "0.2186",
+"dealer_cumulative_net_shares": 3159382,
+"dealer_cumulative_net_ratio": "0.2770"
+},
+{
+"date": "2020-09-11",
+"trust_net": -6000,
+"dealer_net": -269000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 2487000,
+"trust_cumulative_net_ratio": "0.2181",
+"dealer_cumulative_net_shares": 2890382,
+"dealer_cumulative_net_ratio": "0.2534"
+},
+{
+"date": "2020-09-14",
+"trust_net": 110000,
+"dealer_net": -29000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 2597000,
+"trust_cumulative_net_ratio": "0.2277",
+"dealer_cumulative_net_shares": 2861382,
+"dealer_cumulative_net_ratio": "0.2509"
+},
+{
+"date": "2020-09-15",
+"trust_net": 0,
+"dealer_net": 159000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 2597000,
+"trust_cumulative_net_ratio": "0.2277",
+"dealer_cumulative_net_shares": 3020382,
+"dealer_cumulative_net_ratio": "0.2648"
+},
+{
+"date": "2020-09-16",
+"trust_net": 0,
+"dealer_net": -367000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 2597000,
+"trust_cumulative_net_ratio": "0.2277",
+"dealer_cumulative_net_shares": 2653382,
+"dealer_cumulative_net_ratio": "0.2327"
+},
+{
+"date": "2020-09-17",
+"trust_net": -1000000,
+"dealer_net": 14000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 1597000,
+"trust_cumulative_net_ratio": "0.1400",
+"dealer_cumulative_net_shares": 2667382,
+"dealer_cumulative_net_ratio": "0.2339"
+},
+{
+"date": "2020-09-18",
+"trust_net": -1500000,
+"dealer_net": -30000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 97000,
+"trust_cumulative_net_ratio": "0.0085",
+"dealer_cumulative_net_shares": 2637382,
+"dealer_cumulative_net_ratio": "0.2313"
+},
+{
+"date": "2020-09-21",
+"trust_net": 0,
+"dealer_net": -455000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 97000,
+"trust_cumulative_net_ratio": "0.0085",
+"dealer_cumulative_net_shares": 2182382,
+"dealer_cumulative_net_ratio": "0.1914"
+},
+{
+"date": "2020-09-22",
+"trust_net": 388000,
+"dealer_net": -367000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 485000,
+"trust_cumulative_net_ratio": "0.0425",
+"dealer_cumulative_net_shares": 1815382,
+"dealer_cumulative_net_ratio": "0.1592"
+},
+{
+"date": "2020-09-23",
+"trust_net": 0,
+"dealer_net": -268000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 485000,
+"trust_cumulative_net_ratio": "0.0425",
+"dealer_cumulative_net_shares": 1547382,
+"dealer_cumulative_net_ratio": "0.1357"
+},
+{
+"date": "2020-09-24",
+"trust_net": 0,
+"dealer_net": -890000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 485000,
+"trust_cumulative_net_ratio": "0.0425",
+"dealer_cumulative_net_shares": 657382,
+"dealer_cumulative_net_ratio": "0.0576"
+},
+{
+"date": "2020-09-25",
+"trust_net": 0,
+"dealer_net": -942000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 485000,
+"trust_cumulative_net_ratio": "0.0425",
+"dealer_cumulative_net_shares": -284618,
+"dealer_cumulative_net_ratio": "-0.0250"
+},
+{
+"date": "2020-09-28",
+"trust_net": 0,
+"dealer_net": 56000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 485000,
+"trust_cumulative_net_ratio": "0.0425",
+"dealer_cumulative_net_shares": -228618,
+"dealer_cumulative_net_ratio": "-0.0200"
+},
+{
+"date": "2020-09-29",
+"trust_net": 0,
+"dealer_net": -109000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 485000,
+"trust_cumulative_net_ratio": "0.0425",
+"dealer_cumulative_net_shares": -337618,
+"dealer_cumulative_net_ratio": "-0.0296"
+},
+{
+"date": "2020-09-30",
+"trust_net": 0,
+"dealer_net": 8000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 485000,
+"trust_cumulative_net_ratio": "0.0425",
+"dealer_cumulative_net_shares": -329618,
+"dealer_cumulative_net_ratio": "-0.0289"
+},
+{
+"date": "2020-10-05",
+"trust_net": 0,
+"dealer_net": 65000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 485000,
+"trust_cumulative_net_ratio": "0.0425",
+"dealer_cumulative_net_shares": -264618,
+"dealer_cumulative_net_ratio": "-0.0232"
+},
+{
+"date": "2020-10-06",
+"trust_net": 0,
+"dealer_net": 405000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 485000,
+"trust_cumulative_net_ratio": "0.0425",
+"dealer_cumulative_net_shares": 140382,
+"dealer_cumulative_net_ratio": "0.0123"
+},
+{
+"date": "2020-10-07",
+"trust_net": 0,
+"dealer_net": -117000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 485000,
+"trust_cumulative_net_ratio": "0.0425",
+"dealer_cumulative_net_shares": 23382,
+"dealer_cumulative_net_ratio": "0.0021"
+},
+{
+"date": "2020-10-08",
+"trust_net": 0,
+"dealer_net": -152000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 485000,
+"trust_cumulative_net_ratio": "0.0425",
+"dealer_cumulative_net_shares": -128618,
+"dealer_cumulative_net_ratio": "-0.0113"
+},
+{
+"date": "2020-10-12",
+"trust_net": 0,
+"dealer_net": -62000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 485000,
+"trust_cumulative_net_ratio": "0.0425",
+"dealer_cumulative_net_shares": -190618,
+"dealer_cumulative_net_ratio": "-0.0167"
+},
+{
+"date": "2020-10-13",
+"trust_net": -1459000,
+"dealer_net": -64000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -974000,
+"trust_cumulative_net_ratio": "-0.0854",
+"dealer_cumulative_net_shares": -254618,
+"dealer_cumulative_net_ratio": "-0.0223"
+},
+{
+"date": "2020-10-14",
+"trust_net": 0,
+"dealer_net": 608000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -974000,
+"trust_cumulative_net_ratio": "-0.0854",
+"dealer_cumulative_net_shares": 353382,
+"dealer_cumulative_net_ratio": "0.0310"
+},
+{
+"date": "2020-10-15",
+"trust_net": 0,
+"dealer_net": -749000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -974000,
+"trust_cumulative_net_ratio": "-0.0854",
+"dealer_cumulative_net_shares": -395618,
+"dealer_cumulative_net_ratio": "-0.0347"
+},
+{
+"date": "2020-10-16",
+"trust_net": -2000,
+"dealer_net": -204000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -976000,
+"trust_cumulative_net_ratio": "-0.0856",
+"dealer_cumulative_net_shares": -599618,
+"dealer_cumulative_net_ratio": "-0.0526"
+},
+{
+"date": "2020-10-19",
+"trust_net": 0,
+"dealer_net": 39000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -976000,
+"trust_cumulative_net_ratio": "-0.0856",
+"dealer_cumulative_net_shares": -560618,
+"dealer_cumulative_net_ratio": "-0.0492"
+},
+{
+"date": "2020-10-20",
+"trust_net": 0,
+"dealer_net": -12000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -976000,
+"trust_cumulative_net_ratio": "-0.0856",
+"dealer_cumulative_net_shares": -572618,
+"dealer_cumulative_net_ratio": "-0.0502"
+},
+{
+"date": "2020-10-21",
+"trust_net": 0,
+"dealer_net": 17000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -976000,
+"trust_cumulative_net_ratio": "-0.0856",
+"dealer_cumulative_net_shares": -555618,
+"dealer_cumulative_net_ratio": "-0.0487"
+},
+{
+"date": "2020-10-22",
+"trust_net": 0,
+"dealer_net": 22000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -976000,
+"trust_cumulative_net_ratio": "-0.0856",
+"dealer_cumulative_net_shares": -533618,
+"dealer_cumulative_net_ratio": "-0.0468"
+},
+{
+"date": "2020-10-23",
+"trust_net": 0,
+"dealer_net": -44000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -976000,
+"trust_cumulative_net_ratio": "-0.0856",
+"dealer_cumulative_net_shares": -577618,
+"dealer_cumulative_net_ratio": "-0.0506"
+},
+{
+"date": "2020-10-26",
+"trust_net": 0,
+"dealer_net": 209000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -976000,
+"trust_cumulative_net_ratio": "-0.0856",
+"dealer_cumulative_net_shares": -368618,
+"dealer_cumulative_net_ratio": "-0.0323"
+},
+{
+"date": "2020-10-27",
+"trust_net": 0,
+"dealer_net": -43000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -976000,
+"trust_cumulative_net_ratio": "-0.0856",
+"dealer_cumulative_net_shares": -411618,
+"dealer_cumulative_net_ratio": "-0.0361"
+},
+{
+"date": "2020-10-28",
+"trust_net": 0,
+"dealer_net": 18000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -976000,
+"trust_cumulative_net_ratio": "-0.0856",
+"dealer_cumulative_net_shares": -393618,
+"dealer_cumulative_net_ratio": "-0.0345"
+},
+{
+"date": "2020-10-29",
+"trust_net": 0,
+"dealer_net": -47000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -976000,
+"trust_cumulative_net_ratio": "-0.0856",
+"dealer_cumulative_net_shares": -440618,
+"dealer_cumulative_net_ratio": "-0.0386"
+},
+{
+"date": "2020-10-30",
+"trust_net": 0,
+"dealer_net": -27000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -976000,
+"trust_cumulative_net_ratio": "-0.0856",
+"dealer_cumulative_net_shares": -467618,
+"dealer_cumulative_net_ratio": "-0.0410"
+},
+{
+"date": "2020-11-02",
+"trust_net": 0,
+"dealer_net": -204004,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -976000,
+"trust_cumulative_net_ratio": "-0.0856",
+"dealer_cumulative_net_shares": -671622,
+"dealer_cumulative_net_ratio": "-0.0589"
+},
+{
+"date": "2020-11-03",
+"trust_net": 0,
+"dealer_net": 29000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -976000,
+"trust_cumulative_net_ratio": "-0.0856",
+"dealer_cumulative_net_shares": -642622,
+"dealer_cumulative_net_ratio": "-0.0563"
+},
+{
+"date": "2020-11-04",
+"trust_net": 0,
+"dealer_net": -47000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -976000,
+"trust_cumulative_net_ratio": "-0.0856",
+"dealer_cumulative_net_shares": -689622,
+"dealer_cumulative_net_ratio": "-0.0605"
+},
+{
+"date": "2020-11-05",
+"trust_net": 0,
+"dealer_net": -148000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -976000,
+"trust_cumulative_net_ratio": "-0.0856",
+"dealer_cumulative_net_shares": -837622,
+"dealer_cumulative_net_ratio": "-0.0734"
+},
+{
+"date": "2020-11-06",
+"trust_net": 0,
+"dealer_net": 112000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -976000,
+"trust_cumulative_net_ratio": "-0.0856",
+"dealer_cumulative_net_shares": -725622,
+"dealer_cumulative_net_ratio": "-0.0636"
+},
+{
+"date": "2020-11-09",
+"trust_net": 0,
+"dealer_net": 451000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -976000,
+"trust_cumulative_net_ratio": "-0.0856",
+"dealer_cumulative_net_shares": -274622,
+"dealer_cumulative_net_ratio": "-0.0241"
+},
+{
+"date": "2020-11-10",
+"trust_net": 0,
+"dealer_net": -383000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -976000,
+"trust_cumulative_net_ratio": "-0.0856",
+"dealer_cumulative_net_shares": -657622,
+"dealer_cumulative_net_ratio": "-0.0577"
+},
+{
+"date": "2020-11-11",
+"trust_net": 0,
+"dealer_net": 201000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -976000,
+"trust_cumulative_net_ratio": "-0.0856",
+"dealer_cumulative_net_shares": -456622,
+"dealer_cumulative_net_ratio": "-0.0400"
+},
+{
+"date": "2020-11-12",
+"trust_net": 0,
+"dealer_net": 92000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -976000,
+"trust_cumulative_net_ratio": "-0.0856",
+"dealer_cumulative_net_shares": -364622,
+"dealer_cumulative_net_ratio": "-0.0320"
+},
+{
+"date": "2020-11-13",
+"trust_net": 0,
+"dealer_net": 2000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -976000,
+"trust_cumulative_net_ratio": "-0.0856",
+"dealer_cumulative_net_shares": -362622,
+"dealer_cumulative_net_ratio": "-0.0318"
+},
+{
+"date": "2020-11-16",
+"trust_net": 0,
+"dealer_net": -34000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -976000,
+"trust_cumulative_net_ratio": "-0.0856",
+"dealer_cumulative_net_shares": -396622,
+"dealer_cumulative_net_ratio": "-0.0348"
+},
+{
+"date": "2020-11-17",
+"trust_net": 0,
+"dealer_net": -124000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -976000,
+"trust_cumulative_net_ratio": "-0.0856",
+"dealer_cumulative_net_shares": -520622,
+"dealer_cumulative_net_ratio": "-0.0456"
+},
+{
+"date": "2020-11-18",
+"trust_net": 0,
+"dealer_net": 829000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -976000,
+"trust_cumulative_net_ratio": "-0.0856",
+"dealer_cumulative_net_shares": 308378,
+"dealer_cumulative_net_ratio": "0.0270"
+},
+{
+"date": "2020-11-19",
+"trust_net": -2000,
+"dealer_net": 459000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -978000,
+"trust_cumulative_net_ratio": "-0.0858",
+"dealer_cumulative_net_shares": 767378,
+"dealer_cumulative_net_ratio": "0.0673"
+},
+{
+"date": "2020-11-20",
+"trust_net": 2345000,
+"dealer_net": 278000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 1367000,
+"trust_cumulative_net_ratio": "0.1199",
+"dealer_cumulative_net_shares": 1045378,
+"dealer_cumulative_net_ratio": "0.0917"
+},
+{
+"date": "2020-11-23",
+"trust_net": 138000,
+"dealer_net": 49000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 1505000,
+"trust_cumulative_net_ratio": "0.1320",
+"dealer_cumulative_net_shares": 1094378,
+"dealer_cumulative_net_ratio": "0.0960"
+},
+{
+"date": "2020-11-24",
+"trust_net": -2800000,
+"dealer_net": -104000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1295000,
+"trust_cumulative_net_ratio": "-0.1135",
+"dealer_cumulative_net_shares": 990378,
+"dealer_cumulative_net_ratio": "0.0868"
+},
+{
+"date": "2020-11-25",
+"trust_net": 0,
+"dealer_net": -447000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1295000,
+"trust_cumulative_net_ratio": "-0.1135",
+"dealer_cumulative_net_shares": 543378,
+"dealer_cumulative_net_ratio": "0.0476"
+},
+{
+"date": "2020-11-26",
+"trust_net": 173000,
+"dealer_net": 156000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1122000,
+"trust_cumulative_net_ratio": "-0.0984",
+"dealer_cumulative_net_shares": 699378,
+"dealer_cumulative_net_ratio": "0.0613"
+},
+{
+"date": "2020-11-27",
+"trust_net": 0,
+"dealer_net": -149000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1122000,
+"trust_cumulative_net_ratio": "-0.0984",
+"dealer_cumulative_net_shares": 550378,
+"dealer_cumulative_net_ratio": "0.0483"
+},
+{
+"date": "2020-11-30",
+"trust_net": 0,
+"dealer_net": -10000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1122000,
+"trust_cumulative_net_ratio": "-0.0984",
+"dealer_cumulative_net_shares": 540378,
+"dealer_cumulative_net_ratio": "0.0474"
+},
+{
+"date": "2020-12-01",
+"trust_net": -5000,
+"dealer_net": 552000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1127000,
+"trust_cumulative_net_ratio": "-0.0988",
+"dealer_cumulative_net_shares": 1092378,
+"dealer_cumulative_net_ratio": "0.0958"
+},
+{
+"date": "2020-12-02",
+"trust_net": 0,
+"dealer_net": -293000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1127000,
+"trust_cumulative_net_ratio": "-0.0988",
+"dealer_cumulative_net_shares": 799378,
+"dealer_cumulative_net_ratio": "0.0701"
+},
+{
+"date": "2020-12-03",
+"trust_net": 0,
+"dealer_net": 273985,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1127000,
+"trust_cumulative_net_ratio": "-0.0988",
+"dealer_cumulative_net_shares": 1073363,
+"dealer_cumulative_net_ratio": "0.0941"
+},
+{
+"date": "2020-12-04",
+"trust_net": -821000,
+"dealer_net": 258831,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1948000,
+"trust_cumulative_net_ratio": "-0.1708",
+"dealer_cumulative_net_shares": 1332194,
+"dealer_cumulative_net_ratio": "0.1168"
+},
+{
+"date": "2020-12-07",
+"trust_net": 0,
+"dealer_net": -91000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1948000,
+"trust_cumulative_net_ratio": "-0.1708",
+"dealer_cumulative_net_shares": 1241194,
+"dealer_cumulative_net_ratio": "0.1088"
+},
+{
+"date": "2020-12-08",
+"trust_net": -5000,
+"dealer_net": -53000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1953000,
+"trust_cumulative_net_ratio": "-0.1712",
+"dealer_cumulative_net_shares": 1188194,
+"dealer_cumulative_net_ratio": "0.1042"
+},
+{
+"date": "2020-12-09",
+"trust_net": -1071000,
+"dealer_net": -272939,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -3024000,
+"trust_cumulative_net_ratio": "-0.2652",
+"dealer_cumulative_net_shares": 915255,
+"dealer_cumulative_net_ratio": "0.0803"
+},
+{
+"date": "2020-12-10",
+"trust_net": 984000,
+"dealer_net": 280260,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -2040000,
+"trust_cumulative_net_ratio": "-0.1789",
+"dealer_cumulative_net_shares": 1195515,
+"dealer_cumulative_net_ratio": "0.1048"
+},
+{
+"date": "2020-12-11",
+"trust_net": 180000,
+"dealer_net": 1201386,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1860000,
+"trust_cumulative_net_ratio": "-0.1631",
+"dealer_cumulative_net_shares": 2396901,
+"dealer_cumulative_net_ratio": "0.2102"
+},
+{
+"date": "2020-12-14",
+"trust_net": 312000,
+"dealer_net": 812182,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -1548000,
+"trust_cumulative_net_ratio": "-0.1357",
+"dealer_cumulative_net_shares": 3209083,
+"dealer_cumulative_net_ratio": "0.2814"
+},
+{
+"date": "2020-12-15",
+"trust_net": 1100000,
+"dealer_net": -353503,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -448000,
+"trust_cumulative_net_ratio": "-0.0393",
+"dealer_cumulative_net_shares": 2855580,
+"dealer_cumulative_net_ratio": "0.2504"
+},
+{
+"date": "2020-12-16",
+"trust_net": -76000,
+"dealer_net": 2454198,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": -524000,
+"trust_cumulative_net_ratio": "-0.0459",
+"dealer_cumulative_net_shares": 5309778,
+"dealer_cumulative_net_ratio": "0.4656"
+},
+{
+"date": "2020-12-17",
+"trust_net": 800000,
+"dealer_net": -589709,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 276000,
+"trust_cumulative_net_ratio": "0.0242",
+"dealer_cumulative_net_shares": 4720069,
+"dealer_cumulative_net_ratio": "0.4139"
+},
+{
+"date": "2020-12-18",
+"trust_net": 1317000,
+"dealer_net": 529280,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 1593000,
+"trust_cumulative_net_ratio": "0.1397",
+"dealer_cumulative_net_shares": 5249349,
+"dealer_cumulative_net_ratio": "0.4603"
+},
+{
+"date": "2020-12-21",
+"trust_net": -5000,
+"dealer_net": 625000,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 1588000,
+"trust_cumulative_net_ratio": "0.1392",
+"dealer_cumulative_net_shares": 5874349,
+"dealer_cumulative_net_ratio": "0.5151"
+},
+{
+"date": "2020-12-22",
+"trust_net": 2100000,
+"dealer_net": -1149170,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 3688000,
+"trust_cumulative_net_ratio": "0.3234",
+"dealer_cumulative_net_shares": 4725179,
+"dealer_cumulative_net_ratio": "0.4143"
+},
+{
+"date": "2020-12-23",
+"trust_net": 273000,
+"dealer_net": 257613,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 3961000,
+"trust_cumulative_net_ratio": "0.3473",
+"dealer_cumulative_net_shares": 4982792,
+"dealer_cumulative_net_ratio": "0.4369"
+},
+{
+"date": "2020-12-24",
+"trust_net": -297000,
+"dealer_net": -45569,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 3664000,
+"trust_cumulative_net_ratio": "0.3213",
+"dealer_cumulative_net_shares": 4937223,
+"dealer_cumulative_net_ratio": "0.4329"
+},
+{
+"date": "2020-12-25",
+"trust_net": -40000,
+"dealer_net": -195832,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 3624000,
+"trust_cumulative_net_ratio": "0.3178",
+"dealer_cumulative_net_shares": 4741391,
+"dealer_cumulative_net_ratio": "0.4157"
+},
+{
+"date": "2020-12-28",
+"trust_net": 0,
+"dealer_net": 537913,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 3624000,
+"trust_cumulative_net_ratio": "0.3178",
+"dealer_cumulative_net_shares": 5279304,
+"dealer_cumulative_net_ratio": "0.4629"
+},
+{
+"date": "2020-12-29",
+"trust_net": 499000,
+"dealer_net": -1095169,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 4123000,
+"trust_cumulative_net_ratio": "0.3615",
+"dealer_cumulative_net_shares": 4184135,
+"dealer_cumulative_net_ratio": "0.3669"
+},
+{
+"date": "2020-12-30",
+"trust_net": 1156000,
+"dealer_net": 364409,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 5279000,
+"trust_cumulative_net_ratio": "0.4629",
+"dealer_cumulative_net_shares": 4548544,
+"dealer_cumulative_net_ratio": "0.3988"
+},
+{
+"date": "2020-12-31",
+"trust_net": 1064000,
+"dealer_net": -91776,
+"issued_shares": 1140467715,
+"trust_cumulative_net_shares": 6343000,
+"trust_cumulative_net_ratio": "0.5562",
+"dealer_cumulative_net_shares": 4456768,
+"dealer_cumulative_net_ratio": "0.3908"
+}
+],
+"6446": [
+{
+"date": "2020-01-02",
+"trust_net": 244000,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 244000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 0,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-01-03",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 244000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 0,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-01-06",
+"trust_net": 300000,
+"dealer_net": 10000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 544000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 10000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-01-07",
+"trust_net": 66000,
+"dealer_net": 10000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 20000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-01-08",
+"trust_net": 0,
+"dealer_net": 10000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 30000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-01-09",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 30000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-01-10",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 30000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-01-13",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 30000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-01-14",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 30000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-01-15",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 30000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-01-16",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 30000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-01-17",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 30000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-01-20",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 30000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-01-30",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 30000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-01-31",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 30000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-02-03",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 30000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-02-04",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 30000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-02-05",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 30000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-02-06",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 30000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-02-07",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 30000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-02-10",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 30000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-02-11",
+"trust_net": 0,
+"dealer_net": -1000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 29000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-02-12",
+"trust_net": 0,
+"dealer_net": 5000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 34000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-02-13",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 34000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-02-14",
+"trust_net": 0,
+"dealer_net": 5000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 39000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-02-17",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 39000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-02-18",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 39000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-02-19",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 39000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-02-20",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 39000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-02-21",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 39000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-02-24",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 39000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-02-25",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 39000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-02-26",
+"trust_net": 0,
+"dealer_net": 1000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 40000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-02-27",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 40000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-03-02",
+"trust_net": 0,
+"dealer_net": -1000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 39000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-03-03",
+"trust_net": 0,
+"dealer_net": -1000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 38000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-03-04",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 38000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-03-05",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 38000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-03-06",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 38000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-03-09",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 38000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-03-10",
+"trust_net": 0,
+"dealer_net": -1000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 37000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-03-11",
+"trust_net": 0,
+"dealer_net": -1000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 36000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-03-12",
+"trust_net": 0,
+"dealer_net": -2000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 610000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": 34000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-03-13",
+"trust_net": -250000,
+"dealer_net": -385000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 360000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-03-16",
+"trust_net": -147000,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 213000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-03-17",
+"trust_net": -33000,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 180000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-03-18",
+"trust_net": -12000,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 168000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-03-19",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 168000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-03-20",
+"trust_net": -15000,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-03-23",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-03-24",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-03-25",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-03-26",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-03-27",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-03-30",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-03-31",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-04-01",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-04-06",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-04-07",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-04-08",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-04-09",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-04-10",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-04-13",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-04-14",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-04-15",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-04-16",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-04-17",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-04-20",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-04-21",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-04-22",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-04-23",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-04-24",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-04-27",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-04-28",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-04-29",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-04-30",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-05-04",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-05-05",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-05-06",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 153000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-05-07",
+"trust_net": 156000,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 309000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-05-08",
+"trust_net": 200000,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 509000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-05-11",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 509000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-05-12",
+"trust_net": 200000,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 709000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-05-13",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 709000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-05-14",
+"trust_net": 200000,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 909000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-05-15",
+"trust_net": 144000,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 1053000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-05-18",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 1053000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-05-19",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 1053000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-05-20",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 1053000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -351000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-05-21",
+"trust_net": 0,
+"dealer_net": 20000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 1053000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -331000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-05-22",
+"trust_net": -100000,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 953000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -331000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-05-25",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 953000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -331000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-05-26",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 953000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -331000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-05-27",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 953000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -331000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-05-28",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 953000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -331000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-05-29",
+"trust_net": 0,
+"dealer_net": 5000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 953000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -326000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-06-01",
+"trust_net": 90000,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 1043000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -326000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-06-02",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 1043000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -326000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-06-03",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 1043000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -326000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-06-04",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 1043000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -326000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-06-05",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 1043000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -326000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-06-08",
+"trust_net": 0,
+"dealer_net": 15000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 1043000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -311000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-06-09",
+"trust_net": 0,
+"dealer_net": 5000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 1043000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -306000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-06-10",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 1043000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -306000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-06-11",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 1043000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -306000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-06-12",
+"trust_net": -60000,
+"dealer_net": -5000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 983000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -311000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-06-15",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 983000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -311000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-06-16",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 983000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -311000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-06-17",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 983000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -311000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-06-18",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 983000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -311000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-06-19",
+"trust_net": -30000,
+"dealer_net": 18000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 953000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -293000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-06-22",
+"trust_net": 0,
+"dealer_net": 17000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 953000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -276000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-06-23",
+"trust_net": -114000,
+"dealer_net": 1000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 839000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -275000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-06-24",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 839000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -275000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-06-29",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 839000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -275000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-06-30",
+"trust_net": 0,
+"dealer_net": 1000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 839000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -274000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-07-01",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 839000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -274000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-07-02",
+"trust_net": 0,
+"dealer_net": 4000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 839000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -270000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-07-03",
+"trust_net": 0,
+"dealer_net": 1000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 839000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -269000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-07-06",
+"trust_net": 0,
+"dealer_net": 25000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 839000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -244000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-07-07",
+"trust_net": 0,
+"dealer_net": 45000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 839000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -199000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-07-08",
+"trust_net": 0,
+"dealer_net": 2000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 839000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -197000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-07-09",
+"trust_net": 0,
+"dealer_net": 1000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 839000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -196000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-07-10",
+"trust_net": 0,
+"dealer_net": 1000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 839000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -195000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-07-13",
+"trust_net": 0,
+"dealer_net": 20000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 839000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -175000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-07-14",
+"trust_net": 0,
+"dealer_net": 33000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 839000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -142000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-07-15",
+"trust_net": 0,
+"dealer_net": -48000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 839000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -190000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-07-16",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 839000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -190000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-07-17",
+"trust_net": 0,
+"dealer_net": -28000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 839000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -218000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-07-20",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 839000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -218000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-07-21",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 839000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -218000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-07-22",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 839000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -218000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-07-23",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 839000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -218000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-07-24",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 839000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -218000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-07-27",
+"trust_net": 0,
+"dealer_net": 1000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 839000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -217000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-07-28",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 839000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -217000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-07-29",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 839000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -217000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-07-30",
+"trust_net": 67000,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 906000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -217000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-07-31",
+"trust_net": 70000,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 976000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -217000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-08-03",
+"trust_net": 86000,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 1062000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -217000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-08-04",
+"trust_net": -200000,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 862000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -217000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-08-05",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 862000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -217000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-08-06",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 862000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -217000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-08-07",
+"trust_net": 0,
+"dealer_net": 5000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 862000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -212000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-08-10",
+"trust_net": 0,
+"dealer_net": 1000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 862000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -211000,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-08-11",
+"trust_net": 0,
+"dealer_net": 15017,
+"issued_shares": null,
+"trust_cumulative_net_shares": 862000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -195983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-08-12",
+"trust_net": 0,
+"dealer_net": -21000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 862000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -216983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-08-13",
+"trust_net": -18000,
+"dealer_net": -9000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 844000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -225983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-08-14",
+"trust_net": 0,
+"dealer_net": -2000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 844000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -227983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-08-17",
+"trust_net": 0,
+"dealer_net": 26000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 844000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -201983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-08-18",
+"trust_net": 0,
+"dealer_net": -8000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 844000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -209983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-08-19",
+"trust_net": 0,
+"dealer_net": 39000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 844000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -170983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-08-20",
+"trust_net": 0,
+"dealer_net": -11000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 844000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -181983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-08-21",
+"trust_net": 0,
+"dealer_net": 1000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 844000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -180983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-08-24",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 844000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -180983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-08-25",
+"trust_net": 0,
+"dealer_net": 5000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 844000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -175983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-08-26",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 844000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -175983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-08-27",
+"trust_net": 0,
+"dealer_net": -5000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 844000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -180983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-08-28",
+"trust_net": 0,
+"dealer_net": -39000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 844000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -219983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-08-31",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 844000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -219983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-09-01",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 844000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -219983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-09-02",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 844000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -219983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-09-03",
+"trust_net": 0,
+"dealer_net": 1000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 844000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -218983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-09-04",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 844000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -218983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-09-07",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 844000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -218983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-09-08",
+"trust_net": -100000,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 744000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -218983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-09-09",
+"trust_net": -100000,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 644000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -218983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-09-10",
+"trust_net": -90000,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 554000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -218983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-09-11",
+"trust_net": 0,
+"dealer_net": 24000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 554000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -194983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-09-14",
+"trust_net": -100000,
+"dealer_net": -42000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 454000,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -236983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-09-15",
+"trust_net": -82374,
+"dealer_net": 1000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 371626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -235983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-09-16",
+"trust_net": -60000,
+"dealer_net": -1000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 311626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -236983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-09-17",
+"trust_net": -108000,
+"dealer_net": -2000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 203626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -238983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-09-18",
+"trust_net": 0,
+"dealer_net": 2000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 203626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -236983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-09-21",
+"trust_net": 0,
+"dealer_net": 20000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 203626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -216983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-09-22",
+"trust_net": 0,
+"dealer_net": 20000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 203626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -196983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-09-23",
+"trust_net": 0,
+"dealer_net": 10000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 203626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -186983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-09-24",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 203626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -186983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-09-25",
+"trust_net": 0,
+"dealer_net": -17000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 203626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -203983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-09-28",
+"trust_net": 0,
+"dealer_net": -5000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 203626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -208983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-09-29",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 203626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -208983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-09-30",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 203626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -208983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-10-05",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 203626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -208983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-10-06",
+"trust_net": 0,
+"dealer_net": 1000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 203626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -207983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-10-07",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 203626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -207983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-10-08",
+"trust_net": 0,
+"dealer_net": 2000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 203626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -205983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-10-12",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 203626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -205983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-10-13",
+"trust_net": 0,
+"dealer_net": 2000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 203626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -203983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-10-14",
+"trust_net": 49000,
+"dealer_net": 5000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 252626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -198983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-10-15",
+"trust_net": 0,
+"dealer_net": 30000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 252626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -168983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-10-16",
+"trust_net": 0,
+"dealer_net": 10000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 252626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -158983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-10-19",
+"trust_net": 0,
+"dealer_net": -59000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 252626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -217983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-10-20",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 252626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -217983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-10-21",
+"trust_net": 50000,
+"dealer_net": 20000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -197983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-10-22",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -197983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-10-26",
+"trust_net": 0,
+"dealer_net": -542000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -739983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-10-27",
+"trust_net": 0,
+"dealer_net": -370000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-10-28",
+"trust_net": 0,
+"dealer_net": 6000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1103983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-10-29",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1103983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-10-30",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1103983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-11-02",
+"trust_net": 0,
+"dealer_net": -6000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-11-03",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-11-04",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-11-05",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-11-06",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-11-09",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-11-10",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-11-11",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-11-12",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-11-13",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-11-16",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-11-17",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-11-18",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-11-19",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-11-20",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-11-23",
+"trust_net": 0,
+"dealer_net": 11000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1098983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-11-24",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1098983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-11-25",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1098983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-11-26",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1098983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-11-27",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1098983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-11-30",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1098983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-12-01",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1098983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-12-02",
+"trust_net": 0,
+"dealer_net": 10000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1088983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-12-03",
+"trust_net": 0,
+"dealer_net": 8000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1080983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-12-04",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1080983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-12-07",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1080983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-12-08",
+"trust_net": 0,
+"dealer_net": -16000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1096983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-12-09",
+"trust_net": 0,
+"dealer_net": -13000,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-12-10",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-12-11",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-12-14",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-12-15",
+"trust_net": 0,
+"dealer_net": 100,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109883,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-12-16",
+"trust_net": 0,
+"dealer_net": -50,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109933,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-12-17",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109933,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-12-18",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109933,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-12-21",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109933,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-12-22",
+"trust_net": 0,
+"dealer_net": -50,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-12-23",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-12-24",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-12-25",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-12-28",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-12-29",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-12-30",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109983,
+"dealer_cumulative_net_ratio": null
+},
+{
+"date": "2020-12-31",
+"trust_net": 0,
+"dealer_net": 0,
+"issued_shares": null,
+"trust_cumulative_net_shares": 302626,
+"trust_cumulative_net_ratio": null,
+"dealer_cumulative_net_shares": -1109983,
+"dealer_cumulative_net_ratio": null
+}
+]
+}
+}

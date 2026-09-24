@@ -21,6 +21,8 @@ from sqlalchemy.exc import OperationalError
 
 from stock_data_center.db.schema_v2 import (
     daily_prices,
+    foreign_holdings,
+    institutional_cumulative_flow,
     institutional_flows,
     institutional_streaks,
     technical_indicators,
@@ -37,6 +39,8 @@ TWSE = "twse_mi_index"
 T86 = "twse_t86"
 TECH = derived_store.TECHNICAL_INDICATORS
 STREAKS = derived_store.INSTITUTIONAL_STREAKS
+CUMULATIVE = derived_store.INSTITUTIONAL_CUMULATIVE_FLOW
+QFIIS = "twse_mi_qfiis"
 EXPONENTIAL = ("k", "d", "rsi6", "rsi12", "macd_dif", "macd_dea", "macd_hist")
 
 
@@ -447,6 +451,129 @@ def test_a_streak_longer_than_the_buffer_is_counted_from_its_start(db, fetch_id)
     last = _stored(db, institutional_streaks)[days[399]]
     assert days[399] - days[0] > timedelta(days=500)
     assert (last["foreign_streak_days"], last["trust_streak_days"]) == (-400, 100)
+
+
+# ---------------------------------------------------------------- cumulative flow
+
+
+def _issued(db, fetch_id, day, shares, *, stock_id="2330") -> None:
+    db.execute(sa.insert(foreign_holdings).values(
+        stock_id=stock_id, source=QFIIS, trade_date=day, issued_shares=shares,
+        fetch_id=fetch_id))
+
+
+def _cumulative(db, stock_id="2330") -> list[tuple]:
+    return [
+        (r["trade_date"], r["trust_cumulative_net_shares"], r["trust_cumulative_net_ratio"],
+         r["dealer_cumulative_net_shares"], r["dealer_cumulative_net_ratio"])
+        for _, r in sorted(_stored(db, institutional_cumulative_flow, stock_id).items())
+    ]
+
+
+def test_the_cumulative_flow_definition() -> None:
+    definition = CUMULATIVE.definition
+    assert (definition.dataset_code, definition.derivation_version) == (
+        "institutional_cumulative_flow", "v1")
+    assert definition.input_tables == ("institutional_flows", "foreign_holdings")
+
+
+def test_cumulative_flows_sum_each_institutional_day_from_zero(db, fetch_id) -> None:
+    """Legacy trust_holding/dealer_holding: one row per day of the institutional
+    file, the nets summed from the series' first day, divided by the same day's
+    issued shares. A day without a foreign-holding row has no ratio."""
+    days = _trading_days(date(2024, 7, 1), 4)
+    _flow(db, fetch_id, days[0], trust=100, dealer=-40)
+    _flow(db, fetch_id, days[1], trust=-30, dealer=0)
+    # days[2]: no institutional row, so no cumulative row.
+    _flow(db, fetch_id, days[3], trust=5, dealer=-40)
+    _issued(db, fetch_id, days[0], 1_000_000)
+    _issued(db, fetch_id, days[3], 2_000_000)
+
+    derived_store.run(db, CUMULATIVE)
+
+    assert _cumulative(db) == [
+        (days[0], 100, 0.01, -40, -0.004),
+        (days[1], 70, None, -40, None),
+        (days[3], 75, 0.0038, -80, -0.004),
+    ]
+    assert {r["source"] for r in _stored(db, institutional_cumulative_flow).values()} == {T86}
+
+
+def test_each_market_starts_its_own_sum(db, fetch_id) -> None:
+    # CLAUDE.md §30: a stock that moved market is two series, as legacy
+    # partitioned by (market, symbol).
+    _flow(db, fetch_id, date(2023, 1, 3), trust=7)
+    db.execute(sa.insert(institutional_flows).values(
+        stock_id="2330", source="tpex_insti_daily_trade", trade_date=date(2022, 1, 3),
+        trust_net=50, dealer_net=1, fetch_id=fetch_id))
+    derived_store.run(db, CUMULATIVE)
+    rows = db.execute(sa.text(
+        "SELECT source, trust_cumulative_net_shares FROM institutional_cumulative_flow "
+        "ORDER BY trade_date")).all()
+    assert rows == [("tpex_insti_daily_trade", 50), (T86, 7)]
+
+
+def test_a_late_flow_row_carries_into_every_later_sum(db, fetch_id) -> None:
+    days = _trading_days(date(2024, 7, 1), 4)
+    for day in days:
+        _flow(db, fetch_id, day, trust=1)
+    first = derived_store.run(db, CUMULATIVE)
+    _flow(db, fetch_id, days[1], trust=10)  # a correction of the second day
+
+    second = derived_store.run(db, CUMULATIVE)
+
+    stored = sorted(_stored(db, institutional_cumulative_flow).items())
+    assert [r["trust_cumulative_net_shares"] for _, r in stored] == [1, 11, 12, 13]
+    assert [r["computed_at"] for _, r in stored] == [first.computed_at] + [
+        second.computed_at] * 3
+
+
+def test_a_late_issued_share_count_changes_only_its_own_ratio(db, fetch_id) -> None:
+    days = _trading_days(date(2024, 7, 1), 3)
+    for day in days:
+        _flow(db, fetch_id, day, trust=1000)
+    first = derived_store.run(db, CUMULATIVE)
+    _issued(db, fetch_id, days[1], 1_000_000)
+
+    second = derived_store.run(db, CUMULATIVE)
+
+    stored = sorted(_stored(db, institutional_cumulative_flow).items())
+    assert [r["trust_cumulative_net_ratio"] for _, r in stored] == [None, 0.2, None]
+    assert [r["computed_at"] for _, r in stored] == [first.computed_at] + [
+        second.computed_at] * 2
+
+
+def test_an_incremental_sum_equals_the_full_one_beyond_the_buffer(db, fetch_id) -> None:
+    # A sum never forgets its first day: no warm-up buffer is enough, so every
+    # series is summed from its start.
+    days = _trading_days(date(2021, 1, 1), 450)
+    for index, day in enumerate(days[:449]):
+        _flow(db, fetch_id, day, trust=index % 7 - 3, dealer=1)
+    derived_store.run(db, CUMULATIVE)
+    _flow(db, fetch_id, days[449], trust=2, dealer=1)
+
+    derived_store.run(db, CUMULATIVE)
+
+    incremental = _cumulative(db)
+    derived_store.run(db, CUMULATIVE, full=True)
+    assert incremental == _cumulative(db)
+    assert incremental[-1][3] == 450
+
+
+def test_a_cumulative_value_uses_no_input_dated_after_it(db, fetch_id) -> None:
+    days = _trading_days(date(2024, 7, 1), 6)
+    for day in days[:3]:
+        _flow(db, fetch_id, day, trust=2, dealer=-1)
+        _issued(db, fetch_id, day, 10_000)
+    derived_store.run(db, CUMULATIVE)
+    early = _cumulative(db)
+    for day in days[3:]:
+        _flow(db, fetch_id, day, trust=50, dealer=50)
+        _issued(db, fetch_id, day, 99)
+
+    derived_store.run(db, CUMULATIVE, full=True)
+
+    assert _cumulative(db)[:3] == early
 
 
 # ---------------------------------------------------------------- storage

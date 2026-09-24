@@ -54,8 +54,12 @@ dealer_cumulative_net_shares
 dealer_cumulative_net_ratio
 ```
 
-The ratio is cumulative net shares divided by PIT-visible issued shares; neither
-value claims ownership. An actual holding dataset would need an observed
+Each is the running sum of the daily net shares from the series' first day of
+the institutional file, and the ratio is that sum as a percentage of the same
+day's issued shares (`twse_mi_qfiis` for TWSE, `mops_t13sa150_otc` for TPEx),
+rounded to four places as legacy did; NULL without a foreign-holding row that
+day. The table is `institutional_cumulative_flow` (Step 26-c). Neither value
+claims ownership. An actual holding dataset would need an observed
 baseline and a new derivation version, never a silent change to this proxy.
 
 Margin usage recomputation, short-interest ratios and SBL pressure are canonical
