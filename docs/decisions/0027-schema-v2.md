@@ -131,7 +131,11 @@ Step 9 的個股 pilot 來源（`twse`、`tpex`）與 `tpex_insti_qfii` 不再�
   現金減資、變更股票面額）、`close_before`、`reference_price`、`rights_dividend_value`
   （帶正負號）、`cash_dividend_per_share`、`free_share_ratio`、`rights_ratio`、
   `subscription_price`、`old_shares`、`new_shares`、`cash_return_per_share`、`retracted`、
-  `recorded_at`、`fetch_id`。
+  `recorded_at`、`fetch_id`、`detail_fetch_id`。
+- `detail_fetch_id`（Step 35-c-3，#50 review）：TWSE `TWT49U`／`TWTAUU` 的列表只發布價格，
+  股利、配股、認購與減資條件只在每個事件的明細頁，一列因此來自兩個原始檔。`fetch_id` 指向列表，
+  `detail_fetch_id` 指向明細；少了它，這兩個 feed 的條件欄追不到原始檔。CHECK 規定恰好這兩個 feed
+  有值，其他四個 feed 為 NULL。
 - 撤回（列從 feed 消失）新增一列 `retracted = true`（§51.5），2020–2026 發生 0 次。
 - 拿掉：
   - 事件表與 `source_event_key`：key 即事件身分，仍是 §51.5 的 `feed + 執行日`。

@@ -254,3 +254,39 @@ def test_a_year_not_yet_begun_is_not_requested(db, store, universe) -> None:
 def test_today_is_the_taipei_date() -> None:
     # 2026-12-31 23:30 UTC is already 2027-01-01 in Taipei.
     assert ca.executed_through(datetime(2026, 12, 31, 23, 30, tzinfo=UTC)) == date(2027, 1, 1)
+
+
+def _detail_fetch(db, stock_id: str) -> sa.Row:
+    return db.execute(sa.text(
+        "SELECT f.resource_key, f.status FROM corporate_actions c "
+        "JOIN fetches f ON f.id = c.detail_fetch_id WHERE c.stock_id = :s"), {"s": stock_id}).one()
+
+
+def test_a_row_names_the_detail_its_terms_came_from(db, store, universe) -> None:
+    _ingest(db, store, "twse_twt49u", 2024, TWT49U_2024, DETAIL_2454)
+    assert tuple(_detail_fetch(db, "2454")) == (
+        "twse_twt49u:detail:2454:TWT49U:20240104", "succeeded")
+    # The list's own fetch stays the row's fetch_id.
+    assert db.execute(sa.text(
+        "SELECT f.resource_key FROM corporate_actions c JOIN fetches f ON f.id = c.fetch_id"
+    )).scalar() == "twse_twt49u:2024-01-01:2024-12-31"
+    _ingest(db, store, "tpex_exdailyq", 2024, EXDAILYQ_2024)
+    assert db.execute(sa.text(
+        "SELECT count(*) FROM corporate_actions WHERE source = 'tpex_exdailyq' "
+        "AND detail_fetch_id IS NOT NULL")).scalar() == 0
+
+
+def test_a_retraction_keeps_the_detail_of_the_row_it_withdraws(db, store, universe) -> None:
+    _ingest(db, store, "twse_twt49u", 2024, TWT49U_2024, DETAIL_2454)
+    _ingest(db, store, "twse_twt49u", 2024, _without(TWT49U_2024, "2454"))
+    ids = db.execute(sa.text(
+        "SELECT DISTINCT detail_fetch_id FROM corporate_actions WHERE stock_id = '2454'")).all()
+    assert len(ids) == 1 and ids[0][0] is not None
+
+
+def test_a_detail_row_must_name_its_detail(db, store, universe) -> None:
+    _ingest(db, store, "twse_twt49u", 2024, TWT49U_2024, DETAIL_2454)
+    with pytest.raises(sa.exc.IntegrityError), db.begin_nested():
+        db.execute(sa.text(
+            "INSERT INTO corporate_actions (stock_id, source, ex_date, event_type, fetch_id) "
+            "SELECT stock_id, source, ex_date + 1, event_type, fetch_id FROM corporate_actions"))

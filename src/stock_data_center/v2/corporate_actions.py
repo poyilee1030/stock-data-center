@@ -97,7 +97,7 @@ def _money(value):
     return None if value is None else value.value
 
 
-def _row(source: str, stock_id: str, observation) -> dict:
+def _row(source: str, stock_id: str, observation, detail_fetch_id=None) -> dict:
     return {
         "stock_id": stock_id,
         "source": source,
@@ -114,6 +114,7 @@ def _row(source: str, stock_id: str, observation) -> dict:
         "new_shares": observation.new_shares,
         "cash_return_per_share": _money(observation.capital_reduction_cash_return_per_share),
         "retracted": False,
+        "detail_fetch_id": detail_fetch_id,
     }
 
 
@@ -185,7 +186,7 @@ def ingest(
         # its row is held back and its terms are unknown today.
         event_key = (item.security_code, source, item.event_date)
         listed_keys.add(event_key)
-        detail = None
+        detail = detail_fetch_id = None
         if item.detail_request is not None:
             old = stored.get(event_key)
             if (old is not None and not old["retracted"] and purpose != "correction_check"
@@ -199,10 +200,11 @@ def ingest(
                     rejected.append(f"{item.security_code} {item.event_date}: "
                                     f"{fetched.reason_code}")
                     continue
-                fetched.log("succeeded")
+                detail_fetch_id = fetched.log("succeeded")
                 detail = fetched.parsed
         try:
-            row = _row(source, item.security_code, adapter.observation(item, detail))
+            row = _row(source, item.security_code, adapter.observation(item, detail),
+                       detail_fetch_id)
             check_precision(TABLE, [row])
         except (m.SourceDataError, ValueError) as error:
             rejected.append(f"{item.security_code} {item.event_date}: {error}")
@@ -232,7 +234,8 @@ def _write(connection, source, parsed, listed, rows, rejected, listed_keys, skip
     # A stored event this file no longer lists, inside its executed range, is
     # withdrawn by a new row; the old rows stay (CLAUDE.md §51.5).
     retractions = [
-        {**{c: old[c] for c in (*keys, *values)}, "retracted": True, "fetch_id": fetch_id}
+        {**{c: old[c] for c in (*keys, *values, "detail_fetch_id")}, "retracted": True,
+         "fetch_id": fetch_id}
         for stored_key, old in stored.items()
         if stored_key not in listed_keys and not old["retracted"]
         and old["stock_id"] in stock_ids

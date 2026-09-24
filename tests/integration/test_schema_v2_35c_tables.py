@@ -46,7 +46,7 @@ COLUMNS = {
         "stock_id", "source", "ex_date", "recorded_at", "event_type", "close_before",
         "reference_price", "rights_dividend_value", "cash_dividend_per_share",
         "free_share_ratio", "rights_ratio", "subscription_price", "old_shares",
-        "new_shares", "cash_return_per_share", "retracted", "fetch_id",
+        "new_shares", "cash_return_per_share", "retracted", "fetch_id", "detail_fetch_id",
     ],
 }
 
@@ -107,7 +107,7 @@ def _action(db, fetch_id, **values) -> None:
     _insert(db, "corporate_actions", **{
         "stock_id": "2330", "source": "twse_twt49u", "ex_date": date(2026, 9, 16),
         "event_type": "息", "close_before": Decimal(1250), "reference_price": Decimal(1244),
-        "fetch_id": fetch_id, **values})
+        "fetch_id": fetch_id, "detail_fetch_id": fetch_id, **values})
 
 
 @pytest.mark.parametrize("table", sorted(COLUMNS))

@@ -212,7 +212,7 @@ def _taiex_close_check(connection: Connection, rows: list[dict]) -> Checked:
 
 # Written by the runner, never compared: a row differs from the key's latest row
 # only in its published values.
-_BOOKKEEPING = ("recorded_at", "fetch_id", "published_at")
+_BOOKKEEPING = ("recorded_at", "fetch_id", "detail_fetch_id", "published_at")
 _STOCK_KEY = ("stock_id", "source", "trade_date")
 
 

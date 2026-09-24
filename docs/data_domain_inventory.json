@@ -3654,7 +3654,11 @@
           },
           "fetch_id": {
             "coverage": "internal",
-            "note": "The fetch this row was parsed from; the fetch names the raw file by SHA-256."
+            "note": "The fetch this row was parsed from (for TWT49U and TWTAUU, the list); the fetch names the raw file by SHA-256."
+          },
+          "detail_fetch_id": {
+            "coverage": "internal",
+            "note": "TWT49U and TWTAUU only: the detail-page fetch the row's terms were parsed from, a second raw file. NULL for the other four feeds, whose list rows carry every term (Step 35-c-3, #50 review)."
           }
         }
       }
