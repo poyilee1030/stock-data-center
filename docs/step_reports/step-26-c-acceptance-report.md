@@ -12,11 +12,11 @@
 | schema | `institutional_cumulative_flow`：`trust_cumulative_net_shares`、`dealer_cumulative_net_shares`（bigint）、`trust_cumulative_net_ratio`、`dealer_cumulative_net_ratio`（double，可為 NULL），key `(stock_id, source, trade_date)`，加 `computed_at`；migration `0f6386ea08db`，降級不設防 |
 | `src/stock_data_center/v2/cumulative_flow.py` | 累加與比率的純函式 |
 | `src/stock_data_center/v2/derived_store.py` | 資料集定義、`HOLDING_SOURCE` 對照、計算 |
-| scripts | `reconcile_institutional_cumulative_flow.py`（新）；`verify_derived_store.py` 加上累積流量與 `--dataset` |
+| scripts | `reconcile_institutional_cumulative_flow.py`（新）；`verify_derived_store.py` 加上累積流量與 `--dataset`，增量檢查改走 `derived_store.rewrite` |
 | 測試 | `tests/unit/test_v2_cumulative_flow.py`（11）；`test_v2_derived_store.py` 加 7 條；`test_schema_v2_baseline.py` 的衍生表清單 |
 | 文件 | ROADMAP §20、Step 26（26-c 小節）；CLAUDE.md 快照；`derived_data.md`、`schema.md`、`institutional_financing.md`、domain inventory（md／json）、README；26-b 報告標為 MERGED |
 
-`src/` +120／−1 行。
+`src/` +142／−13 行（含 code review 修正：`run` 抽出 `rewrite`）。
 
 ## 每一欄的理由
 
@@ -39,7 +39,7 @@
 | 標準 | 結果 | 證據 |
 |---|---|---|
 | 與舊系統的表對帳，差異逐一分類 | PASS | 0 筆無法歸因（見下方） |
-| 增量與整段重算逐位相同 | PASS | 1,959 條序列 × 6 個起點，6,810,793 列 0 筆不同；`test_an_incremental_sum_equals_the_full_one_beyond_the_buffer` |
+| 增量與整段重算逐位相同 | PASS | 真實資料：`run` 對每條序列做的「計算、刪除、寫入」（`derived_store.rewrite`）在會 rollback 的交易裡，對 1,959 條序列 × 6 個起點各執行一次、讀回整條序列，6,810,793 列 0 筆不同，起點之前的列都沒被動到。重算起點怎麼選（`_changed`）只由整合測試驗證：晚到的法人列、晚到的發行股數、`test_an_incremental_sum_equals_the_full_one_beyond_the_buffer` |
 | 沒有用到未來的資料 | PASS | `test_a_cumulative_value_uses_no_input_dated_after_it`：D 之前的累積值與比率，在加入之後的淨額與發行股數、整段重算後不變 |
 | 每張新表的理由 | PASS | 上方「每一欄的理由」 |
 
@@ -67,7 +67,7 @@ fixture（2330、8069、6446 的 2020 年；6446 那年在舊系統沒有外資�
 alembic upgrade head                                     6ecc3eefb103 -> 0f6386ea08db
 derived_store --dataset institutional_cumulative_flow    1959 series, 2,600,961 rows, 1m35s
 （再跑一次）                                               0 series, 0 rows
-verify_derived_store.py --dataset institutional_cumulative_flow   116 秒，exit 0
+verify_derived_store.py（三個資料集，走 rewrite）                   2,136 秒，exit 0
 ```
 
 表大小 349 MB；13 支股票共 8,780 列沒有比率（當天沒有外資持股列）。
@@ -109,6 +109,17 @@ scripts/reconcile_institutional_cumulative_flow.py --start 2020-01-02 --end 2026
 
 - 5236 在 TPEx 期間（2021-07-29 起 1,204 天，截至 2026-09-11 的對帳視窗內 1,203 天與舊系統不同）沒有比率：MOPS 的生存者偏差，沒有替代來源。
 - 累積值不是持股：沒有期初持股，從序列第一天（2020-01-02 或上市首日）起算。
+
+## Code review 修正（#56）
+
+| 發現 | 驗證方式 | 處置 |
+|---|---|---|
+| 驗收腳本的增量檢查不可能失敗：`_cumulative_rows` 不論起點都從第一列加總、只過濾輸出，比對的是整段對整段；也沒有經過 `run` 的刪除與寫入 | 讀程式：`derived_store.py` 的 `_cumulative_rows` 只用 `start` 過濾輸出 | **已修正。** `run` 的「計算、刪除、寫入」抽成 `derived_store.rewrite`。驗收腳本在會 rollback 的交易裡對每條序列、每個起點呼叫它，讀回整條序列與整段結果比對，並確認起點之前的列沒被動到。把 `rewrite` 改成少刪一天，腳本以 PK 衝突中止；把累積改成從起點才開始加，抓到 50 筆 |
+| 審查提的修法「先刪掉起點之後的列再跑增量」 | 讀程式：`run` 只重算上次 `computed_at` 之後有新輸入列的序列 | **不照做。** 刪掉衍生列不算新輸入，`run` 會回報 0 series、被刪的列不會補回；要讓它以為有新輸入就得改只能新增的輸入表 |
+
+這個問題 26-b 的技術指標與連續天數也有一半：它們的計算函式會用到起點（500 天暖機），但同樣沒經過刪除與寫入。三個資料集一起重跑，技術指標 7,331,288 列 0 筆超出容差、殘差與 26-b 報告相同，連續天數 7,272,022 列 0 筆不同。
+
+第一次重跑在連續天數段落以 `out of shared memory`（`max_locks_per_transaction`）中止：所有檢查共用一個交易，數萬個 savepoint 在交易結束前一直累積鎖。改成每次檢查後 rollback 整個交易。
 
 ## 延後
 

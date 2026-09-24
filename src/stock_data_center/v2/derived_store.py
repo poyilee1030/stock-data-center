@@ -356,19 +356,29 @@ def run(connection: Connection, dataset: StoredDataset, *, full: bool = False) -
     changed = _changed(connection, dataset, None if full or previous is None else previous)
     if full:
         connection.execute(sa.delete(table))
-    written = 0
-    for (stock_id, source), first in sorted(changed.items()):
-        start = None if full or previous is None else first
-        rows = dataset.compute(connection, stock_id, source, start)
-        if start is not None:
-            connection.execute(sa.delete(table).where(
-                table.c.stock_id == stock_id, table.c.source == source,
-                table.c.trade_date >= start))
-        if rows:
-            connection.execute(sa.insert(table), [{**row, "computed_at": computed_at}
-                                                  for row in rows])
-            written += len(rows)
+    written = sum(
+        rewrite(connection, dataset, stock_id, source,
+                None if full or previous is None else first, computed_at)
+        for (stock_id, source), first in sorted(changed.items())
+    )
     return RunResult(computed_at, previous, len(changed), written)
+
+
+def rewrite(connection: Connection, dataset: StoredDataset, stock_id: str, source: str,
+            start: date | None, computed_at: datetime) -> int:
+    """Replace one series' rows from `start` on with freshly computed ones, and
+    return how many were written. `start=None` computes the whole series and
+    expects its rows gone already."""
+    table = dataset.table
+    rows = dataset.compute(connection, stock_id, source, start)
+    if start is not None:
+        connection.execute(sa.delete(table).where(
+            table.c.stock_id == stock_id, table.c.source == source,
+            table.c.trade_date >= start))
+    if rows:
+        connection.execute(sa.insert(table), [{**row, "computed_at": computed_at}
+                                              for row in rows])
+    return len(rows)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

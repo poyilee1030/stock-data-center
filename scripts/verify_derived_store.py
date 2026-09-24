@@ -2,19 +2,24 @@
 """Step 26 acceptance: the stored derived tables against their references.
 
 Run after a full run (`derived_store --full`, or a first run), so every stored
-row was computed from its series' first row. Three checks, every series:
+row was computed from its series' first row. Nothing it writes is committed.
+Three checks, every series:
 
 `pit`
     `technical_indicators` equals the on-demand `technical_indicators_pit:v1`
     rolling series bit for bit. Holds while no input row has a correction; the
     script counts the corrected keys and says so if there are any.
 `incremental`
-    What an incremental run would write when restarting each series at each
-    `--restart` date, against the stored full series: windowed technical
+    What an incremental run leaves in the table when it restarts each series at
+    each `--restart` date: `derived_store.rewrite`, the step `run` takes per
+    series, runs in a transaction that is rolled back, and the table is read
+    back and compared with the stored full series: windowed technical
     metrics, every streak and every cumulative flow exactly, the exponential
     technical metrics within
     `derived_store.within_tolerance`. The largest residue per metric is
-    reported, since the tolerance was set from it.
+    reported, since the tolerance was set from it. Which date `run` restarts a
+    series at (`derived_store._changed`) is the integration tests' to check:
+    real inputs cannot be made to look newly recorded here.
 `coverage`
     One stored row per input date: every latest `daily_prices` row for the
     technical indicators, every traded day for the streaks, every
@@ -56,6 +61,39 @@ def _rows(connection, table: str, stock_id: str, source: str) -> dict[date, dict
             sa.text(f"SELECT * FROM {table} WHERE stock_id = :s AND source = :r"),
             {"s": stock_id, "r": source}).mappings()
     }
+
+
+# Stamped on the rows a check writes, which are rolled back and never committed.
+REWRITTEN_AT = datetime(2000, 1, 1, tzinfo=UTC)
+
+
+def _rewritten(connection, dataset, stock_id: str, source: str, restart: date,
+               stored: dict[date, dict], failures: list[str]):
+    """The rows an incremental run leaves from `restart` on, for one series.
+
+    `derived_store.rewrite` is the step `run` takes for each series it
+    restarts: compute, delete from the start date, insert. It runs here in a
+    transaction that is rolled back, so the table is read back exactly as a run
+    would leave it and nothing is kept. Every row before `restart` must be the
+    untouched stored one, and the dates must be the full series' dates."""
+    try:
+        ds.rewrite(connection, dataset, stock_id, source, restart, REWRITTEN_AT)
+        after = _rows(connection, dataset.table.name, stock_id, source)
+    finally:
+        # The whole transaction, not a savepoint: tens of thousands of
+        # savepoints in one transaction exhaust max_locks_per_transaction.
+        connection.rollback()
+    name = f"{dataset.table.name} {stock_id}/{source} restart {restart}"
+    if set(after) != set(stored):
+        failures.append(f"{name}: dates differ from the full series")
+    for day, row in sorted(after.items()):
+        if day < restart:
+            if row != stored.get(day):
+                failures.append(f"{name}: {day} before the restart changed")
+        elif row["computed_at"] != REWRITTEN_AT:
+            failures.append(f"{name}: {day} was not rewritten")
+        elif day in stored:
+            yield row
 
 
 def _closes(connection, stock_id: str, source: str) -> dict[date, float]:
@@ -116,7 +154,8 @@ def main() -> int:
                     pit_differs += 1
                     failures.append(f"pit {stock_id}/{source}")
                 for restart in restarts:
-                    for row in ds._technical_rows(c, stock_id, source, restart):
+                    for row in _rewritten(c, ds.TECHNICAL_INDICATORS, stock_id, source, restart,
+                                          stored, failures):
                         full = stored[row["trade_date"]]
                         compared += 1
                         for code in METRIC_CODES:
@@ -164,7 +203,8 @@ def main() -> int:
                     coverage += 1
                     failures.append(f"streak coverage {stock_id}/{source}")
                 for restart in restarts:
-                    for row in ds._streak_rows(c, stock_id, source, restart):
+                    for row in _rewritten(c, ds.INSTITUTIONAL_STREAKS, stock_id, source, restart,
+                                          stored, failures):
                         compared += 1
                         if any(row[k] != stored[row["trade_date"]][k] for k in STREAKS):
                             differs += 1
@@ -189,7 +229,8 @@ def main() -> int:
                     coverage += 1
                     failures.append(f"cumulative coverage {stock_id}/{source}")
                 for restart in restarts:
-                    for row in ds._cumulative_rows(c, stock_id, source, restart):
+                    for row in _rewritten(c, ds.INSTITUTIONAL_CUMULATIVE_FLOW, stock_id, source,
+                                          restart, stored, failures):
                         compared += 1
                         if any(row[k] != stored[row["trade_date"]][k] for k in CUMULATIVE):
                             differs += 1
