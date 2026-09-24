@@ -1,6 +1,6 @@
 # Step 24-a 驗收報告
 
-狀態：IN REVIEW (#42)
+狀態：MERGED (#42)
 
 範圍：TDCC 股權分散的第一部分，adapter 與匯入路徑。這個 step 新增：
 

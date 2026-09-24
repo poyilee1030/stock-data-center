@@ -1,6 +1,7 @@
-"""Step 35-c-4: `technical_indicators:v1` computed on demand from v2 `daily_prices`.
+"""Step 35-c-4: `technical_indicators_pit:v1` computed on demand from v2 `daily_prices`.
 
-Nothing is stored (ADR-0027: derived data has zero tables). The rolling series
+The PIT reference for the stored `technical_indicators:v1` (Step 26-a); it
+stores nothing. The rolling series
 computes observation date D at D's own release instant; every other PIT
 context is `compute`, and the two must agree. Visibility is the one
 `exchange_daily.visible` defines: the rule instant for a key's settled value,
@@ -103,7 +104,7 @@ def test_the_rolling_series_uses_each_date_own_release_cutoff(db, fetch_id) -> N
         assert row.information_as_of == xd.available_from(row.observation_date)
         assert row.knowledge_as_of == KNOWLEDGE
         assert (row.stock_id, row.source, row.git_commit) == (STOCK, SOURCE, "abc")
-        assert (row.dataset_code, row.derivation_version) == ("technical_indicators", "v1")
+        assert (row.dataset_code, row.derivation_version) == ("technical_indicators_pit", "v1")
     assert [row.metrics["ma5"] for row in rows[:4]] == [None] * 4
     assert rows[4].metrics["ma5"] == pytest.approx(14)
     assert [row.input_count for row in rows] == [1, 2, 3, 4, 5]
@@ -277,9 +278,9 @@ def test_an_unknown_stock_is_refused(db, fetch_id) -> None:
 def test_the_definition_is_a_code_constant() -> None:
     # ADR-0027: no definition table. §42's fields live on the constant; the
     # implementation version is the git commit each computed row carries.
-    definition = derived.TECHNICAL_INDICATORS_V1
+    definition = derived.TECHNICAL_INDICATORS_PIT_V1
     assert (definition.dataset_code, definition.derivation_version) == (
-        "technical_indicators", "v1")
+        "technical_indicators_pit", "v1")
     assert definition.input_tables == ("daily_prices",)
     assert definition.calendar_timezone == "Asia/Taipei"
     assert definition.formula_specification and definition.calendar_convention

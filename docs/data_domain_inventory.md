@@ -30,7 +30,8 @@ Disposition terms:
 - **publication_time**: stored as `published_at` on a key's first row (monthly
   revenue, financial reports);
 - **canonical derived**: deterministic, model-independent data defined by
-  derivation version and computed on demand from PIT-visible inputs
+  derivation version, stored as one wide table per dataset and computed from the
+  latest inputs, never from one dated or published after the value's date
   (ROADMAP §17);
 - **downstream**: model/experiment-specific logic owned by an ML repository;
 - **raw-only**: parser coordinates and labels that stay in the raw file
@@ -124,7 +125,7 @@ boundary.
 | `dividend` | date/symbol/name, close before event, reference price, rights/dividend value, action type | Observed `corporate_actions`, keyed by `(stock_id, source, ex_date)`, which is the §51.5 event identity (feed + executed date). The exchange result feeds publish the ex/resumption date, close-before and reference prices, cash dividend, the combined free-share figure, rights terms, and capital-reduction returned cash; `event_type` keeps the feed's own type text. They publish no announcement, record or payment date, and no earnings / capital-surplus split — that split exists only in the MOPS issuer declaration feed, which Step 33 is to store as its own `dividend_declaration` domain (audit §4.10, §4.13). |
 | `pe_ratio` | date/symbol and source-published PE | Observed `valuations`, with official PB, dividend yield and the source's dividend year and report period. |
 | `valuation_daily` | close, official TTM EPS, official PE, official PE percentile, official ROE | Legacy `pe_official` is observed and maps to `valuations.pe_ratio`. Data Center-calculated TTM EPS/PE percentile/ROE and other computed valuations are canonical derived `valuation_metrics:v1`; close is referenced from PIT-visible daily prices, not duplicated. |
-| `technical_indicators` | MA 5/10/20/60/120/240; volume MA 5/10/20; K/D; RSI 6/12; MACD DIF/DEA/histogram; Bollinger upper/middle/lower; foreign/trust/dealer streak days | Canonical derived `technical_indicators:v1` (Step 35-c-4, computed on demand from `daily_prices`) and `institutional_streaks:v1` (Step 26). Nothing is materialized (ADR-0027); formula, calendar, and adjustment conventions are the versioned code constant. |
+| `technical_indicators` | MA 5/10/20/60/120/240; volume MA 5/10/20; K/D; RSI 6/12; MACD DIF/DEA/histogram; Bollinger upper/middle/lower; foreign/trust/dealer streak days | Canonical derived `technical_indicators:v1` (table `technical_indicators`, from `daily_prices`) and `institutional_streaks:v1` (table `institutional_streaks`, from `institutional_flows` over the traded days of `daily_prices`), both stored by Step 26-b. `technical_indicators_pit:v1` computes the same formula on demand under full PIT (Step 35-c-4). Formula, calendar, and adjustment conventions are the versioned code constant. |
 | `shareholding_concentration` | large/mid/small-holder ratios and counts, spread and week-over-week changes | Canonical derived `shareholding_concentration:v1` from `shareholding_distributions`. |
 | `margin_pressure_analysis` | margin utilization/balance ratios, changes, week-over-week metrics, pressure score | Stable ratios/changes are canonical derived `margin_metrics:v1`. The composite pressure score has no stable source-independent legacy specification and is downstream-owned; it is not persisted as a source fact. |
 | `short_interest_analysis` | short/SBL balances and ratios, changes, week-over-week metrics, pressure score | Stable ratios/changes are canonical derived `short_interest_metrics:v1`. The composite pressure score is downstream-owned. |
@@ -153,21 +154,23 @@ changes, and each row names the fetch it came from (ADR-0027).
 | `dividend_declaration` | observed | planned by Step 33 | Step 33's capture-based contract | dividend research/API |
 | `security_tag` | **not in v1** | — | — | — |
 | `xbrl_concept_catalog` | **not in v1** | — | — | — |
-| `technical_indicators:v1` | canonical derived | computed on demand | inherited from PIT-visible prices; never `computed_at` | both ML repos/API |
-| `shareholding_concentration:v1` | canonical derived | computed on demand | inherited from TDCC inputs | selection/API |
-| `valuation_metrics:v1` | canonical derived | computed on demand | inherited from prices and financial inputs | both ML repos/API |
-| `margin_metrics:v1` | canonical derived | computed on demand | inherited from margin inputs | selection/API |
-| `short_interest_metrics:v1` | canonical derived | computed on demand | inherited from margin/SBL inputs | selection/API |
+| `technical_indicators:v1` | canonical derived | `technical_indicators (stock_id, source, trade_date)` | latest inputs; D uses prices dated on or before D; `computed_at` is provenance | both ML repos/API |
+| `technical_indicators_pit:v1` | canonical derived | computed on demand | inherited from PIT-visible prices; the reference the stored series is checked against | API |
+| `shareholding_concentration:v1` | canonical derived | planned table (Step 26) | latest TDCC inputs | selection/API |
+| `valuation_metrics:v1` | canonical derived | planned table (Step 26) | latest inputs; reports aligned to their publication | both ML repos/API |
+| `margin_metrics:v1` | canonical derived | planned table (Step 26) | latest margin inputs | selection/API |
+| `short_interest_metrics:v1` | canonical derived | planned table (Step 26) | latest margin/SBL inputs | selection/API |
 | `monthly_revenue_growth:v1` | **not in v1** | — | — | superseded by the observed published comparatives (Step 22) |
-| `institutional_cumulative_flow:v1` | canonical derived proxy | computed on demand | zero-origin cumulative net flows, optionally divided by issued shares; not absolute holdings | selection/API |
-| `institutional_streaks:v1` | canonical derived | computed on demand | inherited from institutional flows | selection/API |
+| `institutional_cumulative_flow:v1` | canonical derived proxy | planned table (Step 26) | zero-origin cumulative net flows, optionally divided by issued shares; not absolute holdings | selection/API |
+| `institutional_streaks:v1` | canonical derived | `institutional_streaks (stock_id, source, trade_date)` | latest inputs; D uses flows and prices dated on or before D | selection/API |
 | `margin_market_summary:v1` | **not in v1** | — | — | no legacy consumer (ROADMAP §16) |
 
 A correction is a later row, visible from its own `recorded_at`. A derived
-dataset is materialized only by its own step, after measurement shows on-demand
-computation too slow, and must then equal the on-demand result (ROADMAP §17).
+table instead follows the latest inputs: a corrected input recomputes the
+affected dates and overwrites them (ROADMAP §17, disclosed downstream).
 
 Backfill status: every observed dataset except the Step 33 declarations holds
 2020-01-02 onward in `stockdc_backfill` (Steps 17-c through 24-b, 35-c-3).
-Canonical derived datasets other than `technical_indicators:v1` are
-**not started**; they belong to Step 26.
+`technical_indicators:v1` and `institutional_streaks:v1` hold every date of
+2020-01-02 onward (Step 26-b); the other canonical derived datasets are
+**not started** and belong to Steps 26-c through 26-f.

@@ -24,9 +24,12 @@ from stock_data_center.v2.fetch_log import FetchRecord, record_fetch
 pytestmark = pytest.mark.integration
 
 V2_TABLES = set(metadata.tables)
+# Step 26: derived tables follow the latest inputs and are recomputed in place.
+DERIVED = {"technical_indicators", "institutional_streaks"}
+BASELINE_TABLES = V2_TABLES - DERIVED
 # `stocks` is today's list, replaced when the list changes; `trading_days` is a
 # calendar. Every other table holds history and only grows.
-APPEND_ONLY = V2_TABLES - {"stocks", "trading_days"}
+APPEND_ONLY = BASELINE_TABLES - {"stocks", "trading_days"}
 
 
 def _catalog(url: str) -> dict[str, set[str]]:
@@ -54,9 +57,24 @@ def _catalog(url: str) -> dict[str, set[str]]:
         engine.dispose()
 
 
-def test_the_chain_is_one_baseline() -> None:
+def test_the_chain_starts_at_one_baseline() -> None:
     revisions = list(ScriptDirectory.from_config(alembic_config()).walk_revisions())
-    assert [r.down_revision for r in revisions] == [None]
+    assert [r.revision for r in revisions if r.down_revision is None] == ["a273160c0288"]
+
+
+def test_the_derived_tables_are_the_only_ones_after_the_baseline(
+    empty_database_url: str,
+) -> None:
+    assert DERIVED <= V2_TABLES
+    config = alembic_config(empty_database_url)
+    command.upgrade(config, "a273160c0288")
+    assert _catalog(empty_database_url)["tables"] == BASELINE_TABLES | {"alembic_version"}
+    command.upgrade(config, "head")
+    assert _catalog(empty_database_url)["tables"] == V2_TABLES | {"alembic_version"}
+    # Derived rows are recomputed from stored inputs, so dropping them loses no
+    # history (CLAUDE.md §81): the downgrade needs no guard.
+    command.downgrade(config, "a273160c0288")
+    assert _catalog(empty_database_url)["tables"] == BASELINE_TABLES | {"alembic_version"}
 
 
 def test_the_server_is_postgresql_18(engine: Engine) -> None:

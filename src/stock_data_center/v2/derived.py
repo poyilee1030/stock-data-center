@@ -1,8 +1,11 @@
-"""Canonical derived data on schema v2, computed on demand (ADR-0027, Step 35-c-4).
+"""`technical_indicators_pit:v1`: the on-demand PIT reference (Step 35-c-4).
 
-Derived data has zero tables. A definition is a code constant and the git
-commit stands for its implementation version (CLAUDE.md §42); a result is a
-deterministic function of stored prices, so nothing is written.
+The stored `technical_indicators:v1` (`derived_store`, Step 26-b) follows the
+latest inputs; this computes the same formula under full PIT and writes
+nothing, and the two must agree bit for bit while no input has a correction
+and the stored series was computed in full (CLAUDE.md §43, §46). A definition
+is a code constant and the git commit stands for its implementation version
+(§42).
 
 `compute` answers one PIT context: the series as a caller at that
 `information_as_of` and `knowledge_as_of` would have seen it. `rolling` is the
@@ -53,20 +56,22 @@ class Definition:
     price_adjustment_convention: str
 
 
-TECHNICAL_INDICATORS_V1 = Definition(
-    dataset_code="technical_indicators",
+TECHNICAL_INDICATORS_FORMULA = (
+    "Ported from the legacy calculator so the consumers trained on those "
+    "values keep reading the same series. MA and VMA over 5/10/20/60/120/240 "
+    "trading days of raw official close and volume; KD from a nine-day RSV "
+    "smoothed twice at alpha 1/3, with a flat window treated as the neutral "
+    "50; RSI 6 and 12 as adjusted exponential means of gain and loss with "
+    "com = window - 1; MACD as the 12/26 exponential difference with a "
+    "9-period signal; Bollinger bands at the 20-day mean plus and minus two "
+    "sample standard deviations. A window containing an unpublished price "
+    "yields nothing rather than closing the gap."
+)
+
+TECHNICAL_INDICATORS_PIT_V1 = Definition(
+    dataset_code="technical_indicators_pit",
     derivation_version="v1",
-    formula_specification=(
-        "Ported from the legacy calculator so the consumers trained on those "
-        "values keep reading the same series. MA and VMA over 5/10/20/60/120/240 "
-        "trading days of raw official close and volume; KD from a nine-day RSV "
-        "smoothed twice at alpha 1/3, with a flat window treated as the neutral "
-        "50; RSI 6 and 12 as adjusted exponential means of gain and loss with "
-        "com = window - 1; MACD as the 12/26 exponential difference with a "
-        "9-period signal; Bollinger bands at the 20-day mean plus and minus two "
-        "sample standard deviations. A window containing an unpublished price "
-        "yields nothing rather than closing the gap."
-    ),
+    formula_specification=TECHNICAL_INDICATORS_FORMULA,
     input_tables=("daily_prices",),
     calendar_timezone="Asia/Taipei",
     calendar_convention=(
@@ -181,7 +186,7 @@ class DerivedRow:
 
 class TechnicalIndicators:
     def __init__(self, *, git_commit: str | None = None,
-                 definition: Definition = TECHNICAL_INDICATORS_V1) -> None:
+                 definition: Definition = TECHNICAL_INDICATORS_PIT_V1) -> None:
         if git_commit is None:
             from stock_data_center.v2.fetch_log import current_git_commit
 

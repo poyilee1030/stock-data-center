@@ -16,8 +16,11 @@ domain's ingestion writes here. Rules every table below follows:
 from __future__ import annotations
 
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 from stock_data_center.db.base import aware_timestamp, metadata, uuid_type
+from stock_data_center.v2.indicators import METRIC_CODES
+from stock_data_center.v2.streaks import PARTIES
 
 # Decimal columns are unconstrained `numeric` with a CHECK, not `numeric(p, 2)`:
 # PostgreSQL casts to a column's typmod before any CHECK runs, so `numeric(10, 2)`
@@ -552,6 +555,47 @@ corporate_actions = sa.Table(
         "close_before", "reference_price", "subscription_price", "cash_dividend_per_share",
         "cash_return_per_share", "free_share_ratio", "rights_ratio", "old_shares", "new_shares",
     ),
+)
+
+# ---------------------------------------------------------------- derived (Step 26)
+#
+# One wide row per (stock, source, date), computed from the latest input rows and
+# overwritten when an input is corrected (CLAUDE.md §43, §46): not history, so not
+# append-only, and no per-row version, commit or lineage (§45). `computed_at` is
+# the instant the run fixed its inputs: every input row recorded by then was read,
+# none recorded later, so the next run starts from the rows recorded after it.
+
+
+def _derived_key() -> list[sa.Column]:
+    return [
+        _stock_id(),
+        sa.Column("source", sa.String(32), nullable=False),
+        sa.Column("trade_date", sa.Date(), nullable=False),
+    ]
+
+
+def _computed_at() -> sa.Column:
+    return sa.Column("computed_at", aware_timestamp, nullable=False)
+
+
+technical_indicators = sa.Table(
+    "technical_indicators",
+    metadata,
+    *_derived_key(),
+    *(sa.Column(code, postgresql.DOUBLE_PRECISION()) for code in METRIC_CODES),
+    _computed_at(),
+    sa.PrimaryKeyConstraint("stock_id", "source", "trade_date",
+                            name="pk_technical_indicators"),
+)
+
+institutional_streaks = sa.Table(
+    "institutional_streaks",
+    metadata,
+    *_derived_key(),
+    *(sa.Column(f"{party}_streak_days", sa.Integer(), nullable=False) for party in PARTIES),
+    _computed_at(),
+    sa.PrimaryKeyConstraint("stock_id", "source", "trade_date",
+                            name="pk_institutional_streaks"),
 )
 
 # Append-only tables: every value table and the fetch log. `stocks` is reference

@@ -114,7 +114,7 @@ Each required criterion must be PASS/FAIL with concrete evidence.
 
 ## Current Step Sequence
 
-ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–18, 19-a through 19-e, 20-a through 20-d, 21-a, 21-b, 22-a through 22-c, 23-a through 24-b, 35-a, 35-b-1, 35-c-1 through 35-c-4, 35-d-1 and 35-d-2 as MERGED, 26-a, 29, 32 and 35-b-2 as SUPERSEDED, and labels Step 35-d-3 as `THIS STEP` (a contextual marker, not an additional status value):
+ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–18, 19-a through 19-e, 20-a through 20-d, 21-a, 21-b, 22-a through 22-c, 23-a through 24-b, 35-a, 35-b-1, 35-c-1 through 35-c-4 and 35-d-1 through 35-d-3 as MERGED, 26-a, 29, 32 and 35-b-2 as SUPERSEDED, and labels Step 26-b as `THIS STEP` (a contextual marker, not an additional status value):
 
 ```text
 Step 11  authoritative security lifecycle history        MERGED
@@ -151,6 +151,11 @@ Step 23-c financial statements: backfill + reconcile    MERGED
 Step 24-a TDCC distribution: adapters + import path      MERGED
 Step 24-b TDCC distribution: backfill + coverage        MERGED
 Step 26-a canonical derived: service + technical ind.  SUPERSEDED (folded into 35-c-4)
+Step 26-b stored derived: technical ind. + streaks     THIS STEP
+Step 26-c institutional cumulative flow                PLANNED
+Step 26-d shareholding concentration                   PLANNED
+Step 26-e margin + short-interest metrics              PLANNED
+Step 26-f valuation metrics                            PLANNED
 Step 27  public REST API v1                            PLANNED
 Step 28  scheduled forward capture                     PLANNED
 Step 29  Python SDK + downstream integration           SUPERSEDED (removed by owner)
@@ -167,7 +172,7 @@ Step 35-c-3 schema v2: corporate actions + backfill    MERGED
 Step 35-c-4 schema v2: derived data on v2              MERGED
 Step 35-d-1 schema v2: v2 loads no v1 module          MERGED
 Step 35-d-2 schema v2: delete the v1 code              MERGED
-Step 35-d-3 schema v2: baseline migration, drop v1     THIS STEP
+Step 35-d-3 schema v2: baseline migration, drop v1     MERGED
 Step 36  adjusted prices (was Step 25)                 PLANNED
 ```
 
@@ -623,9 +628,9 @@ Stored derived rows carry only their key, their metric values, and `computed_at`
 
 # 46. Materialized vs Virtual Derived Data
 
-Step 26 stores each metric set as one wide table keyed by `(stock_id, source, date)` and computes it incrementally like the legacy calculators: forward from the last computed date, and again from the earliest date with a newly recorded input, each with a warm-up buffer. The incremental result must equal a full recomputation. Every derived table is justified in its own step: what is lost without it (ROADMAP §17).
+Step 26 stores each metric set as one wide table keyed by `(stock_id, source, date)` and computes it incrementally like the legacy calculators: from the earliest date with an input recorded since the last run, with legacy's 500-day warm-up buffer. Windowed metrics and counts must equal a full recomputation exactly; exponential metrics, which never forget their start, must stay within the measured tolerance the owner accepted on 2026-09-24 (`derived_store.within_tolerance`). Every derived table is justified in its own step: what is lost without it (ROADMAP §17).
 
-A dataset code names the semantics and the number after the colon names only the formula: stored latest-value datasets carry no marker (`technical_indicators:v1`), the on-demand PIT reference carries `_pit` (`technical_indicators_pit:v1`). Both share one formula version; with uncorrected inputs they must be equal bit for bit.
+A dataset code names the semantics and the number after the colon names only the formula: stored latest-value datasets carry no marker (`technical_indicators:v1`), the on-demand PIT reference carries `_pit` (`technical_indicators_pit:v1`). Both share one formula version; with uncorrected inputs a full recomputation of the stored table must equal the on-demand one bit for bit.
 
 ---
 
@@ -972,7 +977,7 @@ Do not claim SSD benefit without measurement.
 
 # 65. Testing Derived Correctness
 
-Every canonical derived dataset tests deterministic formulas, derivation versions, no future leakage along the data date (including publication alignment where an input is published late), incremental-equals-full-recomputation, and, for technical indicators, equality with the on-demand v1 reference.
+Every canonical derived dataset tests deterministic formulas, derivation versions, no future leakage along the data date (including publication alignment where an input is published late), incremental-equals-full-recomputation (within the stated tolerance for exponential metrics), and, for technical indicators, equality of a full recomputation with the on-demand `_pit` reference.
 
 ---
 

@@ -1,0 +1,4329 @@
+{
+"source": "legacy stock_db: daily_quotes LEFT JOIN institutional_investors (inputs), technical_indicators *_streak_days (expected); generated 2026-09-24 for Step 26-b",
+"securities": {
+"2330": [
+{
+"date": "2020-01-02",
+"foreign_net": -4756707,
+"trust_net": -179000,
+"dealer_net": -17000,
+"foreign_streak_days": -1,
+"trust_streak_days": -1,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-01-03",
+"foreign_net": 2593359,
+"trust_net": 197000,
+"dealer_net": -1108000,
+"foreign_streak_days": 1,
+"trust_streak_days": 1,
+"dealer_streak_days": -2
+},
+{
+"date": "2020-01-06",
+"foreign_net": -16095109,
+"trust_net": -864000,
+"dealer_net": 822000,
+"foreign_streak_days": -1,
+"trust_streak_days": -1,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-01-07",
+"foreign_net": -14354862,
+"trust_net": -302000,
+"dealer_net": 631000,
+"foreign_streak_days": -2,
+"trust_streak_days": -2,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-01-08",
+"foreign_net": -791923,
+"trust_net": -19000,
+"dealer_net": -423000,
+"foreign_streak_days": -3,
+"trust_streak_days": -3,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-01-09",
+"foreign_net": 10076552,
+"trust_net": 60000,
+"dealer_net": -682000,
+"foreign_streak_days": 1,
+"trust_streak_days": 1,
+"dealer_streak_days": -2
+},
+{
+"date": "2020-01-10",
+"foreign_net": 1689099,
+"trust_net": -78000,
+"dealer_net": -879000,
+"foreign_streak_days": 2,
+"trust_streak_days": -1,
+"dealer_streak_days": -3
+},
+{
+"date": "2020-01-13",
+"foreign_net": 5691714,
+"trust_net": -236000,
+"dealer_net": 140000,
+"foreign_streak_days": 3,
+"trust_streak_days": -2,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-01-14",
+"foreign_net": 4418592,
+"trust_net": -262000,
+"dealer_net": 714000,
+"foreign_streak_days": 4,
+"trust_streak_days": -3,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-01-15",
+"foreign_net": -17904441,
+"trust_net": -935585,
+"dealer_net": -322990,
+"foreign_streak_days": -1,
+"trust_streak_days": -4,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-01-16",
+"foreign_net": -24570553,
+"trust_net": -147000,
+"dealer_net": 2603000,
+"foreign_streak_days": -2,
+"trust_streak_days": -5,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-01-17",
+"foreign_net": -17769387,
+"trust_net": -1277000,
+"dealer_net": 33000,
+"foreign_streak_days": -3,
+"trust_streak_days": -6,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-01-20",
+"foreign_net": -3628484,
+"trust_net": -601000,
+"dealer_net": 1169000,
+"foreign_streak_days": -4,
+"trust_streak_days": -7,
+"dealer_streak_days": 3
+},
+{
+"date": "2020-01-30",
+"foreign_net": -27189332,
+"trust_net": -1955000,
+"dealer_net": -1955000,
+"foreign_streak_days": -5,
+"trust_streak_days": -8,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-01-31",
+"foreign_net": -16244982,
+"trust_net": -76000,
+"dealer_net": -402000,
+"foreign_streak_days": -6,
+"trust_streak_days": -9,
+"dealer_streak_days": -2
+},
+{
+"date": "2020-02-03",
+"foreign_net": -10691692,
+"trust_net": 330000,
+"dealer_net": 1309000,
+"foreign_streak_days": -7,
+"trust_streak_days": 1,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-02-04",
+"foreign_net": 6327466,
+"trust_net": -306000,
+"dealer_net": -1557994,
+"foreign_streak_days": 1,
+"trust_streak_days": -1,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-02-05",
+"foreign_net": 3002912,
+"trust_net": -44000,
+"dealer_net": -1427000,
+"foreign_streak_days": 2,
+"trust_streak_days": -2,
+"dealer_streak_days": -2
+},
+{
+"date": "2020-02-06",
+"foreign_net": 1094741,
+"trust_net": 29504,
+"dealer_net": 1274000,
+"foreign_streak_days": 3,
+"trust_streak_days": 1,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-02-07",
+"foreign_net": -4717105,
+"trust_net": -145000,
+"dealer_net": 62000,
+"foreign_streak_days": -1,
+"trust_streak_days": -1,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-02-10",
+"foreign_net": -8305677,
+"trust_net": -713000,
+"dealer_net": 427906,
+"foreign_streak_days": -2,
+"trust_streak_days": -2,
+"dealer_streak_days": 3
+},
+{
+"date": "2020-02-11",
+"foreign_net": 113478,
+"trust_net": 24000,
+"dealer_net": -211000,
+"foreign_streak_days": 1,
+"trust_streak_days": 1,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-02-12",
+"foreign_net": 5097908,
+"trust_net": 11000,
+"dealer_net": 819000,
+"foreign_streak_days": 2,
+"trust_streak_days": 2,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-02-13",
+"foreign_net": 2055011,
+"trust_net": -366000,
+"dealer_net": -1018986,
+"foreign_streak_days": 3,
+"trust_streak_days": -1,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-02-14",
+"foreign_net": -974730,
+"trust_net": -80000,
+"dealer_net": -310000,
+"foreign_streak_days": -1,
+"trust_streak_days": -2,
+"dealer_streak_days": -2
+},
+{
+"date": "2020-02-17",
+"foreign_net": -5520535,
+"trust_net": -302000,
+"dealer_net": 52000,
+"foreign_streak_days": -2,
+"trust_streak_days": -3,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-02-18",
+"foreign_net": -40790186,
+"trust_net": -554000,
+"dealer_net": 1448000,
+"foreign_streak_days": -3,
+"trust_streak_days": -4,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-02-19",
+"foreign_net": -2712301,
+"trust_net": -64000,
+"dealer_net": 1858016,
+"foreign_streak_days": -4,
+"trust_streak_days": -5,
+"dealer_streak_days": 3
+},
+{
+"date": "2020-02-20",
+"foreign_net": -7734300,
+"trust_net": -355000,
+"dealer_net": 250621,
+"foreign_streak_days": -5,
+"trust_streak_days": -6,
+"dealer_streak_days": 4
+},
+{
+"date": "2020-02-21",
+"foreign_net": -5034993,
+"trust_net": -222000,
+"dealer_net": -622000,
+"foreign_streak_days": -6,
+"trust_streak_days": -7,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-02-24",
+"foreign_net": -26476236,
+"trust_net": 231000,
+"dealer_net": 49025,
+"foreign_streak_days": -7,
+"trust_streak_days": 1,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-02-25",
+"foreign_net": -12927516,
+"trust_net": -117000,
+"dealer_net": 1144072,
+"foreign_streak_days": -8,
+"trust_streak_days": -1,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-02-26",
+"foreign_net": -35595467,
+"trust_net": 246000,
+"dealer_net": 391016,
+"foreign_streak_days": -9,
+"trust_streak_days": 1,
+"dealer_streak_days": 3
+},
+{
+"date": "2020-02-27",
+"foreign_net": -24121810,
+"trust_net": 235000,
+"dealer_net": -444985,
+"foreign_streak_days": -10,
+"trust_streak_days": 2,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-03-02",
+"foreign_net": -35931825,
+"trust_net": 492000,
+"dealer_net": 2951000,
+"foreign_streak_days": -11,
+"trust_streak_days": 3,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-03-03",
+"foreign_net": -4001907,
+"trust_net": -341000,
+"dealer_net": -975964,
+"foreign_streak_days": -12,
+"trust_streak_days": -1,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-03-04",
+"foreign_net": 10136968,
+"trust_net": 490000,
+"dealer_net": -1659000,
+"foreign_streak_days": 1,
+"trust_streak_days": 1,
+"dealer_streak_days": -2
+},
+{
+"date": "2020-03-05",
+"foreign_net": -7424460,
+"trust_net": -144000,
+"dealer_net": -746000,
+"foreign_streak_days": -1,
+"trust_streak_days": -1,
+"dealer_streak_days": -3
+},
+{
+"date": "2020-03-06",
+"foreign_net": -34757025,
+"trust_net": 31000,
+"dealer_net": -1183970,
+"foreign_streak_days": -2,
+"trust_streak_days": 1,
+"dealer_streak_days": -4
+},
+{
+"date": "2020-03-09",
+"foreign_net": -53912782,
+"trust_net": 357000,
+"dealer_net": -2123748,
+"foreign_streak_days": -3,
+"trust_streak_days": 2,
+"dealer_streak_days": -5
+},
+{
+"date": "2020-03-10",
+"foreign_net": -23366967,
+"trust_net": 419000,
+"dealer_net": 1270000,
+"foreign_streak_days": -4,
+"trust_streak_days": 3,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-03-11",
+"foreign_net": -21223033,
+"trust_net": 114576,
+"dealer_net": -4314986,
+"foreign_streak_days": -5,
+"trust_streak_days": 4,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-03-12",
+"foreign_net": -38542439,
+"trust_net": -147000,
+"dealer_net": -3715995,
+"foreign_streak_days": -6,
+"trust_streak_days": -1,
+"dealer_streak_days": -2
+},
+{
+"date": "2020-03-13",
+"foreign_net": -38614499,
+"trust_net": 694000,
+"dealer_net": 1686000,
+"foreign_streak_days": -7,
+"trust_streak_days": 1,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-03-16",
+"foreign_net": -41866612,
+"trust_net": 175000,
+"dealer_net": -5213981,
+"foreign_streak_days": -8,
+"trust_streak_days": 2,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-03-17",
+"foreign_net": -37528459,
+"trust_net": 458000,
+"dealer_net": -214000,
+"foreign_streak_days": -9,
+"trust_streak_days": 3,
+"dealer_streak_days": -2
+},
+{
+"date": "2020-03-18",
+"foreign_net": -32424621,
+"trust_net": 502000,
+"dealer_net": -3879000,
+"foreign_streak_days": -10,
+"trust_streak_days": 4,
+"dealer_streak_days": -3
+},
+{
+"date": "2020-03-19",
+"foreign_net": -28656927,
+"trust_net": 1413942,
+"dealer_net": -4529000,
+"foreign_streak_days": -11,
+"trust_streak_days": 5,
+"dealer_streak_days": -4
+},
+{
+"date": "2020-03-20",
+"foreign_net": -14569062,
+"trust_net": 1587053,
+"dealer_net": -2250000,
+"foreign_streak_days": -12,
+"trust_streak_days": 6,
+"dealer_streak_days": -5
+},
+{
+"date": "2020-03-23",
+"foreign_net": -15773034,
+"trust_net": 716000,
+"dealer_net": -1328968,
+"foreign_streak_days": -13,
+"trust_streak_days": 7,
+"dealer_streak_days": -6
+},
+{
+"date": "2020-03-24",
+"foreign_net": 17390891,
+"trust_net": -14000,
+"dealer_net": -404000,
+"foreign_streak_days": 1,
+"trust_streak_days": -1,
+"dealer_streak_days": -7
+},
+{
+"date": "2020-03-25",
+"foreign_net": 11870844,
+"trust_net": 54000,
+"dealer_net": -3188000,
+"foreign_streak_days": 2,
+"trust_streak_days": 1,
+"dealer_streak_days": -8
+},
+{
+"date": "2020-03-26",
+"foreign_net": 20210187,
+"trust_net": -11180,
+"dealer_net": -694000,
+"foreign_streak_days": 3,
+"trust_streak_days": -1,
+"dealer_streak_days": -9
+},
+{
+"date": "2020-03-27",
+"foreign_net": -5230403,
+"trust_net": -452000,
+"dealer_net": -2113000,
+"foreign_streak_days": -1,
+"trust_streak_days": -2,
+"dealer_streak_days": -10
+},
+{
+"date": "2020-03-30",
+"foreign_net": -11924131,
+"trust_net": -731000,
+"dealer_net": -11996,
+"foreign_streak_days": -2,
+"trust_streak_days": -3,
+"dealer_streak_days": -11
+},
+{
+"date": "2020-03-31",
+"foreign_net": 9586693,
+"trust_net": 208000,
+"dealer_net": -1587000,
+"foreign_streak_days": 1,
+"trust_streak_days": 1,
+"dealer_streak_days": -12
+},
+{
+"date": "2020-04-01",
+"foreign_net": 2247066,
+"trust_net": 661000,
+"dealer_net": -1032500,
+"foreign_streak_days": 2,
+"trust_streak_days": 2,
+"dealer_streak_days": -13
+},
+{
+"date": "2020-04-06",
+"foreign_net": 4555159,
+"trust_net": -558000,
+"dealer_net": 1389000,
+"foreign_streak_days": 3,
+"trust_streak_days": -1,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-04-07",
+"foreign_net": 21623311,
+"trust_net": 205000,
+"dealer_net": -254000,
+"foreign_streak_days": 4,
+"trust_streak_days": 1,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-04-08",
+"foreign_net": 8738315,
+"trust_net": 1213000,
+"dealer_net": -1109000,
+"foreign_streak_days": 5,
+"trust_streak_days": 2,
+"dealer_streak_days": -2
+},
+{
+"date": "2020-04-09",
+"foreign_net": 4812209,
+"trust_net": -123000,
+"dealer_net": -188000,
+"foreign_streak_days": 6,
+"trust_streak_days": -1,
+"dealer_streak_days": -3
+},
+{
+"date": "2020-04-10",
+"foreign_net": -3791970,
+"trust_net": -542000,
+"dealer_net": 493000,
+"foreign_streak_days": -1,
+"trust_streak_days": -2,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-04-13",
+"foreign_net": -5652670,
+"trust_net": 39424,
+"dealer_net": -1194000,
+"foreign_streak_days": -2,
+"trust_streak_days": 1,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-04-14",
+"foreign_net": 15371959,
+"trust_net": 322000,
+"dealer_net": 945000,
+"foreign_streak_days": 1,
+"trust_streak_days": 2,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-04-15",
+"foreign_net": -587257,
+"trust_net": 729000,
+"dealer_net": -2037000,
+"foreign_streak_days": -1,
+"trust_streak_days": 3,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-04-16",
+"foreign_net": -6121837,
+"trust_net": 301000,
+"dealer_net": -188000,
+"foreign_streak_days": -2,
+"trust_streak_days": 4,
+"dealer_streak_days": -2
+},
+{
+"date": "2020-04-17",
+"foreign_net": 57330985,
+"trust_net": 2427000,
+"dealer_net": -490000,
+"foreign_streak_days": 1,
+"trust_streak_days": 5,
+"dealer_streak_days": -3
+},
+{
+"date": "2020-04-20",
+"foreign_net": -1075372,
+"trust_net": -13000,
+"dealer_net": -613000,
+"foreign_streak_days": -1,
+"trust_streak_days": -1,
+"dealer_streak_days": -4
+},
+{
+"date": "2020-04-21",
+"foreign_net": -15656239,
+"trust_net": -282000,
+"dealer_net": -1675000,
+"foreign_streak_days": -2,
+"trust_streak_days": -2,
+"dealer_streak_days": -5
+},
+{
+"date": "2020-04-22",
+"foreign_net": -6088421,
+"trust_net": -323000,
+"dealer_net": -214000,
+"foreign_streak_days": -3,
+"trust_streak_days": -3,
+"dealer_streak_days": -6
+},
+{
+"date": "2020-04-23",
+"foreign_net": 5029317,
+"trust_net": -120000,
+"dealer_net": -387000,
+"foreign_streak_days": 1,
+"trust_streak_days": -4,
+"dealer_streak_days": -7
+},
+{
+"date": "2020-04-24",
+"foreign_net": -566758,
+"trust_net": 70000,
+"dealer_net": -101000,
+"foreign_streak_days": -1,
+"trust_streak_days": 1,
+"dealer_streak_days": -8
+},
+{
+"date": "2020-04-27",
+"foreign_net": 8459551,
+"trust_net": 132000,
+"dealer_net": 217000,
+"foreign_streak_days": 1,
+"trust_streak_days": 2,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-04-28",
+"foreign_net": -1499009,
+"trust_net": -968000,
+"dealer_net": 335000,
+"foreign_streak_days": -1,
+"trust_streak_days": -1,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-04-29",
+"foreign_net": 15525196,
+"trust_net": 169000,
+"dealer_net": -1392000,
+"foreign_streak_days": 1,
+"trust_streak_days": 1,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-04-30",
+"foreign_net": 13706459,
+"trust_net": 1803000,
+"dealer_net": 628000,
+"foreign_streak_days": 2,
+"trust_streak_days": 2,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-05-04",
+"foreign_net": -37992565,
+"trust_net": 453000,
+"dealer_net": -744000,
+"foreign_streak_days": -1,
+"trust_streak_days": 3,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-05-05",
+"foreign_net": -6049289,
+"trust_net": 27978,
+"dealer_net": 34000,
+"foreign_streak_days": -2,
+"trust_streak_days": 4,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-05-06",
+"foreign_net": -6942896,
+"trust_net": 360000,
+"dealer_net": -1276000,
+"foreign_streak_days": -3,
+"trust_streak_days": 5,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-05-07",
+"foreign_net": -3801201,
+"trust_net": 141000,
+"dealer_net": 987000,
+"foreign_streak_days": -4,
+"trust_streak_days": 6,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-05-08",
+"foreign_net": -10659260,
+"trust_net": -51000,
+"dealer_net": 476000,
+"foreign_streak_days": -5,
+"trust_streak_days": -1,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-05-11",
+"foreign_net": 1037342,
+"trust_net": 465000,
+"dealer_net": 567000,
+"foreign_streak_days": 1,
+"trust_streak_days": 1,
+"dealer_streak_days": 3
+},
+{
+"date": "2020-05-12",
+"foreign_net": -30763621,
+"trust_net": 178000,
+"dealer_net": 179007,
+"foreign_streak_days": -1,
+"trust_streak_days": 2,
+"dealer_streak_days": 4
+},
+{
+"date": "2020-05-13",
+"foreign_net": -7340455,
+"trust_net": 718000,
+"dealer_net": -88990,
+"foreign_streak_days": -2,
+"trust_streak_days": 3,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-05-14",
+"foreign_net": -18200692,
+"trust_net": 451000,
+"dealer_net": 43001,
+"foreign_streak_days": -3,
+"trust_streak_days": 4,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-05-15",
+"foreign_net": 8840733,
+"trust_net": 933000,
+"dealer_net": 120000,
+"foreign_streak_days": 1,
+"trust_streak_days": 5,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-05-18",
+"foreign_net": -42708794,
+"trust_net": -245000,
+"dealer_net": -289990,
+"foreign_streak_days": -1,
+"trust_streak_days": -1,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-05-19",
+"foreign_net": -1107509,
+"trust_net": 1171000,
+"dealer_net": 160014,
+"foreign_streak_days": -2,
+"trust_streak_days": 1,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-05-20",
+"foreign_net": 11619915,
+"trust_net": 150000,
+"dealer_net": 122007,
+"foreign_streak_days": 1,
+"trust_streak_days": 2,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-05-21",
+"foreign_net": 11763205,
+"trust_net": 166000,
+"dealer_net": 808000,
+"foreign_streak_days": 2,
+"trust_streak_days": 3,
+"dealer_streak_days": 3
+},
+{
+"date": "2020-05-22",
+"foreign_net": -19300501,
+"trust_net": 104000,
+"dealer_net": 97000,
+"foreign_streak_days": -1,
+"trust_streak_days": 4,
+"dealer_streak_days": 4
+},
+{
+"date": "2020-05-25",
+"foreign_net": -8519730,
+"trust_net": -41805,
+"dealer_net": 369000,
+"foreign_streak_days": -2,
+"trust_streak_days": -1,
+"dealer_streak_days": 5
+},
+{
+"date": "2020-05-26",
+"foreign_net": 16340784,
+"trust_net": 719000,
+"dealer_net": 199000,
+"foreign_streak_days": 1,
+"trust_streak_days": 1,
+"dealer_streak_days": 6
+},
+{
+"date": "2020-05-27",
+"foreign_net": 4030977,
+"trust_net": -173000,
+"dealer_net": -85000,
+"foreign_streak_days": 2,
+"trust_streak_days": -1,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-05-28",
+"foreign_net": -8907,
+"trust_net": -439000,
+"dealer_net": 526000,
+"foreign_streak_days": -1,
+"trust_streak_days": -2,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-05-29",
+"foreign_net": -21158953,
+"trust_net": -254000,
+"dealer_net": 1685000,
+"foreign_streak_days": -2,
+"trust_streak_days": -3,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-06-01",
+"foreign_net": 9081639,
+"trust_net": -13000,
+"dealer_net": 145000,
+"foreign_streak_days": 1,
+"trust_streak_days": -4,
+"dealer_streak_days": 3
+},
+{
+"date": "2020-06-02",
+"foreign_net": 4214125,
+"trust_net": 208000,
+"dealer_net": 84000,
+"foreign_streak_days": 2,
+"trust_streak_days": 1,
+"dealer_streak_days": 4
+},
+{
+"date": "2020-06-03",
+"foreign_net": 14653481,
+"trust_net": 376000,
+"dealer_net": 4470000,
+"foreign_streak_days": 3,
+"trust_streak_days": 2,
+"dealer_streak_days": 5
+},
+{
+"date": "2020-06-04",
+"foreign_net": 14765966,
+"trust_net": 405000,
+"dealer_net": 467000,
+"foreign_streak_days": 4,
+"trust_streak_days": 3,
+"dealer_streak_days": 6
+},
+{
+"date": "2020-06-05",
+"foreign_net": 19834320,
+"trust_net": 286000,
+"dealer_net": 768000,
+"foreign_streak_days": 5,
+"trust_streak_days": 4,
+"dealer_streak_days": 7
+},
+{
+"date": "2020-06-08",
+"foreign_net": 11670865,
+"trust_net": 1572000,
+"dealer_net": -94000,
+"foreign_streak_days": 6,
+"trust_streak_days": 5,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-06-09",
+"foreign_net": 9579091,
+"trust_net": -363000,
+"dealer_net": -272000,
+"foreign_streak_days": 7,
+"trust_streak_days": -1,
+"dealer_streak_days": -2
+},
+{
+"date": "2020-06-10",
+"foreign_net": 10341600,
+"trust_net": -536000,
+"dealer_net": 705997,
+"foreign_streak_days": 8,
+"trust_streak_days": -2,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-06-11",
+"foreign_net": 16042170,
+"trust_net": -146000,
+"dealer_net": -1404000,
+"foreign_streak_days": 9,
+"trust_streak_days": -3,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-06-12",
+"foreign_net": 4882727,
+"trust_net": -39000,
+"dealer_net": 958000,
+"foreign_streak_days": 10,
+"trust_streak_days": -4,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-06-15",
+"foreign_net": -6462828,
+"trust_net": 385000,
+"dealer_net": -276980,
+"foreign_streak_days": -1,
+"trust_streak_days": 1,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-06-16",
+"foreign_net": 15690209,
+"trust_net": -97194,
+"dealer_net": 1477000,
+"foreign_streak_days": 1,
+"trust_streak_days": -1,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-06-17",
+"foreign_net": 5115067,
+"trust_net": -18000,
+"dealer_net": -666000,
+"foreign_streak_days": 2,
+"trust_streak_days": -2,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-06-18",
+"foreign_net": 6577052,
+"trust_net": -33000,
+"dealer_net": -2376000,
+"foreign_streak_days": 3,
+"trust_streak_days": -3,
+"dealer_streak_days": -2
+},
+{
+"date": "2020-06-19",
+"foreign_net": 700278,
+"trust_net": -265000,
+"dealer_net": -1012000,
+"foreign_streak_days": 4,
+"trust_streak_days": -4,
+"dealer_streak_days": -3
+},
+{
+"date": "2020-06-22",
+"foreign_net": 4989243,
+"trust_net": -140000,
+"dealer_net": 76000,
+"foreign_streak_days": 5,
+"trust_streak_days": -5,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-06-23",
+"foreign_net": 17043066,
+"trust_net": 491000,
+"dealer_net": 196000,
+"foreign_streak_days": 6,
+"trust_streak_days": 1,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-06-24",
+"foreign_net": 24047725,
+"trust_net": -167000,
+"dealer_net": 716000,
+"foreign_streak_days": 7,
+"trust_streak_days": -1,
+"dealer_streak_days": 3
+},
+{
+"date": "2020-06-29",
+"foreign_net": -8238227,
+"trust_net": 760000,
+"dealer_net": -333000,
+"foreign_streak_days": -1,
+"trust_streak_days": 1,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-06-30",
+"foreign_net": 11940581,
+"trust_net": -115000,
+"dealer_net": 503005,
+"foreign_streak_days": 1,
+"trust_streak_days": -1,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-07-01",
+"foreign_net": 9092857,
+"trust_net": 122000,
+"dealer_net": -389000,
+"foreign_streak_days": 2,
+"trust_streak_days": 1,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-07-02",
+"foreign_net": 6445063,
+"trust_net": 472000,
+"dealer_net": 100000,
+"foreign_streak_days": 3,
+"trust_streak_days": 2,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-07-03",
+"foreign_net": 24696749,
+"trust_net": 3316000,
+"dealer_net": -354000,
+"foreign_streak_days": 4,
+"trust_streak_days": 3,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-07-06",
+"foreign_net": 11930066,
+"trust_net": -8000,
+"dealer_net": 945000,
+"foreign_streak_days": 5,
+"trust_streak_days": -1,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-07-07",
+"foreign_net": 11774916,
+"trust_net": -204000,
+"dealer_net": 73000,
+"foreign_streak_days": 6,
+"trust_streak_days": -2,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-07-08",
+"foreign_net": 1383424,
+"trust_net": -81000,
+"dealer_net": 1096000,
+"foreign_streak_days": 7,
+"trust_streak_days": -3,
+"dealer_streak_days": 3
+},
+{
+"date": "2020-07-09",
+"foreign_net": 10482241,
+"trust_net": 86000,
+"dealer_net": 136000,
+"foreign_streak_days": 8,
+"trust_streak_days": 1,
+"dealer_streak_days": 4
+},
+{
+"date": "2020-07-10",
+"foreign_net": 23961649,
+"trust_net": 24676,
+"dealer_net": -129000,
+"foreign_streak_days": 9,
+"trust_streak_days": 2,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-07-13",
+"foreign_net": 4861593,
+"trust_net": -390500,
+"dealer_net": 576000,
+"foreign_streak_days": 10,
+"trust_streak_days": -1,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-07-14",
+"foreign_net": -2445556,
+"trust_net": -373000,
+"dealer_net": 997000,
+"foreign_streak_days": -1,
+"trust_streak_days": -2,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-07-15",
+"foreign_net": -2621327,
+"trust_net": -483356,
+"dealer_net": -560000,
+"foreign_streak_days": -2,
+"trust_streak_days": -3,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-07-16",
+"foreign_net": -17400046,
+"trust_net": -1000,
+"dealer_net": 929000,
+"foreign_streak_days": -3,
+"trust_streak_days": -4,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-07-17",
+"foreign_net": 9822412,
+"trust_net": 682000,
+"dealer_net": -2311000,
+"foreign_streak_days": 1,
+"trust_streak_days": 1,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-07-20",
+"foreign_net": 2319696,
+"trust_net": -1149000,
+"dealer_net": -844000,
+"foreign_streak_days": 2,
+"trust_streak_days": -1,
+"dealer_streak_days": -2
+},
+{
+"date": "2020-07-21",
+"foreign_net": 17561373,
+"trust_net": -370000,
+"dealer_net": -955000,
+"foreign_streak_days": 3,
+"trust_streak_days": -2,
+"dealer_streak_days": -3
+},
+{
+"date": "2020-07-22",
+"foreign_net": -9216591,
+"trust_net": -611000,
+"dealer_net": -605000,
+"foreign_streak_days": -1,
+"trust_streak_days": -3,
+"dealer_streak_days": -4
+},
+{
+"date": "2020-07-23",
+"foreign_net": -13178553,
+"trust_net": -121000,
+"dealer_net": -495000,
+"foreign_streak_days": -2,
+"trust_streak_days": -4,
+"dealer_streak_days": -5
+},
+{
+"date": "2020-07-24",
+"foreign_net": 13378496,
+"trust_net": 50000,
+"dealer_net": -1819985,
+"foreign_streak_days": 1,
+"trust_streak_days": 1,
+"dealer_streak_days": -6
+},
+{
+"date": "2020-07-27",
+"foreign_net": 18817881,
+"trust_net": -1554369,
+"dealer_net": 864987,
+"foreign_streak_days": 2,
+"trust_streak_days": -1,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-07-28",
+"foreign_net": -1947473,
+"trust_net": -1528000,
+"dealer_net": -124008,
+"foreign_streak_days": -1,
+"trust_streak_days": -2,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-07-29",
+"foreign_net": -7726786,
+"trust_net": -1767300,
+"dealer_net": -1690000,
+"foreign_streak_days": -2,
+"trust_streak_days": -3,
+"dealer_streak_days": -2
+},
+{
+"date": "2020-07-30",
+"foreign_net": -663366,
+"trust_net": -290000,
+"dealer_net": 574000,
+"foreign_streak_days": -3,
+"trust_streak_days": -4,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-07-31",
+"foreign_net": -15669435,
+"trust_net": -242000,
+"dealer_net": 962000,
+"foreign_streak_days": -4,
+"trust_streak_days": -5,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-08-03",
+"foreign_net": -18259645,
+"trust_net": -122000,
+"dealer_net": 327000,
+"foreign_streak_days": -5,
+"trust_streak_days": -6,
+"dealer_streak_days": 3
+},
+{
+"date": "2020-08-04",
+"foreign_net": 10533903,
+"trust_net": 66000,
+"dealer_net": -175000,
+"foreign_streak_days": 1,
+"trust_streak_days": 1,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-08-05",
+"foreign_net": -1268923,
+"trust_net": 114628,
+"dealer_net": -159000,
+"foreign_streak_days": -1,
+"trust_streak_days": 2,
+"dealer_streak_days": -2
+},
+{
+"date": "2020-08-06",
+"foreign_net": 11731480,
+"trust_net": 62000,
+"dealer_net": 130000,
+"foreign_streak_days": 1,
+"trust_streak_days": 3,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-08-07",
+"foreign_net": 2937345,
+"trust_net": 65000,
+"dealer_net": -307000,
+"foreign_streak_days": 2,
+"trust_streak_days": 4,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-08-10",
+"foreign_net": 6042564,
+"trust_net": 105000,
+"dealer_net": 412000,
+"foreign_streak_days": 3,
+"trust_streak_days": 5,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-08-11",
+"foreign_net": -4558878,
+"trust_net": 82000,
+"dealer_net": -179000,
+"foreign_streak_days": -1,
+"trust_streak_days": 6,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-08-12",
+"foreign_net": -18677773,
+"trust_net": 254000,
+"dealer_net": -1686000,
+"foreign_streak_days": -2,
+"trust_streak_days": 7,
+"dealer_streak_days": -2
+},
+{
+"date": "2020-08-13",
+"foreign_net": 16852466,
+"trust_net": 550000,
+"dealer_net": -856000,
+"foreign_streak_days": 1,
+"trust_streak_days": 8,
+"dealer_streak_days": -3
+},
+{
+"date": "2020-08-14",
+"foreign_net": -3686445,
+"trust_net": -192000,
+"dealer_net": 155000,
+"foreign_streak_days": -1,
+"trust_streak_days": -1,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-08-17",
+"foreign_net": 12916088,
+"trust_net": 162000,
+"dealer_net": 1348000,
+"foreign_streak_days": 1,
+"trust_streak_days": 1,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-08-18",
+"foreign_net": 8298769,
+"trust_net": 88000,
+"dealer_net": -95000,
+"foreign_streak_days": 2,
+"trust_streak_days": 2,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-08-19",
+"foreign_net": -1658960,
+"trust_net": 100418,
+"dealer_net": -57000,
+"foreign_streak_days": -1,
+"trust_streak_days": 3,
+"dealer_streak_days": -2
+},
+{
+"date": "2020-08-20",
+"foreign_net": -7047938,
+"trust_net": -594000,
+"dealer_net": -1647000,
+"foreign_streak_days": -2,
+"trust_streak_days": -1,
+"dealer_streak_days": -3
+},
+{
+"date": "2020-08-21",
+"foreign_net": 9317407,
+"trust_net": 200000,
+"dealer_net": -132000,
+"foreign_streak_days": 1,
+"trust_streak_days": 1,
+"dealer_streak_days": -4
+},
+{
+"date": "2020-08-24",
+"foreign_net": 2409577,
+"trust_net": 102907,
+"dealer_net": 921000,
+"foreign_streak_days": 2,
+"trust_streak_days": 2,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-08-25",
+"foreign_net": -2407526,
+"trust_net": 19000,
+"dealer_net": 274000,
+"foreign_streak_days": -1,
+"trust_streak_days": 3,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-08-26",
+"foreign_net": 4211726,
+"trust_net": -140582,
+"dealer_net": 491000,
+"foreign_streak_days": 1,
+"trust_streak_days": -1,
+"dealer_streak_days": 3
+},
+{
+"date": "2020-08-27",
+"foreign_net": -7586680,
+"trust_net": 156000,
+"dealer_net": -605000,
+"foreign_streak_days": -1,
+"trust_streak_days": 1,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-08-28",
+"foreign_net": -15191432,
+"trust_net": 162000,
+"dealer_net": 670000,
+"foreign_streak_days": -2,
+"trust_streak_days": 2,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-08-31",
+"foreign_net": -14369143,
+"trust_net": 97470,
+"dealer_net": 137000,
+"foreign_streak_days": -3,
+"trust_streak_days": 3,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-09-01",
+"foreign_net": 7541059,
+"trust_net": -290841,
+"dealer_net": -463000,
+"foreign_streak_days": 1,
+"trust_streak_days": -1,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-09-02",
+"foreign_net": 5263154,
+"trust_net": 132000,
+"dealer_net": -145000,
+"foreign_streak_days": 2,
+"trust_streak_days": 1,
+"dealer_streak_days": -2
+},
+{
+"date": "2020-09-03",
+"foreign_net": 12838356,
+"trust_net": -1574419,
+"dealer_net": -241000,
+"foreign_streak_days": 3,
+"trust_streak_days": -1,
+"dealer_streak_days": -3
+},
+{
+"date": "2020-09-04",
+"foreign_net": -18324713,
+"trust_net": -15000,
+"dealer_net": 530000,
+"foreign_streak_days": -1,
+"trust_streak_days": -2,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-09-07",
+"foreign_net": -12987217,
+"trust_net": 178000,
+"dealer_net": 86000,
+"foreign_streak_days": -2,
+"trust_streak_days": 1,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-09-08",
+"foreign_net": 1964763,
+"trust_net": 56424,
+"dealer_net": -241000,
+"foreign_streak_days": 1,
+"trust_streak_days": 2,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-09-09",
+"foreign_net": -12962935,
+"trust_net": 4000,
+"dealer_net": 70000,
+"foreign_streak_days": -1,
+"trust_streak_days": 3,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-09-10",
+"foreign_net": 12478908,
+"trust_net": 226000,
+"dealer_net": -435000,
+"foreign_streak_days": 1,
+"trust_streak_days": 4,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-09-11",
+"foreign_net": 4189705,
+"trust_net": 298000,
+"dealer_net": -368000,
+"foreign_streak_days": 2,
+"trust_streak_days": 5,
+"dealer_streak_days": -2
+},
+{
+"date": "2020-09-14",
+"foreign_net": -1837143,
+"trust_net": 192000,
+"dealer_net": 385000,
+"foreign_streak_days": -1,
+"trust_streak_days": 6,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-09-15",
+"foreign_net": 737663,
+"trust_net": -129585,
+"dealer_net": 522000,
+"foreign_streak_days": 1,
+"trust_streak_days": -1,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-09-16",
+"foreign_net": 22603844,
+"trust_net": 382000,
+"dealer_net": 234000,
+"foreign_streak_days": 2,
+"trust_streak_days": 1,
+"dealer_streak_days": 3
+},
+{
+"date": "2020-09-17",
+"foreign_net": -17732140,
+"trust_net": -1193482,
+"dealer_net": -1186000,
+"foreign_streak_days": -1,
+"trust_streak_days": -1,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-09-18",
+"foreign_net": -9884528,
+"trust_net": -638000,
+"dealer_net": 307000,
+"foreign_streak_days": -2,
+"trust_streak_days": -2,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-09-21",
+"foreign_net": -14060921,
+"trust_net": -871242,
+"dealer_net": -2173984,
+"foreign_streak_days": -3,
+"trust_streak_days": -3,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-09-22",
+"foreign_net": -7555307,
+"trust_net": -746435,
+"dealer_net": -1646985,
+"foreign_streak_days": -4,
+"trust_streak_days": -4,
+"dealer_streak_days": -2
+},
+{
+"date": "2020-09-23",
+"foreign_net": -12335891,
+"trust_net": -3349227,
+"dealer_net": -2397975,
+"foreign_streak_days": -5,
+"trust_streak_days": -5,
+"dealer_streak_days": -3
+},
+{
+"date": "2020-09-24",
+"foreign_net": -41022505,
+"trust_net": 279000,
+"dealer_net": -624000,
+"foreign_streak_days": -6,
+"trust_streak_days": 1,
+"dealer_streak_days": -4
+},
+{
+"date": "2020-09-25",
+"foreign_net": 929915,
+"trust_net": -392000,
+"dealer_net": -1226000,
+"foreign_streak_days": 1,
+"trust_streak_days": -1,
+"dealer_streak_days": -5
+},
+{
+"date": "2020-09-28",
+"foreign_net": 4102831,
+"trust_net": 365000,
+"dealer_net": -23000,
+"foreign_streak_days": 2,
+"trust_streak_days": 1,
+"dealer_streak_days": -6
+},
+{
+"date": "2020-09-29",
+"foreign_net": 2194312,
+"trust_net": 47000,
+"dealer_net": -46000,
+"foreign_streak_days": 3,
+"trust_streak_days": 2,
+"dealer_streak_days": -7
+},
+{
+"date": "2020-09-30",
+"foreign_net": 3215335,
+"trust_net": 43000,
+"dealer_net": 236010,
+"foreign_streak_days": 4,
+"trust_streak_days": 3,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-10-05",
+"foreign_net": 3448086,
+"trust_net": 10000,
+"dealer_net": 1123000,
+"foreign_streak_days": 5,
+"trust_streak_days": 4,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-10-06",
+"foreign_net": 12856058,
+"trust_net": 96000,
+"dealer_net": -102000,
+"foreign_streak_days": 6,
+"trust_streak_days": 5,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-10-07",
+"foreign_net": 7501149,
+"trust_net": 20000,
+"dealer_net": 324000,
+"foreign_streak_days": 7,
+"trust_streak_days": 6,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-10-08",
+"foreign_net": 28937056,
+"trust_net": 601000,
+"dealer_net": 134000,
+"foreign_streak_days": 8,
+"trust_streak_days": 7,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-10-12",
+"foreign_net": 17746266,
+"trust_net": 44000,
+"dealer_net": -92000,
+"foreign_streak_days": 9,
+"trust_streak_days": 8,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-10-13",
+"foreign_net": 12182881,
+"trust_net": 340000,
+"dealer_net": -219000,
+"foreign_streak_days": 10,
+"trust_streak_days": 9,
+"dealer_streak_days": -2
+},
+{
+"date": "2020-10-14",
+"foreign_net": -7106679,
+"trust_net": 229000,
+"dealer_net": -636000,
+"foreign_streak_days": -1,
+"trust_streak_days": 10,
+"dealer_streak_days": -3
+},
+{
+"date": "2020-10-15",
+"foreign_net": -12185725,
+"trust_net": 124000,
+"dealer_net": -272000,
+"foreign_streak_days": -2,
+"trust_streak_days": 11,
+"dealer_streak_days": -4
+},
+{
+"date": "2020-10-16",
+"foreign_net": -1885602,
+"trust_net": -367000,
+"dealer_net": -1307995,
+"foreign_streak_days": -3,
+"trust_streak_days": -1,
+"dealer_streak_days": -5
+},
+{
+"date": "2020-10-19",
+"foreign_net": 10276075,
+"trust_net": -139000,
+"dealer_net": -1239000,
+"foreign_streak_days": 1,
+"trust_streak_days": -2,
+"dealer_streak_days": -6
+},
+{
+"date": "2020-10-20",
+"foreign_net": -2908442,
+"trust_net": -123000,
+"dealer_net": -407000,
+"foreign_streak_days": -1,
+"trust_streak_days": -3,
+"dealer_streak_days": -7
+},
+{
+"date": "2020-10-21",
+"foreign_net": 8136765,
+"trust_net": -48000,
+"dealer_net": -3908000,
+"foreign_streak_days": 1,
+"trust_streak_days": -4,
+"dealer_streak_days": -8
+},
+{
+"date": "2020-10-22",
+"foreign_net": 5687599,
+"trust_net": -30000,
+"dealer_net": -602000,
+"foreign_streak_days": 2,
+"trust_streak_days": -5,
+"dealer_streak_days": -9
+},
+{
+"date": "2020-10-23",
+"foreign_net": -1943776,
+"trust_net": -21000,
+"dealer_net": 299000,
+"foreign_streak_days": -1,
+"trust_streak_days": -6,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-10-26",
+"foreign_net": -5633632,
+"trust_net": -39000,
+"dealer_net": -338000,
+"foreign_streak_days": -2,
+"trust_streak_days": -7,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-10-27",
+"foreign_net": -7628142,
+"trust_net": 22000,
+"dealer_net": -727963,
+"foreign_streak_days": -3,
+"trust_streak_days": 1,
+"dealer_streak_days": -2
+},
+{
+"date": "2020-10-28",
+"foreign_net": -8128485,
+"trust_net": -180000,
+"dealer_net": -2944460,
+"foreign_streak_days": -4,
+"trust_streak_days": -1,
+"dealer_streak_days": -3
+},
+{
+"date": "2020-10-29",
+"foreign_net": -21573847,
+"trust_net": -15000,
+"dealer_net": -887000,
+"foreign_streak_days": -5,
+"trust_streak_days": -2,
+"dealer_streak_days": -4
+},
+{
+"date": "2020-10-30",
+"foreign_net": -19152274,
+"trust_net": -16000,
+"dealer_net": -1379998,
+"foreign_streak_days": -6,
+"trust_streak_days": -3,
+"dealer_streak_days": -5
+},
+{
+"date": "2020-11-02",
+"foreign_net": -305946,
+"trust_net": 13000,
+"dealer_net": 141410,
+"foreign_streak_days": -7,
+"trust_streak_days": 1,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-11-03",
+"foreign_net": 2538505,
+"trust_net": 71000,
+"dealer_net": 227000,
+"foreign_streak_days": 1,
+"trust_streak_days": 2,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-11-04",
+"foreign_net": 8857643,
+"trust_net": 122000,
+"dealer_net": 799495,
+"foreign_streak_days": 2,
+"trust_streak_days": 3,
+"dealer_streak_days": 3
+},
+{
+"date": "2020-11-05",
+"foreign_net": 11838974,
+"trust_net": 154000,
+"dealer_net": -69000,
+"foreign_streak_days": 3,
+"trust_streak_days": 4,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-11-06",
+"foreign_net": 15507753,
+"trust_net": -117000,
+"dealer_net": -594000,
+"foreign_streak_days": 4,
+"trust_streak_days": -1,
+"dealer_streak_days": -2
+},
+{
+"date": "2020-11-09",
+"foreign_net": 15953439,
+"trust_net": -170000,
+"dealer_net": 835721,
+"foreign_streak_days": 5,
+"trust_streak_days": -2,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-11-10",
+"foreign_net": -10994370,
+"trust_net": 19000,
+"dealer_net": -1133151,
+"foreign_streak_days": -1,
+"trust_streak_days": 1,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-11-11",
+"foreign_net": 4286182,
+"trust_net": -159000,
+"dealer_net": 2410643,
+"foreign_streak_days": 1,
+"trust_streak_days": -1,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-11-12",
+"foreign_net": 13586635,
+"trust_net": -79000,
+"dealer_net": 52855,
+"foreign_streak_days": 2,
+"trust_streak_days": -2,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-11-13",
+"foreign_net": 5213281,
+"trust_net": -649000,
+"dealer_net": 552933,
+"foreign_streak_days": 3,
+"trust_streak_days": -3,
+"dealer_streak_days": 3
+},
+{
+"date": "2020-11-16",
+"foreign_net": 25721536,
+"trust_net": -179000,
+"dealer_net": 1788735,
+"foreign_streak_days": 4,
+"trust_streak_days": -4,
+"dealer_streak_days": 4
+},
+{
+"date": "2020-11-17",
+"foreign_net": -1109402,
+"trust_net": -499864,
+"dealer_net": -1060989,
+"foreign_streak_days": -1,
+"trust_streak_days": -5,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-11-18",
+"foreign_net": 7517422,
+"trust_net": -122000,
+"dealer_net": -1052000,
+"foreign_streak_days": 1,
+"trust_streak_days": -6,
+"dealer_streak_days": -2
+},
+{
+"date": "2020-11-19",
+"foreign_net": -15160983,
+"trust_net": -616000,
+"dealer_net": 646236,
+"foreign_streak_days": -1,
+"trust_streak_days": -7,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-11-20",
+"foreign_net": -10334879,
+"trust_net": -25000,
+"dealer_net": 852004,
+"foreign_streak_days": -2,
+"trust_streak_days": -8,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-11-23",
+"foreign_net": 1752130,
+"trust_net": -37000,
+"dealer_net": 89043,
+"foreign_streak_days": 1,
+"trust_streak_days": -9,
+"dealer_streak_days": 3
+},
+{
+"date": "2020-11-24",
+"foreign_net": -11104459,
+"trust_net": 105000,
+"dealer_net": 498909,
+"foreign_streak_days": -1,
+"trust_streak_days": 1,
+"dealer_streak_days": 4
+},
+{
+"date": "2020-11-25",
+"foreign_net": -12649311,
+"trust_net": -392000,
+"dealer_net": -648974,
+"foreign_streak_days": -2,
+"trust_streak_days": -1,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-11-26",
+"foreign_net": -6886647,
+"trust_net": -150000,
+"dealer_net": 466000,
+"foreign_streak_days": -3,
+"trust_streak_days": -2,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-11-27",
+"foreign_net": -5914006,
+"trust_net": -194000,
+"dealer_net": -133998,
+"foreign_streak_days": -4,
+"trust_streak_days": -3,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-11-30",
+"foreign_net": -33426648,
+"trust_net": -42400,
+"dealer_net": 1225960,
+"foreign_streak_days": -5,
+"trust_streak_days": -4,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-12-01",
+"foreign_net": 587048,
+"trust_net": 211300,
+"dealer_net": 396996,
+"foreign_streak_days": 1,
+"trust_streak_days": 1,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-12-02",
+"foreign_net": 10468733,
+"trust_net": 106300,
+"dealer_net": -415004,
+"foreign_streak_days": 2,
+"trust_streak_days": 2,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-12-03",
+"foreign_net": -4884528,
+"trust_net": 13000,
+"dealer_net": -57000,
+"foreign_streak_days": -1,
+"trust_streak_days": 3,
+"dealer_streak_days": -2
+},
+{
+"date": "2020-12-04",
+"foreign_net": 18731499,
+"trust_net": 76500,
+"dealer_net": -340482,
+"foreign_streak_days": 1,
+"trust_streak_days": 4,
+"dealer_streak_days": -3
+},
+{
+"date": "2020-12-07",
+"foreign_net": 1319996,
+"trust_net": 1258300,
+"dealer_net": -409984,
+"foreign_streak_days": 2,
+"trust_streak_days": 5,
+"dealer_streak_days": -4
+},
+{
+"date": "2020-12-08",
+"foreign_net": 1044036,
+"trust_net": 2363000,
+"dealer_net": -229000,
+"foreign_streak_days": 3,
+"trust_streak_days": 6,
+"dealer_streak_days": -5
+},
+{
+"date": "2020-12-09",
+"foreign_net": -13080875,
+"trust_net": 1125900,
+"dealer_net": -24266,
+"foreign_streak_days": -1,
+"trust_streak_days": 7,
+"dealer_streak_days": -6
+},
+{
+"date": "2020-12-10",
+"foreign_net": -12066624,
+"trust_net": 1322500,
+"dealer_net": -1289949,
+"foreign_streak_days": -2,
+"trust_streak_days": 8,
+"dealer_streak_days": -7
+},
+{
+"date": "2020-12-11",
+"foreign_net": -1661958,
+"trust_net": 1820300,
+"dealer_net": -553729,
+"foreign_streak_days": -3,
+"trust_streak_days": 9,
+"dealer_streak_days": -8
+},
+{
+"date": "2020-12-14",
+"foreign_net": -8479601,
+"trust_net": 513600,
+"dealer_net": -416153,
+"foreign_streak_days": -4,
+"trust_streak_days": 10,
+"dealer_streak_days": -9
+},
+{
+"date": "2020-12-15",
+"foreign_net": -8008469,
+"trust_net": 837700,
+"dealer_net": -620095,
+"foreign_streak_days": -5,
+"trust_streak_days": 11,
+"dealer_streak_days": -10
+},
+{
+"date": "2020-12-16",
+"foreign_net": 7959625,
+"trust_net": 363000,
+"dealer_net": -155000,
+"foreign_streak_days": 1,
+"trust_streak_days": 12,
+"dealer_streak_days": -11
+},
+{
+"date": "2020-12-17",
+"foreign_net": -843488,
+"trust_net": -474210,
+"dealer_net": -237773,
+"foreign_streak_days": -1,
+"trust_streak_days": -1,
+"dealer_streak_days": -12
+},
+{
+"date": "2020-12-18",
+"foreign_net": 9050363,
+"trust_net": -1714490,
+"dealer_net": -698176,
+"foreign_streak_days": 1,
+"trust_streak_days": -2,
+"dealer_streak_days": -13
+},
+{
+"date": "2020-12-21",
+"foreign_net": 7570118,
+"trust_net": 317000,
+"dealer_net": -544901,
+"foreign_streak_days": 2,
+"trust_streak_days": 1,
+"dealer_streak_days": -14
+},
+{
+"date": "2020-12-22",
+"foreign_net": -3513566,
+"trust_net": 78800,
+"dealer_net": -253619,
+"foreign_streak_days": -1,
+"trust_streak_days": 2,
+"dealer_streak_days": -15
+},
+{
+"date": "2020-12-23",
+"foreign_net": -1945032,
+"trust_net": -13000,
+"dealer_net": 175000,
+"foreign_streak_days": -2,
+"trust_streak_days": -1,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-12-24",
+"foreign_net": 2236412,
+"trust_net": 25970,
+"dealer_net": 266765,
+"foreign_streak_days": 1,
+"trust_streak_days": 1,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-12-25",
+"foreign_net": 3490555,
+"trust_net": -420000,
+"dealer_net": 578690,
+"foreign_streak_days": 2,
+"trust_streak_days": -1,
+"dealer_streak_days": 3
+},
+{
+"date": "2020-12-28",
+"foreign_net": 5428881,
+"trust_net": 26000,
+"dealer_net": 557170,
+"foreign_streak_days": 3,
+"trust_streak_days": 1,
+"dealer_streak_days": 4
+},
+{
+"date": "2020-12-29",
+"foreign_net": 4252779,
+"trust_net": -88180,
+"dealer_net": -1276000,
+"foreign_streak_days": 4,
+"trust_streak_days": -1,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-12-30",
+"foreign_net": 15638945,
+"trust_net": 257000,
+"dealer_net": 2340998,
+"foreign_streak_days": 5,
+"trust_streak_days": 1,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-12-31",
+"foreign_net": 4607817,
+"trust_net": 419000,
+"dealer_net": 145827,
+"foreign_streak_days": 6,
+"trust_streak_days": 2,
+"dealer_streak_days": 2
+}
+],
+"1258": [
+{
+"date": "2020-01-02",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-01-03",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-01-06",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-01-08",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-01-09",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-01-10",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-01-13",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-01-14",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-01-15",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-01-16",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-01-17",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-01-30",
+"foreign_net": -1000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-01-31",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-02-03",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-02-04",
+"foreign_net": 3000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": 1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-02-05",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-02-06",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-02-07",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-02-10",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-02-11",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-02-12",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-02-13",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-02-14",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-02-17",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-02-18",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-02-19",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-02-20",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-02-21",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-02-24",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-02-25",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-02-26",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-02-27",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-03-02",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-03-03",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-03-04",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-03-05",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-03-06",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-03-09",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-03-10",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-03-11",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-03-12",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-03-13",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-03-16",
+"foreign_net": -1000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-03-17",
+"foreign_net": 1000,
+"trust_net": 0,
+"dealer_net": 1000,
+"foreign_streak_days": 1,
+"trust_streak_days": 0,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-03-18",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-03-19",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-03-20",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-03-24",
+"foreign_net": 0,
+"trust_net": 0,
+"dealer_net": -1000,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-03-25",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-03-27",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-03-30",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-03-31",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-04-01",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-04-06",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-04-07",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-04-08",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-04-09",
+"foreign_net": 1000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": 1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-04-10",
+"foreign_net": -2000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-04-13",
+"foreign_net": -3000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -2,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-04-14",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-04-15",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-04-16",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-04-17",
+"foreign_net": -1000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-04-20",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-04-21",
+"foreign_net": -1000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-04-23",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-04-24",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-04-27",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-04-28",
+"foreign_net": 4000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": 1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-04-29",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-04-30",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-05-04",
+"foreign_net": 1000,
+"trust_net": 0,
+"dealer_net": 1000,
+"foreign_streak_days": 1,
+"trust_streak_days": 0,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-05-05",
+"foreign_net": -5000,
+"trust_net": 0,
+"dealer_net": 1000,
+"foreign_streak_days": -1,
+"trust_streak_days": 0,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-05-06",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-05-07",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-05-08",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-05-11",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-05-12",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-05-13",
+"foreign_net": 0,
+"trust_net": 0,
+"dealer_net": -2000,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-05-14",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-05-15",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-05-18",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-05-19",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-05-20",
+"foreign_net": 0,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-05-21",
+"foreign_net": 0,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-05-22",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-05-25",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-05-26",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-05-27",
+"foreign_net": 0,
+"trust_net": 0,
+"dealer_net": 3000,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-05-28",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-05-29",
+"foreign_net": 15000,
+"trust_net": 0,
+"dealer_net": -3000,
+"foreign_streak_days": 1,
+"trust_streak_days": 0,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-06-01",
+"foreign_net": -1000,
+"trust_net": 0,
+"dealer_net": 4000,
+"foreign_streak_days": -1,
+"trust_streak_days": 0,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-06-02",
+"foreign_net": -14000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -2,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-06-03",
+"foreign_net": 2000,
+"trust_net": 0,
+"dealer_net": -4000,
+"foreign_streak_days": 1,
+"trust_streak_days": 0,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-06-04",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-06-05",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-06-08",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-06-09",
+"foreign_net": -2000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-06-10",
+"foreign_net": 1000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": 1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-06-11",
+"foreign_net": -1000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-06-12",
+"foreign_net": 1000,
+"trust_net": 0,
+"dealer_net": 3000,
+"foreign_streak_days": 1,
+"trust_streak_days": 0,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-06-15",
+"foreign_net": 14000,
+"trust_net": 0,
+"dealer_net": 6000,
+"foreign_streak_days": 2,
+"trust_streak_days": 0,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-06-16",
+"foreign_net": -15000,
+"trust_net": 0,
+"dealer_net": -1000,
+"foreign_streak_days": -1,
+"trust_streak_days": 0,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-06-17",
+"foreign_net": 3000,
+"trust_net": 0,
+"dealer_net": -2000,
+"foreign_streak_days": 1,
+"trust_streak_days": 0,
+"dealer_streak_days": -2
+},
+{
+"date": "2020-06-18",
+"foreign_net": -3000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-06-19",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-06-22",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-06-23",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-06-24",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-06-29",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-06-30",
+"foreign_net": 1000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": 1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-07-01",
+"foreign_net": -1000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-07-02",
+"foreign_net": 1000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": 1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-07-03",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-07-06",
+"foreign_net": -1000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-07-07",
+"foreign_net": 0,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-07-08",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-07-09",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-07-10",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-07-13",
+"foreign_net": 2000,
+"trust_net": 0,
+"dealer_net": -2000,
+"foreign_streak_days": 1,
+"trust_streak_days": 0,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-07-14",
+"foreign_net": 1000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": 2,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-07-15",
+"foreign_net": -2000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-07-16",
+"foreign_net": -1000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -2,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-07-17",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-07-22",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-07-23",
+"foreign_net": 4000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": 1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-07-24",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-07-27",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-07-28",
+"foreign_net": -1000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-07-29",
+"foreign_net": -1000,
+"trust_net": 0,
+"dealer_net": -1000,
+"foreign_streak_days": -2,
+"trust_streak_days": 0,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-07-30",
+"foreign_net": 13000,
+"trust_net": 0,
+"dealer_net": -3000,
+"foreign_streak_days": 1,
+"trust_streak_days": 0,
+"dealer_streak_days": -2
+},
+{
+"date": "2020-07-31",
+"foreign_net": -7000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-08-03",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-08-04",
+"foreign_net": -1000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-08-05",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-08-06",
+"foreign_net": 0,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-08-07",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-08-10",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-08-11",
+"foreign_net": -7000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-08-12",
+"foreign_net": 1000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": 1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-08-13",
+"foreign_net": -1000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-08-14",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-08-17",
+"foreign_net": 13000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": 1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-08-18",
+"foreign_net": 2000,
+"trust_net": 0,
+"dealer_net": 2000,
+"foreign_streak_days": 2,
+"trust_streak_days": 0,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-08-19",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-08-20",
+"foreign_net": -1000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-08-21",
+"foreign_net": 0,
+"trust_net": 0,
+"dealer_net": -2000,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-08-24",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-08-25",
+"foreign_net": 0,
+"trust_net": 0,
+"dealer_net": 1000,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-08-26",
+"foreign_net": 0,
+"trust_net": 0,
+"dealer_net": 2000,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 2
+},
+{
+"date": "2020-08-27",
+"foreign_net": 1000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": 1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-08-28",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-08-31",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-09-01",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-09-02",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-09-03",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-09-04",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-09-07",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-09-08",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-09-09",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-09-10",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-09-11",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-09-14",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-09-15",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-09-16",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-09-17",
+"foreign_net": -1000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-09-18",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-09-21",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-09-22",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-09-23",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-09-24",
+"foreign_net": -1000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-09-25",
+"foreign_net": 0,
+"trust_net": 0,
+"dealer_net": -2000,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-09-28",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-09-29",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-10-05",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-10-06",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-10-07",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-10-08",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-10-12",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-10-13",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-10-14",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-10-15",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-10-16",
+"foreign_net": 0,
+"trust_net": 0,
+"dealer_net": -1000,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": -1
+},
+{
+"date": "2020-10-19",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-10-20",
+"foreign_net": 2000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": 1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-10-22",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-10-23",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-10-26",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-10-27",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-10-28",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-10-29",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-10-30",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-11-02",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-11-03",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-11-04",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-11-05",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-11-06",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-11-09",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-11-10",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-11-11",
+"foreign_net": -2000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-11-12",
+"foreign_net": 2000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": 1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-11-13",
+"foreign_net": -32000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-11-16",
+"foreign_net": -2000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -2,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-11-17",
+"foreign_net": 2000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": 1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-11-18",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-11-19",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-11-20",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-11-23",
+"foreign_net": -3000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-11-24",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-11-25",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-11-27",
+"foreign_net": 1000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": 1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-11-30",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-12-01",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-12-02",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-12-03",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-12-04",
+"foreign_net": 1000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": 1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-12-07",
+"foreign_net": 1000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": 2,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-12-08",
+"foreign_net": -1000,
+"trust_net": 0,
+"dealer_net": 1,
+"foreign_streak_days": -1,
+"trust_streak_days": 0,
+"dealer_streak_days": 1
+},
+{
+"date": "2020-12-09",
+"foreign_net": -3000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -2,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-12-10",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-12-11",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-12-14",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-12-15",
+"foreign_net": -1000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -1,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-12-16",
+"foreign_net": -3000,
+"trust_net": 0,
+"dealer_net": 0,
+"foreign_streak_days": -2,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-12-17",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-12-18",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-12-21",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-12-22",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-12-23",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-12-24",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-12-25",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-12-28",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-12-29",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-12-30",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+},
+{
+"date": "2020-12-31",
+"foreign_net": null,
+"trust_net": null,
+"dealer_net": null,
+"foreign_streak_days": 0,
+"trust_streak_days": 0,
+"dealer_streak_days": 0
+}
+]
+}
+}
