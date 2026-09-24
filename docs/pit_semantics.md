@@ -2,7 +2,9 @@
 
 ## Status and terminology
 
-This document is normative for Phase 0 and later implementation.
+This document is normative. It states the rules schema v2 (ADR-0027) applies;
+the evidence model that preceded it (ADR-0002, ADR-0010, ADR-0020) is history,
+and what it proved survives as stored `published_at` values.
 
 All cutoffs are timezone-aware instants. API timestamps without an explicit
 UTC offset are invalid. PostgreSQL stores instants as `TIMESTAMPTZ`; application
@@ -14,141 +16,62 @@ The three PIT parameters are deliberately not aliases:
 
 | Parameter | Meaning |
 | --- | --- |
-| `information_as_of` | Latest market-publication instant allowed in a market-PIT answer. |
-| `knowledge_as_of` | Latest instant at which publication evidence may have been recorded by the Data Center. |
-| `system_as_of` | Latest trusted ingestion/seal instant allowed in a system-PIT answer. |
+| `information_as_of` | Latest instant at which a value may have become public for a market-PIT answer. |
+| `knowledge_as_of` | Latest instant at which the Data Center may have recorded a row used in a market-PIT answer. |
+| `system_as_of` | Latest instant at which the Data Center may have recorded a row used in a system-PIT answer. |
 
-`date`, `as_of`, `latest`, and `now` must not enter domain resolution as
-ambiguous substitutes. An API that accepts a convenience alias must resolve it
-to an explicit PIT mode and concrete instant before resolution or cache-key
-construction.
+`date`, `as_of`, `latest`, and `now` must not enter resolution as ambiguous
+substitutes. An API that accepts a convenience alias must resolve it to an
+explicit PIT mode and concrete instant first.
+
+## What a row is
+
+Every observed table holds one append-only row per key and published value: a
+row is added only when a value differs from the key's latest row, and nothing is
+updated or deleted (triggers refuse it). Each row carries `recorded_at`, the
+database's own statement time when it was written — never a caller's value —
+and `fetch_id`, the fetch whose raw file it came from.
+
+A key's rows are its history: the first is what the Data Center first stored,
+each later one a change the source published.
 
 ## Market PIT
 
 Market PIT answers:
 
-> What was publicly knowable by `information_as_of`, using publication evidence
-> the Data Center had recorded by `knowledge_as_of`?
+> What was publicly knowable by `information_as_of`, using what the Data Center
+> had recorded by `knowledge_as_of`?
 
-A request supplies both clocks and a source. A business version is eligible
-only when the authoritative evidence resolved under the knowledge cutoff:
+A row is eligible when
 
-1. has `recorded_at <= knowledge_as_of`;
-2. has an `evidence_type` accepted by the exact `(dataset_code, source)` policy;
-3. is an affirmative, non-retracted publication assertion;
-4. has non-null `published_at`; and
-5. has `published_at <= information_as_of`.
+```text
+available_at <= information_as_of
+AND
+recorded_at  <= knowledge_as_of
+```
 
-Neither a raw fetch time nor `ingested_at` substitutes for `published_at`.
-Evidence with `published_at = NULL` is market-invisible. Current wall-clock time
-must never be invented as a historical publication time.
+and the answer for a key is its latest eligible row. `available_at` is when the
+row's value became public, and it is computed, not supplied:
 
-## Evidence types and their ranking
-
-`evidence_types` registers every type ADR-0020 fixed, with the rank that
-expresses its precedence. Precedence therefore needs no special case in the
-resolver: ADR-0002 already ranks heads by `quality_rank`, descending.
-
-| Type | Rank | Meaning |
-| --- | ---: | --- |
-| `official` | 90 | a per-row release instant published by the source; no v1 source provides one |
-| `capture_bound` | 80 | our own first successful fetch of an artifact containing the version — a proven upper bound |
-| `legacy_capture_bound` | 70 | the legacy scraper's recorded first-seen date, as the end of the run that first held the row |
-| `press_report_bound` | 60 | a publication date reconstructed from a dated secondary record, at end of that day, Asia/Taipei |
-| `release_rule` | 40 | a versioned no-later-than instant derived from a published schedule or statute |
-
-For the four types ADR-0020 introduces, **the rank is a storage invariant**: a
-row whose rank disagrees with the registry is rejected, and a non-affirmative
-row of such a type must carry rank 0 so an `unknown` head can never outrank a
-real assertion. Ranking is not left to caller discipline.
-
-`official` is registered but **not pinned**, and its registered 90 is nominal:
-it predates ADR-0020 and stored rows carry other values — the current adapters
-write rank 0 with `unknown` kind, and the domain fixtures write 100 for
-assertions. Pinning it would rewrite history to no purpose, but it does mean an
-`official` assertion at 100 can still outrank a pinned `capture_bound` at 80.
-That is tolerable only because no v1 source emits `official` affirmatively
-(audit §7); Step 15-b must not assume 90 describes any stored row.
-
-Registration is about ranking, never permission: which types a source accepts
-remains `dataset_sources.accepted_evidence_types` (ADR-0010).
-
-## Why a fetch happened
-
-Every ingest run records a `purpose` — `first_capture`, `gap_fill`,
-`correction_check`, or `unspecified` — declared when the fetch is requested and
-never inferred afterwards. A row fetched years later because a query noticed it
-was missing is a `gap_fill`, and must not be able to claim a capture bound at
-that later instant. `unspecified` covers runs that predate the policy.
-
-Each fetch observation also records its `artifact_origin`, `official_fetch` or
-`legacy_archive` (ROADMAP §14), which until now existed only in prose.
-
-## Release rules
-
-`release_rules` registers each versioned rule with the schedule or statute it
-derives from. A rule with no cited authority would be an invented instant, which
-ROADMAP §2.4 forbids, so `authority` cannot be empty. Rules are never edited in
-place: correcting one means publishing a new version, and the table rejects
-`UPDATE` and `DELETE`.
-
-Two shapes, and the difference is the part that is easy to get wrong:
-
-| Kind | Resolves at | Moves off a closure? |
+| Dataset | A key's first row | A later row |
 | --- | --- | --- |
-| statutory deadline (`monthly_revenue_statutory`, `financial_statements_general`) | end of its day | **yes**, to the next trading day |
-| scheduled instant (`exchange_daily_settled`, `tdcc_weekly`) | its stated time | **no** |
+| exchange daily data, indices, valuation, institutional, foreign holding, margin, SBL | release rule `exchange_daily_settled@1` | its own `recorded_at` |
+| TDCC distributions | release rule `tdcc_weekly@1` | its own `recorded_at` |
+| corporate actions | release rule `corporate_action_ex_date@1` | its own `recorded_at` |
+| monthly revenue, financial reports | the stored `published_at`; NULL is never available | its own `recorded_at` |
 
-A filing due on a closed day is filed on the next open one, so 2021Q2 resolves
-to 2021-08-16 rather than 08-15, and 2026M04 revenue to 2026-05-11 rather than
-05-10. A scheduled instant is different: the exchange file exists at 03:00
-whether or not that day is a trading day, and the TDCC rule already names a
-Sunday, which is never a business day — shifting it would push the rule a whole
-week.
+A later row is a correction the Data Center saw when it recorded it, so it is
+never available earlier. A NULL `published_at` means nothing proves when the
+value became public, and the row is market-invisible; the Data Center never
+substitutes a fetch time, a file date or the period's own date.
 
-The shift consults the Step 16 calendar, which refuses outside its imported
-coverage rather than guessing. A rule that guessed its own deadline would be the
-invented instant the policy exists to prevent.
-
-## What an import may claim
-
-`evidence_plan` turns the declared purpose into the evidence a run is entitled
-to write:
-
-| Purpose | May claim a capture bound? |
-| --- | --- |
-| `first_capture` | yes |
-| `correction_check` | only for a revision it newly found |
-| `gap_fill` | no — it noticed the row was missing long after publication |
-| `unspecified` | no |
-
-The write-side rule from ADR-0020 §2: if a first sighting happened *after* the
-rule instant, that row is a late filer, the rule is falsified for it, and no
-rule evidence is written at all. A backfill capture cannot falsify anything,
-because it is not a first sighting.
-
-When nothing is provable, nothing is claimed: the plan falls back to `unknown`
-evidence with `published_at = NULL`, exactly as before ADR-0020.
-
-## Applying it
-
-Which rule a dataset follows is a row in `dataset_release_rules`, keyed by
-`(dataset_code, source)` like its accepted types. Opting a source in is one
-migration: map it to a rule, and add the types it will now claim to
-`accepted_evidence_types`. Planning a type the source does not accept raises
-rather than writing evidence the resolver would then filter out — a
-half-configured source fails loudly instead of quietly producing rows that look
-like evidence and prove nothing.
-
-`daily_price` is opted into `exchange_daily_settled@1` for both markets. Its
-imported history is therefore Market-PIT visible at 03:00 the day after each
-trade date, where it used to be invisible. Every other dataset still writes
-`unknown` until its own adapter step opts it in; nothing is enabled by default.
-
-One consequence is worth stating plainly, because it looks backwards at first: a
-real forward capture of exchange data runs *after* 03:00, so it falsifies the
-rule and the row keeps only its capture bound. The rule therefore matters most
-for history nobody captured — which is exactly the history it was written for.
+**Values recorded before they settled.** The exchange serves a trade date's
+rows before they are final (audit §7), so for the rule-based datasets a row
+recorded before its rule instant is provisional. It is available from the rule
+instant, and the first row recorded at or after the instant — the settled
+value — supersedes it there. The settled row is available from the rule instant
+however late it was recorded; only rows after it are corrections
+(`stock_data_center.v2.exchange_daily.visible`).
 
 Two supported reconstructions are:
 
@@ -162,90 +85,93 @@ current-best historical:
   knowledge_as_of   = an explicit current cutoff
 ```
 
-The second form may change when newly recorded, reliable evidence proves an
-older publication time. The first cannot use evidence recorded after its
-knowledge cutoff.
+The second may change as later rows are recorded. The first cannot use a row
+recorded after its knowledge cutoff.
 
-After evidence eligibility is established, the resolver selects the applicable
-business revision for the source and logical key using the revision's resolved
-publication instant and a stable storage-generated revision identifier as the
-final tie-breaker. Exact dataset logical keys are defined with that dataset;
-handlers may not improvise the ordering.
+## Release rules
 
-For an immutable aggregate, market eligibility additionally requires:
+A release rule is a versioned code constant that cites the schedule, statute or
+owner decision it derives from (`stock_data_center.v2.exchange_daily`,
+`stock_data_center.v2.release_rules`). A rule with no authority would be an
+invented instant. A rule is never edited: correcting one means adding a new
+version. Each has a Python form for one date and an SQL form for stored rows,
+and the two must agree.
 
-```text
-seal.ingested_at <= knowledge_as_of
-```
+| Rule | Instant | Authority |
+| --- | --- | --- |
+| `exchange_daily_settled@1` | 03:00 Asia/Taipei on the day after the trade date | ADR-0020 §3: the legacy 23:30 run was incomplete on 5 of 27 observed dates, the 03:00 retry on 1 |
+| `tdcc_weekly@1` | 12:00 Asia/Taipei on the first Sunday after the data date | ADR-0020 §3: the legacy Sunday 10:20 job plus margin |
+| `corporate_action_ex_date@1` | 00:00 Asia/Taipei on the ex-date | ADR-0027: the current-year result files already list coming ex-dates with their reference prices |
 
-This does not redefine market publication time. It proves that the Data Center
-had completed the aggregate by the historical knowledge cutoff and prevents a
-later seal from making an earlier committed draft retroactively visible.
+A scheduled instant is not moved off a closure: the exchange file exists at
+03:00 whether or not that day is a trading day, and the TDCC rule already names
+a Sunday. The statutory deadlines `monthly_revenue_statutory@1` and
+`financial_statements_general@1`, which are moved to the next trading day, gave
+some historical rows their `published_at` (audit §7.5, §7.6); they are not
+applied to anything fetched now, because publication in those two datasets
+differs by issuer.
+
+## What a fetch may claim
+
+Every fetch records a `purpose` in `fetches` — `first_capture`, `gap_fill`,
+`correction_check`, or `unspecified` — declared when the fetch is requested and
+never inferred afterwards. Only a first capture proves anything about
+publication: seeing a value first means the Data Center recorded it at that
+instant, so it was public by then.
+
+| Purpose | Stores `published_at` on a new key's first row? |
+| --- | --- |
+| `first_capture` | yes, its own fetch instant |
+| `correction_check` | no |
+| `gap_fill` | no — it noticed the row was missing long after publication |
+| `unspecified` | no |
+
+This matters only where `published_at` is stored. For the rule-based datasets
+the purpose changes nothing about visibility: a backfilled row is available at
+its rule instant, and a correction at its `recorded_at`.
 
 ## System PIT
 
 System PIT answers:
 
-> What complete business data had this Data Center actually ingested by
-> `system_as_of`?
-
-Publication time and publication-evidence quality do not control system PIT.
-For an immutable single-row version, eligibility is:
+> What had this Data Center actually recorded by `system_as_of`?
 
 ```text
-version.ingested_at <= system_as_of
+recorded_at <= system_as_of
 ```
 
-For a parent-and-children aggregate, eligibility is:
-
-```text
-seal.ingested_at <= system_as_of
-```
-
-An unsealed aggregate is invisible even if the parent and all expected children
-are committed. The trusted seal timestamp is the aggregate's system-visible
-time.
+Publication does not enter it. A financial report and its facts are written in
+one transaction, so a report is never visible without all its facts.
 
 ## Trusted times and backfill
 
-Normal callers cannot provide or backdate `recorded_at`, version `ingested_at`,
-or seal `ingested_at`. These are generated by trusted storage/database logic.
-
-A historical migration may preserve an old timestamp only through a dedicated,
-restricted path with provenance, tests, and audit documentation. A migration
-that changes historical temporal meaning must also document whether cached
-answers require a namespace bump or targeted purge.
-
-For source backfill:
+`recorded_at` is generated by PostgreSQL. Normal callers cannot provide or
+backdate it. For a backfill:
 
 ```text
-published_at = proven historical publication instant, or NULL if unproved
-recorded_at  = actual trusted time the evidence is recorded
-ingested_at  = actual trusted insertion/seal time
+published_at = the instant a first capture or a legacy record proves, else NULL
+recorded_at  = the actual time the row is written
 ```
+
+A historical migration may preserve an old timestamp only through a dedicated,
+restricted path with provenance, tests and audit documentation. Steps 35-a and
+35-c-1 were that path: they copied v1's `ingested_at` into `recorded_at` and
+v1's proven publication evidence into `published_at`.
 
 ## Result requirements
 
-Resolved responses include enough provenance to identify, as applicable:
-
-- dataset and source
-- business version and business hash
-- authoritative publication evidence and its published/recorded times
-- ingest run and raw artifact
-- aggregate seal
-- PIT mode and all effective cutoffs
-
-An unsupported source/PIT combination or invalid mixture of market and system
-parameters fails explicitly; it never falls back to current state.
-
-The Phase 2 implementation contract and deterministic ordering are documented
-in [Core PIT Resolver](pit_resolver.md).
+A resolved answer identifies, as applicable: the dataset and source, the row's
+key and `recorded_at`, its `available_at` and why (the rule, or the stored
+`published_at`), the fetch and its raw file, and the PIT mode with every
+effective cutoff. An unsupported source or PIT combination fails explicitly; it
+never falls back to current state.
 
 ## Derived PIT inheritance
 
-Canonical derived results use inputs resolved under the same explicit PIT
-context. Market-derived results inherit `information_as_of` and
-`knowledge_as_of`; system-derived results inherit `system_as_of`. A materialized
-result's `computed_at` is calculation provenance only and is never substituted
-for input publication or ingestion visibility. See
+Canonical derived results are computed on demand from inputs resolved under the
+same explicit PIT context. `knowledge_as_of` keeps only the input rows recorded
+by then; `information_as_of` decides which of them were public. In a rolling
+as-of series each observation date is computed at the instant its own inputs
+became public, so no value can see a later price. The computation time is
+provenance only and is never a publication or visibility time. See
 [Canonical Derived Data](derived_data.md).

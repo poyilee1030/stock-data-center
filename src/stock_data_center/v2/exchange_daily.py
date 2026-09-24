@@ -58,7 +58,7 @@ RELEASE_RULE = ReleaseRule(
     days_after=1,
     at=time(3, 0),
     timezone="Asia/Taipei",
-    # Registered as release_rules row exchange_daily_settled@1 (ADR-0020 §3).
+    # Registered in v1 as release_rules row exchange_daily_settled@1 (ADR-0020 §3).
     authority=(
         "Owner decision (ADR-0020 §3, decision 1). The exchange serves same-day "
         "rows before they settle (audit §7), so no rule may resolve on the trade "

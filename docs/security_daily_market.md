@@ -1,135 +1,53 @@
-# Security Metadata and Daily Market Data
+# Stock Universe and Daily Market Data
 
-## Phase 3 scope
+The measured source facts are in `docs/source_field_audit.md` §4.1 and §4.14;
+the storage design is ADR-0026 (universe) and ADR-0027 (tables).
 
-Phase 3 exposes a cache-free Python domain contract for normalized writes and
-PIT-safe reads. REST/OpenAPI remains Phase 10 work. Source downloading and raw
-artifact storage are separate from normalization: `MarketDataWriter` accepts an
-existing `(raw_artifact_id, ingest_run_id)` observation, and PostgreSQL verifies
-that lineage belongs to the exact dataset and source.
+## The universe
 
-The service always delegates business revision and publication-evidence
-selection to the Phase 2 resolver. It never reads Redis and never substitutes a
-current-state security list for a historical universe.
+`stocks` is today's TWSE ISIN list of listed (`上市`, `strMode=2`) and OTC
+(`上櫃`, `strMode=4`) securities under the `股票` category: common stocks only,
+no ETFs, ETNs, preferred shares, TDRs, beneficiary certificates, warrants or the
+innovation board (`創新板`, whose CFI code is the same `ESVUFR` as ordinary common
+stock, which is why the category and not the CFI code decides). Each row holds
+the official code `stock_id`, today's name, market (`sii` or `otc`), industry
+and listing date, and the fetch of the list page it came from
+(`stock_data_center.v2.universe`).
 
-## Security identity and history
+`stock_id` is the identity everywhere: listed and OTC common stocks keep one
+code for life. `stocks` is today's state, not history: no name, industry or
+market history is kept, and a stock that moved between markets carries today's
+market. A stock delisted before today is not on the list and so not in the
+universe anywhere; that survivorship bias is accepted and must be disclosed to
+consumers (ADR-0026).
 
-`security.security_code` is stable identity. PostgreSQL rejects identity UPDATE,
-DELETE, and TRUNCATE, and overwrites caller-provided `created_at` with trusted
-statement time. Registering an already-known code returns the same `security_id`.
-Market is not stored on this identity row.
+## Daily prices
 
-Observed market membership, names, industry, listing dates, delisting dates, and
-effective ranges live in append-only `security_metadata_versions`. Market is
-included in the metadata business hash. A security state on business date `D`
-is selected as follows:
+`daily_prices` holds one append-only row per `(stock_id, source, trade_date)`
+from the whole-market feeds `twse_mi_index` (`MI_INDEX`, `type=ALLBUT0999`) and
+`tpex_otc_quotes` (`afterTrading/otc`, the audit's `stk_wn1430`), one file per
+market and trade date. Only stocks in `stocks` are written. A trade date is
+public at release rule `exchange_daily_settled@1`, 03:00 Asia/Taipei on the next
+day; a later, different value from its own `recorded_at`.
 
-1. resolve each source-specific metadata logical key with `effective_from <= D`
-   under the requested market or system PIT context;
-2. reject a resolved revision whose `effective_to < D`;
-3. choose the greatest remaining `effective_from` deterministically; and
-4. retain the full resolver provenance and authoritative evidence.
-
-The historical listed universe applies the resolved state on `D`, not the
-security's latest metadata or an identity-row market. An optional market filter
-is applied only after metadata resolution. Listing membership uses the half-open interval
-`listed_on <= D < delisted_on`. A missing `listed_on` means the source did not
-provide a start bound; visible metadata remains eligible until `delisted_on`.
-Callers can request `listed_only=False` to inspect PIT-visible delisted states.
-
-Phase 9 current-company adapters deliberately distinguish the official snapshot
-report date from the listing date. Current name, industry, and venue state uses
-the report date as `effective_from`; `listed_on` retains the source listing
-date. Equal later snapshots reuse the existing business version. Snapshot
-absence does not prove delisting, and current snapshots are not used to invent
-historical market-transfer intervals. See
-[ADR-0016](decisions/0016-current-security-metadata-snapshots.md).
-
-Phase 9 historical lifecycle adapters separately import official TWSE and TPEx
-listing/delisting events. Listing events establish a venue state beginning on
-the official listing date. Delisting events establish an unlisted terminal
-state on the official exit date. They do not use a current snapshot to fill
-historical fields, and the event date is not treated as publication time.
-
-TWSE `櫃轉市` notes are retained as append-only transfer evidence. Final
-reconciliation is re-runnable from canonical TWSE entry and same-code,
-same-date TPEx exit histories, so its result does not depend on source import
-order. That audit match never creates a synthetic merged source history.
-Consumers resolve `tpex` before the transfer and `twse` after it on the same
-stable security identity. See
-[ADR-0017](decisions/0017-official-security-lifecycle-history.md).
-
-Within one report date, each changed state links to its preceding version.
-This permits an `A -> B -> A` source correction to reassert `A` at a later
-trusted ingestion time without changing its business-content hash. Consecutive
-equal states remain deduplicated, and transition linkage stays outside the
-public resolved-data contract.
-
-## Daily market-data contract
-
-The query contract supports one trade date or an inclusive date window. Every
-logical key is `(security, source, trade_date)`. Each date is independently
-resolved under the explicit PIT context, so corrections do not overwrite old
-business revisions and evidence learned after `knowledge_as_of` cannot leak
-into historically reproducible results. System PIT uses trusted `ingested_at`.
-
-The normalized writer is append-only. PostgreSQL generates `ingested_at` and
-`business_content_hash`; caller values are never authoritative. A repeated
-fetch with identical business values reuses the existing business version,
-while its separate raw-artifact observation and ingest run remain durable.
-
-## Sources of daily prices
-
-Two adapter families read official daily prices, and they are deliberately
-separate histories (CLAUDE.md §30):
-
-| Source | Endpoint | Field set |
-| --- | --- | --- |
-| `twse_mi_index`, `tpex_otc_quotes` | whole-market, one file per (market, trade date) | OHLC, volume, trade value, trade count, change, and the one disclosed bid/ask price and volume |
-| `twse`, `tpex` | Step 9 per-security monthly pilots | the same, without any bid/ask level |
-
-Production reads the whole-market sources. The pilots
-remain for spot checks on a single security, and because they are a different
-source they never turn one security-date into an alternating pair of revisions.
-Callers name the source they want; nothing merges the two.
-
-## Legacy `daily_quotes` field disposition
-
-The following source-observable values are queryable in every resolved daily
-record:
-
-| Legacy concept | Phase 3 result field |
+| Legacy `daily_quotes` concept | Column |
 | --- | --- |
 | OHLC | `open_price`, `high_price`, `low_price`, `close_price` |
-| volume | `volume` |
-| trade value | `trade_value` |
+| volume | `volume` (shares) |
+| trade value | `trade_value` (TWD) |
 | trade count / transactions | `trade_count` |
 | price change | `price_change` |
 | price direction | `price_direction` |
-| source bid snapshot | `bid_snapshot` |
-| source ask snapshot | `ask_snapshot` |
-| parsed last bid/ask price and volume | `last_bid_price`, `last_ask_price`, `last_bid_volume`, `last_ask_volume` |
+| last bid/ask price and volume | `last_bid_price`, `last_ask_price`, `last_bid_volume`, `last_ask_volume` |
 
-`date`, `symbol`, `market`, and `name` are not dropped: they resolve to the
-trade-date logical key, stable security identity, and effective-dated metadata.
-The same `security_id` can therefore carry TPEx prices before a transfer and
-TWSE prices afterward without merging the two source histories.
+`date`, `symbol`, `market` and `name` are not dropped: they are the key's
+`trade_date`, the key's `stock_id`, and today's `stocks` row. `price_direction`
+is TWSE-only except for the TPEx 不比價 marker (除息 / 除權 / 除權息), stored as
+`X`. The bid/ask volume is shares for TWSE and lots converted to shares for
+TPEx, published from 2020-04-30 (audit §4.1). No order-book depth is stored:
+the files publish one level. `pced_file`, `pced_row` and `pced_col` are parser
+coordinates, not values; the raw file keeps the source representation.
 
-The only intentionally non-queryable normalized columns from legacy
-`daily_quotes` are `pced_file`, `pced_row`, and `pced_col`. They are parser/source
-coordinates, not business values. They remain preserved in the immutable raw
-artifact and ingest provenance rather than being duplicated into every daily
-business revision.
-
-## Public contract
-
-`MarketDataService` provides:
-
-- `security_state` for a security on one historical effective date;
-- `security_universe` for a PIT-safe historical listed universe;
-- `daily_price` for one source-aware daily observation; and
-- `daily_price_history` for an inclusive PIT-resolved date window.
-
-Results return Phase 2 `ResolvedRecord` provenance. Callers see dataset concepts,
-PIT cutoffs, source, business revision, publication evidence, and raw lineage;
-they do not need table names, migration internals, or cache keys.
+The Step 9 per-security pilot sources `twse` and `tpex` are not kept
+(ADR-0027): their field set differed, and only the whole-market feeds are
+ingested.

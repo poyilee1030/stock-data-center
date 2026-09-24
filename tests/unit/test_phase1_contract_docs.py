@@ -54,7 +54,7 @@ ALLOWED_DISPOSITIONS = {
     "raw_artifact_only",
     "deprecated",
     "identity",
-    "publication_evidence",
+    "publication_time",
 }
 
 
@@ -115,10 +115,7 @@ def test_official_pe_remains_observed_in_json_and_markdown_inventory() -> None:
         and item["legacy_field"] == "pe_official"
     )
     assert official_pe["disposition"] == "observed"
-    assert official_pe["target"] == "official_valuation_versions.pe_ratio"
+    assert official_pe["target"] == "valuations.pe_ratio"
 
     inventory = (ROOT / "docs/data_domain_inventory.md").read_text()
-    assert (
-        "Legacy `pe_official` is observed and maps to "
-        "`official_valuation_versions.pe_ratio`"
-    ) in inventory
+    assert "Legacy `pe_official` is observed and maps to `valuations.pe_ratio`" in inventory
