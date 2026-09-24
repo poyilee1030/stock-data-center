@@ -3,20 +3,23 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
+from stock_data_center.ingestion.observations import (  # noqa: F401 - moved, Step 35-d-1
+    _PERCENT_SCALE,
+    TDCC_OPENDATA_V1,
+    TDCCBucketObservation,
+    TDCCSnapshotObservation,
+)
 from stock_data_center.pit import ResolvedRecord
 
-
 # Storage scale of tdcc_distribution.ownership_percent (NUMERIC(12, 8)).
-_PERCENT_SCALE = 8
 
 # The official TDCC shareholding-distribution profile registered in
 # tdcc_distribution_schemas: levels 1-15 holding, 16 adjustment, 17 total.
-TDCC_OPENDATA_V1 = "tdcc-opendata-v1"
 
 
 class TDCCDistributionError(ValueError):
@@ -27,63 +30,6 @@ class TDCCDistributionError(ValueError):
 class TDCCLineageRef:
     raw_artifact_id: UUID
     ingest_run_id: UUID
-
-
-@dataclass(frozen=True, slots=True)
-class TDCCBucketObservation:
-    """One source-native holding-level row, retained verbatim.
-
-    Sign and holder-count rules depend on the bucket's role in the declared
-    distribution profile and are checked by the writer and PostgreSQL.
-    """
-
-    bucket_code: str
-    holder_count: int | None
-    shares: Decimal
-    ownership_percent: Decimal
-
-    def __post_init__(self) -> None:
-        if not self.bucket_code or self.bucket_code != self.bucket_code.strip():
-            raise ValueError(
-                "bucket_code must be non-empty without surrounding whitespace"
-            )
-        if self.holder_count is not None and self.holder_count < 0:
-            raise ValueError("holder_count must not be negative")
-        shares = Decimal(self.shares)
-        if shares != shares.to_integral_value():
-            raise ValueError("shares must be a whole number")
-        object.__setattr__(self, "shares", shares.quantize(Decimal(1)))
-        percent = Decimal(self.ownership_percent)
-        # No upper bound: TDCC publishes 合計 above 100 — 158 rows over 74 data
-        # dates, up to 135.00 (audit §4.9) — and refusing them would drop
-        # published security-weeks whose counts are unremarkable. The role
-        # bounds that do hold are checked where the role is known: the writer's
-        # profile validation and the row trigger cap a holding level at 100.
-        if percent < Decimal(-100):
-            raise ValueError("ownership_percent must not be below -100")
-        if percent != percent.quantize(Decimal(1).scaleb(-_PERCENT_SCALE)):
-            raise ValueError(
-                f"ownership_percent must have at most {_PERCENT_SCALE} decimal places"
-            )
-        object.__setattr__(self, "ownership_percent", percent)
-
-
-@dataclass(frozen=True, slots=True)
-class TDCCSnapshotObservation:
-    """A complete distribution for one security and snapshot (data) date."""
-
-    snapshot_date: date
-    distribution_schema: str
-    distribution: tuple[TDCCBucketObservation, ...]
-
-    def __post_init__(self) -> None:
-        distribution = tuple(self.distribution)
-        if not distribution:
-            raise ValueError("a TDCC snapshot requires at least one distribution row")
-        codes = [item.bucket_code for item in distribution]
-        if len(set(codes)) != len(codes):
-            raise ValueError("a TDCC snapshot cannot contain duplicate bucket codes")
-        object.__setattr__(self, "distribution", distribution)
 
 
 @dataclass(frozen=True, slots=True)

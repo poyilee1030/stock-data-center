@@ -151,7 +151,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if unknown:
         raise SystemExit(f"unknown job(s): {unknown}")
 
-    from stock_data_center.ingestion.lifecycle import current_git_commit
+    from stock_data_center.v2.fetch_log import current_git_commit
 
     def progress(key, period, outcome) -> None:
         print(f"{key} {period.isoformat()} {outcome.status} +{outcome.appended}"

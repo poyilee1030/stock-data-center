@@ -42,12 +42,7 @@ from decimal import Decimal
 from hashlib import sha256
 from typing import ClassVar
 
-from stock_data_center.financials.classification import (
-    SourceContextClassification,
-    SourcePeriodRole,
-)
-from stock_data_center.financials.ingestion import FinancialFactObservation
-from stock_data_center.financials.ixbrl import (
+from stock_data_center.ingestion.ixbrl import (
     STATEMENT_ANCHORS,
     IXBRLParseError,
     ParsedIXBRLReport,
@@ -56,7 +51,6 @@ from stock_data_center.financials.ixbrl import (
     classify_context_role,
     parse_ixbrl_report,
 )
-from stock_data_center.financials.models import SummaryPeriodBasis, XBRLContext
 from stock_data_center.ingestion.models import (
     FilingEPS,
     FinancialFilingRequest,
@@ -64,6 +58,13 @@ from stock_data_center.ingestion.models import (
     SourceDataError,
     SourceResource,
     StatementFact,
+)
+from stock_data_center.ingestion.observations import (
+    FinancialFactObservation,
+    SourceContextClassification,
+    SourcePeriodRole,
+    SummaryPeriodBasis,
+    XBRLContext,
 )
 
 HOST = "https://mopsov.twse.com.tw/server-java/t164sb01"

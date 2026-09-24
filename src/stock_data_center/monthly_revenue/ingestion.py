@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, fields
 from datetime import UTC, datetime
-from decimal import Decimal
-from enum import Enum
 from typing import Literal
 from uuid import UUID
 
@@ -14,71 +12,22 @@ from sqlalchemy import Connection, RowMapping
 from sqlalchemy.dialects.postgresql import insert
 
 from stock_data_center.db.metadata import (
-    monthly_revenue_versions,
     monthly_revenue_version_observations,
+    monthly_revenue_versions,
     publication_evidence,
     publication_evidence_observations,
 )
-from stock_data_center.monthly_revenue.models import RevenuePeriod
+from stock_data_center.ingestion.observations import (  # noqa: F401 - moved, Step 35-d-1
+    MonthlyRevenueObservation,
+    RevenueScale,
+    SourceRevenueAmount,
+)
 
 
 @dataclass(frozen=True, slots=True)
 class RevenueLineageRef:
     raw_artifact_id: UUID
     ingest_run_id: UUID
-
-
-class RevenueScale(str, Enum):
-    """Source-native amount scale relative to the currency's major unit."""
-
-    MAJOR = "major"
-    THOUSAND = "thousand"
-
-    @property
-    def multiplier(self) -> Decimal:
-        return Decimal(1) if self is RevenueScale.MAJOR else Decimal(1000)
-
-
-@dataclass(frozen=True, slots=True)
-class SourceRevenueAmount:
-    value: Decimal
-    currency: str
-    scale: RevenueScale
-
-    def to_major_unit(self) -> tuple[Decimal, str]:
-        return self.value * self.scale.multiplier, self.currency.upper()
-
-
-@dataclass(frozen=True, slots=True)
-class MonthlyRevenueObservation:
-    period: RevenuePeriod
-    revenue: Decimal
-    currency: str
-    # The comparatives MOPS publishes in the same row (Step 22), stored exactly
-    # as published and never reconciled against our own series (audit §7.3).
-    # Amounts are in the currency's major unit, percentages as printed.
-    revenue_last_month: Decimal | None = None
-    revenue_last_year_month: Decimal | None = None
-    mom_pct: Decimal | None = None
-    yoy_pct: Decimal | None = None
-    cumulative_revenue: Decimal | None = None
-    cumulative_revenue_last_year: Decimal | None = None
-    cumulative_yoy_pct: Decimal | None = None
-    note: str | None = None
-
-    def __post_init__(self) -> None:
-        if self.note == "":
-            raise ValueError("note must be nonempty when supplied")
-
-    @classmethod
-    def from_source(
-        cls,
-        *,
-        period: RevenuePeriod,
-        amount: SourceRevenueAmount,
-    ) -> MonthlyRevenueObservation:
-        revenue, currency = amount.to_major_unit()
-        return cls(period=period, revenue=revenue, currency=currency)
 
 
 @dataclass(frozen=True, slots=True)

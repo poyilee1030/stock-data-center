@@ -29,7 +29,7 @@ from uuid import UUID
 import sqlalchemy as sa
 from sqlalchemy import Connection, Engine
 
-from stock_data_center.db import metadata
+from stock_data_center.db.metadata import metadata
 from stock_data_center.evidence import EvidencePolicyService
 from stock_data_center.ingestion.adapters.corporate_action import (
     CorporateActionListAdapter,

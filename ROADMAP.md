@@ -624,8 +624,10 @@ explicit out-of-scope work
 | 35-c-1 | MERGED | Schema v2：月營收、財報、TDCC、公司行動的 v2 表與歷史搬移（#48） |
 | 35-c-2 | MERGED | Schema v2：月營收、財報、TDCC 的寫入路徑（#49） |
 | 35-c-3 | MERGED (#50) | Schema v2：公司行動的寫入路徑與回補 |
-| 35-c-4 | IN REVIEW (#51) | Schema v2：衍生資料接 v2（26-a） |
-| 35-d | PLANNED | Schema v2：刪除所有 v1 程式與表，重新開始 migration 鏈 |
+| 35-c-4 | MERGED (#51) | Schema v2：衍生資料接 v2（26-a） |
+| 35-d-1 | IN REVIEW | Schema v2：v2 不再載入任何 v1 模組 |
+| 35-d-2 | PLANNED | Schema v2：刪除 v1 程式、測試與 scripts |
+| 35-d-3 | PLANNED | Schema v2：baseline migration，刪除 v1 表 |
 
 Steps 1–12 建立了儲存、PIT 和 raw-first 的基礎。它們的 writer 契約包含一些沒有任何來源會填入的欄位（§2.3）。這些欄位保持可為 null、不填值。不刪除它們，因為刪除不會帶來任何正確性上的好處。
 
@@ -2194,13 +2196,33 @@ ADR-0027：官方代號當身分、一個 (股票, 來源, 日期) 一列的寬�
 
 ### 35-d — 收尾
 
-所有領域搬完後一次刪除全部 v1：
+所有領域搬完後刪除全部 v1。開工時量到 v2 的 import 遞移載入 73 個 v1 模組、21,930 行（`src/` 共
+31,661 行）：adapter 產出的 observation 型別定義在 v1 的領域套件裡，`ingestion`、`db` 套件的
+`__init__` 會連帶載入 v1 的 importer 與表宣告。一次刪除不可能，也無法 review，所以拆成三步，
+每一步單獨合併都正確：
+
+**35-d-1：v2 不再載入任何 v1 模組**
+
+- [x] adapter 產出的 observation 與值型別搬到 `ingestion/observations.py`，iXBRL parser 搬到
+  `ingestion/ixbrl.py`，定義一字不改；原本的 v1 模組改從新位置 import，v1 照常運作
+- [x] `ingestion`、`db` 套件的 `__init__` 不再載入任何東西；共用的 MetaData 與欄位型別移到
+  `db/base.py`；`current_git_commit` 移到 `v2/fetch_log.py`
+- [x] 測試：在全新的 interpreter 載入每個 v2 模組，載入的 `stock_data_center` 模組必須都在 35-d-2
+  要保留的清單上
+
+**35-d-2：刪除 v1 程式**
 
 - 程式：8 個交易所每日領域（35-b-2 原範圍）與 35-c 各領域的 v1 writer、服務、resolver
-  合約、coverage 宣告、CLI 子指令與測試，連同 Step 9 個股 pilot；adapter 留著（v2 在用）
+  合約、PIT、evidence、coverage 宣告、CLI 子指令與測試，連同 Step 9 個股 pilot；adapter 與它們的
+  fixture 測試留著（v2 在用）
+- 只為 v1 或 v1↔v2 比對寫的 scripts
+
+**35-d-3：重新開始 migration 鏈**
+
 - 表：所有 v1 表，包括 `publication_evidence`、`security` 與 ingest／raw artifact 基礎表
 - 以一個 baseline migration 重新開始 migration 鏈；舊鏈的降級不再需要
-- 在 `stockdc_backfill` 執行前須經 owner 確認
+- 在 `stockdc_backfill` 執行前須經 owner 確認；`data/raw/` 的原始檔不刪
+- CLAUDE.md、domain inventory、source audit 裡 v1 專屬的規則改寫
 
 ---
 

@@ -7,15 +7,14 @@ from pathlib import Path
 
 import pytest
 
-from stock_data_center.ingestion import (
-    DailyMarketRequest,
-    LocalRawArtifactStore,
-    RawArtifactIntegrityError,
-    SourceDataError,
-)
 from stock_data_center.ingestion.adapters import (
     TPExDailyMarketAdapter,
     TWSEDailyMarketAdapter,
+)
+from stock_data_center.ingestion.models import DailyMarketRequest, SourceDataError
+from stock_data_center.ingestion.raw_storage import (
+    LocalRawArtifactStore,
+    RawArtifactIntegrityError,
 )
 
 TWSE_PAYLOAD = {

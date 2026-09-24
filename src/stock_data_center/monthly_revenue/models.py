@@ -6,17 +6,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
-
-@dataclass(frozen=True, order=True, slots=True)
-class RevenuePeriod:
-    year: int
-    month: int
-
-    def __post_init__(self) -> None:
-        if not 1900 <= self.year <= 9999:
-            raise ValueError("year must be between 1900 and 9999")
-        if not 1 <= self.month <= 12:
-            raise ValueError("month must be between 1 and 12")
+from stock_data_center.ingestion.observations import (  # noqa: F401 - moved, Step 35-d-1
+    RevenuePeriod,
+)
 
 
 @dataclass(frozen=True, slots=True)

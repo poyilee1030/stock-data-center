@@ -3,18 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import datetime
 from decimal import Decimal
-from enum import Enum
-from types import MappingProxyType
-from typing import Any, Literal, Mapping
 from uuid import UUID
 
+from stock_data_center.ingestion.observations import (  # noqa: F401 - moved, Step 35-d-1
+    EPSPeriodBasis,
+    SummaryPeriodBasis,
+    XBRLContext,
+    _frozen_mapping,
+)
 from stock_data_center.pit import ResolvedRecord
-
-
-def _frozen_mapping(value: Mapping[str, Any]) -> Mapping[str, Any]:
-    return MappingProxyType(dict(value))
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,62 +26,6 @@ class FilingPeriod:
             raise ValueError("report_year must be between 1900 and 9999")
         if not 1 <= self.report_quarter <= 4:
             raise ValueError("report_quarter must be between 1 and 4")
-
-
-class EPSPeriodBasis(str, Enum):
-    QUARTER = "quarter"
-    YTD = "ytd"
-    ANNUAL = "annual"
-
-
-class SummaryPeriodBasis(str, Enum):
-    QUARTER = "quarter"
-    YTD = "ytd"
-    ANNUAL = "annual"
-    INSTANT = "instant"
-
-
-@dataclass(frozen=True, slots=True)
-class XBRLContext:
-    entity_identifier: str
-    period_type: Literal["instant", "duration", "forever"]
-    instant_date: date | None = None
-    period_start: date | None = None
-    period_end: date | None = None
-    explicit_dimensions: Mapping[str, Any] = MappingProxyType({})
-    typed_dimensions: Mapping[str, Any] = MappingProxyType({})
-    scenario: Mapping[str, Any] = MappingProxyType({})
-    segment: Mapping[str, Any] = MappingProxyType({})
-
-    def __post_init__(self) -> None:
-        if not self.entity_identifier:
-            raise ValueError("entity_identifier must not be empty")
-        valid_shape = (
-            self.period_type == "instant"
-            and self.instant_date is not None
-            and self.period_start is None
-            and self.period_end is None
-        ) or (
-            self.period_type == "duration"
-            and self.instant_date is None
-            and self.period_start is not None
-            and self.period_end is not None
-            and self.period_end >= self.period_start
-        ) or (
-            self.period_type == "forever"
-            and self.instant_date is None
-            and self.period_start is None
-            and self.period_end is None
-        )
-        if not valid_shape:
-            raise ValueError("XBRL context has an invalid period shape")
-        for name in (
-            "explicit_dimensions",
-            "typed_dimensions",
-            "scenario",
-            "segment",
-        ):
-            object.__setattr__(self, name, _frozen_mapping(getattr(self, name)))
 
 
 @dataclass(frozen=True, slots=True)

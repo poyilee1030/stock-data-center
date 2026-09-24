@@ -46,7 +46,7 @@ from stock_data_center.ingestion.models import (
     SourceDataError,
     SourceResource,
 )
-from stock_data_center.market_reference.models import (
+from stock_data_center.ingestion.observations import (
     OfficialValuationObservation,
     TwdAmount,
 )

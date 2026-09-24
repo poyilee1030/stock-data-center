@@ -7,8 +7,7 @@ from datetime import date
 import sqlalchemy as sa
 from sqlalchemy import Connection
 
-from stock_data_center.db import metadata
-from stock_data_center.db.metadata import security
+from stock_data_center.db.metadata import metadata, security
 from stock_data_center.market_reference.ingestion import SPECS
 from stock_data_center.market_reference.models import Phase8LineageObservation
 from stock_data_center.pit import PITResolver, ResolvedRecord

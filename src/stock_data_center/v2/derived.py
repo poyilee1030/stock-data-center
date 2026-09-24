@@ -183,7 +183,7 @@ class TechnicalIndicators:
     def __init__(self, *, git_commit: str | None = None,
                  definition: Definition = TECHNICAL_INDICATORS_V1) -> None:
         if git_commit is None:
-            from stock_data_center.ingestion.lifecycle import current_git_commit
+            from stock_data_center.v2.fetch_log import current_git_commit
 
             git_commit = current_git_commit()
         self._git_commit = git_commit
