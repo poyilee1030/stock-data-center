@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 import uuid
 from collections.abc import Iterator
-from datetime import date  # noqa: F401 - used in annotations
 
 import pytest
 import sqlalchemy as sa
