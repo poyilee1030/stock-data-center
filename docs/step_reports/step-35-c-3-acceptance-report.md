@@ -14,7 +14,7 @@
   （list 的 fetch 紀錄與它產生的列同一交易）
 - `src/stock_data_center/v2/backfill.py`：`--job corporate_actions/<feed>`，`--job all` 也涵蓋
 - `scripts/verify_v2_corporate_actions.py`：v2 與 `stockdc_step19d` 的 v1 逐值雙向比對
-- 測試：`tests/integration/test_v2_corporate_actions_ingest.py`（10）
+- 測試：`tests/integration/test_v2_corporate_actions_ingest.py`（15）
 
 `src/` 改動約 300 行（新模組 273 行，其餘約 30 行），在 CLAUDE.md §1 的 800 行內。
 
@@ -26,16 +26,18 @@
 | `executed_through` 之後的列（當年檔案列出的未來事件） | 只計數（`not_yet_executed`），不存 |
 | TPEx 三個 feed、TWSE `TWTB8U` | list 的列就有完整條件，不抓明細 |
 | TWSE `TWT49U`、`TWTAUU` | 條件在該事件的明細頁；只為今天名單上的股票抓 |
-| 已存、未撤回的事件 | 不再抓明細；`correction_check` 例外，明細可能自己改 |
+| 已存、未撤回的事件，列表的價格與類型和已存的相同 | 不再抓明細；`correction_check` 例外，明細可能自己改 |
+| 已存的事件，列表的價格或類型改了 | 重抓明細，新增一列 |
 | 明細抓取或解析失敗 | 只擋下那一列；list 的 fetch 記 `succeeded` + `rows_rejected`，該年仍 pending |
 | 條件改變 | 新增一列（更正），以 `recorded_at` 為可見時間 |
 | 已存事件從 feed 消失（在 executed 範圍內） | 新增一列 `retracted = true`，舊列保留；只寫一次 |
 | 撤回後再出現 | 再新增一列 `retracted = false` |
-| 明細失敗的事件 | 仍算「有列出」，不會被撤回 |
+| 明細失敗或被擋下的事件 | 仍算「有列出」，不會被撤回 |
 | 數值超出欄位位數 | 該列 `out_of_range` 擋下（35-c-2 的 `check_precision`） |
 
 可見性照 `corporate_action_ex_date@1`（除權息日 00:00 Asia/Taipei），不存 `published_at`。
-完整性時點（決定下次回補要不要再抓）：隔年 1 月 1 日 00:00，之前的抓取都會再抓。每頁明細在自己的
+完整性時點（決定下次回補要不要再抓）：隔年 1 月 1 日 00:00，之前的抓取都會再抓。還沒開始的年份不請求；
+「今天」是台北日期。每頁明細在自己的
 交易 commit；list 的 fetch 紀錄與它產生的列、撤回列在同一交易，先取該 feed 的 advisory lock。
 
 ## 驗收
@@ -77,7 +79,7 @@ DATABASE_URL=…/stockdc_backfill .venv/bin/python -m stock_data_center.v2.backf
   v1 從沒問過這些日期。
 - 每個 key 一列（沒有更正或撤回）；0 列的股票不在 `stocks` 裡；ex_date 範圍 2020-01-02 到 2026-09-23。
 
-全套測試：1304 passed、3 skipped（需 `RUN_LIVE_SOURCE_TESTS`）。
+全套測試：1309 passed、3 skipped（需 `RUN_LIVE_SOURCE_TESTS`）。
 
 ## 踩到的坑
 
@@ -88,6 +90,24 @@ DATABASE_URL=…/stockdc_backfill .venv/bin/python -m stock_data_center.v2.backf
 - 2454 在 2024 年除息兩次，測試夾具只留 01-04 那次，否則會多一個明細請求。
 - `setsid` 在自己是 process group leader 的 shell 裡會 fork 並立刻返回，背景工作的完成通知馬上就來；
   另開一個等 PID 結束的工作才等得到真正的結束——21-a 記過的同一個坑。
+
+## Code review 修正（#50）
+
+- **還沒開始的年份會中斷回補**：`--end` 落在明年，或 UTC 還在前一天時，`executed_through` 早於 1 月 1 日，
+  請求直接丟 `ValueError`。改成只處理到今天所在的年份，「今天」用台北日期。
+- **被擋下的列會被誤判撤回**：`observation()` 或位數檢查擋下的列沒算「有列出」，已存的事件因此會寫入
+  `retracted = true`。改成每一列在讀取前就算有列出。本次回補 0 列被擋，沒有寫入假撤回。
+- **明細失敗的事件被算進「不變」**：改為只計略過的與比對後相同的列。
+- **v1 比對沒取最新版本**：改成每個事件取 `ingested_at` 最新的一版。`stockdc_step19d` 每個事件只有一版
+  （15,367 對 15,367），比對結果不變。
+- **（自己找到的）已存事件的列表更正被略過**：TWT49U／TWTAUU 已存的事件整列略過，當年檔案裡前日收盤、
+  參考價、權值+息值或類型被改了也不會寫入。改成列表這幾欄和已存的相同才略過明細，不同就重抓明細並新增一列。
+
+修正後以 `--refetch` 重抓全部 42 個列表（97 秒）：10,859 個已存事件全部判定不變、沒有重抓明細；新增 1 列是
+今天（2026-09-24）除權息的 1235，舊程式用 UTC 日期還看不到它。比對腳本仍是 10,827 列相同、0 列不同。
+
+未處理：TWT49U／TWTAUU 的股利與配股條件來自明細頁，但列只存列表那次的 `fetch_id`，從它追不到明細的原始檔。
+處理方式另行討論。
 
 ## 已知限制
 

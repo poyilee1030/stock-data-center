@@ -7,10 +7,12 @@ rows are complete. A key is (stock, feed, ex-date), the executed event itself
 (CLAUDE.md §51.5); a current-year file also lists coming events, which the
 adapter counts and never returns (`executed_through`, ADR-0019).
 
-- An event already stored is not asked for its detail again, except by a
-  correction check: a rerun of a year costs one request, not thousands.
-- A detail that fails holds back its own row; the year stays pending and the
-  next run asks for that detail only.
+- An event already stored is not asked for its detail again while its list
+  row still publishes the stored prices; a correction check asks anyway. A
+  rerun of a year costs one request, not thousands.
+- A detail that fails, or a row that is refused, holds back its own row; the
+  event still counts as listed, the year stays pending, and the next run asks
+  for that detail only.
 - A stored event the feed no longer lists inside the executed range is
   retracted by a new row carrying `retracted`; listed again, it gets another.
 
@@ -24,7 +26,8 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa
 from sqlalchemy import Connection
@@ -67,6 +70,10 @@ FEEDS = {
     )
 }
 DATASET = "corporate_action"  # the v1 dataset code, as every v2 fetch keeps
+TAIPEI = ZoneInfo("Asia/Taipei")
+# The stored columns a TWSE list row publishes itself; the rest need its detail.
+_LIST_COLUMNS = {"close_before": "close_before", "official_reference_price": "reference_price",
+                 "official_rights_dividend_value": "rights_dividend_value"}
 
 
 def key(source: str) -> str:
@@ -108,6 +115,19 @@ def _row(source: str, stock_id: str, observation) -> dict:
         "cash_return_per_share": _money(observation.capital_reduction_cash_return_per_share),
         "retracted": False,
     }
+
+
+def executed_through(now: datetime) -> date:
+    """The last executed date: today in Taipei, where ex-dates are dated."""
+    return now.astimezone(TAIPEI).date()
+
+
+def _lists_as_stored(item, old: dict) -> bool:
+    """Whether a list row still publishes what its stored event holds."""
+    return item.source_event_type == old["event_type"] and all(
+        _money(item.fields[name]) == old[column]
+        for name, column in _LIST_COLUMNS.items() if name in item.fields
+    )
 
 
 def settled_at(year: int) -> datetime:
@@ -156,18 +176,21 @@ def ingest(
             return Outcome(listed.status, listed.fetch_id, reason_code=listed.reason_code)
         stored = _stored(connection, source, wanted.start, wanted.executed_through)
     parsed = listed.parsed
-    rows, rejected, listed_keys = [], [], set()
+    rows, rejected, listed_keys, skipped = [], [], set(), 0
     for item in parsed.rows:
         if item.security_code not in stock_ids:
             continue
+        # Every feed's ex-date is its row's event date, so the key is known
+        # before the row is read. A listed event is never retracted, even when
+        # its row is held back and its terms are unknown today.
+        event_key = (item.security_code, source, item.event_date)
+        listed_keys.add(event_key)
         detail = None
         if item.detail_request is not None:
-            # Every feed's ex-date is its row's event date, so the key is known
-            # before the detail is read.
-            event_key = (item.security_code, source, item.event_date)
             old = stored.get(event_key)
-            if old is not None and not old["retracted"] and purpose != "correction_check":
-                listed_keys.add(event_key)
+            if (old is not None and not old["retracted"] and purpose != "correction_check"
+                    and _lists_as_stored(item, old)):
+                skipped += 1
                 continue  # already stored: nothing to ask, nothing to write
             with unit(bind) as connection:
                 fetched = fetch_and_parse(connection, detail_adapter, item.detail_request,
@@ -175,8 +198,6 @@ def ingest(
                 if isinstance(fetched, FetchOutcome):
                     rejected.append(f"{item.security_code} {item.event_date}: "
                                     f"{fetched.reason_code}")
-                    # Listed, so not retracted, though its terms are unknown today.
-                    listed_keys.add(event_key)
                     continue
                 fetched.log("succeeded")
                 detail = fetched.parsed
@@ -187,12 +208,13 @@ def ingest(
             rejected.append(f"{item.security_code} {item.event_date}: {error}")
             continue
         rows.append(row)
-        listed_keys.add(tuple(row[c] for c in key_columns(TABLE)))
     with unit(bind) as connection:
-        return _write(connection, source, parsed, listed, rows, rejected, listed_keys, stock_ids)
+        return _write(connection, source, parsed, listed, rows, rejected, listed_keys, skipped,
+                      stock_ids)
 
 
-def _write(connection, source, parsed, listed, rows, rejected, listed_keys, stock_ids) -> Outcome:
+def _write(connection, source, parsed, listed, rows, rejected, listed_keys, skipped,
+           stock_ids) -> Outcome:
     connection.execute(sa.select(sa.func.pg_advisory_xact_lock(sa.func.hashtext(key(source)))))
     stored = _stored(connection, source, parsed.start, parsed.executed_through)
     keys = key_columns(TABLE)
@@ -220,7 +242,7 @@ def _write(connection, source, parsed, listed, rows, rejected, listed_keys, stoc
             row.pop("recorded_at", None)
         if batch:
             connection.execute(sa.insert(TABLE), batch)
-    unchanged = len(listed_keys) - len(changed)
+    unchanged = skipped + len(rows) - len(changed)
     return Outcome(
         "succeeded", fetch_id, len(parsed.rows), len(changed), unchanged, len(retractions),
         len(rejected), parsed.not_yet_executed, reason,
@@ -252,9 +274,10 @@ def pending(connection: Connection, source: str, years: Sequence[int]) -> list[i
 def run(bind, sources: Sequence[str], start: date, end: date, *, fetcher, git_commit,
         purpose, unit, store=None, refetch=False, progress=None,
         today: date | None = None) -> dict[str, dict[str, int]]:
-    """Every year in [start, end] of each feed; `today` bounds what is executed."""
-    today = today or datetime.now(UTC).date()
-    years = list(range(start.year, end.year + 1))
+    """Every year in [start, end] of each feed that has begun; `today` bounds
+    what is executed."""
+    today = today or executed_through(datetime.now(TAIPEI))
+    years = list(range(start.year, min(end.year, today.year) + 1))
     report = {}
     for source in sources:
         with unit(bind) as connection:

@@ -32,7 +32,8 @@ SELECT DISTINCT ON (stock_id, source, ex_date) stock_id, source, ex_date, retrac
        """ + ", ".join(COLUMNS) + """
   FROM corporate_actions ORDER BY stock_id, source, ex_date, recorded_at DESC"""
 V1 = """
-SELECT s.security_code, v.source, v.ex_date, v.source_event_type, v.close_before,
+SELECT DISTINCT ON (e.id)
+       s.security_code, v.source, v.ex_date, v.source_event_type, v.close_before,
        v.official_reference_price, v.official_rights_dividend_value,
        v.cash_dividend_per_share, v.free_share_ratio, v.rights_ratio, v.subscription_price,
        v.old_shares, v.new_shares, v.capital_reduction_cash_return_per_share
@@ -40,7 +41,8 @@ SELECT s.security_code, v.source, v.ex_date, v.source_event_type, v.close_before
   JOIN corporate_action_events e ON e.id = v.event_id
   JOIN security s ON s.id = e.security_id
  WHERE v.source = ANY(:sources)
-   AND NOT EXISTS (SELECT 1 FROM corporate_action_retractions r WHERE r.event_id = e.id)"""
+   AND NOT EXISTS (SELECT 1 FROM corporate_action_retractions r WHERE r.event_id = e.id)
+ ORDER BY e.id, v.ingested_at DESC, v.id DESC"""  # each event's latest version
 SOURCES = ["twse_twt49u", "twse_twtauu", "twse_twtb8u", "tpex_exdailyq", "tpex_revivt",
            "tpex_pvchgrslt"]
 

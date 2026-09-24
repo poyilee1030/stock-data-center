@@ -201,3 +201,56 @@ def test_an_event_whose_detail_fails_is_still_listed_not_retracted(db, store, un
                          httpx.ConnectError("refused"), purpose="correction_check")
     assert (checked.retracted, checked.rejected) == (0, 1)
     assert [row.retracted for row in _actions(db)] == [False]
+
+
+def _with(content: bytes, code: str, event_date: str, column: int, value: str) -> bytes:
+    """The file with one cell of `code`'s `event_date` row replaced."""
+    payload = json.loads(content)
+    for table in payload.get("tables", [payload]):
+        for row in table.get("data", []):
+            if row[1] == code and row[0] == event_date:
+                row[column] = value
+    return json.dumps(payload, ensure_ascii=False).encode()
+
+
+def test_a_stored_event_whose_row_is_rejected_is_still_listed_not_retracted(
+    db, store, universe
+) -> None:
+    _ingest(db, store, "tpex_exdailyq", 2024, EXDAILYQ_2024)
+    before = len(_actions(db))
+    # 除權息前收盤價 beyond numeric(10, 2): the row is held back, not withdrawn.
+    broken = _with(EXDAILYQ_2024, "6629", "113/01/03", 3, "123456789.00")
+    outcome, _ = _ingest(db, store, "tpex_exdailyq", 2024, broken)
+    assert (outcome.retracted, outcome.rejected) == (0, 1)
+    assert len(_actions(db)) == before
+
+
+def test_a_failed_detail_is_not_counted_unchanged(db, store, universe) -> None:
+    outcome, _ = _ingest(db, store, "twse_twt49u", 2024, TWT49U_2024,
+                         httpx.ConnectError("refused"))
+    assert (outcome.unchanged, outcome.rejected) == (0, 1)
+
+
+def test_a_corrected_list_price_of_a_stored_event_asks_for_its_detail(
+    db, store, universe
+) -> None:
+    _ingest(db, store, "twse_twt49u", 2024, TWT49U_2024, DETAIL_2454)
+    corrected = _with(TWT49U_2024, "2454", "113年01月04日", 3, "954.00")
+    outcome, fetcher = _ingest(db, store, "twse_twt49u", 2024, corrected, DETAIL_2454)
+    assert len(fetcher.requests) == 2
+    assert (outcome.appended, outcome.unchanged) == (1, 0)
+    assert [row.close_before for row in _actions(db)] == [Decimal(953), Decimal(954)]
+
+
+def test_a_year_not_yet_begun_is_not_requested(db, store, universe) -> None:
+    fetcher = Replay(EXDAILYQ_2024)
+    report = ca.run(db, ["tpex_exdailyq"], date(2024, 1, 1), date(2025, 12, 31),
+                    fetcher=fetcher, git_commit="abc", purpose="gap_fill", unit=_unit,
+                    store=store, today=date(2024, 12, 31))
+    assert fetcher.requests == ["tpex_exdailyq:2024-01-01:2024-12-31"]
+    assert report["corporate_actions/tpex_exdailyq"]["periods"] == 1
+
+
+def test_today_is_the_taipei_date() -> None:
+    # 2026-12-31 23:30 UTC is already 2027-01-01 in Taipei.
+    assert ca.executed_through(datetime(2026, 12, 31, 23, 30, tzinfo=UTC)) == date(2027, 1, 1)
