@@ -39,7 +39,7 @@ from stock_data_center.ingestion.models import (
     RevenuePage,
     SourceDataError,
 )
-from stock_data_center.monthly_revenue.models import RevenuePeriod
+from stock_data_center.ingestion.observations import RevenuePeriod
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 SII_0 = (FIXTURES / "mops_t21sc03_sii_115_7_0.html").read_bytes()

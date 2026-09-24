@@ -70,3 +70,26 @@ def test_the_v2_tables_are_declared_without_the_v1_ones() -> None:
     tables = set(json.loads(done.stdout))
     assert "daily_prices" in tables and "corporate_actions" in tables
     assert not tables & {"security", "publication_evidence", "daily_price_versions"}
+
+
+# Step 35-d-2 deletes the v1 code; `db.metadata` declares the v1 tables that the
+# migration chain and `alembic check` still see, and goes with them in 35-d-3.
+PENDING_35D3 = ("stock_data_center.db.metadata",)
+# Adapters v2 does not use: the Step 9 per-security pilot, the security
+# lifecycle and metadata feeds the ISIN list replaced (ADR-0026), and the two
+# legacy-archive readers whose history 35-c-1 migrated.
+DELETED_ADAPTERS = ("daily_market", "security_lifecycle", "security_metadata",
+                    "monthly_revenue_archive", "financial_filing_archive")
+
+
+def test_src_holds_only_what_v2_keeps() -> None:
+    import pathlib
+
+    root = pathlib.Path(stock_data_center.v2.__path__[0]).parents[1]
+    modules = {
+        ".".join(path.relative_to(root).with_suffix("").parts).removesuffix(".__init__")
+        for path in (root / "stock_data_center").rglob("*.py")
+    }
+    stray = sorted(m for m in modules if not _kept(m) and m not in PENDING_35D3)
+    assert stray == []
+    assert not {f"stock_data_center.ingestion.adapters.{a}" for a in DELETED_ADAPTERS} & modules

@@ -625,8 +625,8 @@ explicit out-of-scope work
 | 35-c-2 | MERGED | Schema v2：月營收、財報、TDCC 的寫入路徑（#49） |
 | 35-c-3 | MERGED (#50) | Schema v2：公司行動的寫入路徑與回補 |
 | 35-c-4 | MERGED (#51) | Schema v2：衍生資料接 v2（26-a） |
-| 35-d-1 | IN REVIEW (#52) | Schema v2：v2 不再載入任何 v1 模組 |
-| 35-d-2 | PLANNED | Schema v2：刪除 v1 程式、測試與 scripts |
+| 35-d-1 | MERGED (#52) | Schema v2：v2 不再載入任何 v1 模組 |
+| 35-d-2 | IN REVIEW | Schema v2：刪除 v1 程式、測試與 scripts |
 | 35-d-3 | PLANNED | Schema v2：baseline migration，刪除 v1 表 |
 
 Steps 1–12 建立了儲存、PIT 和 raw-first 的基礎。它們的 writer 契約包含一些沒有任何來源會填入的欄位（§2.3）。這些欄位保持可為 null、不填值。不刪除它們，因為刪除不會帶來任何正確性上的好處。
@@ -2212,10 +2212,19 @@ ADR-0027：官方代號當身分、一個 (股票, 來源, 日期) 一列的寬�
 
 **35-d-2：刪除 v1 程式**
 
-- 程式：8 個交易所每日領域（35-b-2 原範圍）與 35-c 各領域的 v1 writer、服務、resolver
+- [x] 程式：8 個交易所每日領域（35-b-2 原範圍）與 35-c 各領域的 v1 writer、服務、resolver
   合約、PIT、evidence、coverage 宣告、CLI 子指令與測試，連同 Step 9 個股 pilot；adapter 與它們的
   fixture 測試留著（v2 在用）
-- 只為 v1 或 v1↔v2 比對寫的 scripts
+- [x] 只為 v1 或 v1↔v2 比對寫的 scripts
+
+實作中裁決：
+
+- **v2 不用的 adapter 一起刪**：Step 9 個股 pilot（`daily_market`）、被 ISIN 名單取代的 security
+  lifecycle／metadata（ADR-0026）、歷史已由 35-c-1 搬過來的兩個 legacy 檔案庫 adapter。
+  `trading_calendar` 留著：v2 讀 `trading_days` 但還沒有 job 寫它，Step 28 的前向抓取需要它
+- **`db/metadata.py` 留到 35-d-3**：v1 表還在資料庫裡，migration 鏈與 `alembic check` 仍讀它
+- 保留模組裡沒有任何引用的定義（v1 importer 的 request／manifest 型別等 19 個）一併刪除；
+  沒有測試引用的 fixture 8 個刪除
 
 **35-d-3：重新開始 migration 鏈**
 

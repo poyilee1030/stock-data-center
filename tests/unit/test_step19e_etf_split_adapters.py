@@ -25,7 +25,7 @@ from stock_data_center.ingestion.models import (
     CorporateActionRangeRequest,
     SourceDataError,
 )
-from stock_data_center.market_reference.models import TwdAmount
+from stock_data_center.ingestion.observations import TwdAmount
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 

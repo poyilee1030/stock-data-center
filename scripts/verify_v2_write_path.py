@@ -41,7 +41,6 @@ from stock_data_center.ingestion.http import (
     HttpSourceFetcher,
     RetryingFetcher,
 )
-from stock_data_center.ingestion.lifecycle import current_git_commit
 from stock_data_center.v2.backfill import HOST_INTERVALS, run
 from stock_data_center.v2.exchange_daily import (
     JOBS,
@@ -49,6 +48,7 @@ from stock_data_center.v2.exchange_daily import (
     key_columns,
     value_columns,
 )
+from stock_data_center.v2.fetch_log import current_git_commit
 
 SERVER = "postgresql+psycopg://stockdc:stockdc@localhost:5432"
 BACKFILL = f"{SERVER}/stockdc_backfill"

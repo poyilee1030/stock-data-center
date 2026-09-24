@@ -14,11 +14,6 @@ from stock_data_center.ingestion.adapters.corporate_action import (
     TWSEReductionAdapter,
     TWSEReductionDetailAdapter,
 )
-from stock_data_center.ingestion.adapters.daily_market import (
-    DailyMarketAdapter,
-    TPExDailyMarketAdapter,
-    TWSEDailyMarketAdapter,
-)
 from stock_data_center.ingestion.adapters.foreign_holding import (
     ForeignHoldingAdapter,
     MOPSForeignHoldingAdapter,
@@ -49,9 +44,6 @@ from stock_data_center.ingestion.adapters.monthly_revenue import (
     MOPSOtcMonthlyRevenueAdapter,
     MOPSSiiMonthlyRevenueAdapter,
 )
-from stock_data_center.ingestion.adapters.monthly_revenue_archive import (
-    LegacyMonthlyRevenueArchiveAdapter,
-)
 from stock_data_center.ingestion.adapters.official_valuation import (
     OfficialValuationAdapter,
     TPExOfficialValuationAdapter,
@@ -60,18 +52,6 @@ from stock_data_center.ingestion.adapters.official_valuation import (
 from stock_data_center.ingestion.adapters.securities_lending import (
     TPExSecuritiesLendingAdapter,
     TWSESecuritiesLendingAdapter,
-)
-from stock_data_center.ingestion.adapters.security_lifecycle import (
-    SecurityLifecycleAdapter,
-    TPExDelistingHistoryAdapter,
-    TPExListingHistoryAdapter,
-    TWSEDelistingHistoryAdapter,
-    TWSEListingHistoryAdapter,
-)
-from stock_data_center.ingestion.adapters.security_metadata import (
-    SecurityMetadataAdapter,
-    TPExSecurityMetadataAdapter,
-    TWSESecurityMetadataAdapter,
 )
 from stock_data_center.ingestion.adapters.trading_calendar import (
     TradingCalendarAdapter,
@@ -85,44 +65,33 @@ from stock_data_center.ingestion.adapters.whole_market_daily import (
 
 __all__ = [
     "CorporateActionListAdapter",
-    "DailyMarketAdapter",
     "ForeignHoldingAdapter",
     "InstitutionalInvestorAdapter",
     "InstitutionalMarketSummaryAdapter",
-    "LegacyMonthlyRevenueArchiveAdapter",
     "MOPSForeignHoldingAdapter",
     "MOPSOtcMonthlyRevenueAdapter",
     "MOPSSiiMonthlyRevenueAdapter",
     "MarketIndexAdapter",
     "OfficialValuationAdapter",
-    "SecurityLifecycleAdapter",
-    "SecurityMetadataAdapter",
-    "TPExDailyMarketAdapter",
-    "TPExDelistingHistoryAdapter",
     "TPExETFReverseSplitAdapter",
     "TPExETFSplitAdapter",
     "TPExExRightDailyAdapter",
     "TPExInstiQfiiForeignHoldingAdapter",
     "TPExInstitutionalInvestorAdapter",
     "TPExInstitutionalMarketSummaryAdapter",
-    "TPExListingHistoryAdapter",
     "TPExMarginTradingAdapter",
     "TPExMarketIndexAdapter",
     "TPExOfficialValuationAdapter",
     "TPExParValueChangeAdapter",
     "TPExReductionAdapter",
     "TPExSecuritiesLendingAdapter",
-    "TPExSecurityMetadataAdapter",
     "TPExWholeMarketDailyAdapter",
-    "TWSEDailyMarketAdapter",
-    "TWSEDelistingHistoryAdapter",
     "TWSEDividendDetailAdapter",
     "TWSEETFSplitAdapter",
     "TWSEExRightAdapter",
     "TWSEForeignHoldingAdapter",
     "TWSEInstitutionalInvestorAdapter",
     "TWSEInstitutionalMarketSummaryAdapter",
-    "TWSEListingHistoryAdapter",
     "TWSEMarginTradingAdapter",
     "TWSEMarketIndexAdapter",
     "TWSEOfficialValuationAdapter",
@@ -130,7 +99,6 @@ __all__ = [
     "TWSEReductionAdapter",
     "TWSEReductionDetailAdapter",
     "TWSESecuritiesLendingAdapter",
-    "TWSESecurityMetadataAdapter",
     "TWSETaiexHistoryAdapter",
     "TWSETradingCalendarAdapter",
     "TWSEWholeMarketDailyAdapter",

@@ -24,11 +24,7 @@ from pathlib import Path
 
 import pytest
 
-from stock_data_center.financials import (
-    SourcePeriodRole,
-    classify_eps_period_basis,
-)
-from stock_data_center.financials.ixbrl import (
+from stock_data_center.ingestion.ixbrl import (
     MOPS_CONTEXT_ROLE_RULE,
     IndustrySector,
     IXBRLParseError,
@@ -39,7 +35,7 @@ from stock_data_center.financials.ixbrl import (
     decode_ixbrl_document,
     parse_ixbrl_report,
 )
-from stock_data_center.financials.models import EPSPeriodBasis
+from stock_data_center.ingestion.observations import SourcePeriodRole
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 IFRS = "http://xbrl.ifrs.org/taxonomy/2017-03-09/ifrs-full"
@@ -357,44 +353,6 @@ def test_a_dimensional_context_is_not_the_headline_period() -> None:
 
     for ref in dimensional:
         assert role(report, ref).period_role is SourcePeriodRole.OTHER
-
-
-@pytest.mark.parametrize(
-    "document, context_ref, expected",
-    [
-        (CEMENT_Q1, "From20250101To20250331", EPSPeriodBasis.QUARTER),
-        (CEMENT_Q3, "From20250701To20250930", EPSPeriodBasis.QUARTER),
-        (CEMENT_Q3, "From20250101To20250930", EPSPeriodBasis.YTD),
-        (CEMENT_Q4, "From20250101To20251231", EPSPeriodBasis.ANNUAL),
-    ],
-)
-def test_every_current_role_survives_the_step_5_classifier(
-    document: bytes, context_ref: str, expected: EPSPeriodBasis
-) -> None:
-    report = parse_ixbrl_report(document)
-
-    basis = classify_eps_period_basis(
-        context=report.contexts[context_ref],
-        filing_period_start=report.period_start,
-        filing_period_end=report.period_end,
-        report_quarter=report.header.report_quarter,
-        classification=classify_context_role(report, context_ref),
-    )
-
-    assert basis is expected
-
-
-def test_the_classifier_rejects_a_role_the_dates_do_not_support() -> None:
-    report = parse_ixbrl_report(CEMENT_Q1)
-
-    with pytest.raises(ValueError):
-        classify_eps_period_basis(
-            context=report.contexts["From20240101To20240331"],
-            filing_period_start=report.period_start,
-            filing_period_end=report.period_end,
-            report_quarter=1,
-            classification=classify_context_role(report, "From20250101To20250331"),
-        )
 
 
 # --- the one re-serialized document's lowercased prefix -------------------

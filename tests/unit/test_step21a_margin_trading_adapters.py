@@ -306,9 +306,7 @@ def test_twse_a_lot_exception_code_outside_its_dates_fails_the_file() -> None:
 
 
 def test_the_observation_accepts_a_utilization_above_one_hundred() -> None:
-    from stock_data_center.institutional_financing.models import (
-        MarginTradingObservation,
-    )
+    from stock_data_center.ingestion.observations import MarginTradingObservation
 
     observation = MarginTradingObservation(
         trade_date=DAY, margin_utilization_ratio=Decimal("103.1")

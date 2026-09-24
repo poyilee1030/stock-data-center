@@ -31,7 +31,7 @@ from stock_data_center.ingestion.models import (
     CorporateActionRangeRequest,
     SourceDataError,
 )
-from stock_data_center.market_reference.models import (
+from stock_data_center.ingestion.observations import (
     CorporateActionObservation,
     SignedTwdAmount,
     TwdAmount,
