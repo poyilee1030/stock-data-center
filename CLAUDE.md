@@ -12,8 +12,8 @@ It owns:
 source ingestion
 raw provenance
 PostgreSQL history
-business revisions
-publication evidence
+published-value history
+publication time
 PIT visibility
 canonical reusable derived datasets
 public API
@@ -35,20 +35,17 @@ Highest-priority requirement:
 
 ---
 
-# 0. Schema v2 Takes Precedence (2026-09-23)
+# 0. Schema v2 (2026-09-23)
 
-The owner redesigned the schema on 2026-09-23 after reviewing every table for necessity. [ADR-0027](docs/decisions/0027-schema-v2.md) defines it and [ADR-0026](docs/decisions/0026-v1-universe-common-stocks-only.md) narrows the universe. Where this file conflicts with them, **the ADRs win**. Specifically, for every domain that has moved to schema v2 (see ROADMAP Step 35):
+The owner redesigned the schema on 2026-09-23 after reviewing every table for necessity. [ADR-0027](docs/decisions/0027-schema-v2.md) defines it and [ADR-0026](docs/decisions/0026-v1-universe-common-stocks-only.md) narrows the universe; Step 35 moved every domain to it, and Step 35-d deleted the v1 code and tables and restarted the migration chain at one baseline. The rules below are stated in schema v2 terms. Where an older ADR, report or migration comment describes v1 storage — business/evidence split, seals, business hashes, `security_id`, evidence rows — it is history, and ADR-0026/0027 win. In short:
 
-- **Identity** is the official stock code (`stock_id`), not `security_id` (§51.5 still governs corporate-action events).
+- **Identity** is the official stock code (`stock_id`); a corporate action's identity is still governed by §51.5.
 - **Universe** is today's ISIN list of listed and OTC common stocks. It deliberately depends on today's list, overriding the §78 phrase "must not depend on today's security universe"; the survivorship bias is accepted and must be disclosed.
-- **One wide row per (stock, source, date)**, appended only when a published value changes; `recorded_at` is database-stamped. This replaces the business/evidence split of §17, the per-row evidence selection of §19, the business hash of §24–25, and per-row repeated-fetch observations of §26–27. Repeated fetches are auditable in `fetches`, one row per fetch.
-- **Publication time is not stored** for exchange-published data: it is computed from the dataset's release rule, and a corrected value is available from its `recorded_at` (§15, §31 semantics are preserved by computation, not by evidence rows).
+- **One wide row per (stock, source, date)**, appended only when a published value changes; `recorded_at` is database-stamped. Repeated fetches are auditable in `fetches`, one row per fetch.
+- **Publication time** is computed from the dataset's release rule for exchange-published data, TDCC and corporate actions, and stored as `published_at` for monthly revenue and financial reports; a correction is available from its `recorded_at` (§15, §31).
 - **Provenance** is `fetch_id` → `fetches.sha256` → `data/raw/<ab>/<sha256>` (§27–28, §71 raw-first unchanged).
-- **Pilot sources** `twse`/`tpex` (Step 9) and `tpex_insti_qfii` are not kept (§30).
-- **Small static configuration** (release rules, dataset declarations) lives in code, not tables.
+- **Small static configuration** (release rules, dataset declarations, the index list, the TDCC level profile, derivation definitions) lives in code, not tables.
 - **Before proposing any table or column, justify it**: what is lost without it.
-
-The remaining domains (monthly revenue, financial statements, TDCC, corporate actions, derived data) have their v2 design settled in ADR-0027 "35-c 定案" but still use the v1 tables and the rules below until Step 35-c implements them. From then on ADR-0027 governs them too, including its override of §33 (a fact with dimensions quarantines its document) and the new rule `corporate_action_ex_date@1`.
 
 ---
 
@@ -117,7 +114,7 @@ Each required criterion must be PASS/FAIL with concrete evidence.
 
 ## Current Step Sequence
 
-ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–18, 19-a through 19-e, 20-a through 20-d, 21-a, 21-b, 22-a through 22-c, 23-a through 24-b, 35-a, 35-b-1, 35-c-1 through 35-c-4 and 35-d-1 as MERGED, 26-a and 35-b-2 as SUPERSEDED, and labels Step 35-d-2 as `THIS STEP` (a contextual marker, not an additional status value):
+ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–18, 19-a through 19-e, 20-a through 20-d, 21-a, 21-b, 22-a through 22-c, 23-a through 24-b, 35-a, 35-b-1, 35-c-1 through 35-c-4, 35-d-1 and 35-d-2 as MERGED, 26-a and 35-b-2 as SUPERSEDED, and labels Step 35-d-3 as `THIS STEP` (a contextual marker, not an additional status value):
 
 ```text
 Step 11  authoritative security lifecycle history        MERGED
@@ -170,13 +167,13 @@ Step 35-c-2 schema v2: revenue/financial/TDCC writes   MERGED
 Step 35-c-3 schema v2: corporate actions + backfill    MERGED
 Step 35-c-4 schema v2: derived data on v2              MERGED
 Step 35-d-1 schema v2: v2 loads no v1 module          MERGED
-Step 35-d-2 schema v2: delete the v1 code              THIS STEP
-Step 35-d-3 schema v2: baseline migration, drop v1     PLANNED
+Step 35-d-2 schema v2: delete the v1 code              MERGED
+Step 35-d-3 schema v2: baseline migration, drop v1     THIS STEP
 ```
 
 `ROADMAP.md` remains authoritative if this snapshot becomes stale.
 
-The dividend-summary pilot that once held the #13 slot was abandoned, and never opened as a pull request: the issuer dividend summary feeds expose no proven correction-stable event identity, and TPEx live data falsified the proposed `(security, dividend_year, period)` identity. Announcement feeds never enter `corporate_action_versions`. Corporate actions come from exchange result feeds under ROADMAP Invariant G(2); the earnings/capital-surplus split comes from the declaration feeds that ROADMAP Step 33 stores as their own domain.
+The dividend-summary pilot that once held the #13 slot was abandoned, and never opened as a pull request: the issuer dividend summary feeds expose no proven correction-stable event identity, and TPEx live data falsified the proposed `(security, dividend_year, period)` identity. Announcement feeds never enter `corporate_actions`. Corporate actions come from exchange result feeds under ROADMAP Invariant G(2); the earnings/capital-surplus split comes from the declaration feeds that ROADMAP Step 33 stores as their own domain.
 
 Do not bypass the announcement-feed blocker by inventing another mutable composite key.
 
@@ -233,8 +230,8 @@ Do not use `postgres:latest`.
 ```text
 what was publicly knowable
 what the Data Center had ingested
-which revision was visible
-which publication evidence was authoritative
+which row was visible
+which publication time applies
 which source policy applies
 which canonical derivation definition applies
 ```
@@ -276,17 +273,19 @@ Do not collapse them into ambiguous `date`/`as_of` variables.
 
 Market PIT answers:
 
-> What was publicly knowable by `information_as_of`, using publication evidence the Data Center had recorded by `knowledge_as_of`?
+> What was publicly knowable by `information_as_of`, using what the Data Center had recorded by `knowledge_as_of`?
 
 Conceptually:
 
 ```text
-published_at <= information_as_of
+available_at <= information_as_of
 AND
-recorded_at <= knowledge_as_of
+recorded_at  <= knowledge_as_of
 ```
 
-Do not use `ingested_at` as publication time.
+`available_at` is computed, never supplied: a key's first row is available at its dataset's release rule instant, or at its stored `published_at` where publication differs per issuer (monthly revenue, financial reports); every later row is a correction, available from its own `recorded_at`. For the rule-based datasets a row recorded before the rule instant is provisional, and the first row recorded at or after it is the settled value, available from the rule instant (`docs/pit_semantics.md`).
+
+Never use a fetch time as publication time, except that a first capture proves the value was public by then (§32).
 
 ---
 
@@ -294,148 +293,96 @@ Do not use `ingested_at` as publication time.
 
 System PIT answers:
 
-> What complete business data had this Data Center actually ingested by `system_as_of`?
-
-Single-row version:
+> What had this Data Center actually recorded by `system_as_of`?
 
 ```text
-ingested_at <= system_as_of
+recorded_at <= system_as_of
 ```
 
-Complex aggregate:
-
-```text
-seal.ingested_at <= system_as_of
-```
+A financial report and its facts are written in one transaction, so no partial report is ever visible.
 
 ---
 
-# 17. Publication Evidence Rule
+# 17. Publication Time Rule
 
-Business content and publication evidence are separate.
+Values and their publication time are not separate records. Publication time is computed from a versioned release rule, or stored once as `published_at` on a key's first row; it is never edited afterwards, and learning a better bound later is a new release-rule version or a later row, never an update.
 
-Do not create a business revision merely because publication evidence became known, improved, was corrected, or retracted.
-
-Publication evidence inside Data Center is append-only. Use supersession/retraction records; never update old evidence rows.
+Every value table is append-only; the database rejects UPDATE, DELETE and TRUNCATE.
 
 ---
 
-# 18. Evidence Times
-
-Publication evidence preserves:
+# 18. Row Times
 
 ```text
-published_at
-recorded_at
+published_at   when the market could know (stored only where a rule cannot compute it)
+recorded_at    when the Data Center wrote the row
 ```
 
-`published_at` = when the market could know.
-
-`recorded_at` = when Data Center learned/recorded the evidence.
-
-Normal `recorded_at` is trusted storage/DB generated.
+`recorded_at` is `statement_timestamp()`, generated by PostgreSQL.
 
 ---
 
-# 19. Authoritative Evidence Resolution
+# 19. Deterministic Visibility
 
-Evidence selection must be deterministic and account for:
-
-```text
-knowledge cutoff
-source capability
-evidence type/quality
-supersession
-retraction
-deterministic tie breaker
-```
-
-API handlers must not improvise evidence selection.
+Which row a PIT context sees must be deterministic, from stored rows and code-constant rules alone, and independent of import order. It is computed in one place per dataset family (`stock_data_center.v2.exchange_daily.visible` and its peers); API handlers must not improvise it.
 
 ---
 
-# 20. Immutable Aggregate Rule
+# 20. Atomic Report Rule
 
-Complex parent+children datasets are immutable aggregates.
-
-Only seal makes them PIT-visible. Resolvers ignore drafts.
-
-After seal, DB must reject parent and child mutation.
+A financial report and all its facts are one version, written in one transaction; a report whose content differs from the key's latest version is a new version carrying its full set of facts, so a fact a restatement drops stays representable. Writers of one key serialize on a per-key advisory lock.
 
 ---
 
 # 21. Seal Concurrency Rule
 
-Seal and child mutation must serialize on the same aggregate identity.
-
-Valid outcomes:
-
-```text
-child commits first -> seal sees/hashes child
-seal commits first -> child mutation rejected
-```
-
-Forbidden:
-
-```text
-seal hash excludes child but child commits afterward
-```
-
-Keep real multi-connection concurrency regressions.
+Removed with seals (ADR-0027): §20's single transaction is what a seal used to guarantee.
 
 ---
 
 # 22. Seal Table Rule
 
-Prefer dataset-specific seal tables with real foreign keys. Avoid loose polymorphic aggregate references when referential integrity cannot be enforced.
+Removed with seals (ADR-0027).
 
 ---
 
 # 23. Ingestion-Time Rule
 
-Normal callers must not provide authoritative historical ingestion timestamps.
+Normal callers must not provide `recorded_at` or any authoritative historical timestamp.
 
-Historical preservation is allowed only through a dedicated trusted migration path with provenance and tests.
+Historical preservation is allowed only through a dedicated trusted migration path with provenance and tests. Steps 35-a and 35-c-1 were that path: they carried v1's `ingested_at` into `recorded_at` and v1's proven publication evidence into `published_at`.
 
 ---
 
-# 24. Business Hash Rule
+# 24. Change Detection Rule
 
-`business_content_hash` is storage-generated from canonical business values.
-
-Do not include publication/provenance/ingest metadata in business content identity.
+A row is appended only when one of its published value columns differs from the key's latest row. Bookkeeping — `recorded_at`, `fetch_id`, `detail_fetch_id`, `published_at` — never counts as a change. There is no business hash (ADR-0027).
 
 ---
 
 # 25. Hash Separation
 
-Keep separate:
-
-```text
-business_content_hash
-publication_evidence_hash
-raw_artifact_hash
-```
+The only stored hash is `fetches.sha256`, the raw file's content address. Content identity is the value columns themselves (§24).
 
 ---
 
 # 26. Duplicate Fetch Rule
 
-Unchanged business content must not create a fake revision, but repeated fetch provenance must remain auditable.
+Unchanged content must not create a fake row, but every fetch remains auditable: each attempt is one `fetches` row, whatever its outcome.
 
 ---
 
 # 27. Provenance Integrity
 
-If a record stores `raw_artifact_id` and `ingest_run_id`, the DB should enforce that the artifact belongs to that run.
+Every value row names the fetch it came from (`fetch_id`, a foreign key), and a successful fetch must name its raw file. A row assembled from two raw files names both (`corporate_actions.detail_fetch_id` for TWSE `TWT49U`/`TWTAUU`, required exactly for those feeds).
 
 ---
 
 # 28. Raw Artifact Rule
 
-Raw artifacts are immutable and content-addressed. They are evidence/provenance.
+Raw files are immutable and content-addressed. They are evidence/provenance.
 
-v1 uses the local `data/raw/` store behind a storage abstraction. It contains only content-addressed artifacts (`<ab>/<sha256>`), never source archives or a `processed/` staging layer. Archives inside the store root could bypass the intended `storage_uri` boundary because reads validate containment under that root.
+v1 uses the local `data/raw/` store behind a storage abstraction. It contains only content-addressed files (`<ab>/<sha256>`), never source archives or a `processed/` staging layer: an archive inside the store root would sit where only content-addressed files are expected.
 
 Under ROADMAP §14, required legacy archives remain at `~/GitHubLL/my_stock_project/data/raw` by owner decision. Step 32 cannot declare cutover complete while a v1 rebuild depends on a path outside this repository. Do not relocate archives as an incidental adapter change.
 
@@ -443,13 +390,7 @@ Under ROADMAP §14, required legacy archives remain at `~/GitHubLL/my_stock_proj
 
 # 29. Source-Level PIT Capability
 
-PIT capability belongs to:
-
-```text
-(dataset_code, source)
-```
-
-Do not let one source's verified evidence rules authorize another source.
+A release rule belongs to a `(dataset, source)` and is declared in code with its job. Do not let one source's rule or proof authorize another source.
 
 ---
 
@@ -470,7 +411,7 @@ New reconciliation policy requires ADR + permanent tests.
 
 Final reconciliation must be deterministic from stored histories and independent of source import order.
 
-If multiple sources exist without a canonical-source policy, require explicit source selection or return separated results. Endpoints with different field coverage must not alternate revisions for one logical key. Step 17-a settled that for daily prices with distinct source codes: the whole-market feeds are `twse_mi_index` and `tpex_otc_quotes`, the Step 9 per-security pilots remain `twse` and `tpex`, and nothing merges them.
+If multiple sources exist without a canonical-source policy, require explicit source selection or return separated results. Endpoints with different field coverage must not alternate revisions for one logical key. Step 17-a settled that for daily prices with distinct source codes: the whole-market feeds are `twse_mi_index` and `tpex_otc_quotes`. Schema v2 keeps only those; the Step 9 per-security pilots `twse`/`tpex` and the second TPEx foreign-holding source `tpex_insti_qfii` are not kept (ADR-0027).
 
 ---
 
@@ -478,7 +419,7 @@ If multiple sources exist without a canonical-source policy, require explicit so
 
 The Fubon Neo API (market data from Fugle) and FinMind may be used as verification cross-checks. Their code lives in `third-party/fubon/` and `third-party/finmind/`. They are not Data Center sources:
 
-- Never write their values into Data Center tables, register them in `dataset_sources`, record publication evidence from them, or use them to fill a field the audit lists as unsourced.
+- Never write their values into Data Center tables, declare them as a source, take a publication time from them, or use them to fill a field the audit lists as unsourced.
 - Official endpoints and legacy `stock_db` remain the reconciliation baseline (§78). Agreement with a third party is extra evidence; a disagreement is classified, never "fixed" by aligning our values to theirs.
 - Call read-only market-data endpoints only; never a Fubon account, order, or trading call. Credentials stay out of the repository: Fubon reads the trade project's `.env` and certificate, FinMind reads `FINMIND_TOKEN` from `.env`. Raw responses stay in each tool's gitignored `raw/`.
 
@@ -488,26 +429,24 @@ Neither has PIT: they return current values with no publication time, version, o
 
 # 31. Unknown Publication Rule
 
-If:
+If nothing proves when a value became public, it is market-PIT invisible:
 
 ```text
-published_at IS NULL
+published_at IS NULL            (monthly revenue, financial reports)
+no release rule for the source  (any other dataset)
 ```
 
-the row/version is market-PIT invisible by default.
+It may still be System-PIT visible, since the Data Center did record it.
 
-It may still be System-PIT visible if legitimately ingested by the system cutoff.
-
-ADR-0020 is approved and implemented (Steps 15-a, 15-b, 15-c). A version is market-PIT invisible only when nothing provable is available, which is now a narrower case than it used to be:
+What may prove a first row's publication time is fixed by ADR-0020 and carried by ADR-0027:
 
 ```text
-capture_bound         this source saw the row first, at that instant
-legacy_capture_bound  the legacy scraper saw it first, at the end of that run
-press_report_bound    a dated secondary record proves it was public that day
-release_rule          a versioned schedule or statute says it was public by then
+release rule   a versioned schedule, statute or owner decision says it was public by then
+first capture  this Data Center saw the value first, at that instant
+legacy record  the legacy scraper saw it first, or a dated secondary record proves it (history only, migrated in Step 35-c-1)
 ```
 
-A dataset claims a type only if its `(dataset_code, source)` accepts it (ADR-0010) *and* the run's declared purpose entitles it to (ADR-0020 §5). A source that declares no release rule and captures nothing still records `unknown`, exactly as before. Adapter steps opt their own sources in with one migration; nothing is enabled by default.
+A dataset uses a release rule only if its job declares one. Nothing is enabled by default.
 
 ---
 
@@ -521,30 +460,26 @@ published_at = NULL
 
 Never use current wall-clock time as fake historical publication metadata.
 
-A backfill claims only what it can prove. The declared ingest purpose decides:
+A fetch claims only what it can prove. Its declared purpose, recorded in `fetches.purpose`, decides:
 
 ```text
-first_capture     may claim capture_bound, but only for a version it created
-correction_check  may claim it for a revision it newly found
+first_capture     may store its own instant as published_at, on a key's first row
+correction_check  may not: a correction is available from its recorded_at anyway
 gap_fill          may not: it noticed the row was missing long after publication
 unspecified       may not
 ```
 
-Seeing a row first means creating its version. A run that fetched again and found the version already there was not first, and its later instant is a looser bound that would supersede the real one.
+Seeing a value first means creating its key's first row. A fetch that found the row already there was not first.
 
-A first sighting later than the rule instant falsifies the rule for that row, which is then recorded with its capture alone. A backfill capture cannot falsify anything, because it is not a first sighting.
+Release rules are versioned code constants and cite the schedule, statute or owner decision they derive from; a rule with no authority is an invented instant. Correcting a rule means adding a new version, never editing one. A statutory deadline is not applied to what a fetch writes now in a dataset whose publication differs per issuer: that would hand the deadline to late filers.
 
-Release rules are versioned and cite the schedule or statute they derive from; a rule with no authority is an invented instant. Correcting a rule means publishing a new version, never editing one.
-
-Real legacy first-seen records exist for monthly revenue from 2026M02 and XBRL from 2025Q4. Older synthetic deadlines and later backfill-run dates are not first-seen evidence. Reconstructed monthly-revenue announcement dates are separate from first-published values; they do not restore pre-correction values. The approved policy must document latest-corrected backfill look-ahead and keep later corrections invisible before their capture.
+Real legacy first-seen records exist for monthly revenue from 2026M02 and XBRL from 2025Q4. Older synthetic deadlines and later backfill-run dates are not first-seen evidence. Reconstructed monthly-revenue announcement dates are separate from first-published values; they do not restore pre-correction values. Latest-corrected backfill look-ahead is documented (audit §7.5–7.6), and a later correction stays invisible before its `recorded_at`.
 
 ---
 
 # 33. XBRL Context Rule
 
-Financial facts require a non-null canonical context identity covering entity, period, dimensions, typed dimensions, scenario/segment as applicable.
-
-Preserve namespace-aware concept identity.
+Financial facts preserve namespace-aware concept identity (Clark notation). The three statements v1 stores have no dimensioned fact, so a fact's context is its period; a document with a dimension, scenario or segment in those statements is quarantined whole, never stored without it (ADR-0027, overriding the earlier requirement to store full context identity).
 
 ---
 
@@ -658,8 +593,9 @@ implementation version/git commit
 required input datasets
 calendar/timezone convention
 price-adjustment convention
-registration timestamp
 ```
+
+The definition is a code constant; its registration time is its git history, and every result carries the git commit it was computed with (ADR-0027).
 
 ---
 
@@ -754,7 +690,7 @@ original source event type / terms
 
 For split-style events prefer `old_shares` / `new_shares` over ambiguous provider-specific ratios.
 
-"Where available" is literal. The exchange result feeds that v1 ingests (`docs/source_field_audit.md` §4.10) do not publish `announcement_date`, `record_date`, `payment_date`, or the split between `earnings_stock_ratio` and `capital_surplus_stock_ratio`. Those columns stay NULL in v1.
+"Where available" is literal. The exchange result feeds that v1 ingests (`docs/source_field_audit.md` §4.10) do not publish `announcement_date`, `record_date`, `payment_date`, or the split between `earnings_stock_ratio` and `capital_surplus_stock_ratio`, so schema v2 does not store those columns (ADR-0027); the split is Step 33's declaration domain. `corporate_actions` stores the rest under the v2 names `event_type`, `reference_price`, `rights_dividend_value` and `cash_return_per_share`; the other terms stay in the raw file.
 
 ## 51.1 Raw vs Adjusted Price Rule
 
@@ -794,11 +730,13 @@ large discontinuities are reconciled
 
 This is a hard correctness gate.
 
-Every normalized corporate action first registers stable identity using:
+Every normalized corporate action has a stable identity:
 
 ```text
-(security_id, source, source_event_key)
+(stock_id, source, source_event_key)
 ```
+
+For the exchange result feeds v1 ingests, `source_event_key` is the executed date, so `corporate_actions` is keyed by `(stock_id, source, ex_date)` (ADR-0027); the rules below still decide which feeds may do that.
 
 A source-native event/document identifier is preferred.
 
@@ -808,9 +746,9 @@ If a source lacks one, a synthetic `source_event_key` is permitted only when off
 
 The rest of this section distinguishes two kinds of feed.
 
-**Announcement/plan feeds** publish decisions whose dates and terms can still change. Examples: `t187ap45_L`, `mopsfin_t187ap39_O`, `TWT48U`. The forbidden-field list below applies to them in full. None has a proven link to an executed event, so none may enter `corporate_action_versions` or `security_events`.
+**Announcement/plan feeds** publish decisions whose dates and terms can still change. Examples: `t187ap45_L`, `mopsfin_t187ap39_O`, `TWT48U`. The forbidden-field list below applies to them in full. None has a proven link to an executed event, so none may enter `corporate_actions`.
 
-They may still be stored as their own domain when the feed has a workable key *within itself*. ROADMAP Step 33 uses MOPS `t05st09sub` as the primary historical and forward source for both markets, in `dividend_declaration_versions`; the two OpenAPI declaration feeds are cross-checks only. Storing declarations this way is not a claim about event identity, and it does not unblock any column in `corporate_action_versions`.
+They may still be stored as their own domain when the feed has a workable key *within itself*. ROADMAP Step 33 uses MOPS `t05st09sub` as the primary historical and forward source for both markets, in its own table; the two OpenAPI declaration feeds are cross-checks only. Storing declarations this way is not a claim about event identity, and it does not unblock any column of `corporate_actions`.
 
 **Exchange result feeds** record an event the exchange executed and priced on a trading date: `TWT49U`, `TWTAUU`, `TWTB8U`, TPEx `exDailyQ`, TPEx `revivt`, TPEx `pvChgRslt`.
 
@@ -917,7 +855,7 @@ Such matching may be used only as explicitly labeled reconciliation evidence, ne
 If stable identity cannot be proven:
 
 ```text
-DO NOT call/register corporate_action_event
+DO NOT store a corporate_actions row
 DO NOT fabricate source_event_key
 DO NOT append mutable fields until uniqueness appears
 DO NOT weaken Step 12 semantics
@@ -959,7 +897,7 @@ Declaration identity is `(security, dividend_year, dividend_period_text, sequenc
 
 Market membership is evaluated at query time. Newly listed issuers can appear in past-year queries as new records; a smaller result set is not a retraction. A decision-progress change creates a version. Do not treat the board decision date as a proven release instant; follow Step 33's capture-based evidence contract and the approved Step 15 policy.
 
-Never write these declarations into `corporate_action_versions` or `security_events`, or claim a verified link to an executed event.
+Never write these declarations into `corporate_actions`, or claim a verified link to an executed event.
 
 ---
 
@@ -1042,13 +980,12 @@ Permanent categories include:
 
 ```text
 unknown publication
-late publication evidence
+provisional vs settled value
 knowledge cutoff
 system late ingestion
 backfill
-evidence correction/retraction
-sealed aggregate
-seal concurrency
+correction visibility
+report and facts written atomically
 source capability isolation
 XBRL dimensions
 derived PIT inheritance
@@ -1113,16 +1050,16 @@ Required provenance as applicable:
 ```text
 source
 resource/request identity
-fetch time
+fetch time and purpose
 raw bytes/export
-raw artifact hash
-ingest run
+raw file SHA-256
 adapter/parser version
+git commit
 ```
 
 Do not discard source representation after extracting canonical rows.
 
-Use `fetch → durable raw artifact → checkpoint → parse → normalize → canonical write`. One adapter per endpoint serves history and forward capture. History runs are throttled, resumable, and checkpointed. Unknown header variants quarantine; operational failures after raw capture remain resumable.
+Use `fetch → durable raw file → parse → normalize → append what changed`, with one `fetches` row per attempt. One adapter per endpoint serves history and forward capture. History runs are throttled and resumable: a resource whose latest fetch settled it is skipped. Unknown header variants quarantine; operational failures after raw capture remain resumable.
 
 ---
 
@@ -1150,7 +1087,7 @@ Do not substitute import time, file mtime, effective date, or legacy row existen
 
 # 74. Historical Backfill System-PIT Rule
 
-Normal backfill records actual Data Center ingestion/seal time. Do not copy historical market/effective dates into `ingested_at`.
+Normal backfill records the actual time the Data Center writes each row. Do not copy historical market/effective dates into `recorded_at`.
 
 ---
 
@@ -1175,9 +1112,8 @@ Record archive path, file mtime, and compressed entry name where applicable. `fe
 Bulk import/backfill must be safe to rerun and resume.
 
 ```text
-same canonical content -> no fake business revision
-same evidence identity -> no fake evidence revision
-repeated observation -> provenance remains auditable
+same published values -> no new row
+repeated fetch -> its own fetches row, still auditable
 partial failure -> restart does not corrupt prior work
 ```
 
@@ -1199,10 +1135,9 @@ Every real import/backfill reports at least:
 source/domain
 adapter version
 requested/actual coverage
-raw artifact count
-business version count
-evidence count
-dedup count
+fetch and raw file count
+rows appended
+unchanged (deduplicated) count
 unknown-publication count
 rejected/quarantined count
 coverage gaps
@@ -1227,7 +1162,7 @@ Every adapter and derived PR reconciles against legacy `stock_db` for 2020-01-02
 
 # 79. Import Manifest and Quarantine Rule
 
-Every pilot/bulk import emits an auditable manifest with import ID, git commit, adapter version, source/scope, configuration fingerprint, timing, hashes where practical, result counts, warnings/errors, and reconciliation result.
+Every pilot/bulk import is auditable from its `fetches` rows — dataset, source, resource, purpose, adapter version, git commit, time, status and reason, raw file hash — and its step report records scope, result counts, warnings/errors, and the reconciliation result.
 
 Suspicious or semantically ambiguous records fail loudly or enter quarantine.
 
@@ -1420,9 +1355,9 @@ do not patch the failure by adding mutable fields
 stock-data-center owns:
     source data
     temporal visibility
-    publication evidence
-    ingest history
-    revisions
+    publication time
+    fetch history
+    published-value history
     provenance
     PostgreSQL
     stable source/business identity contracts

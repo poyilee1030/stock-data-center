@@ -2,11 +2,11 @@
 
 > 交付以 step 追蹤。一個 step = 一個 branch = 一個 pull request；大到無法審閱的 step 拆成 `step-N-a`、`step-N-b`……（CLAUDE.md §1）。歷史上的 phase 名稱只保留作為舊參照。
 >
-> 狀態日期：2026-09-18。
+> 狀態日期：2026-09-24。
 >
 > 來源實況基準：[`docs/source_field_audit.md`](docs/source_field_audit.md)。本 roadmap 中每個規劃中的 PR，範圍都限於 audit 證明確實存在的欄位。
 >
-> **Schema v2（2026-09-23）優先。** [ADR-0027](docs/decisions/0027-schema-v2.md) 重新設計資料表，[ADR-0026](docs/decisions/0026-v1-universe-common-stocks-only.md) 把範圍收窄為今天的上市、上櫃普通股。本 roadmap 其他章節描述的 v1 表設計（逐列 publication evidence、observations、業務 hash、seal、`security_id`、pilot 來源）與這兩份 ADR 衝突時，以 ADR 為準。實作進度見 Step 35（§25）。
+> **Schema v2（2026-09-23）優先。** [ADR-0027](docs/decisions/0027-schema-v2.md) 重新設計資料表，[ADR-0026](docs/decisions/0026-v1-universe-common-stocks-only.md) 把範圍收窄為今天的上市、上櫃普通股。本 roadmap 其他章節描述的 v1 表設計（逐列 publication evidence、observations、業務 hash、seal、`security_id`、pilot 來源）與這兩份 ADR 衝突時，以 ADR 為準；那些表與程式已在 Step 35-d 刪除，描述留作歷史紀錄。實作進度見 Step 35（§25）。
 
 ## 1. 專案目標
 
@@ -560,7 +560,7 @@ explicit out-of-scope work
 
 # 20. Step 帳本
 
-狀態日期：2026-09-18。
+狀態日期：2026-09-24。
 
 | Step | 狀態 | 交付內容 |
 |---|---|---|
@@ -626,8 +626,8 @@ explicit out-of-scope work
 | 35-c-3 | MERGED (#50) | Schema v2：公司行動的寫入路徑與回補 |
 | 35-c-4 | MERGED (#51) | Schema v2：衍生資料接 v2（26-a） |
 | 35-d-1 | MERGED (#52) | Schema v2：v2 不再載入任何 v1 模組 |
-| 35-d-2 | IN REVIEW (#53) | Schema v2：刪除 v1 程式、測試與 scripts |
-| 35-d-3 | PLANNED | Schema v2：baseline migration，刪除 v1 表 |
+| 35-d-2 | MERGED (#53) | Schema v2：刪除 v1 程式、測試與 scripts |
+| 35-d-3 | IN REVIEW | Schema v2：baseline migration，刪除 v1 表 |
 
 Steps 1–12 建立了儲存、PIT 和 raw-first 的基礎。它們的 writer 契約包含一些沒有任何來源會填入的欄位（§2.3）。這些欄位保持可為 null、不填值。不刪除它們，因為刪除不會帶來任何正確性上的好處。
 
@@ -2010,7 +2010,7 @@ quarantine reason，讓三張報表照樣解析——但那要先證明無法對
 
 ## Step 35 — Schema v2
 
-狀態：**35-a MERGED（#46）；35-b-1 MERGED（#47）；35-b-2 SUPERSEDED（併入 35-d）**。依據：ADR-0026、ADR-0027（2026-09-23 owner 決定）。
+狀態：**35-a MERGED（#46）；35-b-1 MERGED（#47）；35-b-2 SUPERSEDED（併入 35-d）；35-c-1–35-c-4 MERGED（#48–#51）；35-d-1、35-d-2 MERGED（#52、#53）；35-d-3 IN REVIEW**。依據：ADR-0026、ADR-0027（2026-09-23 owner 決定）。
 
 2026-09-23 對全部 61 張表逐張檢討「需不需要、拿掉會損失什麼」之後重新設計。原則見
 ADR-0027：官方代號當身分、一個 (股票, 來源, 日期) 一列的寬表、數字改變才新增列、
@@ -2228,10 +2228,29 @@ ADR-0027：官方代號當身分、一個 (股票, 來源, 日期) 一列的寬�
 
 **35-d-3：重新開始 migration 鏈**
 
-- 表：所有 v1 表，包括 `publication_evidence`、`security` 與 ingest／raw artifact 基礎表
-- 以一個 baseline migration 重新開始 migration 鏈；舊鏈的降級不再需要
-- 在 `stockdc_backfill` 執行前須經 owner 確認；`data/raw/` 的原始檔不刪
-- CLAUDE.md、domain inventory、source audit 裡 v1 專屬的規則改寫
+- [x] 表：所有 v1 表，包括 `publication_evidence`、`security` 與 ingest／raw artifact 基礎表
+  （`stockdc_backfill` 60 張表、2 個 view、40 個函數與 pgcrypto，48 GB 降到 10 GB）
+- [x] 以一個 baseline migration（`a273160c0288`）重新開始 migration 鏈，刪除舊鏈 45 個 migration
+  與 `db/metadata.py`
+- [x] 在 `stockdc_backfill` 執行前經 owner 確認（2026-09-24）；`data/raw/` 的原始檔不刪
+- [x] CLAUDE.md、domain inventory、source audit 裡 v1 專屬的規則改寫，連同各領域的 `docs/*.md`
+
+實作中裁決：
+
+- **舊鏈的資料庫用腳本轉到 baseline，不寫第 47 個 migration**：`scripts/rebase_to_baseline.py` 在
+  同一個交易裡刪掉全新 baseline 不會建的每個物件（不加 CASCADE），把版本記成 baseline，結果與全新
+  baseline 逐物件相同、每張 v2 表列數不變才 commit。這樣 baseline 本身就是新資料庫的完整定義，
+  舊鏈不必留著
+- **比對的基準是真的建一個全新 baseline**：腳本在同一台伺服器建暫存資料庫、升級到 head、取欄位、
+  約束、索引、trigger、函數、view、sequence、extension 的簽章後刪掉，所以「v1 物件」不靠手寫清單
+- **`stockdc_reject_mutation()` 的內容與舊鏈逐字相同**：否則函數簽章不同，轉換會拒絕
+- **v1 專屬的文件整份改寫或刪除**：`cache.md`、`pit_resolver.md` 刪除（程式已不存在）；
+  `schema.md`、`pit_semantics.md` 與各領域文件改寫成 v2，保留來源語意（單位、錨點、級距、
+  identity 規則），刪掉 v1 writer／service／evidence／seal 的段落
+- **CLAUDE.md 保留條號**：§21、§22 改為「隨 seal 移除」，其餘 v1 規則改寫成 v2 的對應規則，
+  §0 的覆寫清單併回各條
+- **inventory 的 `publication_evidence` 處置改名為 `publication_time`**：v2 沒有證據列，legacy
+  `publish_time` 對應 `monthly_revenues.published_at`／`financial_reports.published_at`
 
 ---
 
@@ -2389,29 +2408,30 @@ stock-data-center/
 ├── pyproject.toml
 ├── docker-compose.yml
 ├── alembic.ini
-├── migrations/
 ├── data/
 │   └── raw/                    只作為以內容定址的 artifact 儲存區
 │       └── <ab>/<sha256>       由 LocalRawArtifactStore 寫入；不放來源
 │                               檔案庫，也沒有 processed/ 暫存層
+├── migrations/versions/        一個 baseline（Step 35-d-3）
+├── scripts/                    驗收與對帳腳本、rebase_to_baseline.py
 ├── docs/
 │   ├── source_field_audit.md
 │   ├── data_domain_inventory.md
 │   ├── pit_semantics.md
 │   ├── schema.md
 │   ├── derived_data.md
+│   ├── <各領域>.md
 │   ├── phase_reports/
 │   ├── step_reports/
 │   └── decisions/
 ├── src/
 │   └── stock_data_center/
-│       ├── api/
-│       ├── pit/
-│       ├── derived/
-│       ├── ingestion/
-│       │   ├── adapters/
-│       │   └── reconciliation/
-│       └── <domain packages>/
+│       ├── api/                （Step 27）
+│       ├── v2/                 寫入路徑、回補、可見性、release rule、衍生資料
+│       ├── db/                 schema v2 的表與共用欄位型別
+│       └── ingestion/
+│           ├── adapters/       每個端點一個
+│           └── …               observation 型別、iXBRL parser、HTTP fetcher、raw store
 └── tests/
     ├── unit/
     └── integration/

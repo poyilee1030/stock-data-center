@@ -15,42 +15,39 @@ not qualify.
 
 ## Definition identity
 
-Every canonical derived dataset has an immutable definition identified by:
+Every canonical derived dataset has an immutable definition, a code constant
+(`stock_data_center.v2.derived`, ADR-0027) identified by:
 
 - dataset code and explicit `derivation_version`;
 - formula/specification;
-- implementation version or Git commit;
+- implementation version: the git commit the result was computed with, returned
+  with every result;
 - required input datasets;
-- timezone and calendar convention where relevant;
-- price-adjustment convention where relevant; and
-- trusted registration timestamp.
+- timezone and calendar convention where relevant; and
+- price-adjustment convention where relevant.
 
-A formula or convention change creates a new derivation version. Existing
-definitions and results are never silently overwritten.
+A formula or convention change creates a new derivation version; an existing
+definition is never edited. When a definition was introduced is its git
+history.
 
 ## PIT inheritance
 
-Derived market visibility is inherited from the PIT-safe inputs selected under
-the request's `information_as_of` and `knowledge_as_of`. Derived system
-visibility is inherited from inputs selected under `system_as_of`. Calculation
-time never widens input visibility.
+Derived market visibility is inherited from the inputs selected under the
+request's `information_as_of` and `knowledge_as_of`; derived system visibility
+from inputs selected under `system_as_of`. Calculation time never widens input
+visibility: it is provenance, never a publication time or an eligibility
+cutoff.
 
-`computed_at` records when the Data Center performed or materialized a
-calculation. It is operational provenance, not a market publication time, and
-must never be used as `published_at` or as the market-PIT eligibility cutoff.
+The rolling as-of series computes each observation date at the instant its own
+inputs became public, so no value in it could see a later price. A correction to
+an earlier input that became available later changes every value after that
+instant and nothing before it (`docs/pit_semantics.md`).
 
-## Materialized result lineage
+## Computed on demand
 
-A materialized result preserves its derivation definition/version, input
-dataset identities, deterministic input fingerprint, full PIT context,
-computation run, `computed_at`, and storage-generated business hash. Repeating
-the same definition with the same PIT-safe inputs must have the same semantic
-identity.
-
-## Materialized and virtual equivalence
-
-A canonical metric may be materialized in PostgreSQL or computed on demand.
-This is a performance choice. Both strategies use the same definition and PIT
-rules and return the same business value, derivation identity, and input
-provenance. Optional caching occurs above the derivation service and does not
-change formulas or visibility.
+Derived data has no tables: a result is a deterministic function of stored
+inputs, computed when asked for (ROADMAP §17). A metric is materialized only by
+its own step, after measurement shows on-demand computation too slow, and the
+materialized result must equal the on-demand one for the same PIT context,
+definition and inputs. `technical_indicators:v1` (Step 35-c-4) is the first; it
+computes one stock's full series in about 0.11 s.

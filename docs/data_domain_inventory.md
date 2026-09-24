@@ -11,20 +11,30 @@ unmapped.
 
 The normative, field-by-field contract is
 [`data_domain_inventory.json`](data_domain_inventory.json). Each of its 416
-records names the legacy table and field, disposition, target domain/field, and
-reason. It also records the canonical SHA-256 fingerprint of the audited
-`SCHEMA_COLS` `(table, field)` pairs. Automated tests compare the complete
-contract against that frozen legacy fingerprint, counts, uniqueness, and the
-allowed dispositions.
+records names the legacy table and field, disposition, target, and reason. It
+also records the canonical SHA-256 fingerprint of the audited `SCHEMA_COLS`
+`(table, field)` pairs. Automated tests compare the complete contract against
+that frozen legacy fingerprint, counts, uniqueness, and the allowed
+dispositions.
+
+Targets name schema v2 (ADR-0027). Step 35-d-3 moved them from the v1 tables,
+which no longer exist; a legacy field whose v1 column v2 did not keep says so
+in its target and reason.
 
 Disposition terms:
 
-- **observed**: source-published data stored as an append-only Data Center version;
-- **canonical derived**: deterministic, model-independent data registered by
-  derivation version and represented by `derived_metric_versions`, or computed
-  virtually under the same definition contract;
+- **observed**: source-published data stored in a schema v2 table, one
+  append-only row per published value;
+- **identity**: the field is part of a row's key — a stock code, a date, a
+  report period;
+- **publication_time**: stored as `published_at` on a key's first row (monthly
+  revenue, financial reports);
+- **canonical derived**: deterministic, model-independent data defined by
+  derivation version and computed on demand from PIT-visible inputs
+  (ROADMAP §17);
 - **downstream**: model/experiment-specific logic owned by an ML repository;
-- **raw-only**: parser coordinates retained with the immutable raw artifact;
+- **raw-only**: parser coordinates and labels that stay in the raw file
+  (`fetches` → `data/raw/`);
 - **deprecated**: intentionally excluded from v1.
 
 ## Per-column source coverage
@@ -32,49 +42,39 @@ Disposition terms:
 The legacy mapping above answers "where did this legacy field go?". It does not
 answer the opposite question, which is the one a step planning an adapter needs:
 *does an official source actually publish this stored column?* That is
-`storage_contract` in
-[`data_domain_inventory.json`](data_domain_inventory.json). Every column of
-every table that holds observed content is classified there — which is not only
-the `*_versions` tables, since `financial_facts`, `tdcc_distribution`, its
-codebook tables, `corporate_action_events`, and `security_transfer_events` hold
-source values too:
+`storage_contract` in [`data_domain_inventory.json`](data_domain_inventory.json).
+Every column of every schema v2 table is classified there:
 
 | Coverage | Meaning |
 | --- | --- |
 | `sourced` | an inspected official endpoint publishes the value for the whole v1 window and both markets |
 | `partially_sourced` | published for only some dates, markets, or securities |
-| `unsourced` | no inspected source publishes it; the column stays NULL and no v1 step may promise it |
-| `internal` | identity, interval boundary, or provenance linkage not expected from a source field |
+| `unsourced` | no inspected source publishes it; no v1 step may promise it |
+| `internal` | identity, the fetch a row came from, or the time the Data Center recorded it |
 
-Seven structural columns (`id`, `source`, `business_content_hash`,
-`ingested_at`, `raw_artifact_id`, `ingest_run_id`, `predecessor_version_id`) are
-declared once for all tables instead of per table. Every remaining table in the
-schema — provenance links, policy registries, seal state, import bookkeeping,
-and canonical derived data — is listed in `excluded_tables` with its reason, so
-a new table cannot appear in neither list unnoticed.
+Two structural columns (`id`, `source`) are declared once for all tables
+instead of per table. `fetches`, the fetch log, is listed in `excluded_tables`
+with its reason: it holds provenance, not source content. A new table must
+appear in one list or the other.
 
-An `unsourced` column also records its **effect**, because unsourced does not
-mean NULL: six of them are `NOT NULL`. The effect is *stays NULL*, *stores a
-documented constant* (monthly-revenue `currency`, always TWD), *stores a derived
-value* (index metadata observation dates), or *table stays empty* (a domain out
-of v1). A column marked *stays NULL* must be nullable in the live schema, and a
-test checks it.
+Schema v2 stores no `unsourced` column: the v1 schema kept such columns NULL or
+filled them with a constant or a value of its own, and v2 dropped them
+(audit §5). The category stays so that a future column with no source is
+recorded rather than stored.
 
 A legacy field whose `target` column does not exist yet carries `planned_pr`,
-naming the step that adds it — the eight monthly-revenue comparatives point at
-Step 22. A target that exists in neither the schema nor a planned step fails the
-test.
+naming the step that adds it. A target that exists in neither the schema nor a
+planned step fails the test.
 
 `sourced` and `partially_sourced` entries name the published field labels, or
 the endpoint where the audit certifies a whole table (§4.3, §4.4, §4.5), and
-cite the audit section. The `partially_sourced` and `unsourced` entries must
-match [`source_field_audit.md`](source_field_audit.md) §5 exactly, one row per
-column.
+cite the audit section. The `partially_sourced` entries must match
+[`source_field_audit.md`](source_field_audit.md) §5 exactly, one row per column.
 
 `tests/unit/test_pr14_storage_contract_source_coverage.py` holds all three
-artifacts to each other: the registry, audit §5, and the live SQLAlchemy
-metadata. Adding a column to an observed table without a source mapping fails
-that test.
+artifacts to each other: the registry, audit §5, and the SQLAlchemy metadata of
+schema v2. Adding a column to a v2 table without a source mapping fails that
+test.
 
 ## Global legacy-field rules
 
@@ -83,85 +83,91 @@ JSON contract resolve the exact target and rationale:
 
 | Legacy field | Disposition |
 | --- | --- |
-| `symbol` | Stable `security.security_code`, except index symbols which map to `market_index.index_code`. |
-| `market` | Effective-dated `security_metadata_versions.market` for securities, or the applicable market-level domain identity. |
-| `name` | Observed, effective-dated `security_metadata_versions.name`. |
-| `date` | The applicable observation, report, snapshot, or event logical date—not publication or ingestion time. |
-| `pced_file`, `pced_row`, `pced_col` | Raw-artifact-only parser/source coordinates. |
-| `publish_time` | `publication_evidence.published_at`; never folded into business content. |
+| `symbol` | The official stock code, `stocks.stock_id` and every table's `stock_id`; an index is identified by its source and published name, `index_prices.index_name`. |
+| `market` | Today's market from the ISIN list, `stocks.market` (ADR-0026); for a market-level dataset, the publishing source. |
+| `name` | Today's name, `stocks.name`; no name history is kept. |
+| `date` | The applicable observation, report, snapshot, or event date — not publication or ingestion time. |
+| `pced_file`, `pced_row`, `pced_col` | Raw-only parser coordinates. |
+| `publish_time` | `monthly_revenues.published_at` or `financial_reports.published_at`; every other dataset computes it from its release rule. |
 
-All Phase 7 per-security stock quantities use canonical shares. A source value
-in lots is explicitly scaled by 1,000 before canonical observation, storage,
-and business hashing; an untyped quantity is rejected at the source boundary.
+All per-security stock quantities are shares. A source value in lots is scaled
+by 1,000 at the adapter, and an untyped quantity is rejected at the source
+boundary.
 
 ## Complete legacy table and field mapping
 
 | Legacy table | Legacy fields reviewed | v1 disposition |
 | --- | --- | --- |
-| `stock_info` | `symbol`, `name`, `market`, industry/category, listing and delisting dates | Stable `security` identity plus observed `security_metadata_versions`; market, names/categories, and effective dates are revisioned. Explicit official cross-market transfer terms are retained in `security_transfer_events` for re-runnable reconciliation without merging source histories. |
-| `stock_tags` | `symbol`, tag/category, effective dates | **Not in v1** (ROADMAP §16). The only known source is a MoneyDJ current snapshot — a third party, with no effective dates — and no legacy consumer reads the table (audit §4.11, §5). `security_tag_versions` exists in the schema and stays empty. |
-| `daily_quotes` | `date`, `market`, `symbol`, `name`; OHLC; `volume`, `value`, `transactions`; `change`, `direction`; `bid`, `ask`; parsed last bid/ask price and volume; `pced_file`, `pced_row`, `pced_col` | OHLC, volume, trade value/count, change, and the single published last bid/ask price are observed in `daily_price_versions`; legacy `bid`/`ask`, NULL in every row, map to `last_bid_price`/`last_ask_price`. The source also publishes the matching last bid/ask *volume*, which Step 17-a stores in `last_bid_volume`/`last_ask_volume`; the legacy table has no field for it. `price_direction` is TWSE-only except for the TPEx 不比價 marker (除息 / 除權 / 除權息), which is stored as `X`; an ordinary TPEx row publishes a signed 漲跌 and no direction. The multi-level `bid_snapshot`/`ask_snapshot` columns have no source and stay NULL: the daily whole-market files publish one order-book level, and it is already stored in `last_bid_*`/`last_ask_*` (audit §4.1, §5). Symbol resolves through stable `security`; market/name through effective-dated metadata. `pced_*` is raw-only parser provenance tied to `raw_artifacts`/`ingest_runs`, not business content. |
-| `monthly_revenue` | year/month, current revenue, currency; MoM, YoY, cumulative revenue, cumulative YoY; comment; publication timestamp; `pced_*` | Current revenue is normalized to the currency's major unit and stored in `monthly_revenue_versions`. Version/evidence observation links preserve every fetch. The published comparatives — 上月營收, 去年當月營收, the three percentages, the cumulative values, and 備註 — are in the same MOPS row and read by legacy consumers, so Step 22-a stores them as observed and never reconciles them against our own series (audit §4.7, §6, §7.3); `monthly_revenue_growth:v1` leaves v1 with them. `currency` is not an observation: the page states 單位：千元 as a page-level constant (audit §5). Publication time belongs only in `publication_evidence`; `pced_*` is raw-only. |
-| `income_statement` | All 40 declared legacy identity, statement, quarterly/accumulated metric, and `pced_*` fields | Deprecated pre-XBRL category. Namespace-aware `financial_facts` and sealed summaries are the v1 replacement; the JSON contract gives every field an explicit disposition. |
-| `balance_sheet` | All 24 declared legacy identity, statement, balance, ratio, and `pced_*` fields | Deprecated pre-XBRL category; replaced by namespace-aware financial facts and versioned summaries. |
-| `cash_flow` | All 20 declared legacy identity, statement, cash-flow, and `pced_*` fields | Deprecated pre-XBRL category; replaced by namespace-aware financial facts and versioned summaries. |
-| `quarterly_reports` | All 36 declared legacy identity, financial summary, ratio, and `pced_*` fields | Deprecated pre-XBRL category; replaced by `quarterly_reports_xbrl`, sealed facts, and canonical summaries. |
-| `income_statement_xbrl` | entity/period, namespaced account code, value, unit, context/dimensions | Observed `financial_filing_versions` + `financial_facts`; statement presentation summaries may use `quarterly_financial_summary`. Step 23-b stores exactly the three statements this and its two siblings held, bounded by the document's own `id="BalanceSheet"` / `id="StatementOfComprehensiveIncome"` / `id="StatementsOfCashFlows"` anchors, and each fact keeps the `statement` it was printed in and its `account_code`. Legacy stored the current period only; the documents' prior-year comparative columns are stored too and filtered at reconciliation (audit §4.8). |
-| `balance_sheet_xbrl` | entity/instant, namespaced account code, value, unit, context/dimensions | Observed `financial_filing_versions` + `financial_facts`. |
-| `cash_flow_xbrl` | entity/period, namespaced account code, value, unit, context/dimensions | Observed `financial_filing_versions` + `financial_facts`. 權益變動表, the notes, the 附表 and the `escape="true"` narrative blocks are outside this scope: they are counted in the import manifest and stored nowhere, and whether they are ever stored is decided at the end of the ROADMAP (owner decision, 2026-09-21). |
-| `quarterly_reports_xbrl` | year/quarter and normalized quarterly report values | Observed filing identity/facts; reusable normalized metrics use `quarterly_financial_summary`; no nullable-date fact identity survives. |
-| `xbrl_codebook` | `statement_type`, `account_code`, Chinese/English account names | **Not in v1** (ROADMAP §16). No legacy consumer reads it, and this audit inspected no official concept-catalogue endpoint; the iXBRL documents carry the namespace-aware `concept_qname` that `financial_facts` needs (audit §4.8, §5). `xbrl_concept_catalog_versions` exists in the schema and stays empty. Step 23-a's parser keeps each fact's printed 會計科目代碼 and both labels with the fact, and Step 23-b stores the code on `financial_facts`, which is what Step 23-c's code ↔ QName reconciliation needs, so no codebook table is required. The codebook is also not the statement universe: its 1,748 codes miss 1,040 real cash-flow subtotal rows (`AA0000`, `AB0000`, `AC0100`–`AC0500`) in 332 documents, so the statements are bounded by the document's anchors instead (audit §4.8). |
-| `shareholding` | snapshot date, holding-level bucket, holder count, shares, ownership percent | Observed immutable `tdcc_snapshot_versions` aggregate with `tdcc_distribution`; only a seal makes it visible. Step 24-a keys each week on the file's own 資料日期, stores 差異數調整 negative with no holder count (說明4: a difference has no holders) and the published 合計 as-is, including the 158 archived rows above 100% (audit §4.9, ADR-0024). The bulk file's undefined 人數 on the adjustment row is counted in the manifest and stays raw-only. |
-| `institutional_investors` | foreign, foreign-dealer, trust, dealer-self, dealer-hedge buy/sell/net; dealer and total net; date/market/symbol/name; `pced_*` | All published per-security flow columns are normalized to shares and observed in `institutional_investor_versions`; identity/name and raw coordinates map as above. |
-| `institutional_summary` | market/date/institution, buy, sell, net | Observed source-published market totals in `institutional_market_summary_versions`; they are not silently recomputed from security rows. |
-| `foreign_holding` | issued, investable and held shares; investable/held ratio; foreign/mainland legal-limit ratios; change reason; source update date; `pced_*` | Share counts are normalized to shares and observed in `foreign_holding_versions`; raw coordinates are raw-only. |
-| `trust_holding` | date/symbol, legacy cumulative “holding” and ratio | The legacy zero-origin calculation is not an absolute holding. It maps to the canonical proxy `institutional_cumulative_flow:v1` (`trust_cumulative_net_shares` and ratio) from PIT-safe flows and issued shares. |
+| `stock_info` | `symbol`, `name`, `market`, industry/category, listing and delisting dates | `stocks`: today's ISIN list of listed and OTC common stocks (ADR-0026), with today's name, market, industry and listing date. No name, market or lifecycle history is kept, and stocks delisted before today are not in the universe; the survivorship bias is accepted and disclosed. |
+| `stock_tags` | `symbol`, tag/category, effective dates | **Not in v1** (ROADMAP §16). The only known source is a MoneyDJ current snapshot — a third party, with no effective dates — and no legacy consumer reads the table (audit §4.11). No tag table exists. |
+| `daily_quotes` | `date`, `market`, `symbol`, `name`; OHLC; `volume`, `value`, `transactions`; `change`, `direction`; `bid`, `ask`; parsed last bid/ask price and volume; `pced_file`, `pced_row`, `pced_col` | OHLC, volume, trade value/count, change, and the single published last bid/ask price are observed in `daily_prices`; legacy `bid`/`ask`, NULL in every row, map to `last_bid_price`/`last_ask_price`. The source also publishes the matching last bid/ask *volume*, stored in `last_bid_volume`/`last_ask_volume`; the legacy table has no field for it. `price_direction` is TWSE-only except for the TPEx 不比價 marker (除息 / 除權 / 除權息), which is stored as `X`; an ordinary TPEx row publishes a signed 漲跌 and no direction. No order-book depth is stored: the daily whole-market files publish one level (audit §4.1). `pced_*` is raw-only. |
+| `monthly_revenue` | year/month, current revenue, currency; MoM, YoY, cumulative revenue, cumulative YoY; comment; publication timestamp; `pced_*` | Current revenue, converted ×1,000 from 千元 to TWD, is observed in `monthly_revenues`. The published comparatives — 上月營收, 去年當月營收, the three percentages, the cumulative values, and 備註 — are in the same MOPS row and read by legacy consumers, so they are stored as observed and never reconciled against our own series (audit §4.7, §6, §7.3); `monthly_revenue_growth:v1` leaves v1 with them. Currency is a page-level constant (單位：千元) and not stored. Publication time is `published_at`, set where a capture or legacy record proves it; `pced_*` is raw-only. |
+| `income_statement` | All 40 declared legacy identity, statement, quarterly/accumulated metric, and `pced_*` fields | Deprecated pre-XBRL category. The namespace-aware iXBRL facts in `financial_report_facts` replace it; the JSON contract gives every field an explicit disposition. |
+| `balance_sheet` | All 24 declared legacy identity, statement, balance, ratio, and `pced_*` fields | Deprecated pre-XBRL category; replaced by `financial_report_facts`. |
+| `cash_flow` | All 20 declared legacy identity, statement, cash-flow, and `pced_*` fields | Deprecated pre-XBRL category; replaced by `financial_report_facts`. |
+| `quarterly_reports` | All 36 declared legacy identity, financial summary, ratio, and `pced_*` fields | Deprecated pre-XBRL category; replaced by `financial_report_facts` and summaries computed on demand from it. |
+| `income_statement_xbrl` | entity/period, namespaced account code, value, unit, context/dimensions | Observed `financial_reports` + `financial_report_facts`. Exactly the three statements this and its two siblings held are stored, bounded by the document's own `id="BalanceSheet"` / `id="StatementOfComprehensiveIncome"` / `id="StatementsOfCashFlows"` anchors, and each fact keeps the `statement` it was printed in and its `account_code`. Legacy stored the current period only; the documents' prior-year comparative columns are stored too and filtered at reconciliation (audit §4.8). A document with a dimensioned fact in these statements is quarantined (ADR-0027). |
+| `balance_sheet_xbrl` | entity/instant, namespaced account code, value, unit, context/dimensions | Observed `financial_reports` + `financial_report_facts`; an instant has `period_start` NULL. |
+| `cash_flow_xbrl` | entity/period, namespaced account code, value, unit, context/dimensions | Observed `financial_reports` + `financial_report_facts`. 權益變動表, the notes, the 附表 and the `escape="true"` narrative blocks are outside this scope and stay in the raw document; whether they are ever stored is decided at the end of the ROADMAP (owner decision, 2026-09-21). |
+| `quarterly_reports_xbrl` | year/quarter and normalized quarterly report values | Observed report identity and facts; the EPS summary and the Q4 single quarter are computed on demand from `financial_report_facts` (ADR-0027). |
+| `xbrl_codebook` | `statement_type`, `account_code`, Chinese/English account names | **Not in v1** (ROADMAP §16). No legacy consumer reads it, and this audit inspected no official concept-catalogue endpoint; the iXBRL documents carry the namespace-aware concept that `financial_report_facts` stores (audit §4.8). The printed 會計科目代碼 is stored with each fact as `account_code`, which is what the code ↔ concept reconciliation needs, so no codebook table exists. The codebook is also not the statement universe: its 1,748 codes miss 1,040 real cash-flow subtotal rows (`AA0000`, `AB0000`, `AC0100`–`AC0500`) in 332 documents, so the statements are bounded by the document's anchors instead (audit §4.8). |
+| `shareholding` | snapshot date, holding-level bucket, holder count, shares, ownership percent | Observed `shareholding_distributions`, one wide row per stock and week: levels 1–15 as `holders_N`, `shares_N`, `percent_N`, level 16 as `adjustment_shares`/`adjustment_percent` (差異數調整, signed, no holders: 說明4), level 17 as the published `total_*`, including the 158 archived rows above 100% (audit §4.9, ADR-0024). Each week is keyed on the file's own 資料日期. The bulk file's undefined 人數 on the adjustment row stays raw-only. |
+| `institutional_investors` | foreign, foreign-dealer, trust, dealer-self, dealer-hedge buy/sell/net; dealer and total net; date/market/symbol/name; `pced_*` | All published per-security flow columns, in shares, are observed in `institutional_flows`. |
+| `institutional_summary` | market/date/institution, buy, sell, net | Observed source-published market totals in `institutional_market_flows`; they are not recomputed from stock rows. |
+| `foreign_holding` | issued, investable and held shares; investable/held ratio; foreign/mainland legal-limit ratios; change reason; source update date; `pced_*` | Share counts and the investable, held and foreign legal-limit ratios are observed in `foreign_holdings`. The mainland limit, change reason and filing date are not stored (ADR-0027); OTC comes from MOPS `t13sa150_otc` only. |
+| `trust_holding` | date/symbol, legacy cumulative “holding” and ratio | The legacy zero-origin calculation is not an absolute holding. It maps to the canonical proxy `institutional_cumulative_flow:v1` (`trust_cumulative_net_shares` and ratio) from PIT-visible flows and issued shares. |
 | `dealer_holding` | date/symbol, legacy cumulative “holding” and ratio | The legacy zero-origin calculation maps to `institutional_cumulative_flow:v1` (`dealer_cumulative_net_shares` and ratio), not actual dealer ownership. |
-| `margin_trading` | margin buy/sell/cash repayment/previous balance/balance/next limit/utilization; short buy/sell/stock repayment/previous balance/balance/next limit/utilization; offset balance | Source quantities are normalized from explicit shares/lots to shares and observed in `margin_trading_versions`. Ratios recomputed by Data Center are separately versioned canonical derived metrics. |
-| `margin_sbl` | margin-short previous balance/buy/sell/balance; SBL previous balance/borrowed/returned/balance/limit/available/adjustment/note | Margin-short observations map to `margin_trading_versions`, where Step 21-a stores them from MI_MARGN / `margin/balance`; the TWT93U / `margin/sbl` 融券 group repeats them and is reconciled, not stored. SBL observations map to `securities_lending_versions` (Step 21-b); `next_limit` is the 融券 group's exact-share limit. Both tables publish shares. Source notes remain observed. |
+| `margin_trading` | margin buy/sell/cash repayment/previous balance/balance/next limit/utilization; short buy/sell/stock repayment/previous balance/balance/next limit/utilization; offset balance | Source quantities, converted from lots to shares, are observed in `margin_trading`. The utilization ratios exist for TPEx only and are not stored (ADR-0027); ratios computed by the Data Center are canonical derived metrics. |
+| `margin_sbl` | margin-short previous balance/buy/sell/balance; SBL previous balance/borrowed/returned/balance/limit/available/adjustment/note | Margin-short values map to `margin_trading`, filled from MI_MARGN / `margin/balance`; the TWT93U / `margin/sbl` 融券 group repeats them and is reconciled, not stored. SBL values map to `securities_lending`, including the signed adjustment and both limits; `next_limit` is the 融券 group's exact-share limit. Both tables publish shares. The source note is not stored (ADR-0027). |
 | `margin_summary` | market/date aggregate margin and short balances/changes | **Not in v1** (ROADMAP §16): no legacy consumer reads it. `margin_market_summary:v1` stays defined as the canonical derived reconstruction for a later version; source-published totals, if onboarded later, require a distinct observed definition. |
-| `market_indices` | date/market/index symbol/name, close, change points; `pced_*` | Stable `market_index.index_code`, observed `market_index_metadata_versions`, and observed quotes in `market_index_versions`; raw coordinates are raw-only. The whole-list sources publish close, change points, and change percent only. `open_value`/`high_value`/`low_value` exist for the TAIEX alone, from `MI_5MINS_HIST`, which Step 18 adds; `trade_value` has no source at all, and neither does an official index effective date — `market_index_metadata_versions.effective_from`/`effective_to` record observation dates (audit §4.2, §5). |
-| `dividend` | date/symbol/name, close before event, reference price, rights/dividend value, action type | Stable source event identity in `corporate_action_events` plus observed `corporate_action_versions`. The exchange result feeds publish the ex/resumption date, close-before and reference prices, cash dividend, the combined free-share figure, rights terms, capital-reduction kind and returned cash, and source terms. They publish no `announcement_date`, `record_date`, or `payment_date`, and no earnings / capital-surplus split — that split exists only in the MOPS issuer declaration feed, which Step 33 stores as its own `dividend_declaration_versions` domain (audit §4.10, §4.13, §5). |
-| `pe_ratio` | date/symbol and source-published PE | Observed `official_valuation_versions`. Official PB/dividend yield and associated source period fields share this observed contract. |
-| `valuation_daily` | close, official TTM EPS, official PE, official PE percentile, official ROE | Legacy `pe_official` is observed and maps to `official_valuation_versions.pe_ratio`. Data Center-calculated TTM EPS/PE percentile/ROE and other computed valuations are canonical derived `valuation_metrics:v1`; close is referenced from PIT-safe daily prices, not duplicated. |
-| `technical_indicators` | MA 5/10/20/60/120/240; volume MA 5/10/20; K/D; RSI 6/12; MACD DIF/DEA/histogram; Bollinger upper/middle/lower; foreign/trust/dealer streak days | Canonical derived `technical_indicators:v1` (Step 35-c-4, computed on demand from v2 `daily_prices`) and `institutional_streaks:v1` (Step 26-b). Nothing is materialized (ADR-0027); formula, calendar, and adjustment conventions are the versioned code constant. |
-| `shareholding_concentration` | large/mid/small-holder ratios and counts, spread and week-over-week changes | Canonical derived `shareholding_concentration:v1` from sealed TDCC inputs; materialized. |
+| `market_indices` | date/market/index symbol/name, close, change points; `pced_*` | Observed `index_prices`, identified by `(source, index_name)` — the published name — for the 126 headline and sector indices (`stock_data_center.v2.indices`). The whole-list sources publish close, change points, and change percent only. `open_value`/`high_value`/`low_value` exist for the TAIEX alone, from `MI_5MINS_HIST`; no source publishes index trade value or when an index name took effect (audit §4.2). |
+| `dividend` | date/symbol/name, close before event, reference price, rights/dividend value, action type | Observed `corporate_actions`, keyed by `(stock_id, source, ex_date)`, which is the §51.5 event identity (feed + executed date). The exchange result feeds publish the ex/resumption date, close-before and reference prices, cash dividend, the combined free-share figure, rights terms, and capital-reduction returned cash; `event_type` keeps the feed's own type text. They publish no announcement, record or payment date, and no earnings / capital-surplus split — that split exists only in the MOPS issuer declaration feed, which Step 33 is to store as its own `dividend_declaration` domain (audit §4.10, §4.13). |
+| `pe_ratio` | date/symbol and source-published PE | Observed `valuations`, with official PB, dividend yield and the source's dividend year and report period. |
+| `valuation_daily` | close, official TTM EPS, official PE, official PE percentile, official ROE | Legacy `pe_official` is observed and maps to `valuations.pe_ratio`. Data Center-calculated TTM EPS/PE percentile/ROE and other computed valuations are canonical derived `valuation_metrics:v1`; close is referenced from PIT-visible daily prices, not duplicated. |
+| `technical_indicators` | MA 5/10/20/60/120/240; volume MA 5/10/20; K/D; RSI 6/12; MACD DIF/DEA/histogram; Bollinger upper/middle/lower; foreign/trust/dealer streak days | Canonical derived `technical_indicators:v1` (Step 35-c-4, computed on demand from `daily_prices`) and `institutional_streaks:v1` (Step 26). Nothing is materialized (ADR-0027); formula, calendar, and adjustment conventions are the versioned code constant. |
+| `shareholding_concentration` | large/mid/small-holder ratios and counts, spread and week-over-week changes | Canonical derived `shareholding_concentration:v1` from `shareholding_distributions`. |
 | `margin_pressure_analysis` | margin utilization/balance ratios, changes, week-over-week metrics, pressure score | Stable ratios/changes are canonical derived `margin_metrics:v1`. The composite pressure score has no stable source-independent legacy specification and is downstream-owned; it is not persisted as a source fact. |
 | `short_interest_analysis` | short/SBL balances and ratios, changes, week-over-week metrics, pressure score | Stable ratios/changes are canonical derived `short_interest_metrics:v1`. The composite pressure score is downstream-owned. |
 
 ## v1 storage contract matrix
 
-| Domain / dataset code | Kind | Logical identity | Revision / PIT contract | Storage strategy | Planned consumers |
-| --- | --- | --- | --- | --- | --- |
-| `security_metadata` | observed | security, source, effective-from | market/name/listing business hash revisions; evidence governs market PIT, ingest time system PIT | materialized | both ML repos/API |
-| `daily_price` | observed | security, source, trade date | complete quote business hash; evidence + ingestion cutoffs | materialized | indicators, valuation, backtests |
-| `monthly_revenue` | observed | security, source, revenue year/month | revenue/currency and published-comparative revision; evidence + ingestion cutoffs | materialized | EPS and selection |
-| `financial_filing` | observed aggregate | security, source, filing key | draft invisible; trusted seal time; evidence targets sealed version | materialized/sealed | EPS, canonical fundamentals |
-| `tdcc_snapshot` | observed aggregate | security, source, snapshot date | draft invisible; trusted seal time; evidence targets sealed version | materialized/sealed | concentration metrics |
-| `institutional_investor` | observed | security, source, trade date | all published category flows share one revision hash | materialized | holdings/streaks/selection |
-| `institutional_market_summary` | observed | market, source, date, institution | independently published market aggregate | materialized | market analysis |
-| `foreign_holding` | observed | security, source, trade date | shares/ratios/legal limits revision together | materialized | selection/ownership |
-| `margin_trading` | observed | security, source, trade date | margin and exchange short fields revision together | materialized | margin/short metrics |
-| `securities_lending` | observed | security, source, trade date | SBL balance/activity revision | materialized | short-interest metrics |
-| `market_index` | observed | index, source, trade date | index quote revision | materialized | benchmarks/regime/backtests |
-| `market_index_metadata` | observed | index, source, effective-from | market/name/effective-end revision | materialized | historical index identity presentation |
-| `corporate_action` | observed | stable event (`security`, source, source event key) | source-faithful type, dates, dividend components, old/new shares, capital-reduction kind/returned cash, rights terms, official reference values, and source terms revision | materialized | adjusted prices/returns |
-| `official_valuation` | observed | security, source, trade date | source-published values only | materialized | API/comparison |
-| `dividend_declaration` | observed | security, dividend year, dividend period text, sequence | issuer board-resolution declarations; new `dividend_declaration_versions` table added by Step 33, never folded into `corporate_action_versions` | materialized | dividend research/API |
-| `security_tag` | **not in v1** | security, source, tag, effective-from | — | table exists, stays empty | — |
-| `xbrl_concept_catalog` | **not in v1** | source, concept QName | — | table exists, stays empty | — |
-| `technical_indicators:v1` | canonical derived | security/date/metric/PIT/input fingerprint | visibility inherited from PIT-safe prices; never from `computed_at` | on demand | both ML repos/API |
-| `shareholding_concentration:v1` | canonical derived | security/date/metric/PIT/input fingerprint | sealed TDCC inputs only | materialized | selection/API |
-| `valuation_metrics:v1` | canonical derived | security/date/metric/PIT/input fingerprint | PIT-safe prices and financial inputs | materialized | both ML repos/API |
-| `margin_metrics:v1` | canonical derived | security/date/metric/PIT/input fingerprint | PIT-safe margin inputs | materialized | selection/API |
-| `short_interest_metrics:v1` | canonical derived | security/date/metric/PIT/input fingerprint | PIT-safe margin/SBL inputs | materialized | selection/API |
-| `monthly_revenue_growth:v1` | **not in v1** | security/month/metric/PIT/input fingerprint | — | — | superseded by the observed published comparatives (Step 22) |
-| `institutional_cumulative_flow:v1` | canonical derived proxy | security/date/category/PIT/input fingerprint | zero-origin cumulative PIT-safe net flows, optionally divided by PIT-safe issued shares; not absolute holdings | materialized | selection/API |
-| `institutional_streaks:v1` | canonical derived | security/date/category/PIT/input fingerprint | PIT-safe institutional flows | materialized | selection/API |
-| `margin_market_summary:v1` | **not in v1** | market/date/metric/PIT/input fingerprint | — | — | no legacy consumer (ROADMAP §16) |
+Every observed table is append-only: a row is added only when a published value
+changes, and each row names the fetch it came from (ADR-0027).
 
-Every materialized derived row references a `derived_dataset_definitions`
-record, a `derived_computation_runs` record, an explicit market/system PIT
-context, canonical input dataset identities, and a deterministic input
-fingerprint. `computed_at` is operational provenance only. Backfill status for
-all Phase 1 contracts is **not started**; population belongs to later phases.
+| Dataset | Kind | Table and key | First row visible at | Planned consumers |
+| --- | --- | --- | --- | --- |
+| stock universe | observed | `stocks (stock_id)` | today's list, not history | every table's `stock_id` |
+| `daily_price` | observed | `daily_prices (stock_id, source, trade_date)` | release rule `exchange_daily_settled@1` | indicators, valuation, backtests |
+| `monthly_revenue` | observed | `monthly_revenues (stock_id, source, revenue_month)` | stored `published_at`; NULL is invisible | EPS and selection |
+| `financial_filing` | observed | `financial_reports (stock_id, report_year, report_quarter)` + `financial_report_facts` | stored `published_at`; NULL is invisible | EPS, canonical fundamentals |
+| `tdcc_distribution` | observed | `shareholding_distributions (stock_id, source, snapshot_date)` | release rule `tdcc_weekly@1` | concentration metrics |
+| `institutional_investor` | observed | `institutional_flows (stock_id, source, trade_date)` | `exchange_daily_settled@1` | holdings/streaks/selection |
+| `institutional_market_summary` | observed | `institutional_market_flows (source, trade_date, institution)` | `exchange_daily_settled@1` | market analysis |
+| `foreign_holding` | observed | `foreign_holdings (stock_id, source, trade_date)` | `exchange_daily_settled@1` | selection/ownership |
+| `margin_trading` | observed | `margin_trading (stock_id, source, trade_date)` | `exchange_daily_settled@1` | margin/short metrics |
+| `securities_lending` | observed | `securities_lending (stock_id, source, trade_date)` | `exchange_daily_settled@1` | short-interest metrics |
+| `market_index` | observed | `index_prices (source, index_name, trade_date)` | `exchange_daily_settled@1` | benchmarks/regime/backtests |
+| `corporate_action` | observed | `corporate_actions (stock_id, source, ex_date)` | release rule `corporate_action_ex_date@1` | adjusted prices/returns |
+| `official_valuation` | observed | `valuations (stock_id, source, trade_date)` | `exchange_daily_settled@1` | API/comparison |
+| trading calendar | observed | `trading_days (trade_date)` | a calendar, not history | coverage, `--through` runs |
+| `dividend_declaration` | observed | planned by Step 33 | Step 33's capture-based contract | dividend research/API |
+| `security_tag` | **not in v1** | — | — | — |
+| `xbrl_concept_catalog` | **not in v1** | — | — | — |
+| `technical_indicators:v1` | canonical derived | computed on demand | inherited from PIT-visible prices; never `computed_at` | both ML repos/API |
+| `shareholding_concentration:v1` | canonical derived | computed on demand | inherited from TDCC inputs | selection/API |
+| `valuation_metrics:v1` | canonical derived | computed on demand | inherited from prices and financial inputs | both ML repos/API |
+| `margin_metrics:v1` | canonical derived | computed on demand | inherited from margin inputs | selection/API |
+| `short_interest_metrics:v1` | canonical derived | computed on demand | inherited from margin/SBL inputs | selection/API |
+| `monthly_revenue_growth:v1` | **not in v1** | — | — | superseded by the observed published comparatives (Step 22) |
+| `institutional_cumulative_flow:v1` | canonical derived proxy | computed on demand | zero-origin cumulative net flows, optionally divided by issued shares; not absolute holdings | selection/API |
+| `institutional_streaks:v1` | canonical derived | computed on demand | inherited from institutional flows | selection/API |
+| `margin_market_summary:v1` | **not in v1** | — | — | no legacy consumer (ROADMAP §16) |
+
+A correction is a later row, visible from its own `recorded_at`. A derived
+dataset is materialized only by its own step, after measurement shows on-demand
+computation too slow, and must then equal the on-demand result (ROADMAP §17).
+
+Backfill status: every observed dataset except the Step 33 declarations holds
+2020-01-02 onward in `stockdc_backfill` (Steps 17-c through 24-b, 35-c-3).
+Canonical derived datasets other than `technical_indicators:v1` are
+**not started**; they belong to Step 26.

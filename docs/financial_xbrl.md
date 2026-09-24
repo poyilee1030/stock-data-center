@@ -1,149 +1,15 @@
-# Financial Filings and XBRL
+# Financial Statements (iXBRL)
 
-## Phase 5 scope
+MOPS `t164sb01` serves one iXBRL HTML document per `(CO_ID, SYEAR, SSEASON,
+REPORT_ID)`. The measured source facts are in `docs/source_field_audit.md` §4.8;
+the storage design is ADR-0027 "35-c 定案".
 
-Phase 5 provides cache-free writes and PIT-safe reads for financial filing
-aggregates. A filing is a draft parent with XBRL facts and an optional curated
-quarterly summary. Only the PostgreSQL-generated seal makes the aggregate
-visible. Phase 5 does not add a REST API, cache, TTM EPS, ROE, valuation, or
-other derived calculators.
+## Reading a MOPS document (Step 23-a)
 
-The source `filing_key` identifies one source-native filing revision. A
-corrected business filing uses a new source revision key and remains an
-independent business version. Publication evidence is appended separately, so
-learning, correcting, or retracting a publication time never mutates the
-filing or creates a false business revision.
-
-## Aggregate and lineage contract
-
-`FinancialFilingWriter` creates a draft, appends facts and curated summary
-metrics, and requests a seal. PostgreSQL serializes sealing and every child
-mutation by locking the same parent row. It computes the business hash from
-the filing header and ordered children and supplies the trusted seal time.
-
-After sealing, PostgreSQL rejects parent, fact, summary, and seal mutation.
-Resolvers ignore drafts. Market PIT additionally requires affirmative accepted
-publication evidence; System PIT uses the trusted seal time.
-
-Repeated observations of the same `filing_key` reuse its version while
-`financial_filing_version_observations` retains each artifact/run pair. The
-generic `publication_evidence_observations` table provides the same guarantee
-for deduplicated evidence. Both links are append-only and DB-validated against
-the exact `financial_filing` dataset and source. Existing filings are backfilled
-with their original lineage by the Phase 5 migration.
-
-## XBRL identity
-
-Concepts use canonical Clark notation:
-
-```text
-{namespace-uri}local-name
-```
-
-This prevents two taxonomies with the same local concept name from colliding.
-Each non-nil fact contains exactly one numeric or text value. Its
-storage-generated `context_hash` covers:
-
-```text
-entity identifier
-period type and dates
-explicit dimensions
-typed dimensions
-scenario
-segment
-```
-
-PostgreSQL JSONB canonicalizes object-key order. Fact identity is filing,
-QName, context hash, and unit, so dimensional facts coexist and a semantically
-duplicate fact is rejected.
-
-Legal XBRL `xsi:nil="true"` facts are stored as `is_nil=true` with both value
-columns null. A non-nil fact must have exactly one numeric/text value. Nil is
-therefore distinct from an absent fact and numeric zero, and `is_nil` is part of
-the sealed aggregate's canonical business hash.
-
-## Publication and Q4 semantics
-
-`published_at` records when the filing became public. DB-generated
-`recorded_at` records when the Data Center learned the evidence. Market PIT
-requires both cutoffs; unknown publication is invisible. Source capability,
-accepted evidence types, correction, retraction, and deterministic ranking use
-the shared Phase 2 resolver.
-
-There is no calendar-quarter availability shortcut. In particular, the
-existence of a Q4 filing or EPS value in today's database cannot make it visible
-in February. A Q4 result becomes visible only at its authoritative publication
-instant and only under a knowledge cutoff that includes that evidence.
-
-## Curated actual EPS
-
-`quarterly_financial_summary` exposes stable curated facts from the selected
-filing. Every row has a required composite same-filing foreign key to its exact
-`financial_facts` source. A DB trigger requires the summary value/unit to equal
-that non-nil numeric fact and checks that its duration matches the declared
-period basis. Sealing revalidates the same contract so a draft fact cannot be
-changed underneath an existing summary. The service returns the complete source
-fact, including QName, context hash, dimensions, and unit, with each summary
-metric.
-
-`basic_eps` is the Phase 5 actual-EPS metric code. Its `period_basis` is always
-one of `quarter`, `ytd`, or `annual`; these values can coexist without a summary
-identity collision. Other curated balance-sheet metrics may explicitly use the
-`instant` basis. The writer never infers basis from `report_quarter` alone.
-A `quarter` source fact must use a duration of at most 100 days ending at the
-filing period end. `ytd` must start at the filing period start, and `annual`
-must use a full-year Q4 duration.
-
-### Source context classifier
-
-Duration length is only a defensive sanity check; it is not the authoritative
-classifier. Before creating `basic_eps`, a source adapter must produce a
-`SourceContextClassification` containing the source-native context reference,
-the versioned classifier rule, the exact expected context dates, and one of
-these validated source roles:
-
-```text
-current_single_quarter
-current_year_to_date
-current_full_year
-other
-```
-
-`classify_eps_period_basis` maps only the first three roles to `quarter`, `ytd`,
-or `annual`, verifies the role against the actual normalized XBRL context and
-filing period, and rejects `other` or inconsistent/suspicious contexts. The
-writer requires this classification for every `basic_eps` summary. Thus a
-short duration alone can never authorize a quarter classification; the DB
-duration rule remains a second-line invariant for all write paths.
-
-The future real MOPS adapter must implement and permanently test its versioned
-source-role rule (for example `mops-xbrl-context-role:v1`) and pass every EPS
-context through this classifier before constructing a curated summary. It must
-not label a context from dates alone.
-
-`FinancialFilingService.actual_eps` requires the caller to specify this basis,
-first resolves the filing through the same seal, source, evidence, and PIT
-rules, and then reads the matching `basic_eps` from that exact version. A Q4
-full-year value is consequently available as `annual`, never as `quarter`.
-The service never searches the current database for an EPS value.
-
-The summary is not a derived-metric engine. Reusable TTM EPS, profitability,
-margin, and valuation calculations remain in the later canonical-derived phase
-and must inherit PIT visibility from these resolved inputs. In particular,
-`annual EPS - Q1 - Q2 - Q3` is not performed in Phase 5.
-
-Legacy summary rows can migrate only when exactly one same-filing numeric fact
-matches their value/unit and the legacy metric code explicitly identifies a
-quarter, accumulated/YTD, or annual basis. The migration aborts instead of
-guessing for ambiguous metrics such as an unqualified `basic_eps`.
-
-## Step 23-a: reading a MOPS document
-
-`stock_data_center.financials.ixbrl` turns one `t164sb01` response into a
+`stock_data_center.ingestion.ixbrl` turns one `t164sb01` response into a
 `ParsedIXBRLReport`: the filing's own header, its `XBRLContext` objects, its
 unit identities, and its `ix:nonFraction` facts with the statement row each was
-printed in. It writes nothing and fetches nothing; Steps 23-b and 23-c add the
-adapters, the import path and the evidence.
+printed in. It writes nothing and fetches nothing.
 
 The documents are rendered HTML with the instance inlined, and they are not
 well-formed XML, so the parser reads them as text with case-insensitive
@@ -175,34 +41,34 @@ patterns. The measured source facts behind each rule are in
   `89,680,417` is 89,680,417,000; `sign="-"` negates. Facts whose context or
   unit the document never defined fail closed.
 - **Narrative `escape="true"` blocks are counted, not returned as facts.** They
-  are whole HTML notes; whether any of them is stored is a Step 23-b decision.
+  are whole HTML notes and are not stored (see below).
 - **A cell with no number is reported, never invented.** A short placeholder
   (`-`, `無`, `註二`) keeps its fact with `value=None` and `is_placeholder`; a
   paragraph of narrative written into the numeric element is counted in
-  `malformed_numeric_facts` and is not a fact. Both are visible to the importer
+  `malformed_numeric_facts` and is not a fact. Both are visible to the writer
   instead of being absorbed. `NaN` and `Infinity` are not amounts and are
-  refused outright: `NaN != NaN` would break business-content identity.
+  refused outright: `NaN != NaN` would break the comparison that decides
+  whether a document changed.
 
 ### `mops-xbrl-context-role:v1`
 
-This is the versioned source-role rule the section above requires of a real
-adapter. A current period is a dimensionless duration context of this entity
+`classify_context_role` is the versioned rule for what a context means to this
+source, kept for the EPS summary that Step 26 computes on demand. A current period is a dimensionless duration context of this entity
 ending on the filing's period end. Within that: the fiscal-year start means
 year-to-date, or annual in Q4; the quarter start means the single quarter; a Q1
 document's one current context is the single quarter. Everything else —
 including every prior-year comparative, every instant, and every dimensional
-context — is `other`, which `classify_eps_period_basis` refuses. The rule never
-reads a role out of a duration's length.
+context — is `other`. The rule never reads a role out of a duration's length,
+so a short duration alone can never make a context a single quarter.
 
-## Step 23-b: storing a MOPS document
+## Storing a document (Steps 23-b, 35-c-2)
 
-Step 23-b connects the parser to two sources and the import path. What it
-stores is the scope legacy `stock_db` stored: the balance sheet, the statement
-of comprehensive income and the statement of cash flows — legacy's
+What is stored is the scope legacy `stock_db` stored: the balance sheet, the
+statement of comprehensive income and the statement of cash flows — legacy's
 `balance_sheet_xbrl`, `income_statement_xbrl` and `cash_flow_xbrl`.
-權益變動表, the notes, the 附表 and the `escape="true"` narrative blocks are
-counted in the manifest and stored nowhere; whether they are ever stored is a
-decision the ROADMAP takes at its end (owner decision, 2026-09-21).
+權益變動表, the notes, the 附表 and the `escape="true"` narrative blocks stay in
+the raw document; whether they are ever stored is a decision the ROADMAP takes at
+its end (owner decision, 2026-09-21).
 
 **The statement is the document's own.** Each statement is marked by an anchor
 `<div id="BalanceSheet">`, `<div id="StatementOfComprehensiveIncome">` and
@@ -212,52 +78,57 @@ once, and every `ix:nonFraction` inside those tables carries a 會計科目代�
 16,180,359 facts in the 42,750 documents inside the v1 universe, none without
 a code (scan of 2026-09-21). A missing or repeated anchor fails closed.
 
-**The statement is part of fact identity.** Step 5 identified a fact by filing,
-QName, context hash and unit, and a real document breaks that:
-`ifrs-full:CashAndCashEquivalents` is the balance sheet's `1100` and the
-cash-flow statement's `E00210` — the same instant, unit and number printed as
-two statement rows. That is 171,000 collisions over the archive, four in every
-in-scope document. `financial_facts` therefore stores `statement` and it is
-part of the identity; with it, those 16,180,359 facts hold no duplicate
-identity at all. The unique constraint is `NULLS NOT DISTINCT`, so facts
-written without a statement dedup exactly as they did before.
+**The statement is part of fact identity.** `ifrs-full:CashAndCashEquivalents`
+is the balance sheet's `1100` and the cash-flow statement's `E00210` — the same
+instant, unit and number printed as two statement rows, four such collisions in
+every in-scope document. A fact of `financial_report_facts` is therefore
+identified by `(report_id, statement, concept, period_start, period_end)`; an
+instant has `period_start` NULL, and the constraint is `NULLS NOT DISTINCT`.
 
-`account_code` is stored beside it as business content, not as identity: it is
-the row identity legacy `*_xbrl` keyed on and what Step 23-c reconciles
-code ↔ QName against, but the QName already separates the two
-`ProfitLossBeforeTax` rows that share a statement, a context and a unit
-(`A00010` is `ifrs-full`, `A10000` is `tifrs-scf`). Both enter the sealed
-`business_content_hash`, and the payload's ordering gains the statement so it
-is total.
+`account_code` is stored beside it as content, not identity: it is the row
+identity legacy `*_xbrl` keyed on and what reconciliation matches code ↔
+concept against, but the concept already separates the two
+`ProfitLossBeforeTax` rows that share a statement, a period and a unit
+(`A00010` is `ifrs-full`, `A10000` is `tifrs-scf`). 108 of 1,612
+(statement, code) pairs map to different concepts in different years, so both
+are kept.
 
-### `mops-filing-revision:v1`
+**A document is refused whole** when a fact in the three statements carries a
+dimension, scenario or segment (`dimensioned_fact`; none of the 16,158,302
+stored facts has one, so the key has no place for it — ADR-0027 overrides
+CLAUDE.md §33), is not a numeric period fact (`unstorable_fact`), or repeats a
+fact identity. Financial-industry issuers and filers outside 上市/上櫃 are
+refused at the adapter boundary; that answer is final and not asked again.
 
-`t164sb01` publishes no filing id, no publication instant and no amendment
-sequence, and it serves the currently effective — possibly amended — report.
-The filing key is therefore the endpoint's own request key plus a fingerprint
-of the normalized statement rows:
-
-```text
-{security}:{year}Q{quarter}:{REPORT_ID}:{fingerprint}
-```
-
-The fingerprint covers statement, 會計科目代碼, QName, context, unit and value
-and nothing else, so the same document re-fetched is one source revision, the
-archive's UTF-8 copy of a document already fetched officially is that same
-revision, and a corrected document is a new one — which is what
-"a corrected business filing uses a new source revision key" above requires of
-a source that names no revision itself.
+**A version is the whole report.** `t164sb01` publishes no filing id, no
+publication instant and no amendment sequence, and it serves the currently
+effective — possibly amended — report. The writer compares the fetched
+document's category and every fact (statement, concept, period, code, unit,
+value) with the key's latest version; anything different is a new
+`financial_reports` row carrying its full set of facts, written in one
+transaction, so a fact a restatement drops stays representable. An unchanged
+document logs its fetch and writes nothing.
 
 `REPORT_ID` is `C` for 合併報表 and `A` for 個體報表, and a filer files one of
 them per quarter: MOPS answers the other with 98 bytes of `檔案不存在!` under
 HTTP 200 (measured 2026-09-21 on 1101 and 1342). That page is a source answer,
-not a failure, so the adapter reports `no_such_report` and the CLI's `auto`
-asks for the other id.
+not a failure, so the writer asks for `C`, then `A`; both answering it means
+the report is not filed yet.
 
-### What 23-b does not claim
+## Publication
 
-`mops_t164sb01` accepts only `official` evidence and declares no release rule,
-so every filing records `unknown`: System-PIT visible, Market-PIT invisible
-until Step 23-c attaches the evidence. Financial-industry issuers and filers
-outside 上市/上櫃 are refused at the adapter boundary and counted as
-quarantine, so no such issuer has a filing version at all.
+`financial_reports.published_at` is stored on a key's first version: the fetch
+instant of a first capture, or what the legacy archive proves (a 2025Q4-onward
+daily-job file's mtime, otherwise the `financial_statements_general@1` statutory
+instant; audit §7.6). Any other fetch purpose proves nothing and stores NULL,
+which is Market-PIT invisible. A later version is public from its own
+`recorded_at`.
+
+There is no calendar-quarter availability shortcut: the existence of a Q4
+report in today's database cannot make it visible in February. A quarter counts
+as complete only after a fetch following its statutory deadline, which is why a
+backfill asks again for a quarter fetched before then.
+
+The EPS summary, the Q4 single quarter (`annual − Q1 − Q2 − Q3`) and every
+ratio built on these facts are canonical derived data, computed on demand by
+Step 26 from the PIT-visible reports.

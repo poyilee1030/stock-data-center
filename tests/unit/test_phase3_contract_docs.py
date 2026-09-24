@@ -14,8 +14,6 @@ def test_phase3_documents_every_daily_quote_disposition() -> None:
         "trade count",
         "price change",
         "price direction",
-        "bid_snapshot",
-        "ask_snapshot",
         "last bid/ask price and volume",
         "pced_file",
         "pced_row",
@@ -24,19 +22,12 @@ def test_phase3_documents_every_daily_quote_disposition() -> None:
         assert field in contract
 
 
-def test_phase3_domain_package_has_no_cache_or_http_dependency() -> None:
-    package = ROOT / "src" / "stock_data_center" / "market_data"
-    source = "\n".join(path.read_text() for path in package.glob("*.py"))
-    assert "redis" not in source.lower()
-    assert "fastapi" not in source.lower()
-
-
-def test_security_market_is_documented_as_effective_dated_state() -> None:
+def test_the_universe_is_documented_as_todays_list() -> None:
+    """ADR-0026: today's ISIN list, not an effective-dated history."""
     contract = (ROOT / "docs" / "security_daily_market.md").read_text()
-    assert "`security.security_code` is stable identity" in contract
-    assert "`security_metadata_versions`" in contract
-    assert "Market is not stored on this identity row" in contract
-    assert "market filter" in contract
+    assert "`stock_id` is the identity everywhere" in contract
+    assert "`stocks` is today's state, not history" in contract
+    assert "survivorship bias" in contract
 
     inventory = json.loads(
         (ROOT / "docs" / "data_domain_inventory.json").read_text()
@@ -47,12 +38,10 @@ def test_security_market_is_documented_as_effective_dated_state() -> None:
         if field["legacy_field"] == "market"
     ]
     assert market_fields
-    assert all(field["target"] != "security.market" for field in market_fields)
-    security_market_fields = [
+    stock_market_fields = [
         field for field in market_fields if field["legacy_table"] != "market_indices"
     ]
     assert all(
-        field["disposition"] == "observed"
-        and field["target"] == "security_metadata_versions.market"
-        for field in security_market_fields
+        field["disposition"] == "observed" and field["target"] == "stocks.market"
+        for field in stock_market_fields
     )

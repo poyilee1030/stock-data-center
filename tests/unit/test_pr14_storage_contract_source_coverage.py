@@ -1,15 +1,15 @@
 """Step 14 — every stored column maps to audited source reality.
 
 The storage contract, the source field audit, and the live schema must agree.
-A column added to an observed `*_versions` table without a source mapping fails
-here.
+A column added to a schema v2 table without a source mapping fails here
+(Step 35-d-3 moved the contract from the v1 tables to the v2 ones).
 """
 
 import json
 import re
 from pathlib import Path
 
-from stock_data_center.db.metadata import metadata
+from stock_data_center.db.schema_v2 import metadata
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -17,15 +17,9 @@ INVENTORY_JSON = ROOT / "docs/data_domain_inventory.json"
 INVENTORY_MD = ROOT / "docs/data_domain_inventory.md"
 AUDIT_MD = ROOT / "docs/source_field_audit.md"
 
-STRUCTURAL_COLUMNS = {
-    "id",
-    "source",
-    "business_content_hash",
-    "ingested_at",
-    "raw_artifact_id",
-    "ingest_run_id",
-    "predecessor_version_id",
-}
+# A v2 row's `source` is the dataset's request key and `financial_reports.id`
+# a surrogate; neither comes from a source field.
+STRUCTURAL_COLUMNS = {"id", "source"}
 
 COVERAGE_VALUES = {"sourced", "partially_sourced", "unsourced", "internal"}
 AUDITED_COVERAGE = {"sourced", "partially_sourced", "unsourced"}
@@ -45,15 +39,11 @@ EFFECT_VALUES = {
     "table stays empty",
 }
 
-OBSERVED_TARGET = re.compile(r"^([a-z0-9_]+_versions)\.([a-z0-9_]+)$")
+OBSERVED_TARGET = re.compile(r"^([a-z0-9_]+)\.([a-z0-9_]+)$")
 
 
 def storage_contract() -> dict:
     return json.loads(INVENTORY_JSON.read_text())["storage_contract"]
-
-
-def schema_versions_tables() -> set[str]:
-    return {name for name in metadata.tables if name.endswith("_versions")}
 
 
 def audit_section(number: str) -> str:
@@ -98,10 +88,6 @@ def test_every_table_in_the_schema_is_classified_or_explicitly_excluded() -> Non
 
     assert not covered & excluded
     assert covered | excluded == set(metadata.tables)
-    # Observed content is not confined to the *_versions shape: financial_facts and
-    # tdcc_distribution hold source values too, so the guard must not stop there.
-    assert schema_versions_tables() - excluded <= covered
-    assert covered - schema_versions_tables()
     for table, reason in contract["excluded_tables"].items():
         assert reason.strip(), table
 
@@ -177,44 +163,36 @@ def test_unsourced_and_partial_columns_match_the_audit() -> None:
 
 
 def test_scope_corrections_of_pr_14() -> None:
-    """The specific claims ROADMAP Step 14 exists to correct."""
+    """The specific claims ROADMAP Step 14 exists to correct, as schema v2 holds them."""
     tables = storage_contract()["tables"]
 
-    daily = tables["daily_price_versions"]["columns"]
-    assert daily["bid_snapshot"]["coverage"] == "unsourced"
-    assert daily["ask_snapshot"]["coverage"] == "unsourced"
+    daily = tables["daily_prices"]["columns"]
     assert daily["last_bid_price"]["coverage"] == "sourced"
     assert daily["last_ask_price"]["coverage"] == "sourced"
     assert daily["last_bid_volume"]["coverage"] == "partially_sourced"
     assert daily["last_ask_volume"]["coverage"] == "partially_sourced"
     assert daily["price_direction"]["coverage"] == "partially_sourced"
 
-    index = tables["market_index_versions"]["columns"]
+    index = tables["index_prices"]["columns"]
     for column in ("open_value", "high_value", "low_value"):
         assert index[column]["coverage"] == "partially_sourced"
         assert "MI_5MINS_HIST" in index[column]["note"]
-    assert index["trade_value"]["coverage"] == "unsourced"
 
-    index_metadata = tables["market_index_metadata_versions"]["columns"]
-    assert index_metadata["effective_from"]["coverage"] == "unsourced"
-    assert index_metadata["effective_to"]["coverage"] == "unsourced"
+    assert tables["monthly_revenues"]["columns"]["revenue"]["coverage"] == "sourced"
 
-    revenue = tables["monthly_revenue_versions"]["columns"]
-    assert revenue["currency"]["coverage"] == "unsourced"
-    assert revenue["revenue"]["coverage"] == "sourced"
-
-    action = tables["corporate_action_versions"]["columns"]
-    for column in (
-        "announcement_date",
-        "record_date",
-        "payment_date",
-        "earnings_stock_ratio",
-        "capital_surplus_stock_ratio",
-    ):
-        assert action[column]["coverage"] == "unsourced", column
-
-    assert tables["security_tag_versions"]["v1"] is False
-    assert tables["xbrl_concept_catalog_versions"]["v1"] is False
+    # Columns no source fills are not stored at all in v2 (ADR-0027), rather
+    # than kept NULL: the order-book depth blobs, the corporate-action dates and
+    # the earnings / capital-surplus split, index trade value, revenue currency.
+    dropped = {
+        "daily_prices": ("bid_snapshot", "ask_snapshot"),
+        "corporate_actions": ("announcement_date", "record_date", "payment_date",
+                              "earnings_stock_ratio", "capital_surplus_stock_ratio"),
+        "index_prices": ("trade_value",),
+        "monthly_revenues": ("currency",),
+    }
+    for table, columns in dropped.items():
+        for column in columns:
+            assert column not in metadata.tables[table].columns, f"{table}.{column}"
 
 
 def test_legacy_field_dispositions_follow_source_reality() -> None:
@@ -224,25 +202,19 @@ def test_legacy_field_dispositions_follow_source_reality() -> None:
     }
 
     # The one published order-book level, not a depth blob.
-    assert fields[("daily_quotes", "bid")]["target"] == (
-        "daily_price_versions.last_bid_price"
-    )
-    assert fields[("daily_quotes", "ask")]["target"] == (
-        "daily_price_versions.last_ask_price"
-    )
+    assert fields[("daily_quotes", "bid")]["target"] == "daily_prices.last_bid_price"
+    assert fields[("daily_quotes", "ask")]["target"] == "daily_prices.last_ask_price"
 
     # Published comparatives are source-published rows, not derived values.
     comparatives = {
-        "revenue_last_month": "monthly_revenue_versions.revenue_last_month",
-        "revenue_last_year": "monthly_revenue_versions.revenue_last_year_month",
-        "mom_pct": "monthly_revenue_versions.mom_pct",
-        "yoy_pct": "monthly_revenue_versions.yoy_pct",
-        "revenue_cumulative": "monthly_revenue_versions.cumulative_revenue",
-        "revenue_cumulative_last_year": (
-            "monthly_revenue_versions.cumulative_revenue_last_year"
-        ),
-        "cumulative_yoy_pct": "monthly_revenue_versions.cumulative_yoy_pct",
-        "comment": "monthly_revenue_versions.note",
+        "revenue_last_month": "monthly_revenues.revenue_last_month",
+        "revenue_last_year": "monthly_revenues.revenue_last_year_month",
+        "mom_pct": "monthly_revenues.mom_pct",
+        "yoy_pct": "monthly_revenues.yoy_pct",
+        "revenue_cumulative": "monthly_revenues.cumulative_revenue",
+        "revenue_cumulative_last_year": "monthly_revenues.cumulative_revenue_last_year",
+        "cumulative_yoy_pct": "monthly_revenues.cumulative_yoy_pct",
+        "comment": "monthly_revenues.note",
     }
     for legacy_field, target in comparatives.items():
         item = fields[("monthly_revenue", legacy_field)]
@@ -259,7 +231,7 @@ def test_legacy_field_dispositions_follow_source_reality() -> None:
 def test_observed_targets_exist_in_the_schema_or_name_the_pr_that_adds_them() -> None:
     """A target column that exists nowhere must say which PR creates it."""
     for item in json.loads(INVENTORY_JSON.read_text())["fields"]:
-        if item["disposition"] != "observed":
+        if item["disposition"] not in {"observed", "identity", "publication_time"}:
             continue
         match = OBSERVED_TARGET.match(item["target"])
         if match is None:
@@ -275,7 +247,7 @@ def test_observed_targets_exist_in_the_schema_or_name_the_pr_that_adds_them() ->
 
 def test_markdown_inventory_states_the_v1_exclusions_and_new_domain() -> None:
     inventory = INVENTORY_MD.read_text()
-    assert "`dividend_declaration_versions`" in inventory
+    assert "`dividend_declaration`" in inventory
     assert "not in v1" in inventory
     for name in ("`security_tag`", "`xbrl_concept_catalog`", "`margin_market_summary:v1`"):
         assert name in inventory, name

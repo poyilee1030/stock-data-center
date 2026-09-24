@@ -2,18 +2,18 @@
 
 ## Status
 
-Accepted for Phase 0 on 2026-09-11.
+Accepted for Phase 0 on 2026-09-11; storage revised by ADR-0027 (schema v2).
 
 ## System boundary
 
 `stock-data-center` is the sole owner of source ingestion, raw provenance,
-business revision history, publication evidence, temporal visibility, source
-selection, canonical reusable derived definitions/results, PostgreSQL storage,
-the public data API, and any optional query cache.
+published-value history, publication time, temporal visibility, source
+selection, canonical reusable derived definitions, PostgreSQL storage, and the
+public data API.
 
 Downstream systems consume resolved responses through the public API or SDK.
-They must not connect directly to PostgreSQL or Redis and must not reproduce
-PIT, evidence-selection, or source-selection rules.
+They must not connect directly to PostgreSQL and must not reproduce PIT or
+source-selection rules.
 
 The following concerns remain outside this repository:
 
@@ -23,32 +23,29 @@ The following concerns remain outside this repository:
 
 ## Authoritative components
 
-PostgreSQL 18 is the only authoritative store. It contains business history,
-publication evidence, ingestion history, and provenance. Raw artifacts are
-immutable, content-addressed evidence held behind a storage abstraction.
+PostgreSQL 18 is the only authoritative store and there is no cache. It holds
+every published value as append-only rows, the fetch log, and the publication
+time where one is stored. Raw files are immutable and content-addressed under
+`data/raw/<ab>/<sha256>`, behind a storage abstraction; each fetch names its
+file by SHA-256.
 
-For securities, `security_code` is stable identity while market/listing venue is
-source-observed, effective-dated metadata. Historical universe filtering occurs
-after PIT metadata resolution; no current identity-row market is authoritative.
-
-Redis, when configured, is only a disposable cache of already-resolved query
-responses. Removing every Redis key, disabling Redis, or losing Redis must not
-change the business result or provenance returned for a canonical request.
+A stock is its official code. The universe is today's ISIN list of listed and
+OTC common stocks (ADR-0026); the survivorship bias of that choice is accepted
+and disclosed.
 
 ## Write path
 
 ```text
 source
-  -> immutable raw artifact + ingest run
+  -> raw file (data/raw) + fetches row
   -> parser
-  -> normalization
-  -> PostgreSQL business/evidence history
+  -> keep today's common stocks
+  -> compare with each key's latest row
+  -> append only what changed
 ```
 
-No durable business or evidence write may exist only in Redis.
-Repeated identical fetches remain many-to-one provenance observations of the
-same business/evidence identity; they do not create fake revisions merely to
-retain artifact/run lineage.
+A repeated identical fetch logs its own `fetches` row and appends nothing, so it
+never creates a fake revision and stays auditable.
 
 ## Read path
 
@@ -56,22 +53,22 @@ retain artifact/run lineage.
 client
   -> API
   -> application service
-  -> optional response cache
-  -> PIT resolver on cache miss
+  -> PIT visibility and derived computation
   -> PostgreSQL
 ```
 
-Routes, repositories, and PIT resolvers do not contain Redis-specific policy.
-The service depends on a cache abstraction.
-
 ## Frozen contracts
+
+Where an earlier ADR below conflicts with ADR-0026 or ADR-0027 — the
+business/evidence split, seals, business hashes, the effective-dated security
+market, the TDCC profile tables, the Phase 9 import framework — those two win
+(CLAUDE.md §0).
 
 - [PIT semantics](pit_semantics.md)
 - [ADR-0001: temporal model](decisions/0001-temporal-and-pit-model.md)
 - [ADR-0002: business revisions and publication evidence](decisions/0002-business-revisions-and-publication-evidence.md)
 - [ADR-0003: immutable aggregates, hashes, and provenance](decisions/0003-immutable-aggregates-hashes-and-provenance.md)
 - [ADR-0004: source capability and cross-source policy](decisions/0004-source-capability-and-cross-source-policy.md)
-- [ADR-0005: optional cache architecture](decisions/0005-optional-cache-architecture.md)
 - [ADR-0007: canonical derived ownership and PIT](decisions/0007-canonical-derived-data-ownership-and-pit.md)
 - [ADR-0009: aggregate market PIT seal cutoff](decisions/0009-aggregate-market-pit-seal-cutoff.md)
 - [ADR-0010: source-specific evidence types](decisions/0010-source-specific-evidence-type-policy.md)
@@ -82,14 +79,16 @@ The service depends on a cache abstraction.
 - [ADR-0015: Phase 9 raw-first import framework](decisions/0015-phase9-raw-first-import-framework.md)
 - [ADR-0016: current security metadata snapshots](decisions/0016-current-security-metadata-snapshots.md)
 - [Canonical derived data contract](derived_data.md)
-- [Core PIT resolver contract](pit_resolver.md)
-- [Security metadata and daily market data](security_daily_market.md)
+- [Schema v2](schema.md)
+- [ADR-0026: v1 universe is common stocks only](decisions/0026-v1-universe-common-stocks-only.md)
+- [ADR-0027: schema v2](decisions/0027-schema-v2.md)
+- [Stock universe and daily market data](security_daily_market.md)
 - [Monthly revenue](monthly_revenue.md)
-- [Financial filings and XBRL](financial_xbrl.md)
+- [Financial statements (iXBRL)](financial_xbrl.md)
 - [TDCC shareholding distribution](tdcc.md)
 - [Institutional flow and securities financing](institutional_financing.md)
 - [Market indices, corporate actions, and official valuation](market_reference.md)
-- [Cache contract](cache.md)
+- [Trading calendar](trading_calendar.md)
 
 Changes to an accepted decision require a superseding ADR and, when the change
 affects planned behavior, a corresponding `ROADMAP.md` update.

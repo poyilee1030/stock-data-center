@@ -1,9 +1,4 @@
-"""The MetaData and column types every table declaration shares.
-
-Schema v2 declares its tables on this MetaData; until Step 35-d removes them,
-the v1 declarations in `metadata.py` add theirs to the same object, so the
-migrations and the drift check see both generations.
-"""
+"""The MetaData and column types the schema v2 table declarations share."""
 
 from __future__ import annotations
 

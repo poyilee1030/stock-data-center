@@ -14,13 +14,13 @@ One whole-market table per trade date, in shares:
 Being in shares, nothing is converted, so the trading-unit exceptions of the
 lot-denominated margin table (008201, 100 shares a lot) do not apply here.
 
-Stored in `securities_lending_versions`: the 借券賣出 group — 前日餘額,
-當日賣出 (`borrowed`), 當日還券 (`returned`), 當日調整 (`adjustment`, signed:
-positions moved between accounts and error corrections), 當日餘額,
-次一營業日可限額 (`next_available_limit`) — and the 融券 group's
+Stored in `securities_lending`: the 借券賣出 group — 前日餘額,
+當日賣出 (`borrowed` here, the table's `sold`), 當日還券 (`returned`), 當日調整
+(`adjustment`, signed: positions moved between accounts and error corrections),
+當日餘額, 次一營業日可限額 (`next_available_limit`) — and the 融券 group's
 次一營業日限額 / 限額 as `next_limit`: the short-sale limit in exact shares,
-which `margin_trading` holds only rounded down to whole lots. 備註 is stored
-without its padding; blank is NULL.
+which `margin_trading` holds only rounded down to whole lots. 備註 is parsed
+without its padding, blank as NULL; schema v2 does not store it (ADR-0027).
 
 Not stored: names, the 合計 row, and the 融券 group's balances and flows, which
 repeat `margin_trading` (Step 21-a) — the reconciliation checks they agree.

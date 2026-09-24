@@ -1,12 +1,17 @@
 # Source Field Audit
 
-Status date: 2026-09-22.
+Status date: 2026-09-24.
 
 This document records which fields the legacy database, the legacy raw archive,
 and the official endpoints actually provide. `ROADMAP.md` uses it as the
 source-reality baseline: a planned step may promise a stored field only if this
 audit (or the step's own verified update to it) names the source field that
 populates it.
+
+Tables and columns are named as schema v2 stores them (ADR-0027). Dated findings
+that led to a v1 design choice keep their date and their conclusion; where v2
+dropped the column concerned, the finding says so. `data_domain_inventory.json`
+maps every legacy field to its v2 column.
 
 ## 1. What was inspected
 
@@ -91,8 +96,8 @@ the archive was written. Step 17-c's reconciliation classifies such a row as
 either way.
 
 Because the official endpoints still serve 2020 onward for every domain except
-TDCC, re-fetching gives byte-faithful artifacts through the existing Step 9
-raw-first lifecycle. The archives are needed for TDCC history, for the recovered
+TDCC, re-fetching gives byte-faithful raw files through the raw-first fetch log
+(`fetches` → `data/raw/`). The archives are needed for TDCC history, for the recovered
 monthly-revenue publication dates (§7.4), for the pre-2026 first-seen records
 (§7.1), and as a reconciliation baseline.
 
@@ -154,19 +159,17 @@ trading calendar can call a date a closure. The empty responses also carry a
 15-column first variant, so the header does not indicate the range either.
 
 Extending the window past 2020 would need two things beyond changing a date:
-the Step 16 calendar covers only 2020-01 onward and the range runner fails
-closed outside it, and the two markets would need different
-`dataset_expected_coverage.window_start` values, because TWSE reaches three
-years further back than TPEx.
+the trading calendar covers only 2020-01 onward, and the two markets would need
+different start dates, because TWSE reaches three years further back than TPEx.
 
-| `daily_price_versions` column | TWSE | TPEx |
+| `daily_prices` column | TWSE | TPEx |
 | --- | --- | --- |
 | open/high/low/close, volume, trade_value, trade_count | ✓ | ✓ |
 | price_change | ✓ (unsigned 漲跌價差 + sign column) | ✓ (signed) |
 | price_direction | ✓ | 不比價 marker only |
 | last_bid_price / last_ask_price | ✓ | ✓ |
 | last_bid_volume / last_ask_volume | ✓ (shares) | partial (from 2020-04-30, lots) |
-| bid_snapshot / ask_snapshot | ✗ | ✗ |
+| order-book depth (not stored) | ✗ | ✗ |
 
 Source fields not stored: TPEx 發行股數 and next-day limit prices; TWSE 本益比
 (duplicated by `BWIBBU_d`).
@@ -202,13 +205,13 @@ instrument classes the legacy scraper never collected — ETFs, preferred shares
 TDRs and similar. On 2026-09-11 that is 287 extra TWSE rows (9 untraded) and 150
 extra TPEx rows (29 untraded).
 
-The Step 9 pilot adapters (`STOCK_DAY`, `tradingStock`) take one request per
+The Step 9 pilot adapters (`STOCK_DAY`, `tradingStock`) took one request per
 security per month. Daily capture for about 2,200 securities would need about
-2,200 requests per trade date, so these adapters suit pilots and spot checks,
-not production. They are also a different field set — no disclosed bid/ask
-level — which is why Step 17-a gives the whole-market feeds their own source
-codes, `twse_mi_index` and `tpex_otc_quotes`, rather than more revisions of the
-pilots' rows.
+2,200 requests per trade date, so they suited pilots and spot checks, not
+production. They were also a different field set — no disclosed bid/ask level —
+which is why Step 17-a gave the whole-market feeds their own source codes,
+`twse_mi_index` and `tpex_otc_quotes`. Schema v2 keeps only those two (ADR-0027),
+and Step 35-d-2 deleted the pilot adapters.
 
 ### 4.2 Market indices
 
@@ -232,8 +235,8 @@ series is absent from it and is new data here, not a reconciliation difference.
 In these whole-list sources `close_value`, `change_points`, and
 `change_percent` are sourced; `open_value`, `high_value`, `low_value`, and
 `trade_value` are not.
-`market_index_metadata_versions.effective_from/effective_to` can only record
-first and last observation dates.
+No source says when an index name took effect; v2 identifies an index by
+`(source, published name)` and stores no effective dates.
 
 Index OHLC exists for one index per market, in endpoints the legacy system never
 fetched. TWSE: `rwd/zh/TAIEX/MI_5MINS_HIST?date=YYYYMM01&response=json`
@@ -259,7 +262,7 @@ it covers the one headline index and not the other 33.
 - TPEx `3itrade_hedge`: one 24-column header, which adds foreign totals and
   dealer total buy/sell.
 
-Every `institutional_investor_versions` column is sourced for both markets.
+Every `institutional_flows` column is sourced for both markets.
 
 Summary sources: TWSE `fund/BFI82U` (單位名稱, 買進金額, 賣出金額, 買賣差額) and
 TPEx `3itrdsum` (單位名稱, 買進金額(元), 賣出金額(元), 買賣超(元)). The TPEx file
@@ -308,7 +311,7 @@ dealers) + trust + dealer = total. Nothing is recomputed.
 - TWSE `fund/MI_QFIIS`: 12 columns, including the ISIN.
 - TPEx MOPS `t13sa150_otc`: 11 columns, no ISIN.
 
-Every `foreign_holding_versions` column is sourced. Its `issued_shares` is the
+Every `foreign_holdings` column is sourced. Its `issued_shares` is the
 only whole-market issued-share series for both markets, and legacy consumers
 read it.
 
@@ -327,9 +330,9 @@ does not replace MOPS.**
   that only MOPS lists are all ETFs, including the bond ETFs. `insti/qfii` alone
   lists `8349A`, a preferred share.
 - **Fields.** `insti/qfii` has no 陸資法令投資上限比率 and no
-  最近一次上櫃公司申報外資持股異動日期. Those are
-  `foreign_holding_versions.mainland_legal_limit_ratio` and
-  `source_last_update_date`.
+  最近一次上櫃公司申報外資持股異動日期. Those were v1's
+  `mainland_legal_limit_ratio` and `source_last_update_date`, which schema v2
+  does not store (ADR-0027).
 - **Values.** For the 891 securities both list, issued, investable and held
   shares agree exactly. 尚可投資比率 differs by 0.01 in 436 rows, for example
   5455 is 99.87 in MOPS and 99.88% in `insti/qfii`: the two sources round
@@ -388,11 +391,11 @@ sources.
 - TPEx `margin_bal`: 20 columns in lots, including 資使用率(%), 券使用率(%),
   資屬證金, and 券屬證金.
 
-Every `margin_trading_versions` quantity column is sourced. The utilization
-ratios exist for TPEx only; TWSE values are NULL.
+Every `margin_trading` quantity column is sourced. The utilization ratios
+exist for TPEx only, so schema v2 does not store them (ADR-0027).
 
 - SBL: TWSE `TWT93U` (15 columns, two header rows) and TPEx `margin_sbl`
-  (15 columns), in shares. Every `securities_lending_versions` column is
+  (15 columns), in shares. Every `securities_lending` column is
   sourced (Step 21-b findings below).
 
 TPEx new-site JSON, found 2026-09-17: `margin_bal` is also served as
@@ -453,14 +456,14 @@ backfill of both markets.
   columns × 1,000 row for row. Nothing is converted, so 21-a's trading-unit
   exceptions do not apply: 008201's 融券 limit here is 387,275 shares, exactly
   25% of its 1,549,100 issued units, where MI_MARGN publishes 3,872 lots of 100.
-- **Mapping.** `securities_lending_versions` takes the 借券賣出 group:
-  前日餘額 → `previous_balance`, 當日賣出 → `borrowed`, 當日還券 → `returned`,
-  當日調整 (TPEx 當日調整數額) → `adjustment`, 當日餘額 → `balance`,
-  次一營業日可限額 (TPEx 次一營業日可借券賣出限額) → `next_available_limit`,
-  and 備註 → `note`, stripped of its padding, blank as NULL (TWSE `X Y V % Z !`
-  combinations such as `XV!`). `next_limit` is the 融券 group's
+- **Mapping.** `securities_lending` takes the 借券賣出 group:
+  前日餘額 → `previous_balance`, 當日賣出 → `sold`, 當日還券 → `returned`,
+  當日調整 (TPEx 當日調整數額) → `adjustment`, 當日餘額 → `balance`, and
+  次一營業日可限額 (TPEx 次一營業日可借券賣出限額) → `next_available_limit`.
+  備註 (TWSE `X Y V % Z !` combinations such as `XV!`) was v1's `note`; schema
+  v2 does not store it (ADR-0027). `next_limit` is the 融券 group's
   次一營業日限額 (TPEx 限額): the short-sale limit in exact shares, which
-  `margin_trading.short_next_limit` holds only rounded down to whole lots.
+  `margin_trading.short_limit` holds only rounded down to whole lots.
 - **當日調整 is signed.** Positions moved between the ordinary, credit and
   lending accounts, and error corrections (both exchanges' notes); the TWSE
   market total on 2024-01-02 was −565,000.
@@ -750,8 +753,9 @@ of the window answers 查無資料.
 MOPS `server-java/t164sb01`, one iXBRL HTML per `(CO_ID, SYEAR, SSEASON,
 REPORT_ID)`. A 2025Q1 sample has 1,328 `ix:nonFraction` facts, contexts with
 `xbrldi:explicitMember` dimensions, `unitRef` values (TWD, Shares, Pure,
-EarningsPerShare), and `decimals`. This supports the `financial_facts` context
-model.
+EarningsPerShare), and `decimals`. The three statements schema v2 stores carry
+no dimensioned fact, so `financial_report_facts` keeps the period as the whole
+context and a document with a dimensioned fact is quarantined (ADR-0027).
 
 The endpoint provides no filing ID, publication instant, or amendment
 sequence, and it returns the currently effective, possibly amended, report. A
@@ -1508,18 +1512,19 @@ The legacy system fetched one year-to-date request per feed per year and never
 called any Detail endpoint, so no detail field in this section comes from the
 archive.
 
-| `corporate_action_versions` column | Exchange result feeds |
+| `corporate_actions` column | Exchange result feeds |
 | --- | --- |
 | ex_date (ex-right date or resumption date) | ✓ |
-| close_before, official_reference_price | ✓ in every feed |
-| official_rights_dividend_value | ✓ (`TWT49U`, `exDailyQ`), signed |
+| event_type | ✓ the feed's own type text (息, 權, 權息, 減資原因 …) |
+| close_before, reference_price | ✓ in every feed |
+| rights_dividend_value | ✓ (`TWT49U`, `exDailyQ`), signed |
 | cash_dividend_per_share | ✓ (`TWT49UDetail`, `TWTAVUDetail`, `exDailyQ`) |
 | free_share_ratio | ✓ (free shares per 1,000 ÷ 1,000) |
-| earnings_stock_ratio / capital_surplus_stock_ratio | ✗: exchange feeds publish only the combined free-share figure |
 | rights_ratio, subscription_price | ✓ |
 | old_shares / new_shares | ✓ for capital reduction (1,000 → 每壹仟股換發新股票) and TPEx par-value change (1 → 變更股票面額換股率); ✗ for TWSE par-value change |
-| capital_reduction_kind, capital_reduction_cash_return_per_share | ✓ (減資原因, 每股退還股款) |
-| announcement_date, record_date, payment_date | ✗ |
+| cash_return_per_share | ✓ (每股退還股款) |
+| earnings / capital-surplus split of the free shares | ✗, not stored: exchange feeds publish only the combined figure |
+| announcement, record and payment dates | ✗, not stored |
 
 The issuer summary feeds (TWSE `t187ap45_L`, TPEx `mopsfin_t187ap39_O`) do
 split earnings and capital-surplus stock dividends, but they lack a stable
@@ -1528,9 +1533,11 @@ event identity (see ROADMAP Step 13). Their contract and coverage limits are in
 
 ### 4.11 Security metadata, lifecycle, and tags
 
-- Step 10 uses current snapshots (`t187ap03_L`, `mopsfin_t187ap03_O`). Step 11
-  uses listing and delisting history. No official source of historical name or
-  industry changes is used.
+- The universe is today's ISIN list (§4.14, ADR-0026). Steps 10 and 11 read
+  current company snapshots (`t187ap03_L`, `mopsfin_t187ap03_O`) and listing and
+  delisting history; schema v2 replaced both with the ISIN list and keeps no
+  history of names, industries or markets. No official source of historical name
+  or industry changes was found.
 - `stock_tags` comes from MoneyDJ, a third party: a current snapshot with no
   effective dates.
 
@@ -1657,7 +1664,7 @@ Within a feed:
 
 No feed in this section carries an ex-dividend date, a record date, a payment
 date, or a locator tying a row to an executed event, so Invariant G(1) holds:
-these are announcement feeds and cannot enter `corporate_action_versions`.
+these are announcement feeds and cannot enter `corporate_actions`.
 
 #### Rate budget
 
@@ -1686,65 +1693,28 @@ warrants 11,024.
 The list is a snapshot of what is listed today. It carries no history, so a
 security delisted before the fetch is absent; ADR-0026 accepts that.
 
-## 5. Schema columns with no source, or with partial coverage
+## 5. Schema columns with partial coverage
 
-One row per stored column that an official source does not fully provide. An
-`unsourced` column has no source field at all; a `partially sourced` column
-exists for only some dates, markets, or securities, and the reason says which.
-Neither may be presented as data the source publishes.
+One row per stored column that an official source provides for only some dates,
+markets, or securities; the reason says which. None may be presented as data the
+source publishes where it does not.
 
-**Unsourced does not mean NULL.** Six of these columns are `NOT NULL`, so the
-Effect column says what each one actually holds:
-
-- *stays NULL* — nothing is written, and the API reports it as unavailable;
-- *stores a documented constant* — the source publishes the value once, at page
-  level, not per row;
-- *stores a derived value* — the column holds something of ours, such as an
-  observation date, and never claims to be the source's;
-- *table stays empty* — the whole domain is out of v1 (ROADMAP §16), so the
-  question of what the column holds does not arise.
+Schema v2 (ADR-0027) stores no column that no source fills. The v1 schema kept
+such columns NULL, stored a constant or a value of our own in them, or left
+whole tables empty; v2 dropped them, including the order-book depth blobs, the
+corporate-action announcement, record and payment dates, the earnings /
+capital-surplus split of stock dividends (Step 33 is to store it with the
+issuer declarations), index trade value, revenue currency, and the stock-tag and
+XBRL-catalogue tables. Their evidence stays in §4.
 
 This table is the normative list. The machine-readable per-column contract in
 `data_domain_inventory.json` (`storage_contract`) must agree with it exactly,
-and a unit test fails if it does not — including a check that every column
-marked *stays NULL* is in fact nullable in the live schema.
+and a unit test fails if it does not.
 
 | Column | Status | Effect | Why |
 | --- | --- | --- | --- |
-| `corporate_action_versions.announcement_date` | unsourced | stays NULL | No exchange result feed carries an announcement date. The issuer declaration feeds that do carry board-resolution dates have no link to an executed event (Step 33, audit 4.13). |
-| `corporate_action_versions.record_date` | unsourced | stays NULL | No exchange result feed carries a record date. |
-| `corporate_action_versions.payment_date` | unsourced | stays NULL | No exchange result feed carries a payment date. |
-| `corporate_action_versions.earnings_stock_ratio` | unsourced | stays NULL | The exchange feeds publish only the combined free-share figure. The earnings / capital-surplus split exists only in the MOPS issuer declaration feed, stored as its own domain by Step 33 (audit 4.13). |
-| `corporate_action_versions.capital_surplus_stock_ratio` | unsourced | stays NULL | The exchange feeds publish only the combined free-share figure. The split exists only in the MOPS issuer declaration feed (Step 33), and before ROC 110 the two reserves arrive as one number (audit 4.13). |
-| `corporate_action_versions.old_shares` | partially sourced | holds the values that exist | Capital reduction in both markets: the old side is the constant 1,000 of 每壹仟股. TPEx par-value change (`pvChgRslt`): 1 against 變更股票面額換股率. TWSE par-value change: none — `TWTB8UDetail`, verified 2026-09-16, publishes no exchange ratio. |
-| `corporate_action_versions.new_shares` | partially sourced | holds the values that exist | Capital reduction in both markets (每壹仟股換發新股票) and TPEx par-value change (變更股票面額換股率). TWSE par-value change: none, as above. |
 | `corporate_actions.old_shares` | partially sourced | holds the values that exist | Capital reduction in both markets: the old side is the constant 1,000 of 每壹仟股. TPEx par-value change (`pvChgRslt`): 1 against 變更股票面額換股率. TWSE par-value change: none — `TWTB8UDetail`, verified 2026-09-16, publishes no exchange ratio. |
 | `corporate_actions.new_shares` | partially sourced | holds the values that exist | Capital reduction in both markets (每壹仟股換發新股票) and TPEx par-value change (變更股票面額換股率). TWSE par-value change: none, as above. |
-| `daily_price_versions.price_direction` | partially sourced | holds the values that exist | TWSE publishes `+`/`-`/`X` in its own column. stk_wn1430 signs the number instead and has no direction column, so a TPEx row claims a direction only where the feed prints its 不比價 marker (除息 / 除權 / 除權息), which is stored as `X`. |
-| `daily_price_versions.bid_snapshot` | unsourced | stays NULL | Multi-level order-book depth blob. No daily whole-market endpoint publishes depth; the one published level is stored in last_bid_price/last_bid_volume. |
-| `daily_price_versions.ask_snapshot` | unsourced | stays NULL | Multi-level order-book depth blob. No daily whole-market endpoint publishes depth; the one published level is stored in last_ask_price/last_ask_volume. |
-| `daily_price_versions.last_bid_volume` | partially sourced | holds the values that exist | TWSE on all dates, in shares (`hints: 單位：元、股`, corroborated by `TWT53U`). TPEx only from 2020-04-30, in lots; the label changes 千股 to 張數 on 2025-01-10, both meaning 1,000 shares, and only TPEx is converted. |
-| `daily_price_versions.last_ask_volume` | partially sourced | holds the values that exist | TWSE on all dates, in shares (`hints: 單位：元、股`, corroborated by `TWT53U`). TPEx only from 2020-04-30, in lots; the label changes 千股 to 張數 on 2025-01-10, both meaning 1,000 shares, and only TPEx is converted. |
-| `margin_trading_versions.margin_utilization_ratio` | partially sourced | holds the values that exist | TPEx margin_bal only; MI_MARGN publishes no utilization ratio, so the TWSE values stay NULL. |
-| `margin_trading_versions.short_utilization_ratio` | partially sourced | holds the values that exist | TPEx margin_bal only; MI_MARGN publishes no utilization ratio, so the TWSE values stay NULL. |
-| `market_index_metadata_versions.effective_from` | unsourced | stores a derived value | No official effective date. The column is NOT NULL and holds the first observation date of the published name, which is ours, not the source's. |
-| `market_index_metadata_versions.effective_to` | unsourced | stores a derived value | No official effective date. The column holds the last observation date of the published name, which is ours, not the source's. |
-| `market_index_versions.open_value` | partially sourced | holds the values that exist | TAIEX only, from rwd/zh/TAIEX/MI_5MINS_HIST (one calendar month per request). The whole-list index sources publish no OHLC and no TPEx equivalent was found. |
-| `market_index_versions.high_value` | partially sourced | holds the values that exist | TAIEX only, from rwd/zh/TAIEX/MI_5MINS_HIST. The whole-list index sources publish no OHLC and no TPEx equivalent was found. |
-| `market_index_versions.low_value` | partially sourced | holds the values that exist | TAIEX only, from rwd/zh/TAIEX/MI_5MINS_HIST. The whole-list index sources publish no OHLC and no TPEx equivalent was found. |
-| `market_index_versions.trade_value` | unsourced | stays NULL | Not in any inspected index source. |
-| `monthly_revenue_versions.currency` | unsourced | stores a documented constant | A page-level constant, not a per-row observation: the page states 單位：千元. The column is NOT NULL and part of the revision identity, so it stores the constant TWD; it is never NULL. |
-| `official_valuation_versions.dividend_per_share` | partially sourced | holds the values that exist | TPEx pera only; BWIBBU_d has no per-share dividend column. |
-| `official_valuation_versions.report_period` | partially sourced | holds the values that exist | TWSE on all dates; TPEx only from 2025-01-02. |
-| `security_metadata_versions.name` | partially sourced | holds the values that exist | The snapshot publishes the current name only. No official source of historical name changes is used, so earlier effective dates carry the current value. |
-| `security_metadata_versions.industry` | partially sourced | holds the values that exist | The snapshot publishes the current industry only. No official source of historical industry changes is used. |
-| `security_tag_versions.tag` | unsourced | table stays empty | Only a third-party (MoneyDJ) snapshot exists; no official source publishes security tags. |
-| `security_tag_versions.effective_from` | unsourced | table stays empty | The third-party snapshot carries no effective dates. |
-| `security_tag_versions.effective_to` | unsourced | table stays empty | The third-party snapshot carries no effective dates. |
-| `xbrl_concept_catalog_versions.concept_qname` | unsourced | table stays empty | No official concept-catalogue endpoint was inspected; the audit covers only the iXBRL documents themselves (4.8). |
-| `xbrl_concept_catalog_versions.statement_type` | unsourced | table stays empty | No official concept-catalogue endpoint was inspected. |
-| `xbrl_concept_catalog_versions.account_name_zh` | unsourced | table stays empty | No official concept-catalogue endpoint was inspected. |
-| `xbrl_concept_catalog_versions.account_name_en` | unsourced | table stays empty | No official concept-catalogue endpoint was inspected. |
 | `daily_prices.price_direction` | partially sourced | holds the values that exist | TWSE publishes `+`/`-`/`X` in its own column. stk_wn1430 signs the number instead and has no direction column, so a TPEx row claims a direction only where the feed prints its 不比價 marker (除息 / 除權 / 除權息), which is stored as `X`. |
 | `daily_prices.last_bid_volume` | partially sourced | holds the values that exist | TWSE on all dates, in shares (`hints: 單位：元、股`, corroborated by `TWT53U`). TPEx only from 2020-04-30, in lots; the label changes 千股 to 張數 on 2025-01-10, both meaning 1,000 shares, and only TPEx is converted. |
 | `daily_prices.last_ask_volume` | partially sourced | holds the values that exist | TWSE on all dates, in shares (`hints: 單位：元、股`, corroborated by `TWT53U`). TPEx only from 2020-04-30, in lots; the label changes 千股 to 張數 on 2025-01-10, both meaning 1,000 shares, and only TPEx is converted. |
@@ -1753,24 +1723,26 @@ marked *stays NULL* is in fact nullable in the live schema.
 | `index_prices.low_value` | partially sourced | holds the values that exist | TAIEX only, from rwd/zh/TAIEX/MI_5MINS_HIST. The whole-list index sources publish no OHLC and no TPEx equivalent was found. |
 | `valuations.report_period` | partially sourced | holds the values that exist | TWSE on all dates; TPEx only from 2025-01-02. |
 
-Beyond the stored columns, `publication_evidence.published_at` has no official
-source at all: no inspected source publishes a per-row release instant (§7).
-ROADMAP Step 15 is the decision point for what to do about that.
+Publication time is not a column of most tables. Exchange-published data and
+TDCC become visible at their dataset's release rule instant, computed rather
+than stored (ADR-0027); monthly revenue and financial reports store
+`published_at` on each key's first row, from a first capture or a legacy record
+that proves it, and NULL where nothing does (§7).
 
-Every other column of every table in the storage contract is either sourced for
-the whole v1 window and both markets — §4 names the endpoint and the published
-field label for each one — or internal: identity, an interval boundary, or
-provenance linkage that is not expected to come from a source field.
+Every other column of every v2 table is either sourced for the whole v1 window
+and both markets — §4 names the endpoint and the published field label for each
+one — or internal: identity, the fetch it came from, or the time the Data Center
+recorded it.
 
 ## 6. Source fields not stored
 
 | Field | Decision |
 | --- | --- |
 | Monthly-revenue published comparatives | Store as observed (ROADMAP Step 22); legacy consumers read them |
-| TPEx daily 發行股數 and next-day limits | Not stored; `foreign_holding.issued_shares` covers both markets |
+| TPEx daily 發行股數 and next-day limits | Not stored; `foreign_holdings.issued_shares` covers both markets |
 | TPEx margin 資屬證金/券屬證金, TWSE 註記 | Not stored; no consumer |
 | TPEx institutional foreign/dealer totals | Not stored; they are sums of stored columns |
-| Ex-right limit prices, opening reference, 減除股利參考價, the TPEx 權值 / 息值 split, capital-increase share counts | Keep in `source_terms` |
+| Ex-right limit prices, opening reference, 減除股利參考價, the TPEx 權值 / 息值 split, capital-increase share counts | Not stored; they stay in the raw file (ADR-0027 dropped v1's `source_terms`) |
 | TWT49U 最近一次申報 季別/日期, 每股淨值, 每股盈餘 | Not stored: the issuer's latest filing at fetch time, not the event's (§4.10); storing it would revise every past event each quarter |
 | Security name in every result feed | Not stored with the event: a rename would revise every past event |
 
@@ -1783,9 +1755,20 @@ None of the inspected sources gives a per-row release instant:
 - `t164sb01` carries none.
 - TDCC carries the data date.
 
-Under the current rules, all imported history therefore has
-`published_at = NULL` and is invisible to Market PIT. ROADMAP Step 15 is the
-decision point for this.
+Step 15 (ADR-0020) settled what may be claimed instead, and schema v2
+(ADR-0027) keeps its results in two forms:
+
+- Exchange-published daily data, TDCC and corporate actions are visible from
+  their dataset's release rule instant, a code constant computed on read; a
+  corrected value from the instant it was recorded.
+- Monthly revenue and financial reports store `published_at` on each key's
+  first row: a first capture's instant, or what a legacy record proves (§7.1,
+  §7.4–7.6). NULL where nothing proves it, which is market-PIT invisible.
+
+§7.1–7.6 are the findings behind those instants. They are written in the v1
+evidence vocabulary (evidence types, ranks, `capture_bound`); the instants they
+justified were carried into v2's `published_at` by Step 35-c-1, and no evidence
+rows or ranks remain.
 
 **Same-day rows are published before they are final.** Observed 2026-09-15 at
 14:29 Asia/Taipei, an hour after the 13:30 close, on `STOCK_DAY` for 2330:
@@ -2047,9 +2030,9 @@ Measured 2026-09-20 on the whole window, 2020M01–2026M08, both markets:
   the statutory rule would have been look-ahead: the first-seen data for
   2026M02 onward shows 13–311 domestic issuers a month filing after the 10th,
   and a foreign issuer is not more likely to be early. This is why the rule is
-  named by the archive importer for the rows that claim it, and is *not*
-  declared on the source: a declaration would hand the same instant to every
-  row legacy never saw.
+  applied only to the rows that claim it, never to the source as a whole: that
+  would hand the same instant to every row legacy never saw. Schema v2 keeps
+  these rows with `published_at` NULL.
 - **The other 1,460 are rows the archive holds for an issuer it does have, and
   mostly the corrected versions of 2026M02 onward** (1,088 of them fall in that
   window). Where the issuer
@@ -2111,10 +2094,9 @@ deadline is the statute's, never earlier, and every filing that was on time —
 which the 2025Q4-onward captures show is the overwhelming majority — resolves
 no earlier than it should.
 
-`financial_statements_general@1` was registered in migration `3c8e5f1b7a46`
-with its authority (證券交易法 §36) and is **not** declared on
-`dataset_sources` for `mops_t164sb01`. Declaring it there would hand the
-statutory instant to every version the official importer writes, including
-filings nothing has ever proved were on time — the same look-ahead §7.5
-describes for the KY issuers. The archive importer names the rule itself, for
-the documents whose file proves no sighting.
+`financial_statements_general@1` cites 證券交易法 §36. It was applied only to
+archive documents whose file proves no sighting, never to what an official fetch
+writes: that would hand the statutory instant to filings nothing has ever proved
+were on time — the same look-ahead §7.5 describes for the KY issuers. Schema v2
+keeps those archive instants as `published_at` and gives a later official fetch
+its own capture instant (`first_capture`) or NULL.
