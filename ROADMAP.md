@@ -610,8 +610,8 @@ explicit out-of-scope work
 | 26-d | MERGED (#57) | `shareholding_concentration:v1` |
 | 26-e | MERGED (#58) | `margin_metrics:v1` 與 `short_interest_metrics:v1` |
 | 26-f | MERGED (#59) | `valuation_metrics:v1` |
-| 27-a | IN REVIEW (#60) | 公開 API：PIT 可見性層 |
-| 27-b | PLANNED | 公開 API：HTTP 層、觀測資料 |
+| 27-a | MERGED (#60) | 公開 API：PIT 可見性層 |
+| 27-b | IN REVIEW (#61) | 公開 API：HTTP 層、觀測資料 |
 | 27-c | PLANNED | 公開 API：財報、衍生資料、參考資料 |
 | 28 | PLANNED | 排程的前向抓取 |
 | 29 | SUPERSEDED | Python SDK 與下游整合（owner 決定移除，2026-09-24） |
@@ -2014,7 +2014,7 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 
 ## Step 27 — 公開 REST API v1
 
-狀態：**27-a IN REVIEW（#60）；27-b、27-c PLANNED**。依賴：Step 15 的決定、各資料 PR。
+狀態：**27-a MERGED（#60）；27-b IN REVIEW（#61）；27-c PLANNED**。依賴：Step 15 的決定、各資料 PR。
 
 提供正確的 Data Center 語意，而不暴露資料表。端點涵蓋舊系統使用者發出的查詢：每日面板、指數、估值、籌碼資料、月營收、財務 facts 與摘要、TDCC、公司行動和衍生指標。每個回應都帶有其 PIT context 和 provenance。沒有來源的欄位被省略，或明確標示為無法取得。還原價格是 Step 36，不在這裡。
 
@@ -2032,13 +2032,31 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 
 ### Step 27-a — PIT 可見性層
 
-狀態：**IN REVIEW**（#60）。
+狀態：**MERGED**（#60）。
 
 - `stock_data_center.v2.visibility`：CLAUDE.md §19 的「一個地方」。`MarketPIT`、`SystemPIT` 只收帶時區的時間點；`rows` 對十二張觀測表回傳每個 key 在該 PIT 下看到的列，含 `available_at`；`report_facts` 回傳財報版本自己的 facts。
 - 三種家族：交易所日資料（`exchange_daily_settled@1`）、TDCC（`tdcc_weekly@1`）、公司行動（`corporate_action_ex_date@1`，撤銷的事件不回傳）用規則：規則時刻前記錄的列是暫定值，之後第一列是定案值，兩者都從規則時刻起可見，其後的列是更正，從自己的 `recorded_at` 起可見；月營收與財報用首列的 `published_at`（NULL 永不可見），其後的列從自己的 `recorded_at` 起可見。
 - `available_at` 是列的屬性，以該 key 的所有列計算，再套 `knowledge_as_of`：知識截止之後記錄的列看不到，但不改變其他列的可見時間。
 - `exchange_daily.visible` 改成呼叫這個模組（沒有知識截止），既有的呼叫端不變。
 - 驗收證據：`docs/step_reports/step-27-a-acceptance-report.md`。
+
+### Step 27-b — HTTP 層與觀測資料
+
+狀態：**IN REVIEW**（#61）。
+
+- `stock_data_center.api`：FastAPI。`GET /v1/datasets` 列出資料集與其形狀；`GET /v1/datasets/{name}` 依 PIT context 回傳列。
+  十一個觀測資料集，名稱與資料表不同（§55）：`daily-prices`、`indices`、`official-valuations`、`institutional-flows`、
+  `institutional-market-flows`、`foreign-holdings`、`margin-trading`、`securities-lending`、`shareholding-distributions`、
+  `monthly-revenues`、`corporate-actions`。
+- 每個請求要 `X-API-Key`；只聽 127.0.0.1；每次讀取都在唯讀交易裡；key 與資料庫 URL 只從環境變數來。
+- PIT context：`information_as_of`＋`knowledge_as_of` 或 `system_as_of`，不能混用；時間點必須帶時區；`latest`／`now` 與沒帶的
+  market 參數都解析成請求抵達的時刻，回應寫明哪些是別名、哪些是預設。不認得的參數一律 400，打錯字的 PIT 參數不會默默變成 latest。
+- 每列帶 `available_at`、`recorded_at` 與 provenance（fetch 與其原始檔的 SHA-256；TWSE 的除權息與減資另帶明細頁的）。精確小數以
+  它存的位數寫成 JSON 數字，不經過 float。
+- 來源從不發布的欄位，在該來源的列裡省略並列在 `unsourced`（`api.datasets.UNSOURCED`，依 audit §4.2、§4.10 與 CLAUDE.md §52）；
+  其餘的 null 是來源那一列沒給值。在 `stockdc_backfill` 上逐欄驗證這些欄位確實沒有任何值。
+- 沒有 `stock_id` 的查詢最多 31 天；每次最多 200 個 `stock_id`。
+- 驗收證據：`docs/step_reports/step-27-b-acceptance-report.md`；API 說明：`docs/api.md`。
 
 ## Step 28 — 排程的前向抓取
 

@@ -114,7 +114,7 @@ Each required criterion must be PASS/FAIL with concrete evidence.
 
 ## Current Step Sequence
 
-ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–18, 19-a through 19-e, 20-a through 20-d, 21-a, 21-b, 22-a through 22-c, 23-a through 24-b, 35-a, 35-b-1, 35-c-1 through 35-c-4, 35-d-1 through 35-d-3 and 26-b through 26-f as MERGED, 26-a, 29, 32 and 35-b-2 as SUPERSEDED, and labels Step 27-a as `THIS STEP` (a contextual marker, not an additional status value):
+ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–18, 19-a through 19-e, 20-a through 20-d, 21-a, 21-b, 22-a through 22-c, 23-a through 24-b, 35-a, 35-b-1, 35-c-1 through 35-c-4, 35-d-1 through 35-d-3, 26-b through 26-f and 27-a as MERGED, 26-a, 29, 32 and 35-b-2 as SUPERSEDED, and labels Step 27-b as `THIS STEP` (a contextual marker, not an additional status value):
 
 ```text
 Step 11  authoritative security lifecycle history        MERGED
@@ -156,8 +156,8 @@ Step 26-c institutional cumulative flow                MERGED
 Step 26-d shareholding concentration                   MERGED
 Step 26-e margin + short-interest metrics              MERGED
 Step 26-f valuation metrics                            MERGED
-Step 27-a public API: PIT visibility layer             THIS STEP
-Step 27-b public API: HTTP layer + observed datasets   PLANNED
+Step 27-a public API: PIT visibility layer             MERGED
+Step 27-b public API: HTTP layer + observed datasets   THIS STEP
 Step 27-c public API: reports, derived, reference data PLANNED
 Step 28  scheduled forward capture                     PLANNED
 Step 29  Python SDK + downstream integration           SUPERSEDED (removed by owner)
