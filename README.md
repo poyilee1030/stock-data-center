@@ -93,7 +93,8 @@ API 是 compose 的 `api` 服務（`Dockerfile`），聽 `0.0.0.0:28617`，讀 `
 scripts/api_up.sh
 ```
 
-區網或 Tailscale 上的 client 呼叫 `http://<這台的區網或 Tailscale IP>:28617`，每個請求帶 `X-API-Key`；說明在 `docs/api.md`。
+區網或 Tailscale 上的 client 呼叫 `http://<這台的區網或 Tailscale IP>:28617`，每個 `/v1` 請求帶 `X-API-Key`；說明在 `docs/api.md`，
+瀏覽器開 `/docs` 是 Swagger UI（不用 key 就能看，按 Authorize 貼上 key 才能試打）。
 資料庫只聽本機，client 只能經過 API。
 
 ## 測試

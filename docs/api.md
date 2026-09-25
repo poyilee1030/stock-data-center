@@ -39,8 +39,28 @@ STOCKDC_API_KEY=<key> DATABASE_URL=<url> python -m stock_data_center.api [--host
 from the environment (for instance `set -a && . ./.env && set +a`), never the
 command line.
 
-Every request needs the key in the `X-API-Key` header; without it the answer
-is `401`.
+Every `/v1` request needs the key in the `X-API-Key` header; without it the
+answer is `401`.
+
+## Swagger UI
+
+`/docs` is Swagger UI and `/openapi.json` its OpenAPI description; both are
+served without the key (owner, 2026-09-25), since they describe the API's shape
+and hold no data. Press **Authorize** and paste the key to try requests from
+the page. The page loads Swagger UI's script and stylesheet from
+cdn.jsdelivr.net, so the browser needs internet access.
+
+The handlers read their query parameters themselves, so that an unknown one is
+refused; FastAPI cannot see them, and `stock_data_center.api.openapi`
+describes them from the same sets the handlers accept. A parameter a handler
+accepts without a description stops the app from starting.
+
+The page is what a client reads: it has no copy of this repository. So the
+same module carries, in client terms, what this document says a client needs
+(PIT parameters, the response, financial reports, stored derived datasets,
+`technical-indicators-pit`, reference data, errors), without section numbers,
+module names or table names; a test keeps those out. A change to this document
+that a client needs is made there too.
 
 ## Endpoints
 
