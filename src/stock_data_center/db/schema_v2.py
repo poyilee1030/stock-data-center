@@ -24,6 +24,7 @@ from stock_data_center.v2.cumulative_flow import PARTIES as CUMULATIVE_PARTIES
 from stock_data_center.v2.indicators import METRIC_CODES
 from stock_data_center.v2.margin_metrics import MARGIN_METRICS, SHORT_INTEREST_METRICS
 from stock_data_center.v2.streaks import PARTIES
+from stock_data_center.v2.valuation import METRICS as VALUATION_METRICS
 
 # Decimal columns are unconstrained `numeric` with a CHECK, not `numeric(p, 2)`:
 # PostgreSQL casts to a column's typmod before any CHECK runs, so `numeric(10, 2)`
@@ -653,6 +654,15 @@ def _day_metrics(name: str, metrics: tuple[str, ...]) -> sa.Table:
 
 margin_metrics = _day_metrics("margin_metrics", MARGIN_METRICS)
 short_interest_metrics = _day_metrics("short_interest_metrics", SHORT_INTEREST_METRICS)
+
+valuation_metrics = sa.Table(
+    "valuation_metrics",
+    metadata,
+    *_derived_key(),
+    *(sa.Column(metric, postgresql.DOUBLE_PRECISION()) for metric in VALUATION_METRICS),
+    _computed_at(),
+    sa.PrimaryKeyConstraint("stock_id", "source", "trade_date", name="pk_valuation_metrics"),
+)
 
 # Append-only tables: every value table and the fetch log. `stocks` is reference
 # data refreshed in place from the latest list; `trading_days` is corrected in

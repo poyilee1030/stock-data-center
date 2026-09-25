@@ -14,8 +14,8 @@ Three checks, every series:
     each `--restart` date: `derived_store.rewrite`, the step `run` takes per
     series, runs in a transaction that is rolled back, and the table is read
     back and compared with the stored full series: windowed technical
-    metrics, every streak, cumulative flow, concentration, margin and
-    short-interest metric exactly, the exponential technical metrics within
+    metrics, every streak, cumulative flow, concentration, margin,
+    short-interest and valuation metric exactly, the exponential technical metrics within
     `derived_store.within_tolerance`. The largest residue per metric is
     reported, since the tolerance was set from it. Which date `run` restarts a
     series at (`derived_store._changed`) is the integration tests' to check:
@@ -26,7 +26,8 @@ Three checks, every series:
     `institutional_flows` date for the cumulative flow, every
     `shareholding_distributions` snapshot for the concentration, every
     `margin_trading` and `securities_lending` date for the margin and
-    short-interest metrics.
+    short-interest metrics; a valuation only on a traded day, since it also
+    needs four public quarters.
 
 Exit 1 if any check fails.
 
@@ -300,6 +301,35 @@ def main() -> int:
                             failures.append(f"{name} incremental {stock_id}/{source} "
                                             f"{row['trade_date']}")
             report[name] = {
+                "series": len(series), "coverage_series_differing": coverage,
+                "incremental_rows_compared": compared, "incremental_rows_differing": differs,
+            }
+        # ------------------------------------------------ valuation
+        if "valuation_metrics" in wanted:
+            series = c.execute(sa.text(
+                "SELECT DISTINCT stock_id, source FROM valuation_metrics ORDER BY 1, 2")).all()
+            series = series[: args.limit] if args.limit else series
+            coverage = differs = compared = 0
+            for stock_id, source in series:
+                stored = _rows(c, "valuation_metrics", stock_id, source)
+                traded = set(c.scalars(sa.text(
+                    "SELECT trade_date FROM (SELECT DISTINCT ON (trade_date) trade_date, volume "
+                    "FROM daily_prices WHERE stock_id = :s AND source = :r "
+                    "ORDER BY trade_date, recorded_at DESC) x WHERE volume > 0"),
+                    {"s": stock_id, "r": source}))
+                if not set(stored) <= traded:
+                    coverage += 1
+                    failures.append(f"valuation coverage {stock_id}/{source}")
+                for restart in restarts:
+                    for row in _rewritten(c, ds.VALUATION_METRICS, stock_id, source, restart,
+                                          stored, failures):
+                        compared += 1
+                        if any(row[k] != stored[row["trade_date"]][k]
+                               for k in ds.VALUATION_COLUMNS):
+                            differs += 1
+                            failures.append(f"valuation incremental {stock_id}/{source} "
+                                            f"{row['trade_date']}")
+            report["valuation_metrics"] = {
                 "series": len(series), "coverage_series_differing": coverage,
                 "incremental_rows_compared": compared, "incremental_rows_differing": differs,
             }

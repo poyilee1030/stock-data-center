@@ -49,6 +49,7 @@ column per metric, plus `computed_at` (ROADMAP §17, ADR-0027 revision of
 | `shareholding_concentration:v1` | `shareholding_concentration` | `shareholding_distributions` | every TDCC snapshot of one stock; small holders are levels 1–8, mid 9–11, large 12–15, and a week-over-week change is against the stock's previous snapshot however far back |
 | `margin_metrics:v1` | `margin_metrics` | `margin_trading` | every day of the stock's margin file from one source; each value from that day's row alone |
 | `short_interest_metrics:v1` | `short_interest_metrics` | `securities_lending` | every day of the stock's securities-lending file from one source; each value from that day's row alone |
+| `valuation_metrics:v1` | `valuation_metrics` | `daily_prices`, `financial_reports` | the days the stock traded (volume above zero) in one daily-price source; a report counts from the Asia/Taipei day of its first version's `published_at`, with its latest version's facts |
 | `institutional_streaks:v1` | `institutional_streaks` | `institutional_flows`, `daily_prices` | the days the stock traded (volume above zero) on the market of the institutional source; `twse_t86` counts over `twse_mi_index` days, `tpex_insti_daily_trade` over `tpex_otc_quotes` days |
 
 **Latest inputs.** A value is computed from each input key's latest recorded
@@ -60,7 +61,9 @@ deliberate simplification to disclose downstream.
 
 **No future data.** The value for date D uses only inputs dated on or before D;
 every formula is causal along the trade date. An input published after its data
-date is aligned to its publication (`valuation_metrics:v1`, Step 26).
+date is aligned to its publication: `valuation_metrics:v1` (Step 26-f) on D uses
+only reports whose first version's `published_at` falls on or before D in
+Asia/Taipei, and never a report without one (CLAUDE.md §31).
 
 **Incremental runs.** `python -m stock_data_center.v2.derived_store --dataset
 <code>` brings one table up to the inputs recorded so far, in one transaction:
@@ -81,13 +84,18 @@ date is aligned to its publication (`valuation_metrics:v1`, Step 26).
    rewrites from its first row, and so does the concentration, whose change
    needs the snapshot before the first rewritten one. The margin and
    short-interest metrics need no earlier row: a change there is the balance
-   minus the previous balance the source publishes on the same row.
+   minus the previous balance the source publishes on the same row. The
+   valuation percentile ranks against every earlier PE of the series, so it too
+   reads each series it rewrites from its first day, and a report recorded
+   since the previous run restarts every price series of its stock at the day
+   the report was first public.
 
 `--full` recomputes every series from its first row.
 
 **Accuracy of an incremental run** (owner decision 2026-09-24). The windowed
 metrics (MA, VMA, Bollinger), the streaks, the cumulative flows, the
-concentration and the margin and short-interest metrics are exact. The exponential ones
+concentration, the margin and short-interest metrics and the valuation metrics
+are exact. The exponential ones
 (K, D, RSI, MACD) never forget where they started, so a restart leaves a
 residue: at most 1e-5 of the close for MACD and 1e-6 absolute for K, D and RSI
 (`derived_store.within_tolerance`; measured maxima 4.1e-6 and 6.5e-8). A full

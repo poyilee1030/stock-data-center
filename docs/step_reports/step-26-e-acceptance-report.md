@@ -1,6 +1,6 @@
 # Step 26-e 驗收報告
 
-狀態：IN REVIEW (#58)
+狀態：MERGED (#58)
 
 範圍：`margin_metrics:v1` 與 `short_interest_metrics:v1`，移植舊系統 `calculate_margin_pressure_analysis.py`、
 `calculate_short_interest_analysis.py`，沿用 26-b 的增量執行器。

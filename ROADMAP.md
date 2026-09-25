@@ -608,8 +608,8 @@ explicit out-of-scope work
 | 26-b | MERGED (#55) | 存表的衍生資料：`technical_indicators:v1` 與 `institutional_streaks:v1` |
 | 26-c | MERGED (#56) | `institutional_cumulative_flow:v1` |
 | 26-d | MERGED (#57) | `shareholding_concentration:v1` |
-| 26-e | IN REVIEW (#58) | `margin_metrics:v1` 與 `short_interest_metrics:v1` |
-| 26-f | PLANNED | `valuation_metrics:v1` |
+| 26-e | MERGED (#58) | `margin_metrics:v1` 與 `short_interest_metrics:v1` |
+| 26-f | IN REVIEW (#59) | `valuation_metrics:v1` |
 | 27 | PLANNED | 公開 REST API v1 |
 | 28 | PLANNED | 排程的前向抓取 |
 | 29 | SUPERSEDED | Python SDK 與下游整合（owner 決定移除，2026-09-24） |
@@ -1789,7 +1789,7 @@ importer 以資料日期欄位為 key，絕不用檔名：`20200619.CSV` 和 `20
 
 ## Step 26 — 標準衍生 v1（移植舊系統計算程式）
 
-狀態：**26-a SUPERSEDED（#44，併入 35-c-4）；26-b MERGED（#55）；26-c MERGED（#56）；26-d MERGED（#57）；26-e IN REVIEW（#58）；26-f PLANNED**。依賴：Steps 17-c–24。
+狀態：**26-a SUPERSEDED（#44，併入 35-c-4）；26-b MERGED（#55）；26-c MERGED（#56）；26-d MERGED（#57）；26-e MERGED（#58）；26-f IN REVIEW（#59）**。依賴：Steps 17-c–24。
 
 定義，每個都從舊系統的計算程式移植，並與舊系統的表對帳：
 
@@ -1886,7 +1886,7 @@ SUPERSEDED 的 #44。
 
 ### Step 26-e — 融資融券與借券指標
 
-狀態：**IN REVIEW**（#58）。
+狀態：**MERGED**（#58）。
 
 - 兩張寬表，key `(stock_id, source, trade_date)`，加 `computed_at`；migration `0487c98a0e37`。
   - `margin_metrics`（輸入 `margin_trading`）：融資、融券使用率（餘額／限額 × 100），融資、融券餘額變化（股）與
@@ -1904,6 +1904,33 @@ SUPERSEDED 的 #44。
     `securities_lending` 的觀測值（同 26-c 不存發行股數）。
   - 兩張表照 Step 26 的決定存表：拿掉它們，資料正確性沒有損失（每個值都是同一列的一次運算），損失的是讀取路徑一致。
 - 驗收證據：`docs/step_reports/step-26-e-acceptance-report.md`。
+
+### Step 26-f — 估值指標
+
+狀態：**IN REVIEW**（#59）。
+
+- 寬表 `valuation_metrics`，key `(stock_id, source, trade_date)`，source 是日行情來源：`ttm_eps`、`pe_ratio`、
+  `pe_percentile`、`roe`，加 `computed_at`；migration `31e69301ca35`。列只在股票有成交的日子（volume > 0，舊系統
+  daily_quotes 保留的日子），且近四季都已公開。
+- 移植舊系統 `calculate_valuation.py`：
+  - 財報依公開時間對齊（CLAUDE.md §43）：一季財報從它第一個版本的 `published_at`（Asia/Taipei）那一天起算，用最新版本的
+    數字；沒有 `published_at` 的財報永不使用（§31）。舊系統用法定期限（Q1 05-15、Q2 08-14、Q3 11-14、Q4 03-31）；我們的
+    `published_at` 是順延到下一個交易日的法定期限，或更早的已證明初見時間。
+  - TTM EPS：最新已公開那一季往回連續四季的單季基本 EPS（9750）之和，四季都要已公開，否則沒有值。舊系統依「列」滾動，
+    缺一季就跨了五季。Q4 單季 = 全年 − Q3 累計，同舊系統；沒有 Q3 就沒有 Q4（舊系統退回用全年）。
+  - PE = 收盤價 ÷ TTM EPS，TTM 不為正或沒有收盤價時 NULL，四捨五入同舊系統 pandas `round(2)`。PE 百分位 = 當天 PE 在這條
+    序列至今所有 PE 中的平均名次 × 100，同舊系統 pandas `expanding().rank(pct=True)` 與 numpy `round(4)`。
+- owner 決定（2026-09-25）：
+  - ROE 改成正確定義：近四季歸屬母公司淨利（合併 8610；個體 8200）÷ 最新一季季末歸屬母公司權益（合併 31XX；個體 3XXX）
+    × 100，四捨五入遠離零到兩位，權益不為正時 NULL。舊系統是 TTM EPS ÷（權益總額 ÷（股本 ÷ 10）），假設面額 10 元（2025Q4 至少 16
+    支不是）又含非控制權益。
+  - 去掉舊系統的 `_official` 後綴：這些是我們算的，§53 的 official 指來源公布的值。
+  - 不存 close（日行情的觀測值）與 `pe_official`（`valuations.pe_ratio`）。
+- 百分位對整條序列排名，永遠記得起點，所以每次重寫都從序列第一天讀起：增量與整段逐位相同，沒有容差。一份財報在上次執行
+  之後記錄，就把那支股票的每條價格序列從那份財報第一次公開的那天起重算。
+- 財報寫入者原本只拿自己那支股票的鎖，衍生執行沒有一把鎖能等所有財報寫入者。寫入者改成同時拿 job 鎖
+  `financial_reports/mops_t164sb01` 的共享鎖，衍生執行拿它的排他鎖。
+- 驗收證據：`docs/step_reports/step-26-f-acceptance-report.md`。
 
 ## Step 34 — 穩定的 Publication-Evidence Hash
 

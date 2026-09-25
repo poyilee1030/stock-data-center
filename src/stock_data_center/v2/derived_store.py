@@ -35,12 +35,19 @@ import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa
 from sqlalchemy import Connection
 
 from stock_data_center.db import schema_v2 as v2
-from stock_data_center.v2 import concentration, cumulative_flow, margin_metrics
+from stock_data_center.v2 import (
+    concentration,
+    cumulative_flow,
+    financial_reports,
+    margin_metrics,
+    valuation,
+)
 from stock_data_center.v2.backfill import JOBS
 from stock_data_center.v2.derived import TECHNICAL_INDICATORS_FORMULA, Definition
 from stock_data_center.v2.exchange_daily import key_columns
@@ -198,6 +205,39 @@ SHORT_INTEREST_METRICS_V1 = Definition(
 )
 
 
+VALUATION_METRICS_V1 = Definition(
+    dataset_code="valuation_metrics",
+    derivation_version="v1",
+    formula_specification=(
+        "Ported from legacy calculate_valuation.py, with the owner's corrections of "
+        "2026-09-25. TTM EPS: the sum of the single-quarter basic EPS (9750) of the four "
+        "consecutive quarters ending at the latest quarter public on the day, NULL "
+        "unless all four are public; the fourth quarter is the annual figure less the "
+        "third quarter's year to date. PE: close over TTM EPS, NULL unless TTM EPS is "
+        "positive, rounded as pandas round(2). PE percentile: the PE's average rank "
+        "among the series' PEs so far, x 100, rounded as numpy round(4). ROE: the four "
+        "quarters' net income attributable to the parent (8610; 8200 in an individual "
+        "report) over the latest quarter-end equity attributable to the parent (31XX; "
+        "3XXX in an individual report) x 100, rounded half away from zero to two "
+        "places, NULL unless the equity is positive. Legacy's ROE assumed a par value "
+        "of 10 and counted non-controlling interests, and its _official suffix is dropped."
+    ),
+    input_tables=("daily_prices", "financial_reports"),
+    calendar_timezone="Asia/Taipei",
+    calendar_convention=(
+        "The days the stock traded (volume above zero) in one daily-price source, the "
+        "days legacy's daily quotes kept, keyed by that source. A report counts from "
+        "the day its first version's published_at falls on in Asia/Taipei, with its "
+        "latest version's facts; a report without a published_at never counts. The "
+        "percentile ranks against the whole series, so every run reads each series "
+        "it rewrites from its first day."
+    ),
+    price_adjustment_convention=(
+        "raw_official_close: no corporate-action adjustment, as legacy computed it."
+    ),
+)
+
+
 def within_tolerance(metric: str, incremental: float | None, full: float | None,
                      close: float | None) -> bool:
     """Whether an incremental value is an accepted stand-in for the full one.
@@ -224,6 +264,10 @@ class StoredDataset:
     series_source: Callable[[str], str]
     # (connection, stock_id, source, first date to write or None for all) -> rows
     compute: Callable[[Connection, str, str, date | None], list[dict]]
+    # Series to restart because of an input outside `inputs`, and from when.
+    more_changes: Callable[[Connection, datetime | None], dict[Series, date]] | None = None
+    # Job locks whose writers share them, so a run takes them exclusively.
+    exclusive_keys: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -406,6 +450,89 @@ def _day_rows(table: sa.Table, inputs: tuple[str, ...], formula):
     return compute
 
 
+VALUATION_COLUMNS = valuation.METRICS
+TAIPEI = ZoneInfo("Asia/Taipei")
+_INCOME = (valuation.EPS, *valuation.NET_INCOME.values())
+_EQUITY = tuple(valuation.EQUITY.values())
+
+
+def _reports(connection: Connection, stock_id: str) -> list[valuation.Report]:
+    """Each quarter's report: its first version's publication, its latest version's facts."""
+    r, f = v2.financial_reports, v2.financial_report_facts
+    first: dict[tuple[int, int], datetime | None] = {}
+    latest: dict[tuple[int, int], tuple[int, str]] = {}
+    for report_id, year, quarter, category, published_at in connection.execute(
+            sa.select(r.c.id, r.c.report_year, r.c.report_quarter, r.c.report_category,
+                      r.c.published_at)
+            .where(r.c.stock_id == stock_id).order_by(r.c.recorded_at)):
+        first.setdefault((year, quarter), published_at)
+        latest[(year, quarter)] = (report_id, category)
+    facts: dict[int, dict] = {report_id: {} for report_id, _ in latest.values()}
+    if facts:
+        for report_id, code, start, end, value in connection.execute(
+                sa.select(f.c.report_id, f.c.account_code, f.c.period_start, f.c.period_end,
+                          f.c.value)
+                .where(f.c.report_id.in_(facts), sa.or_(
+                    sa.and_(f.c.statement == "income_statement", f.c.account_code.in_(_INCOME)),
+                    sa.and_(f.c.statement == "balance_sheet", f.c.account_code.in_(_EQUITY))))):
+            facts[report_id][(code, start, end)] = value
+    return [
+        valuation.Report(year, quarter, category,
+                         None if first[(year, quarter)] is None
+                         else first[(year, quarter)].astimezone(TAIPEI).date(),
+                         facts[report_id])
+        for (year, quarter), (report_id, category) in latest.items()
+    ]
+
+
+def _valuation_rows(connection: Connection, stock_id: str, source: str,
+                    start: date | None) -> list[dict]:
+    days = [
+        (day, _float(close))
+        for day, close, volume in connection.execute(_latest(
+            v2.daily_prices, stock_id, source, None, "close_price", "volume"))
+        if volume
+    ]
+    by_quarter = valuation.quarters(_reports(connection, stock_id))
+    return [
+        {"stock_id": stock_id, "source": source, "trade_date": day, **metrics}
+        for day, metrics in valuation.valuations(days, by_quarter)
+        if start is None or day >= start
+    ]
+
+
+def _report_changes(connection: Connection, since: datetime | None) -> dict[Series, date]:
+    """Each price series of a stock with a report version recorded after `since`, from
+    the day that report was first public. None means a first or full run, which
+    already recomputes every price series."""
+    if since is None:
+        return {}
+    r = v2.financial_reports
+    changed = (sa.select(r.c.stock_id, r.c.report_year, r.c.report_quarter)
+               .where(r.c.recorded_at > since).distinct().subquery())
+    first = (
+        sa.select(r.c.stock_id, r.c.published_at)
+        .join(changed, sa.and_(r.c.stock_id == changed.c.stock_id,
+                               r.c.report_year == changed.c.report_year,
+                               r.c.report_quarter == changed.c.report_quarter))
+        .order_by(r.c.stock_id, r.c.report_year, r.c.report_quarter, r.c.recorded_at)
+        .distinct(r.c.stock_id, r.c.report_year, r.c.report_quarter)
+    )
+    public: dict[str, date] = {}
+    for stock_id, published_at in connection.execute(first):
+        if published_at is not None:
+            day = published_at.astimezone(TAIPEI).date()
+            public[stock_id] = min(day, public.get(stock_id, day))
+    if not public:
+        return {}
+    p = v2.daily_prices.c
+    return {
+        (stock_id, source): public[stock_id]
+        for stock_id, source in connection.execute(
+            sa.select(p.stock_id, p.source).distinct().where(p.stock_id.in_(public)))
+    }
+
+
 TECHNICAL_INDICATORS = StoredDataset(
     TECHNICAL_INDICATORS_V1, v2.technical_indicators, (v2.daily_prices,),
     lambda source: source, _technical_rows,
@@ -434,10 +561,15 @@ SHORT_INTEREST_METRICS = StoredDataset(
     _day_rows(v2.securities_lending, margin_metrics.SHORT_INTEREST_INPUTS,
               margin_metrics.short_interest_metrics),
 )
+VALUATION_METRICS = StoredDataset(
+    VALUATION_METRICS_V1, v2.valuation_metrics, (v2.daily_prices,), lambda source: source,
+    _valuation_rows, more_changes=_report_changes, exclusive_keys=(financial_reports.KEY,),
+)
 DATASETS = {
     d.definition.dataset_code: d
     for d in (TECHNICAL_INDICATORS, INSTITUTIONAL_STREAKS, INSTITUTIONAL_CUMULATIVE_FLOW,
-              SHAREHOLDING_CONCENTRATION, MARGIN_METRICS, SHORT_INTEREST_METRICS)
+              SHAREHOLDING_CONCENTRATION, MARGIN_METRICS, SHORT_INTEREST_METRICS,
+              VALUATION_METRICS)
 }
 
 
@@ -468,6 +600,10 @@ def _fix_inputs(connection: Connection, dataset: StoredDataset) -> datetime:
     connection.execute(sa.select(lock(sa.func.hashtext(f"derived/{dataset.table.name}"))))
     for key in writer_keys(dataset):
         connection.execute(sa.select(sa.func.pg_advisory_xact_lock_shared(sa.func.hashtext(key))))
+    # A report writer holds its own stock's lock and the reports' job lock shared,
+    # so writers of different stocks run side by side and a run waits for them all.
+    for key in dataset.exclusive_keys:
+        connection.execute(sa.select(lock(sa.func.hashtext(key))))
     return connection.scalar(sa.select(sa.func.clock_timestamp()))
 
 
@@ -482,6 +618,9 @@ def _changed(connection: Connection, dataset: StoredDataset,
             query = query.where(table.c.recorded_at > since)
         for stock_id, source, first in connection.execute(query):
             key = (stock_id, dataset.series_source(source))
+            starts[key] = min(first, starts.get(key, first))
+    if dataset.more_changes is not None:
+        for key, first in dataset.more_changes(connection, since).items():
             starts[key] = min(first, starts.get(key, first))
     return starts
 
