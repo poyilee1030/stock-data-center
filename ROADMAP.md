@@ -632,6 +632,7 @@ explicit out-of-scope work
 | 35-d-3 | MERGED (#54) | Schema v2：baseline migration，刪除 v1 表 |
 | 36 | PLANNED | 還原價格（原 Step 25） |
 | 37 | PLANNED（下一步） | 網頁儀表板：以 API 展示資料庫內容（37-a／37-b／37-c） |
+| 38 | PLANNED | 歷史股票清單：含已下市公司，每段掛牌期間的上市與下市日期（38-a／38-b） |
 
 Steps 1–12 建立了儲存、PIT 和 raw-first 的基礎。它們的 writer 契約包含一些沒有任何來源會填入的欄位（§2.3）。這些欄位保持可為 null、不填值。不刪除它們，因為刪除不會帶來任何正確性上的好處。
 
@@ -644,6 +645,8 @@ Step 13 是必須重新確立 *step* 編號的地方：已放棄的股利彙總 
 2026-09-24 起，還原價格從 Step 25 改為 Step 36（owner 決定）。在這之前寫成的 step 報告與 ADR 中，「Step 25」指還原價格；它們同樣不改寫。
 
 2026-09-25 起，網頁儀表板是 Step 37，排在 Step 28 之前優先做（owner 決定）：編號只識別工作，不代表順序。
+
+2026-09-25 起，歷史股票清單是 Step 38（owner 決定，起因是 API 使用者要求歷史 universe）；它與 Step 37、28 的先後由 owner 另定。
 
 ---
 
@@ -2121,11 +2124,80 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 - 歷史時間點（`information_as_of`）的選擇器：37-a–c 都用 latest；要重現歷史再另外排。
 - 還原價格（Step 36）。
 
+## Step 38 — 歷史股票清單（含已下市公司）
+
+狀態：**PLANNED**（owner 2026-09-25 決定設計；與 Step 37、28 的先後另定）。依賴：Step 35-d（MERGED）、Step 27（MERGED）。
+
+### 背景
+
+API 使用者要求歷史 universe（證券主檔）：上市日、下市日與證券類別。今天的 `stocks` 做不到：
+
+- ADR-0026 §3 以**今天**的 ISIN 清單為範圍，今天之前下市的公司不在清單上，它們的資料也都沒收（owner 接受的存活者偏差）。
+- 公司下市後，`stocks` 那一列照舊留著、沒有任何標記，看起來與上市中的公司一樣；新上市的公司要等有人執行清單更新才會加入。
+- `stocks` 一檔一列、只有一個 `market`，放不下轉市場的公司。實例：5236 凌陽創新，TPEx `company/deListed` 列它 2026-07-16 終止上櫃，它現在是上市（`sii`），`stocks` 裡有 1,246 筆日行情。
+- Step 11（ADR-0017）曾從交易所的上市／下市歷史表建出生命週期，35-d-2 隨 ADR-0026 刪除。
+
+### 設計（owner 2026-09-25 決定）
+
+- **`stocks`：每家公司一列，只放身分**——代號、名稱、產業。上市中與已下市的公司都在這裡；所有資料表的 `stock_id` 外鍵照舊指向它。
+- **`listings`：每段掛牌期間一列**——`stock_id`、`market`（`sii`／`otc`）、`listed_on`、`delisted_on`（上市中為 NULL）。凌陽創新兩列：`otc` 到 2026-07-16，`sii` 從它的上市日起。`stocks.market` 與 `stocks.listed_on` 移到這裡：少了這張表，「某一天某個市場有哪些股票」對轉市場的公司會算錯。
+- **不另開下市公司表**：公司會從上市變成下市，分表就得搬列，而 `stocks` 的列被所有歷史資料以 `ON DELETE RESTRICT` 引用、刪不掉；終止上櫃也不一定是離開市場（櫃轉市）；38-b 補下市公司的資料時，它們本來就得在 `stocks`。
+- **抓取範圍改成明確的條件，不再是「在 `stocks` 裡」**。今天每個 adapter 以 `SELECT stock_id FROM stocks` 決定抓哪些股票（`v2/backfill.py`、`v2/exchange_daily.py`、`v2/corporate_actions.py`、`v2/financial_reports.py`），下市公司一放進 `stocks` 就會被動擴大抓取範圍。38-a 改成「有尚未結束的掛牌期間」，範圍不變；38-b 再改成「有涵蓋該日的掛牌期間」。
+- **參考資料，不是 PIT**：與今天的 `stocks`、`trading_days` 相同，就地更新；上市與下市日期各記它來自哪一次 fetch（`listed_fetch_id`、`delisted_fetch_id`，§27）。已發生的下市日拿來判斷「D 日是否在市場上」不會洩漏未來。
+- **不從代號格式推論證券類別**（ADR-0026 §2）。來源證明不了是普通股的公司不進 `listings`，列入 quarantine 並計數。
+
+### 來源（2026-09-25 實測欄位）
+
+| 來源 | 欄位 | 範圍 |
+|---|---|---|
+| TWSE ISIN `C_public.jsp`（今天的來源） | 代號、名稱、上市日、市場別、產業別、CFI、類別標題 | 今天上市中者 |
+| TWSE RWD `company/newlisting?response=json` | 公司代號、簡稱、股票上市買賣日期、備註（標「創新板」「櫃轉市」）…… | 793 筆（ADR-0017：2001-01-03 起） |
+| TWSE RWD `company/suspendListing?response=json` | 終止上市日期、公司名稱、上市編號 | 265 筆（ADR-0017：2001-01-20 起） |
+| TPEx `company/latest` | 股票代號、公司名稱、上櫃日期、每股面額 | 按年（ADR-0017：2005 年起） |
+| TPEx `company/deListed` | 股票代號、公司名稱、終止上櫃日期、終止上櫃原因 | 按年（ADR-0017：1995 年起） |
+
+legacy `stock_db` 只有 `stock_info.listing_date`，沒有下市資料。
+
+### 拆步（每步一個 PR）
+
+**38-a：清單與掛牌期間**（抓取範圍不變）
+
+- 來源研究，寫進 audit §4.11：四個表的欄位、日期格式（民國年）、單位；TPEx 按年查的參數（2026-09-25 以 `year=2024` 請求，兩個端點都回今年的資料，參數要重新確認）；公司表會不會列入 TDR、特別股、創新板，下市公司的類別憑什麼判定；2020-01-02 以後的下市家數。
+- ADR：局部取代 ADR-0026 §3——清單收已下市公司，但它們的資料仍不收（留給 38-b）。
+- Migration：新增 `listings`，把 `stocks.market`、`stocks.listed_on` 的現有值搬過去後刪除這兩欄；§81 的 downgrade 語意。
+- 四個 adapter 與 ISIN 清單一起寫入 `stocks`／`listings`，raw-first、每次請求一列 `fetches`、可重跑（§71、§76）。每個 adapter 同時服務歷史與前向抓取。
+- 同一代號、同一市場的上市日在 ISIN 與交易所上市表之間不一致時，不默默挑一個（§30）：優先順序寫進 ADR，或 quarantine。
+- 各 adapter 的抓取範圍改成「有尚未結束的掛牌期間」。
+- API：`/v1/stocks` 回傳所有公司與各自的 `listings`；加一個日期參數，回傳那一天在市場上的公司；`/docs` 與 `docs/api.md` 改寫存活者偏差的揭露（清單有下市公司，資料還沒有）。
+- 文件：`docs/schema.md`、`docs/data_domain_inventory.*`、audit §4.11、§4.14。
+
+**38-b：下市公司的歷史資料**（需 owner 確認取代 ADR-0026 §3 的其餘部分）
+
+- 抓取範圍改成「有涵蓋該日的掛牌期間」，對 2020-01-02 以後曾經掛牌、今天已下市的公司，補齊每個領域在其掛牌期間的資料：日行情、官方估值、法人買賣、外資持股、融資融券、借券、月營收、財報、TDCC、公司行動；衍生資料重算。
+- 規模大，依領域再拆（38-b-1……），開工時在這裡定。
+- 各領域對帳 legacy `stock_db`（§78）；存活者偏差的揭露改成「已消除」並說明剩下的限制（2020 年以前、`rotc`／`pub`）。
+
+### 驗收（38-a）
+
+- 2020-01-02 至今兩個交易所的每一筆下市都在 `listings`，依來源報告筆數；quarantine 的列與原因列出。
+- 凌陽創新（5236）兩段掛牌期間正確，作為永久 fixture。
+- 加入下市公司前後，每個 adapter 的請求集合相同（永久測試）。
+- 沒有任何證券類別是從代號格式推論的；證明不了是普通股的公司被 quarantine。
+- `listed_on` 與 legacy `stock_info.listing_date` 對帳，差異逐一分類。
+- 重跑不產生新的 `listings` 變更；每次抓取都有 `fetches` 列。
+
+### 不在範圍
+
+- 名稱與產業的歷史變更：沒有官方的歷史來源（§26.1）。
+- 2020 年以前的資料、`rotc`／`pub`、ETF 等非普通股（ADR-0026 §1 不變）。
+- 下市公告日：來源只給生效日；公告日沒有來源，不存。
+- 排程的前向抓取：四個 adapter 由 Step 28 排進每日工作，才能持續記到新的上市與下市。
+
 ## Step 28 — 排程的前向抓取
 
 狀態：**PLANNED**。依賴：Steps 16–24。
 
-每日、每週、每月和每季的工作執行 adapter。它們包括重試、以日曆為基礎的缺漏資料警示，以及透過重新抓取近期期間來偵測更正。每個資料集的 revision 比率報告，量化 Step 15 描述的 backfill 限制。
+每日、每週、每月和每季的工作執行 adapter（Step 38 之後也包括上市／下市表，才能持續記到新的上市與下市）。它們包括重試、以日曆為基礎的缺漏資料警示，以及透過重新抓取近期期間來偵測更正。每個資料集的 revision 比率報告，量化 Step 15 描述的 backfill 限制。
 
 抓取執行 §3.1 的流程：從 Step 16 讀取預期涵蓋、與已儲存的內容對帳、發出帶有 purpose 的 job、抓取、ingest。job 清單在記憶體中，fetcher 是本機的 HTTP fetcher；這個 PR 不建 queue，也不拆獨立服務。重點是由排程器決定要抓什麼、為什麼抓，而不是由任何 adapter 決定。
 
