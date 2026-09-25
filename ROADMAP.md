@@ -610,7 +610,7 @@ explicit out-of-scope work
 | 26-d | MERGED (#57) | `shareholding_concentration:v1` |
 | 26-e | MERGED (#58) | `margin_metrics:v1` 與 `short_interest_metrics:v1` |
 | 26-f | MERGED (#59) | `valuation_metrics:v1` |
-| 27-a | IN REVIEW | 公開 API：PIT 可見性層 |
+| 27-a | IN REVIEW (#60) | 公開 API：PIT 可見性層 |
 | 27-b | PLANNED | 公開 API：HTTP 層、觀測資料 |
 | 27-c | PLANNED | 公開 API：財報、衍生資料、參考資料 |
 | 28 | PLANNED | 排程的前向抓取 |
@@ -2014,7 +2014,7 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 
 ## Step 27 — 公開 REST API v1
 
-狀態：**27-a IN REVIEW；27-b、27-c PLANNED**。依賴：Step 15 的決定、各資料 PR。
+狀態：**27-a IN REVIEW（#60）；27-b、27-c PLANNED**。依賴：Step 15 的決定、各資料 PR。
 
 提供正確的 Data Center 語意，而不暴露資料表。端點涵蓋舊系統使用者發出的查詢：每日面板、指數、估值、籌碼資料、月營收、財務 facts 與摘要、TDCC、公司行動和衍生指標。每個回應都帶有其 PIT context 和 provenance。沒有來源的欄位被省略，或明確標示為無法取得。還原價格是 Step 36，不在這裡。
 
@@ -2032,7 +2032,7 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 
 ### Step 27-a — PIT 可見性層
 
-狀態：**IN REVIEW**。
+狀態：**IN REVIEW**（#60）。
 
 - `stock_data_center.v2.visibility`：CLAUDE.md §19 的「一個地方」。`MarketPIT`、`SystemPIT` 只收帶時區的時間點；`rows` 對十二張觀測表回傳每個 key 在該 PIT 下看到的列，含 `available_at`；`report_facts` 回傳財報版本自己的 facts。
 - 三種家族：交易所日資料（`exchange_daily_settled@1`）、TDCC（`tdcc_weekly@1`）、公司行動（`corporate_action_ex_date@1`，撤銷的事件不回傳）用規則：規則時刻前記錄的列是暫定值，之後第一列是定案值，兩者都從規則時刻起可見，其後的列是更正，從自己的 `recorded_at` 起可見；月營收與財報用首列的 `published_at`（NULL 永不可見），其後的列從自己的 `recorded_at` 起可見。
