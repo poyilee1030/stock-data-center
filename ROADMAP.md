@@ -2,7 +2,7 @@
 
 > 交付以 step 追蹤。一個 step = 一個 branch = 一個 pull request；大到無法審閱的 step 拆成 `step-N-a`、`step-N-b`……（CLAUDE.md §1）。歷史上的 phase 名稱只保留作為舊參照。
 >
-> 狀態日期：2026-09-24。
+> 狀態日期：2026-09-25。
 >
 > 來源實況基準：[`docs/source_field_audit.md`](docs/source_field_audit.md)。本 roadmap 中每個規劃中的 PR，範圍都限於 audit 證明確實存在的欄位。
 >
@@ -557,7 +557,7 @@ explicit out-of-scope work
 
 # 20. Step 帳本
 
-狀態日期：2026-09-24。
+狀態日期：2026-09-25。
 
 | Step | 狀態 | 交付內容 |
 |---|---|---|
@@ -631,6 +631,7 @@ explicit out-of-scope work
 | 35-d-2 | MERGED (#53) | Schema v2：刪除 v1 程式、測試與 scripts |
 | 35-d-3 | MERGED (#54) | Schema v2：baseline migration，刪除 v1 表 |
 | 36 | PLANNED | 還原價格（原 Step 25） |
+| 37 | PLANNED（下一步） | 網頁儀表板：以 API 展示資料庫內容（37-a／37-b／37-c） |
 
 Steps 1–12 建立了儲存、PIT 和 raw-first 的基礎。它們的 writer 契約包含一些沒有任何來源會填入的欄位（§2.3）。這些欄位保持可為 null、不填值。不刪除它們，因為刪除不會帶來任何正確性上的好處。
 
@@ -641,6 +642,8 @@ Step 13 是必須重新確立 *step* 編號的地方：已放棄的股利彙總 
 2026-09-23 起，公開 REST API 從 Step 28 提前為 Step 27，排程的前向抓取改為 Step 28，讓下游不必等前向抓取完成才能接上。在這之前寫成的 step 報告、ADR 和 migration 中，「Step 27」指前向抓取，「Step 28」指 API；它們是歷史紀錄，不改寫。
 
 2026-09-24 起，還原價格從 Step 25 改為 Step 36（owner 決定）。在這之前寫成的 step 報告與 ADR 中，「Step 25」指還原價格；它們同樣不改寫。
+
+2026-09-25 起，網頁儀表板是 Step 37，排在 Step 28 之前優先做（owner 決定）：編號只識別工作，不代表順序。
 
 ---
 
@@ -2076,6 +2079,47 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 - `GET /v1/stocks`（今天的普通股清單，ADR-0026，揭露存活者偏差）與 `GET /v1/trading-days`：參考資料，不是 PIT，每列帶 provenance。
 - 驗收證據：`docs/step_reports/step-27-c-acceptance-report.md`。
 
+## Step 37 — 網頁儀表板
+
+狀態：**PLANNED（下一步，owner 2026-09-25 決定排在 Step 28 之前）**。依賴：Step 27（MERGED）、API 的部署（`api-listen-addresses` 分支：compose 的 `api` 容器、`0.0.0.0:28617`、資料庫只聽本機）。
+
+目標：一個在瀏覽器裡看資料的前端，參考 FinMind 的分析儀表板（`finmindtrade.com/analysis/#/dashboards/new-info`）：選一檔股票，看到它的價格、籌碼、營收與財報。**純粹展示**已存的資料，不做任何新的計算、選股或排名（那些屬於下游，CLAUDE.md §38–40）。
+
+### 邊界
+
+- 前端**只透過公開 API 讀資料**（§57 的讀取路徑），不連資料庫，也不知道表名（§55）。畫面上的每個數字都是某個 API 回應裡的值；前端不自己算 MA、YoY 或任何比率——這些 API 已經有（衍生資料集、月營收發布的比較值），沒有的就不顯示。
+- PIT：預設 latest，並在畫面上標出回應的 `pit` 時間點。來源從不發布的欄位（`unsourced`）不畫成 0 或空值線；NULL 就是缺值（例如沒成交的日子）。
+- 多來源的資料集依來源分開顯示，不合併（§30）；股票只有一個價格來源時照常顯示。
+- 範圍：今天的普通股清單（ADR-0026），畫面上揭露存活者偏差。
+
+### 開工前要定（寫成 ADR，CLAUDE.md §2 的技術棧沒有前端）
+
+1. **框架與圖表庫**。建議 Vite + TypeScript + Apache ECharts（K 線、成交量、長條、面積圖都有），建成靜態檔。
+2. **怎麼提供網頁**。建議由 `api` 容器以同一個 origin 提供靜態檔（Docker 多階段建置：node 建置、Python 映像只帶成品），不必處理 CORS。API 的 key 中介層要讓靜態檔不需要 key，`/v1` 仍然要。
+3. **瀏覽器怎麼拿 API key**。建議第一次開啟時輸入，存在瀏覽器的 localStorage；區網是明文 HTTP，同 API 本身的限制。
+4. **端到端測試工具**（例如 Playwright）或只做建置與型別檢查加截圖。
+
+### 拆步（每步一個 PR）
+
+| Step | 內容 |
+|---|---|
+| 37-a | 骨架：ADR、建置與提供網頁、key 輸入、股票搜尋（`/v1/stocks`）、個股頁的 K 線＋成交量＋均線（`daily-prices`、`technical-indicators`）、交易日曆決定 x 軸 |
+| 37-b | 籌碼：法人買賣與連續天數、外資持股、融資融券與借券、股權分散與集中度；市場頁的指數與法人彙總 |
+| 37-c | 基本面：月營收（發布的 MoM／YoY）、財報重點 facts（EPS、營收、淨利）、官方估值與計算的估值（分開標示，§53）、公司行動列表 |
+
+### 驗收
+
+- 每個面板對一檔真實股票（例如 2330、6488），畫出來的值等於同一個 API 回應的值（逐點比對或抽樣比對，方法寫進驗收報告）。
+- 缺值與沒有來源的欄位不被畫成數字。
+- 從另一台電腦經區網與 Tailscale 打開頁面可用；深淺兩種主題與手機寬度要人眼確認（PR 描述附截圖，明講哪些沒看過）。
+
+### 不在範圍
+
+- 任何新的 API 端點或計算：需要時另開 step，不在前端補算。
+- 使用者帳號、權限、寫入功能、警示通知。
+- 歷史時間點（`information_as_of`）的選擇器：37-a–c 都用 latest；要重現歷史再另外排。
+- 還原價格（Step 36）。
+
 ## Step 28 — 排程的前向抓取
 
 狀態：**PLANNED**。依賴：Steps 16–24。
@@ -2605,6 +2649,7 @@ stock-data-center/
 │       └── ingestion/
 │           ├── adapters/       每個端點一個
 │           └── …               observation 型別、iXBRL parser、HTTP fetcher、raw store
+├── web/                        網頁儀表板（Step 37），只透過 API 讀資料
 └── tests/
     ├── unit/
     └── integration/

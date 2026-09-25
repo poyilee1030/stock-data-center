@@ -176,6 +176,7 @@ Step 35-d-1 schema v2: v2 loads no v1 module          MERGED
 Step 35-d-2 schema v2: delete the v1 code              MERGED
 Step 35-d-3 schema v2: baseline migration, drop v1     MERGED
 Step 36  adjusted prices (was Step 25)                 PLANNED
+Step 37  web dashboard over the public API             PLANNED (next, before 28)
 ```
 
 `ROADMAP.md` remains authoritative if this snapshot becomes stale.
