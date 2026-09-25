@@ -14,8 +14,8 @@ Three checks, every series:
     each `--restart` date: `derived_store.rewrite`, the step `run` takes per
     series, runs in a transaction that is rolled back, and the table is read
     back and compared with the stored full series: windowed technical
-    metrics, every streak and every cumulative flow exactly, the exponential
-    technical metrics within
+    metrics, every streak, cumulative flow, concentration, margin and
+    short-interest metric exactly, the exponential technical metrics within
     `derived_store.within_tolerance`. The largest residue per metric is
     reported, since the tolerance was set from it. Which date `run` restarts a
     series at (`derived_store._changed`) is the integration tests' to check:
@@ -24,7 +24,9 @@ Three checks, every series:
     One stored row per input date: every latest `daily_prices` row for the
     technical indicators, every traded day for the streaks, every
     `institutional_flows` date for the cumulative flow, every
-    `shareholding_distributions` snapshot for the concentration.
+    `shareholding_distributions` snapshot for the concentration, every
+    `margin_trading` and `securities_lending` date for the margin and
+    short-interest metrics.
 
 Exit 1 if any check fails.
 
@@ -267,6 +269,37 @@ def main() -> int:
                             failures.append(f"concentration incremental {stock_id}/{source} "
                                             f"{row['snapshot_date']}")
             report["shareholding_concentration"] = {
+                "series": len(series), "coverage_series_differing": coverage,
+                "incremental_rows_compared": compared, "incremental_rows_differing": differs,
+            }
+        # ------------------------------------------------ one-row datasets
+        for dataset, metrics in ((ds.MARGIN_METRICS, ds.MARGIN_COLUMNS),
+                                 (ds.SHORT_INTEREST_METRICS, ds.SHORT_INTEREST_COLUMNS)):
+            name = dataset.definition.dataset_code
+            if name not in wanted:
+                continue
+            [source_table] = (t.name for t in dataset.inputs)
+            series = c.execute(sa.text(
+                f"SELECT DISTINCT stock_id, source FROM {source_table} ORDER BY 1, 2")).all()
+            series = series[: args.limit] if args.limit else series
+            coverage = differs = compared = 0
+            for stock_id, source in series:
+                stored = _rows(c, name, stock_id, source)
+                days = set(c.scalars(sa.text(
+                    f"SELECT DISTINCT trade_date FROM {source_table} "
+                    "WHERE stock_id = :s AND source = :r"), {"s": stock_id, "r": source}))
+                if set(stored) != days:
+                    coverage += 1
+                    failures.append(f"{name} coverage {stock_id}/{source}")
+                for restart in restarts:
+                    for row in _rewritten(c, dataset, stock_id, source, restart, stored,
+                                          failures):
+                        compared += 1
+                        if any(row[k] != stored[row["trade_date"]][k] for k in metrics):
+                            differs += 1
+                            failures.append(f"{name} incremental {stock_id}/{source} "
+                                            f"{row['trade_date']}")
+            report[name] = {
                 "series": len(series), "coverage_series_differing": coverage,
                 "incremental_rows_compared": compared, "incremental_rows_differing": differs,
             }

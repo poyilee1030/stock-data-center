@@ -17,7 +17,9 @@ run (`--full`) reads each series from its first row and equals the on-demand
 A running sum forgets nothing either, and needs no tolerance: the cumulative
 flow reads each series it rewrites from its first row. So does the
 shareholding concentration, whose change needs the snapshot before the first
-one it rewrites; a TDCC series is keyed by its snapshot date.
+one it rewrites; a TDCC series is keyed by its snapshot date. The margin and
+short-interest metrics come from each day's own row, so a run reads only the
+days it rewrites.
 
 No value uses an input dated after it: every formula here is causal along the
 trade date.
@@ -38,7 +40,7 @@ import sqlalchemy as sa
 from sqlalchemy import Connection
 
 from stock_data_center.db import schema_v2 as v2
-from stock_data_center.v2 import concentration, cumulative_flow
+from stock_data_center.v2 import concentration, cumulative_flow, margin_metrics
 from stock_data_center.v2.backfill import JOBS
 from stock_data_center.v2.derived import TECHNICAL_INDICATORS_FORMULA, Definition
 from stock_data_center.v2.exchange_daily import key_columns
@@ -146,6 +148,51 @@ SHAREHOLDING_CONCENTRATION_V1 = Definition(
         "latest recorded row; a snapshot date need not be a trading day. A change is "
         "against the stock's previous snapshot however many weeks back, as legacy's "
         "LAG; every run reads each series it rewrites from its first snapshot."
+    ),
+    price_adjustment_convention="not applicable: no price enters the value",
+)
+
+
+MARGIN_METRICS_V1 = Definition(
+    dataset_code="margin_metrics",
+    derivation_version="v1",
+    formula_specification=(
+        "Ported from legacy calculate_margin_pressure_analysis.py, less its composite "
+        "score (downstream). From one day's margin row: margin and short usage, the "
+        "balance over the limit x 100; margin and short balance change, the balance "
+        "minus the previous balance the source publishes on that row, in shares, and "
+        "that change over the previous balance x 100; short-cover pressure, short "
+        "buy plus stock repayment over the previous short balance x 100. A ratio is "
+        "NULL unless its denominator is positive, and is ROUND(x::numeric, 4) of the "
+        "double-precision value as legacy computed it. Legacy's _wow names are "
+        "_change: the changes are daily."
+    ),
+    input_tables=("margin_trading",),
+    calendar_timezone="Asia/Taipei",
+    calendar_convention=(
+        "The days of the stock's margin file from one source, each read as its latest "
+        "recorded row; every value comes from that one row."
+    ),
+    price_adjustment_convention="not applicable: no price enters the value",
+)
+
+SHORT_INTEREST_METRICS_V1 = Definition(
+    dataset_code="short_interest_metrics",
+    derivation_version="v1",
+    formula_specification=(
+        "Ported from legacy calculate_short_interest_analysis.py, less its composite "
+        "score (downstream) and its copy of the short-sale change (in margin_metrics). "
+        "From one day's securities-lending row: the balance change, the balance minus "
+        "the previous balance the source publishes on that row, in shares; that "
+        "change over the previous balance x 100; and shares sold over shares returned. "
+        "A ratio is NULL unless its denominator is positive, and is "
+        "ROUND(x::numeric, 4) of the double-precision value as legacy computed it."
+    ),
+    input_tables=("securities_lending",),
+    calendar_timezone="Asia/Taipei",
+    calendar_convention=(
+        "The days of the stock's securities-lending file from one source, each read as "
+        "its latest recorded row; every value comes from that one row."
     ),
     price_adjustment_convention="not applicable: no price enters the value",
 )
@@ -342,6 +389,23 @@ def _concentration_rows(connection: Connection, stock_id: str, source: str,
     ]
 
 
+MARGIN_COLUMNS = margin_metrics.MARGIN_METRICS
+SHORT_INTEREST_COLUMNS = margin_metrics.SHORT_INTEREST_METRICS
+
+
+def _day_rows(table: sa.Table, inputs: tuple[str, ...], formula):
+    """A dataset whose every value comes from one input row: no warm-up."""
+    def compute(connection: Connection, stock_id: str, source: str,
+                start: date | None) -> list[dict]:
+        return [
+            {"stock_id": stock_id, "source": source, "trade_date": row["trade_date"],
+             **formula(row)}
+            for row in connection.execute(_latest(
+                table, stock_id, source, start, *inputs)).mappings()
+        ]
+    return compute
+
+
 TECHNICAL_INDICATORS = StoredDataset(
     TECHNICAL_INDICATORS_V1, v2.technical_indicators, (v2.daily_prices,),
     lambda source: source, _technical_rows,
@@ -360,10 +424,20 @@ SHAREHOLDING_CONCENTRATION = StoredDataset(
     SHAREHOLDING_CONCENTRATION_V1, v2.shareholding_concentration,
     (v2.shareholding_distributions,), lambda source: source, _concentration_rows,
 )
+MARGIN_METRICS = StoredDataset(
+    MARGIN_METRICS_V1, v2.margin_metrics, (v2.margin_trading,), lambda source: source,
+    _day_rows(v2.margin_trading, margin_metrics.MARGIN_INPUTS, margin_metrics.margin_metrics),
+)
+SHORT_INTEREST_METRICS = StoredDataset(
+    SHORT_INTEREST_METRICS_V1, v2.short_interest_metrics, (v2.securities_lending,),
+    lambda source: source,
+    _day_rows(v2.securities_lending, margin_metrics.SHORT_INTEREST_INPUTS,
+              margin_metrics.short_interest_metrics),
+)
 DATASETS = {
     d.definition.dataset_code: d
     for d in (TECHNICAL_INDICATORS, INSTITUTIONAL_STREAKS, INSTITUTIONAL_CUMULATIVE_FLOW,
-              SHAREHOLDING_CONCENTRATION)
+              SHAREHOLDING_CONCENTRATION, MARGIN_METRICS, SHORT_INTEREST_METRICS)
 }
 
 

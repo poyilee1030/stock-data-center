@@ -62,7 +62,10 @@ day. The table is `institutional_cumulative_flow` (Step 26-c). Neither value
 claims ownership. An actual holding dataset would need an observed
 baseline and a new derivation version, never a silent change to this proxy.
 
-Margin usage recomputation, short-interest ratios and SBL pressure are canonical
-derived (`margin_metrics:v1`, `short_interest_metrics:v1`); the composite
-pressure scores are downstream. Shareholding concentration derives from
+Margin and short usage, the daily balance changes and the short-cover pressure
+are canonical derived `margin_metrics:v1`, and the SBL balance change and
+sold-to-returned ratio `short_interest_metrics:v1` (Step 26-e, tables
+`margin_metrics` and `short_interest_metrics`). Each comes from one day's row;
+legacy's `_wow` columns are daily changes and are named `_change`. The
+composite pressure scores are downstream. Shareholding concentration derives from
 `shareholding_distributions`, not from these tables.
