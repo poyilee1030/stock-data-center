@@ -25,10 +25,12 @@ from stock_data_center.db.schema_v2 import (
     institutional_cumulative_flow,
     institutional_flows,
     institutional_streaks,
+    shareholding_concentration,
+    shareholding_distributions,
     technical_indicators,
 )
 from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
-from stock_data_center.v2 import derived, derived_store
+from stock_data_center.v2 import backfill, derived, derived_store
 from stock_data_center.v2.fetch_log import FetchRecord, record_fetch
 from stock_data_center.v2.indicators import METRIC_CODES, DailyBar
 from stock_data_center.v2.indicators import technical_indicators as formulas
@@ -40,6 +42,8 @@ T86 = "twse_t86"
 TECH = derived_store.TECHNICAL_INDICATORS
 STREAKS = derived_store.INSTITUTIONAL_STREAKS
 CUMULATIVE = derived_store.INSTITUTIONAL_CUMULATIVE_FLOW
+CONCENTRATION = derived_store.SHAREHOLDING_CONCENTRATION
+TDCC = "tdcc_opendata"
 QFIIS = "twse_mi_qfiis"
 EXPONENTIAL = ("k", "d", "rsi6", "rsi12", "macd_dif", "macd_dea", "macd_hist")
 
@@ -165,6 +169,30 @@ def test_the_run_holds_its_readers_lock_until_it_commits(engine: Engine) -> None
                 f"institutional_flows/{T86}"))))
         writer.rollback()
         runner.rollback()
+
+
+def test_a_run_takes_the_lock_of_every_writer_of_its_inputs() -> None:
+    # A writer the run does not wait for can commit rows stamped before
+    # `computed_at` after the run has read its inputs; the next run never sees them.
+    for dataset in derived_store.DATASETS.values():
+        writers = {key for key, job in backfill.JOBS.items() if job.table in dataset.inputs}
+        assert {job.table for job in backfill.JOBS.values() if job.key in writers} == set(
+            dataset.inputs), dataset.definition.dataset_code
+        assert writers <= set(derived_store.writer_keys(dataset)), (
+            dataset.definition.dataset_code)
+
+
+def test_a_concentration_run_waits_for_the_tdcc_writer(engine: Engine) -> None:
+    with engine.connect() as writer, engine.connect() as runner:
+        writer.begin()
+        writer.execute(sa.select(sa.func.pg_advisory_xact_lock(sa.func.hashtext(
+            f"shareholding_distributions/{TDCC}"))))
+        runner.begin()
+        runner.execute(sa.text("SET LOCAL lock_timeout = '200ms'"))
+        with pytest.raises(OperationalError, match="lock timeout"):
+            derived_store.run(runner, CONCENTRATION)
+        runner.rollback()
+        writer.rollback()
 
 
 def test_two_runs_of_one_dataset_do_not_overlap(engine: Engine) -> None:
@@ -574,6 +602,122 @@ def test_a_cumulative_value_uses_no_input_dated_after_it(db, fetch_id) -> None:
     derived_store.run(db, CUMULATIVE, full=True)
 
     assert _cumulative(db)[:3] == early
+
+
+# ---------------------------------------------------------------- shareholding concentration
+
+
+def _snapshot(db, fetch_id, day, *, percent="1.00", large="1.00", holders=10,
+              stock_id="2330") -> None:
+    """Levels 1-11 at `percent`, 12-15 at `large`, every level `holders`."""
+    values = {"stock_id": stock_id, "source": TDCC, "snapshot_date": day, "fetch_id": fetch_id}
+    for level in range(1, 16):
+        values[f"holders_{level}"] = holders
+        values[f"shares_{level}"] = holders * 1000
+        values[f"percent_{level}"] = large if level >= 12 else percent
+    db.execute(sa.insert(shareholding_distributions).values(**values))
+
+
+def _concentration(db, *columns, stock_id="2330") -> list[tuple]:
+    t = shareholding_concentration.c
+    return [tuple(row) for row in db.execute(
+        sa.select(t.snapshot_date, *(t[c] for c in columns))
+        .where(t.stock_id == stock_id).order_by(t.snapshot_date))]
+
+
+def test_the_concentration_definition() -> None:
+    definition = CONCENTRATION.definition
+    assert (definition.dataset_code, definition.derivation_version) == (
+        "shareholding_concentration", "v1")
+    assert definition.input_tables == ("shareholding_distributions",)
+
+
+def test_concentration_is_keyed_by_the_snapshot_date(db, fetch_id) -> None:
+    # A TDCC week is dated by its snapshot, which need not be a trading day
+    # (2021-02-09 fell in a week the exchange was shut).
+    weeks = [date(2021, 2, 5), date(2021, 2, 9), date(2021, 2, 20)]
+    for week in weeks:
+        _snapshot(db, fetch_id, week)
+
+    run = derived_store.run(db, CONCENTRATION)
+
+    assert (run.series, run.rows) == (1, 3)
+    assert _concentration(db, "source", "large_holder_ratio", "small_holder_count") == [
+        (week, TDCC, 4.0, 80) for week in weeks]
+
+
+def test_a_change_is_against_the_previous_snapshot(db, fetch_id) -> None:
+    # Legacy's LAG: the previous snapshot of the series, however far back.
+    _snapshot(db, fetch_id, date(2024, 7, 5), large="1.00")
+    _snapshot(db, fetch_id, date(2024, 7, 12), large="2.00")
+    _snapshot(db, fetch_id, date(2024, 8, 2), large="2.50")
+
+    derived_store.run(db, CONCENTRATION)
+
+    assert _concentration(db, "large_holder_ratio_wow", "concentration_spread_wow") == [
+        (date(2024, 7, 5), None, None),
+        (date(2024, 7, 12), 4.0, 4.0),
+        (date(2024, 8, 2), 2.0, 2.0),
+    ]
+
+
+def test_a_corrected_snapshot_recomputes_its_week_and_the_next(db, fetch_id) -> None:
+    weeks = [date(2024, 7, 5), date(2024, 7, 12), date(2024, 7, 19)]
+    for week in weeks:
+        _snapshot(db, fetch_id, week)
+    first = derived_store.run(db, CONCENTRATION)
+    _snapshot(db, fetch_id, weeks[1], large="3.00")  # a correction of the second week
+
+    second = derived_store.run(db, CONCENTRATION)
+
+    assert _concentration(db, "large_holder_ratio", "large_holder_ratio_wow", "computed_at") == [
+        (weeks[0], 4.0, None, first.computed_at),
+        (weeks[1], 12.0, 8.0, second.computed_at),
+        (weeks[2], 4.0, -8.0, second.computed_at),
+    ]
+
+
+def test_a_late_earlier_snapshot_becomes_the_next_ones_previous(db, fetch_id) -> None:
+    _snapshot(db, fetch_id, date(2024, 7, 5), large="1.00")
+    _snapshot(db, fetch_id, date(2024, 7, 19), large="2.00")
+    derived_store.run(db, CONCENTRATION)
+    _snapshot(db, fetch_id, date(2024, 7, 12), large="1.50")
+
+    derived_store.run(db, CONCENTRATION)
+
+    assert _concentration(db, "large_holder_ratio_wow") == [
+        (date(2024, 7, 5), None), (date(2024, 7, 12), 2.0), (date(2024, 7, 19), 2.0)]
+
+
+def test_an_incremental_concentration_equals_the_full_one(db, fetch_id) -> None:
+    weeks = [date(2021, 1, 1) + timedelta(weeks=i) for i in range(60)]
+    for index, week in enumerate(weeks[:59]):
+        _snapshot(db, fetch_id, week, large=f"{index % 9 + 1}.25", holders=index + 1)
+    derived_store.run(db, CONCENTRATION)
+    _snapshot(db, fetch_id, weeks[59], large="7.75")
+    derived_store.run(db, CONCENTRATION)
+    columns = tuple(c.name for c in shareholding_concentration.c
+                    if c.name not in ("stock_id", "source", "snapshot_date", "computed_at"))
+
+    incremental = _concentration(db, *columns)
+    derived_store.run(db, CONCENTRATION, full=True)
+
+    assert incremental == _concentration(db, *columns)
+    assert len(incremental) == 60
+
+
+def test_a_concentration_uses_no_snapshot_dated_after_it(db, fetch_id) -> None:
+    weeks = [date(2024, 7, 5) + timedelta(weeks=i) for i in range(6)]
+    for week in weeks[:3]:
+        _snapshot(db, fetch_id, week, large="2.00")
+    derived_store.run(db, CONCENTRATION)
+    early = _concentration(db, "large_holder_ratio", "large_holder_ratio_wow")
+    for week in weeks[3:]:
+        _snapshot(db, fetch_id, week, large="9.00")
+
+    derived_store.run(db, CONCENTRATION, full=True)
+
+    assert _concentration(db, "large_holder_ratio", "large_holder_ratio_wow")[:3] == early
 
 
 # ---------------------------------------------------------------- storage

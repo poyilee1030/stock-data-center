@@ -37,7 +37,8 @@ the formula. A stored dataset follows the latest inputs and has no marker
 
 ## Stored datasets (Step 26)
 
-Each dataset is one wide table keyed by `(stock_id, source, trade_date)`, one
+Each dataset is one wide table keyed by `(stock_id, source, trade_date)` — a
+TDCC one by its `snapshot_date` instead, which need not be a trading day — one
 column per metric, plus `computed_at` (ROADMAP §17, ADR-0027 revision of
 2026-09-24). No per-row version, commit, lineage, hash or PIT context.
 
@@ -45,6 +46,7 @@ column per metric, plus `computed_at` (ROADMAP §17, ADR-0027 revision of
 | --- | --- | --- | --- |
 | `technical_indicators:v1` | `technical_indicators` | `daily_prices` | every trade date of one stock's prices from one source |
 | `institutional_cumulative_flow:v1` | `institutional_cumulative_flow` | `institutional_flows`, `foreign_holdings` | every day of the institutional file from one source; issued shares from `twse_mi_qfiis` for `twse_t86`, `mops_t13sa150_otc` for `tpex_insti_daily_trade` |
+| `shareholding_concentration:v1` | `shareholding_concentration` | `shareholding_distributions` | every TDCC snapshot of one stock; small holders are levels 1–8, mid 9–11, large 12–15, and a week-over-week change is against the stock's previous snapshot however far back |
 | `institutional_streaks:v1` | `institutional_streaks` | `institutional_flows`, `daily_prices` | the days the stock traded (volume above zero) on the market of the institutional source; `twse_t86` counts over `twse_mi_index` days, `tpex_insti_daily_trade` over `tpex_otc_quotes` days |
 
 **Latest inputs.** A value is computed from each input key's latest recorded
@@ -74,12 +76,14 @@ date is aligned to its publication (`valuation_metrics:v1`, Step 26).
    no window: when one is still unbroken on that date across the whole buffer,
    it may have begun before it, so that series is counted from its first row.
    A running sum has no window at all: the cumulative flow reads every series it
-   rewrites from its first row.
+   rewrites from its first row, and so does the concentration, whose change
+   needs the snapshot before the first rewritten one.
 
 `--full` recomputes every series from its first row.
 
 **Accuracy of an incremental run** (owner decision 2026-09-24). The windowed
-metrics (MA, VMA, Bollinger), the streaks and the cumulative flows are exact. The exponential ones
+metrics (MA, VMA, Bollinger), the streaks, the cumulative flows and the
+concentration metrics are exact. The exponential ones
 (K, D, RSI, MACD) never forget where they started, so a restart leaves a
 residue: at most 1e-5 of the close for MACD and 1e-6 absolute for K, D and RSI
 (`derived_store.within_tolerance`; measured maxima 4.1e-6 and 6.5e-8). A full

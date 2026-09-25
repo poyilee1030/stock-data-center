@@ -15,7 +15,9 @@ full series, not equal to it; the owner accepted that residue on 2026-09-24. A f
 run (`--full`) reads each series from its first row and equals the on-demand
 `technical_indicators_pit:v1` bit for bit while no input has a correction.
 A running sum forgets nothing either, and needs no tolerance: the cumulative
-flow reads each series it rewrites from its first row.
+flow reads each series it rewrites from its first row. So does the
+shareholding concentration, whose change needs the snapshot before the first
+one it rewrites; a TDCC series is keyed by its snapshot date.
 
 No value uses an input dated after it: every formula here is causal along the
 trade date.
@@ -36,9 +38,10 @@ import sqlalchemy as sa
 from sqlalchemy import Connection
 
 from stock_data_center.db import schema_v2 as v2
-from stock_data_center.v2 import cumulative_flow
+from stock_data_center.v2 import concentration, cumulative_flow
+from stock_data_center.v2.backfill import JOBS
 from stock_data_center.v2.derived import TECHNICAL_INDICATORS_FORMULA, Definition
-from stock_data_center.v2.exchange_daily import JOBS
+from stock_data_center.v2.exchange_daily import key_columns
 from stock_data_center.v2.indicators import MA_WINDOWS, DailyBar, technical_indicators
 from stock_data_center.v2.streaks import PARTIES, net_streaks
 
@@ -123,6 +126,31 @@ INSTITUTIONAL_CUMULATIVE_FLOW_V1 = Definition(
 )
 
 
+SHAREHOLDING_CONCENTRATION_V1 = Definition(
+    dataset_code="shareholding_concentration",
+    derivation_version="v1",
+    formula_specification=(
+        "Ported from legacy calculate_shareholding_concentration.py. Of the fifteen "
+        "TDCC holding levels, small holders are levels 1-8 (at most 50 lots), mid "
+        "9-11 (up to 400) and large 12-15: each group's summed percentage of issued "
+        "shares, the large minus the small, the small and large groups' holder "
+        "counts, and each ratio's and the spread's change from the previous snapshot, "
+        "NULL on the first; ratios rounded to four places half away from zero as "
+        "legacy's ROUND(x::numeric, 4), exact because TDCC publishes two places. A "
+        "level the source did not publish leaves what needs it NULL."
+    ),
+    input_tables=("shareholding_distributions",),
+    calendar_timezone="Asia/Taipei",
+    calendar_convention=(
+        "The TDCC snapshot dates of one stock and source, in order, each read as its "
+        "latest recorded row; a snapshot date need not be a trading day. A change is "
+        "against the stock's previous snapshot however many weeks back, as legacy's "
+        "LAG; every run reads each series it rewrites from its first snapshot."
+    ),
+    price_adjustment_convention="not applicable: no price enters the value",
+)
+
+
 def within_tolerance(metric: str, incremental: float | None, full: float | None,
                      close: float | None) -> bool:
     """Whether an incremental value is an accepted stand-in for the full one.
@@ -162,15 +190,22 @@ class RunResult:
 # ---------------------------------------------------------------- inputs
 
 
+def period(table: sa.Table) -> sa.Column:
+    """The date column of a table's key: a trade date, or a TDCC snapshot date."""
+    [column] = (c for c in key_columns(table) if c not in ("stock_id", "source"))
+    return table.c[column]
+
+
 def _latest(table: sa.Table, stock_id: str, source: str, since: date | None, *columns):
-    """Each trade date's latest recorded row of one stock and source."""
+    """Each date's latest recorded row of one stock and source."""
+    day = period(table)
     query = (
-        sa.select(table.c.trade_date, *(table.c[c] for c in columns))
+        sa.select(day, *(table.c[c] for c in columns))
         .where(table.c.stock_id == stock_id, table.c.source == source)
-        .order_by(table.c.trade_date, table.c.recorded_at.desc())
-        .distinct(table.c.trade_date)
+        .order_by(day, table.c.recorded_at.desc())
+        .distinct(day)
     )
-    return query if since is None else query.where(table.c.trade_date >= since)
+    return query if since is None else query.where(day >= since)
 
 
 def _warm_up(connection: Connection, stock_id: str, source: str, start: date | None,
@@ -289,6 +324,24 @@ def _cumulative_rows(connection: Connection, stock_id: str, source: str,
     return out
 
 
+_LEVEL_COLUMNS = tuple(f"{kind}_{level}" for level in range(1, 16)
+                       for kind in ("holders", "percent"))
+
+
+def _concentration_rows(connection: Connection, stock_id: str, source: str,
+                        start: date | None) -> list[dict]:
+    # A change needs the snapshot before `start`; a series is a few hundred
+    # weeks, so it is read whole.
+    snapshots = connection.execute(_latest(
+        v2.shareholding_distributions, stock_id, source, None, *_LEVEL_COLUMNS)).mappings().all()
+    return [
+        {"stock_id": stock_id, "source": source, "snapshot_date": snapshot["snapshot_date"],
+         **metrics}
+        for snapshot, metrics in zip(snapshots, concentration.concentration(snapshots))
+        if start is None or snapshot["snapshot_date"] >= start
+    ]
+
+
 TECHNICAL_INDICATORS = StoredDataset(
     TECHNICAL_INDICATORS_V1, v2.technical_indicators, (v2.daily_prices,),
     lambda source: source, _technical_rows,
@@ -303,20 +356,32 @@ INSTITUTIONAL_CUMULATIVE_FLOW = StoredDataset(
     (v2.institutional_flows, v2.foreign_holdings),
     lambda source: _FLOW_OF_HOLDING.get(source, source), _cumulative_rows,
 )
+SHAREHOLDING_CONCENTRATION = StoredDataset(
+    SHAREHOLDING_CONCENTRATION_V1, v2.shareholding_concentration,
+    (v2.shareholding_distributions,), lambda source: source, _concentration_rows,
+)
 DATASETS = {
     d.definition.dataset_code: d
-    for d in (TECHNICAL_INDICATORS, INSTITUTIONAL_STREAKS, INSTITUTIONAL_CUMULATIVE_FLOW)
+    for d in (TECHNICAL_INDICATORS, INSTITUTIONAL_STREAKS, INSTITUTIONAL_CUMULATIVE_FLOW,
+              SHAREHOLDING_CONCENTRATION)
 }
 
 
 # ---------------------------------------------------------------- run
 
 
+def writer_keys(dataset: StoredDataset) -> list[str]:
+    """The job keys whose writers lock the dataset's inputs, in lock order: every
+    write-path job, not one module's, so no input's writer is left out."""
+    return sorted(k for k, job in JOBS.items() if job.table in dataset.inputs)
+
+
 def _fix_inputs(connection: Connection, dataset: StoredDataset) -> datetime:
     """Take the locks that make `computed_at` a clean cut, and return it.
 
     A writer stamps its rows with its INSERT's statement time and holds its
-    job's advisory lock until it commits (`exchange_daily._write`). Taking the
+    job's advisory lock until it commits (`exchange_daily._write`, which every
+    job in `backfill.JOBS` writes through). Taking the
     same locks shared waits for every writer mid-transaction and blocks new ones
     until this run commits, so every input row stamped before the instant is
     committed and read, and every one stamped after it is left to the next run.
@@ -327,7 +392,7 @@ def _fix_inputs(connection: Connection, dataset: StoredDataset) -> datetime:
         raise RuntimeError(f"a derived run needs READ COMMITTED, not {isolation}")
     lock = sa.func.pg_advisory_xact_lock
     connection.execute(sa.select(lock(sa.func.hashtext(f"derived/{dataset.table.name}"))))
-    for key in sorted(k for k, job in JOBS.items() if job.table in dataset.inputs):
+    for key in writer_keys(dataset):
         connection.execute(sa.select(sa.func.pg_advisory_xact_lock_shared(sa.func.hashtext(key))))
     return connection.scalar(sa.select(sa.func.clock_timestamp()))
 
@@ -337,7 +402,7 @@ def _changed(connection: Connection, dataset: StoredDataset,
     """Each series' earliest input date recorded after `since`; all of them if None."""
     starts: dict[Series, date] = {}
     for table in dataset.inputs:
-        query = sa.select(table.c.stock_id, table.c.source, sa.func.min(table.c.trade_date)) \
+        query = sa.select(table.c.stock_id, table.c.source, sa.func.min(period(table))) \
             .group_by(table.c.stock_id, table.c.source)
         if since is not None:
             query = query.where(table.c.recorded_at > since)
@@ -374,7 +439,7 @@ def rewrite(connection: Connection, dataset: StoredDataset, stock_id: str, sourc
     if start is not None:
         connection.execute(sa.delete(table).where(
             table.c.stock_id == stock_id, table.c.source == source,
-            table.c.trade_date >= start))
+            period(table) >= start))
     if rows:
         connection.execute(sa.insert(table), [{**row, "computed_at": computed_at}
                                               for row in rows])

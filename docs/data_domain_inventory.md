@@ -156,7 +156,7 @@ changes, and each row names the fetch it came from (ADR-0027).
 | `xbrl_concept_catalog` | **not in v1** | — | — | — |
 | `technical_indicators:v1` | canonical derived | `technical_indicators (stock_id, source, trade_date)` | latest inputs; D uses prices dated on or before D; `computed_at` is provenance | both ML repos/API |
 | `technical_indicators_pit:v1` | canonical derived | computed on demand | inherited from PIT-visible prices; the reference the stored series is checked against | API |
-| `shareholding_concentration:v1` | canonical derived | planned table (Step 26) | latest TDCC inputs | selection/API |
+| `shareholding_concentration:v1` | canonical derived | `shareholding_concentration (stock_id, source, snapshot_date)` | latest TDCC inputs; a change is against the stock's previous snapshot | selection/API |
 | `valuation_metrics:v1` | canonical derived | planned table (Step 26) | latest inputs; reports aligned to their publication | both ML repos/API |
 | `margin_metrics:v1` | canonical derived | planned table (Step 26) | latest margin inputs | selection/API |
 | `short_interest_metrics:v1` | canonical derived | planned table (Step 26) | latest margin/SBL inputs | selection/API |
@@ -171,7 +171,8 @@ affected dates and overwrites them (ROADMAP §17, disclosed downstream).
 
 Backfill status: every observed dataset except the Step 33 declarations holds
 2020-01-02 onward in `stockdc_backfill` (Steps 17-c through 24-b, 35-c-3).
-`technical_indicators:v1`, `institutional_streaks:v1` (Step 26-b) and
-`institutional_cumulative_flow:v1` (Step 26-c) hold every date of 2020-01-02
-onward; the other canonical derived datasets are **not started** and belong to
-Steps 26-d through 26-f.
+`technical_indicators:v1`, `institutional_streaks:v1` (Step 26-b),
+`institutional_cumulative_flow:v1` (Step 26-c) and
+`shareholding_concentration:v1` (Step 26-d) hold every date of their inputs;
+the other canonical derived datasets are **not started** and belong to Steps
+26-e and 26-f.

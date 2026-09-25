@@ -6,9 +6,11 @@ source facts are in `docs/source_field_audit.md` §4.9; the storage design is
 ADR-0027 "35-c 定案".
 
 The distribution is the observed input of the canonical
-`shareholding_concentration:v1` dataset (Step 26). Large/mid/small-holder
-ratios, counts, spreads and week-over-week changes are computed on demand from
-it and inherit its visibility.
+`shareholding_concentration:v1` dataset (Step 26-d), stored in
+`shareholding_concentration` and computed from each week's latest row
+(`docs/derived_data.md`): large/mid/small-holder ratios (levels 12–15, 9–11,
+1–8), the large-minus-small spread, the large and small holder counts, and
+each ratio's and the spread's change from the stock's previous snapshot.
 
 ## Storage
 

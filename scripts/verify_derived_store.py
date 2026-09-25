@@ -23,7 +23,8 @@ Three checks, every series:
 `coverage`
     One stored row per input date: every latest `daily_prices` row for the
     technical indicators, every traded day for the streaks, every
-    `institutional_flows` date for the cumulative flow.
+    `institutional_flows` date for the cumulative flow, every
+    `shareholding_distributions` snapshot for the concentration.
 
 Exit 1 if any check fails.
 
@@ -45,6 +46,7 @@ import sqlalchemy as sa
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from stock_data_center.v2 import derived_store as ds
+from stock_data_center.v2.concentration import METRICS as CONCENTRATION
 from stock_data_center.v2.derived import TechnicalIndicators
 from stock_data_center.v2.indicators import METRIC_CODES
 
@@ -55,8 +57,9 @@ CUMULATIVE = tuple(f"{party}_cumulative_net_{kind}" for party in ds.cumulative_f
 
 
 def _rows(connection, table: str, stock_id: str, source: str) -> dict[date, dict]:
+    day = ds.period(ds.v2.metadata.tables[table]).name
     return {
-        row["trade_date"]: dict(row)
+        row[day]: dict(row)
         for row in connection.execute(
             sa.text(f"SELECT * FROM {table} WHERE stock_id = :s AND source = :r"),
             {"s": stock_id, "r": source}).mappings()
@@ -237,6 +240,33 @@ def main() -> int:
                             failures.append(f"cumulative incremental {stock_id}/{source} "
                                             f"{row['trade_date']}")
             report["institutional_cumulative_flow"] = {
+                "series": len(series), "coverage_series_differing": coverage,
+                "incremental_rows_compared": compared, "incremental_rows_differing": differs,
+            }
+        # ------------------------------------------------ shareholding concentration
+        if "shareholding_concentration" in wanted:
+            series = c.execute(sa.text(
+                "SELECT DISTINCT stock_id, source FROM shareholding_distributions "
+                "ORDER BY 1, 2")).all()
+            series = series[: args.limit] if args.limit else series
+            coverage = differs = compared = 0
+            for stock_id, source in series:
+                stored = _rows(c, "shareholding_concentration", stock_id, source)
+                days = set(c.scalars(sa.text(
+                    "SELECT DISTINCT snapshot_date FROM shareholding_distributions "
+                    "WHERE stock_id = :s AND source = :r"), {"s": stock_id, "r": source}))
+                if set(stored) != days:
+                    coverage += 1
+                    failures.append(f"concentration coverage {stock_id}/{source}")
+                for restart in restarts:
+                    for row in _rewritten(c, ds.SHAREHOLDING_CONCENTRATION, stock_id, source,
+                                          restart, stored, failures):
+                        compared += 1
+                        if any(row[k] != stored[row["snapshot_date"]][k] for k in CONCENTRATION):
+                            differs += 1
+                            failures.append(f"concentration incremental {stock_id}/{source} "
+                                            f"{row['snapshot_date']}")
+            report["shareholding_concentration"] = {
                 "series": len(series), "coverage_series_differing": coverage,
                 "incremental_rows_compared": compared, "incremental_rows_differing": differs,
             }

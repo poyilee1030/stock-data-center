@@ -19,6 +19,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 from stock_data_center.db.base import aware_timestamp, metadata, uuid_type
+from stock_data_center.v2.concentration import METRICS as CONCENTRATION_METRICS
 from stock_data_center.v2.cumulative_flow import PARTIES as CUMULATIVE_PARTIES
 from stock_data_center.v2.indicators import METRIC_CODES
 from stock_data_center.v2.streaks import PARTIES
@@ -614,6 +615,22 @@ institutional_cumulative_flow = sa.Table(
     _computed_at(),
     sa.PrimaryKeyConstraint("stock_id", "source", "trade_date",
                             name="pk_institutional_cumulative_flow"),
+)
+
+# Keyed by the TDCC snapshot date, which need not be a trading day.
+shareholding_concentration = sa.Table(
+    "shareholding_concentration",
+    metadata,
+    *_derived_key()[:2],
+    sa.Column("snapshot_date", sa.Date(), nullable=False),
+    *(
+        sa.Column(metric, sa.BigInteger() if metric.endswith("_count")
+                  else postgresql.DOUBLE_PRECISION())
+        for metric in CONCENTRATION_METRICS
+    ),
+    _computed_at(),
+    sa.PrimaryKeyConstraint("stock_id", "source", "snapshot_date",
+                            name="pk_shareholding_concentration"),
 )
 
 # Append-only tables: every value table and the fetch log. `stocks` is reference
