@@ -3,13 +3,42 @@
 from __future__ import annotations
 
 from stock_data_center.api.datasets import DATASETS, HIDDEN, UNSOURCED
+from stock_data_center.db import schema_v2 as v2
 from stock_data_center.v2 import visibility
 
 
-def test_every_observed_family_is_served_but_financial_reports() -> None:
-    # Financial reports, with their facts, are Step 27-c's.
+def test_every_observed_family_is_served() -> None:
     served = {d.table.name for d in DATASETS.values()}
-    assert served == set(visibility.FAMILIES) - {"financial_reports"}
+    assert served == set(visibility.FAMILIES)
+
+
+def test_every_stored_derived_dataset_is_served_with_the_inputs_it_reads() -> None:
+    # Step 27-c: a derived row waits for the inputs its formula reads, so the
+    # declared dependencies must be the tables the computation reads: its
+    # incremental inputs, and the reports valuation restarts on.
+    from stock_data_center import api
+    from stock_data_center.v2 import derived_store
+
+    served = {d.stored.definition.dataset_code for d in api.derived.DERIVED.values()}
+    assert served == set(derived_store.DATASETS)
+    for stored in derived_store.DATASETS.values():
+        read = {i.table for i in stored.depends}
+        expected = set(stored.inputs) | (
+            {v2.financial_reports} if stored.more_changes is not None else set())
+        assert read == expected, stored.definition.dataset_code
+        for i in stored.depends:
+            assert i.scope in ("history", "day"), i
+
+
+def test_a_non_finite_number_is_never_rendered() -> None:
+    # JSON has no NaN; a NaN in a double-precision column must fail loudly.
+    import pytest
+
+    from stock_data_center.api.render import dumps
+
+    for value in (float("nan"), float("inf")):
+        with pytest.raises(ValueError):
+            dumps({"x": value})
 
 
 def test_every_unsourced_entry_names_a_real_source_and_column() -> None:

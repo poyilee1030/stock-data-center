@@ -32,9 +32,10 @@ from stock_data_center.v2 import visibility
 from stock_data_center.v2.backfill import JOBS
 from stock_data_center.v2.corporate_actions import FEEDS
 
-# Storage detail: provenance is rendered from these, and `published_at` is
-# what `available_at` is computed from.
-HIDDEN = frozenset({"fetch_id", "detail_fetch_id", "published_at", "retracted"})
+# Storage detail: provenance is rendered from these, `published_at` is what
+# `available_at` is computed from, and a report version's id is how its facts
+# are found.
+HIDDEN = frozenset({"id", "fetch_id", "detail_fetch_id", "published_at", "retracted"})
 
 _EX_RIGHT = frozenset({"old_shares", "new_shares", "cash_return_per_share"})
 _REDUCTION = frozenset({"rights_dividend_value", "free_share_ratio"})
@@ -72,7 +73,8 @@ class Dataset:
 
     @property
     def period(self) -> str:
-        return self.family.period(self.table).name
+        # A financial report's date is its quarter's last day, computed.
+        return getattr(self.family.period(self.table), "name", None) or "quarter_end"
 
     @property
     def keys(self) -> tuple[str, ...]:
@@ -117,5 +119,7 @@ DATASETS: dict[str, Dataset] = {
                 "Monthly revenue with its published comparatives."),
         Dataset("corporate-actions", v2.corporate_actions,
                 "Events the exchanges executed, from their result files."),
+        Dataset("financial-reports", v2.financial_reports,
+                "Quarterly balance sheet, income and cash-flow facts, one version per report."),
     )
 }

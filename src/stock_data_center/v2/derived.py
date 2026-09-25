@@ -194,6 +194,10 @@ class TechnicalIndicators:
         self._git_commit = git_commit
         self._definition = definition
 
+    @property
+    def git_commit(self) -> str:
+        return self._git_commit
+
     def _history(self, connection, *, stock_id, source, through, knowledge_as_of) -> History:
         if connection.scalar(sa.select(stocks.c.stock_id).where(stocks.c.stock_id == stock_id)) \
                 is None:

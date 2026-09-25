@@ -95,11 +95,11 @@ def test_datasets_are_named_apart_from_tables(client) -> None:
     # §55: clients know dataset concepts, not PostgreSQL table names.
     listing = _get(client, "/v1/datasets").json()["datasets"]
     names = {d["name"] for d in listing}
-    assert names == {
+    assert {d["name"] for d in listing if d["kind"] == "observed"} == {
         "daily-prices", "indices", "official-valuations", "institutional-flows",
         "institutional-market-flows", "foreign-holdings", "margin-trading",
         "securities-lending", "shareholding-distributions", "monthly-revenues",
-        "corporate-actions",
+        "corporate-actions", "financial-reports",
     }
     assert not names & set(metadata.tables)
     daily = next(d for d in listing if d["name"] == "daily-prices")

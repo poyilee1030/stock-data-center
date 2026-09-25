@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Step 27-b acceptance: start the API against a database, run verify_api.py
+# Steps 27-b and 27-c acceptance: start the API against a database, run verify_api.py
 # against it, and stop the server whatever happens.
 #
 #   DATABASE_URL=postgresql+psycopg://stockdc:stockdc@localhost:5432/stockdc_backfill \
