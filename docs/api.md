@@ -12,13 +12,32 @@ trading calendar. Adjusted prices are Step 36.
 
 ## Running it
 
+The API runs as the `api` service of `docker-compose.yml`, next to PostgreSQL:
+
 ```text
-STOCKDC_API_KEY=<key> DATABASE_URL=<url> python -m stock_data_center.api [--port 8000]
+scripts/api_up.sh          # docker compose up -d --build api, with the commit it serves
 ```
 
-It listens on `127.0.0.1` only. The key and the database URL come from the
-environment (for instance `set -a && . ./.env && set +a`), never the command
-line. Every read runs in a read-only transaction.
+It reads `stockdc_backfill` (`STOCKDC_API_DATABASE` overrides it) over the
+compose network, and takes the key from `STOCKDC_API_KEY` in `.env`; without
+one it does not start. PostgreSQL listens on `127.0.0.1:26519` only, so a
+client can reach the data through the API alone.
+
+The API listens on every interface, port 28617 (owner, 2026-09-25): the server
+is an office desktop, and clients on the LAN or the tailnet call
+`http://<its LAN or Tailscale address>:28617`. On the LAN the key travels in
+clear HTTP; over Tailscale it is encrypted, so prefer the Tailscale address.
+Every read runs in a read-only transaction.
+
+Outside the container, for development:
+
+```text
+STOCKDC_API_KEY=<key> DATABASE_URL=<url> python -m stock_data_center.api [--host 0.0.0.0] [--port 28617]
+```
+
+`--host 127.0.0.1` keeps it to this machine. The key and the database URL come
+from the environment (for instance `set -a && . ./.env && set +a`), never the
+command line.
 
 Every request needs the key in the `X-API-Key` header; without it the answer
 is `401`.

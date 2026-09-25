@@ -17,7 +17,7 @@ Raw files under `data/raw/` are not touched.
 Without `--execute` it only reports what it would drop and the v2 row counts.
 
     .venv/bin/python scripts/rebase_to_baseline.py \\
-        --database-url postgresql+psycopg://stockdc:stockdc@localhost:5432/stockdc_backfill
+        --database-url postgresql+psycopg://stockdc:stockdc@localhost:26519/stockdc_backfill
 """
 
 from __future__ import annotations

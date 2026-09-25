@@ -5,8 +5,10 @@ services:
       POSTGRES_DB: stockdc
       POSTGRES_USER: stockdc
       POSTGRES_PASSWORD: stockdc
+    # This machine only (owner, 2026-09-25): clients reach the data through the
+    # API, never the database. An uncommon port, below Linux's ephemeral range.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:26519:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U stockdc -d stockdc"]
       interval: 2s
@@ -14,6 +16,24 @@ services:
       retries: 30
     volumes:
       - stockdc-postgres-data:/var/lib/postgresql
+
+  # The public API (docs/api.md): every interface of this office desktop, so
+  # clients on the LAN or the tailnet can call it (owner, 2026-09-25). The key
+  # comes from .env; the API refuses to start without one.
+  api:
+    build:
+      context: .
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+    environment:
+      DATABASE_URL: postgresql+psycopg://stockdc:stockdc@postgres:5432/${STOCKDC_API_DATABASE:-stockdc_backfill}
+      STOCKDC_API_KEY: ${STOCKDC_API_KEY:-}
+    ports:
+      - "0.0.0.0:28617:28617"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   stockdc-postgres-data:

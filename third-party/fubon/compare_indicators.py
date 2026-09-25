@@ -33,7 +33,7 @@ import sqlalchemy as sa
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from client import latest
 
-DATA_CENTER_URL = "postgresql+psycopg://stockdc:stockdc@localhost:5432/stockdc_backfill"
+DATA_CENTER_URL = "postgresql+psycopg://stockdc:stockdc@localhost:26519/stockdc_backfill"
 LEGACY_URL = "postgresql+psycopg://user:password@127.0.0.1:5419/stock_db"
 KNOWLEDGE_AS_OF = "2026-09-23T12:00:00+08:00"
 COLUMNS = ("ma5", "ma10", "ma20", "ma60", "k", "d", "rsi6", "rsi12", "macd_dif", "macd_dea")

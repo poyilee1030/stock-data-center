@@ -612,7 +612,7 @@ explicit out-of-scope work
 | 26-f | MERGED (#59) | `valuation_metrics:v1` |
 | 27-a | MERGED (#60) | 公開 API：PIT 可見性層 |
 | 27-b | MERGED (#61) | 公開 API：HTTP 層、觀測資料 |
-| 27-c | IN REVIEW (#62) | 公開 API：財報、衍生資料、參考資料 |
+| 27-c | MERGED (#62) | 公開 API：財報、衍生資料、參考資料 |
 | 28 | PLANNED | 排程的前向抓取 |
 | 29 | SUPERSEDED | Python SDK 與下游整合（owner 決定移除，2026-09-24） |
 | 30 | PLANNED | 維運與可觀測性 |
@@ -2014,7 +2014,7 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 
 ## Step 27 — 公開 REST API v1
 
-狀態：**27-a MERGED（#60）；27-b MERGED（#61）；27-c IN REVIEW（#62）**。依賴：Step 15 的決定、各資料 PR。
+狀態：**27-a MERGED（#60）；27-b MERGED（#61）；27-c MERGED（#62）**。依賴：Step 15 的決定、各資料 PR。
 
 提供正確的 Data Center 語意，而不暴露資料表。端點涵蓋舊系統使用者發出的查詢：每日面板、指數、估值、籌碼資料、月營收、財務 facts 與摘要、TDCC、公司行動和衍生指標。每個回應都帶有其 PIT context 和 provenance。沒有來源的欄位被省略，或明確標示為無法取得。還原價格是 Step 36，不在這裡。
 
@@ -2029,6 +2029,7 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 - PIT 參數沒帶時預設 latest：以收到請求的時刻作為 `information_as_of` 與 `knowledge_as_of`，並把解析後的時間點回傳在回應裡（§59）；要重現歷史就明確帶時間點。
 - 存表的衍生資料依 `information_as_of` 過濾：D 那一列要等它用到的輸入都公開才回傳；`knowledge_as_of` 或 `system_as_of` 指定過去的時間就拒絕，因為表以最新輸入覆寫、答不出來；回應標明「最新輸入」與 `computed_at`。
 - 要 API key：請求要帶 key，key 放 `.env`，不進版本庫。
+- 連線位址（owner，2026-09-25，27-c 合併後）：client 從區網 IP 或 Tailscale IP 呼叫 API，所以預設聽 `0.0.0.0`（原本只聽 127.0.0.1），port 預設 28617（不用常見的 8000；在 Linux 動態 port 範圍 32768–60999 之外）。API 包成 compose 的 `api` 服務（`Dockerfile`、`scripts/api_up.sh`），與 PostgreSQL 一起啟動；PostgreSQL 改成只聽 `127.0.0.1:26519`（原本 `0.0.0.0:5432`，區網拿 `stockdc`／`stockdc` 就能繞過 API 直接連、還能寫入）。這台是放在辦公室的桌機；`--host 127.0.0.1` 可以只限本機。區網是明文 HTTP，同網段看得到 key；Tailscale 由 WireGuard 加密。
 
 ### Step 27-a — PIT 可見性層
 
@@ -2048,7 +2049,7 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
   十一個觀測資料集，名稱與資料表不同（§55）：`daily-prices`、`indices`、`official-valuations`、`institutional-flows`、
   `institutional-market-flows`、`foreign-holdings`、`margin-trading`、`securities-lending`、`shareholding-distributions`、
   `monthly-revenues`、`corporate-actions`。
-- 每個請求要 `X-API-Key`；只聽 127.0.0.1；每次讀取都在唯讀交易裡；key 與資料庫 URL 只從環境變數來。
+- 每個請求要 `X-API-Key`；預設聽所有介面（2026-09-25 起，見上方決定；`--host 127.0.0.1` 可只限本機）；每次讀取都在唯讀交易裡；key 與資料庫 URL 只從環境變數來。
 - PIT context：`information_as_of`＋`knowledge_as_of` 或 `system_as_of`，不能混用；時間點必須帶時區；`latest`／`now` 與沒帶的
   market 參數都解析成請求抵達的時刻，回應寫明哪些是別名、哪些是預設。不認得的參數一律 400，打錯字的 PIT 參數不會默默變成 latest。
 - 每列帶 `available_at`、`recorded_at` 與 provenance（fetch 與其原始檔的 SHA-256；TWSE 的除權息與減資另帶明細頁的）。精確小數以
@@ -2060,7 +2061,7 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 
 ### Step 27-c — 財報、衍生資料、參考資料
 
-狀態：**IN REVIEW**（#62）。
+狀態：**MERGED**（#62）。
 
 - `financial-reports`：每個 `(stock_id, report_year, report_quarter)` 回傳 PIT context 看到的那個版本，帶**該版本自己的** facts（§20）；
   `start`／`end` 篩季末日；`statement`、`account_code` 可重複，用來縮小 facts；一次最多 200,000 個 fact。

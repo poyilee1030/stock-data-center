@@ -32,7 +32,7 @@
 輸入增量計算；即時計算的 PIT 對照組是 `technical_indicators_pit:v1`。Step 26 的七個衍生資料集都已存表。
 
 公開 API（Step 27）：PIT 可見性層（27-a）、十一個觀測資料集的 HTTP 端點（27-b），以及財報、七個存表的衍生資料集、
-`technical_indicators_pit:v1`、股票清單與交易日曆（27-c，審閱中）已實作，說明在 `docs/api.md`。還原價格（Step 36）、排程的前向抓取（Step 28）尚未開始。
+`technical_indicators_pit:v1`、股票清單與交易日曆（27-c）已完成，說明在 `docs/api.md`。還原價格（Step 36）、排程的前向抓取（Step 28）尚未開始。
 
 已知限制：2025Q4 之前的財報沒有首見證據，真正延遲申報的公司在 Market PIT 下會偏早
 （audit §7.6）；月營收的 KY 公司與更正後的值沒有證明的公開時間，`published_at` 為 NULL。
@@ -55,10 +55,10 @@ PostgreSQL 是唯一的正確性來源，沒有快取（`CLAUDE.md` §4）。
 
 ## 開發環境設定
 
-1. 啟動 PostgreSQL 18：
+1. 啟動 PostgreSQL 18（只聽本機 `127.0.0.1:26519`，區網連不到）：
 
    ```bash
-   docker compose up -d
+   docker compose up -d postgres
    ```
 
 2. 建立虛擬環境並安裝套件：
@@ -83,6 +83,18 @@ PostgreSQL 是唯一的正確性來源，沒有快取（`CLAUDE.md` §4）。
    舊 migration 鏈建出的資料庫（停在 `5c1e8d2a7b90`）不能直接升級，要先用
    `scripts/rebase_to_baseline.py` 轉到 baseline（不加 `--execute` 只列出會刪什麼），
    見 `docs/schema.md`。
+
+## 公開 API
+
+API 是 compose 的 `api` 服務（`Dockerfile`），聽 `0.0.0.0:28617`，讀 `stockdc_backfill`，key 取自 `.env` 的
+`STOCKDC_API_KEY`（沒有 key 就不啟動）。建置並啟動（映像帶上它服務的 commit）：
+
+```bash
+scripts/api_up.sh
+```
+
+區網或 Tailscale 上的 client 呼叫 `http://<這台的區網或 Tailscale IP>:28617`，每個請求帶 `X-API-Key`；說明在 `docs/api.md`。
+資料庫只聽本機，client 只能經過 API。
 
 ## 測試
 

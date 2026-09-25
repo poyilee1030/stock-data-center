@@ -14,7 +14,7 @@ from sqlalchemy.engine import make_url
 
 TEST_DATABASE_URL = os.getenv(
     "TEST_DATABASE_URL",
-    "postgresql+psycopg://stockdc:stockdc@localhost:5432/stockdc",
+    "postgresql+psycopg://stockdc:stockdc@localhost:26519/stockdc",
 )
 
 

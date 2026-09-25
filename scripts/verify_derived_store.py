@@ -32,7 +32,7 @@ Three checks, every series:
 Exit 1 if any check fails.
 
     python scripts/verify_derived_store.py \
-        --database-url postgresql+psycopg://stockdc:stockdc@localhost:5432/stockdc_backfill
+        --database-url postgresql+psycopg://stockdc:stockdc@localhost:26519/stockdc_backfill
 """
 
 from __future__ import annotations
