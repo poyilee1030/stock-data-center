@@ -87,13 +87,18 @@ def _single(report: Report, code: str, ytd_before: Decimal | None) -> Decimal | 
 
 
 def quarters(reports: Iterable[Report]) -> dict[Key, Quarter]:
-    """Each public quarter's single-quarter EPS and net income and its quarter-end equity."""
+    """Each public quarter's single-quarter EPS and net income and its quarter-end equity.
+    A fourth quarter is public once its third quarter is too, since it is computed
+    from the third's year to date."""
     by_key = {(r.year, r.quarter): r for r in reports if r.published_on is not None}
     out = {}
     for (year, quarter), report in by_key.items():
         third = by_key.get((year, 3)) if quarter == 4 else None
+        published_on = report.published_on
+        if third is not None:
+            published_on = max(published_on, third.published_on)
         out[(year, quarter)] = Quarter(
-            report.published_on,
+            published_on,
             _single(report, EPS, _third_to_date(third, lambda _: EPS)),
             _single(report, NET_INCOME[report.category],
                     _third_to_date(third, NET_INCOME.__getitem__)),

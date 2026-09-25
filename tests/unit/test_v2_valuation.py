@@ -117,6 +117,17 @@ def test_without_the_third_quarter_there_is_no_fourth() -> None:
     assert got[(Y, 4)].equity == Decimal(1300)
 
 
+def test_a_fourth_quarter_waits_for_its_third_quarters_publication() -> None:
+    # Q4's single quarter is annual less Q3's year to date, so a Q3 first
+    # captured after Q4 holds Q4 back; otherwise the window led by the next
+    # year's Q3, which never checks this Q3, would read it before it was public.
+    reports = _full_year_reports()
+    reports[-1] = Report(Y, 3, "consolidated", date(Y + 1, 12, 1), reports[-1].facts)
+    got = quarters(reports)
+    assert got[(Y, 4)].published_on == date(Y + 1, 12, 1)
+    assert got[(Y, 4)].eps == Decimal("1.40")
+
+
 def test_an_individual_report_reads_its_own_accounts() -> None:
     # 個體 reports have no 8610 or 31XX: profit is 8200 and, with no
     # non-controlling interest, equity is 3XXX.
