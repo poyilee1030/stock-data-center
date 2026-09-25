@@ -14,7 +14,7 @@ Step 26 的最後一個子步驟。
 | `src/stock_data_center/v2/derived_store.py` | 資料集定義；`_reports`（每季第一個版本的公開時間 + 最新版本的數字）；`_report_changes`（新財報讓那支股票的價格序列從它公開那天重算）；`StoredDataset.more_changes`、`exclusive_keys` |
 | `src/stock_data_center/v2/financial_reports.py` | 寫入者多拿 job 鎖 `financial_reports/mops_t164sb01` 的共享鎖 |
 | scripts | `reconcile_valuation_metrics.py`（新）；`verify_derived_store.py` 加上估值 |
-| 測試 | `tests/unit/test_v2_valuation.py`（21）；`test_v2_derived_store.py` 加 10 條；`test_schema_v2_baseline.py` 的衍生表清單 |
+| 測試 | `tests/unit/test_v2_valuation.py`（22，含 code review 補的 1 條）；`test_v2_derived_store.py` 加 10 條；`test_schema_v2_baseline.py` 的衍生表清單 |
 | 文件 | ROADMAP §20、Step 26（26-e 標為 MERGED、新增 26-f 小節）；CLAUDE.md 快照；`derived_data.md`、`schema.md`、`market_reference.md`、`financial_xbrl.md`、domain inventory（md／json）、README；26-e 報告標為 MERGED |
 
 `src/` +321／−2 行。
@@ -79,7 +79,7 @@ fixture 是舊系統 2021-03-31 到 2022-06-30 的真實輸出：2330、8069、1
 最後一項是另外補的測試：18:00 公開的財報在兩個時區是同一天，抓不到這個錯；00:30 公開的才會。`stockdc_backfill` 有 mtime
 在台北凌晨的財報（例如 2026-03-04 01:02）。
 
-全套測試：817 passed（main 786，+31）。`alembic check` 無差異。ruff：新檔案與改動的檔案 0 個問題。
+全套測試：818 passed（main 786，+32，含 code review 補的 1 條；那條在修正前的程式上是紅的）。`alembic check` 無差異。ruff：新檔案與改動的檔案 0 個問題。
 
 ## `stockdc_backfill` 上的實測
 
