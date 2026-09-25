@@ -6,9 +6,9 @@ never connect to PostgreSQL. It answers in dataset concepts, never table names
 context sees is `stock_data_center.v2.visibility`'s alone (§19,
 `docs/pit_semantics.md`); the API parses, validates and renders.
 
-Step 27-b serves the observed datasets below. Financial reports, the stored
-derived datasets, `technical_indicators_pit:v1`, the stock list and the trading
-calendar are Step 27-c; adjusted prices are Step 36.
+Step 27-b serves the observed datasets; Step 27-c adds financial reports, the
+stored derived datasets, `technical_indicators_pit:v1`, the stock list and the
+trading calendar. Adjusted prices are Step 36.
 
 ## Running it
 
@@ -27,13 +27,22 @@ is `401`.
 
 | Request | Answer |
 | --- | --- |
-| `GET /v1/datasets` | every dataset: name, description, key fields, period field, columns, sources, and the columns each source never publishes |
+| `GET /v1/datasets` | every dataset: name, `kind`, description, key fields, period field, columns; an observed one's sources and the columns each never publishes; a derived one's definition |
 | `GET /v1/datasets/{name}` | rows as a PIT context sees them |
+| `GET /v1/stocks` | today's stock list (reference data, not PIT) |
+| `GET /v1/trading-days` | the trading calendar (reference data, not PIT) |
 
-Datasets: `daily-prices`, `indices`, `official-valuations` (source-published
-PE/PB/yield, §53), `institutional-flows`, `institutional-market-flows`,
-`foreign-holdings`, `margin-trading`, `securities-lending`,
-`shareholding-distributions`, `monthly-revenues`, `corporate-actions`.
+Observed datasets (`kind: observed`): `daily-prices`, `indices`,
+`official-valuations` (source-published PE/PB/yield, §53),
+`institutional-flows`, `institutional-market-flows`, `foreign-holdings`,
+`margin-trading`, `securities-lending`, `shareholding-distributions`,
+`monthly-revenues`, `corporate-actions`, `financial-reports`.
+
+Stored derived datasets (`kind: derived`, Step 26): `technical-indicators`,
+`institutional-streaks`, `institutional-cumulative-flows`,
+`shareholding-concentrations`, `margin-metrics`, `short-interest-metrics`,
+`valuation-metrics` (computed, not `official-valuations`). On demand
+(`kind: derived_on_demand`): `technical-indicators-pit`.
 
 ### Parameters of `/v1/datasets/{name}`
 
@@ -91,6 +100,73 @@ PE/PB/yield, §53), `institutional-flows`, `institutional-market-flows`,
   only its own kind of terms. A `null` anywhere else is a value the source did
   not give for that row, such as a price on a day without a trade.
 - A retracted corporate action is not returned (`docs/pit_semantics.md`).
+
+## Financial reports
+
+`financial-reports` returns, per `(stock_id, report_year, report_quarter)`, the
+report version the PIT context sees, with **that version's own facts** in
+`facts` (§20): a restatement is a new version with its full set, so a fact it
+drops is absent from it. `start`/`end` filter the quarter's last day. A report
+without a proven publication (`published_at` NULL) is never market visible
+(§31), though system PIT shows it with `available_at: null`.
+
+| Parameter | Meaning |
+| --- | --- |
+| `statement` | repeatable: `balance_sheet`, `income_statement`, `cash_flow` |
+| `account_code` | repeatable, such as `9750` (basic EPS) |
+
+A fact is `{statement, account_code, concept, period_start, period_end, unit,
+value}`; `concept` is the namespace-qualified name (Clark notation, §33), and
+an instant has `period_start: null`. A report has about 420 facts; an answer
+holds at most 200,000, so a whole-market quarter needs `statement` or
+`account_code`.
+
+## Stored derived datasets
+
+These tables are computed from the **latest inputs** and overwritten when an
+input is corrected (§43); they have no knowledge axis. So:
+
+- Only `information_as_of` filters them: a row is returned once every input it
+  was computed from is public. Its `available_at` is its own date's release
+  instant (03:00 Asia/Taipei the next day; TDCC's Sunday noon for
+  `shareholding-concentrations`), later only where an input it reads has a
+  correction available later (`docs/pit_semantics.md`).
+- A `knowledge_as_of` or `system_as_of` earlier than the request is refused
+  with `400`: the table cannot say what was known before. `latest` works for
+  both; `system_as_of=latest` returns every stored row.
+- The response says `"inputs": "latest"`, carries the definition in
+  `derivation` (dataset code, derivation version, formula, input datasets,
+  conventions, §42), and each row its `computed_at` (computation provenance,
+  never publication time, §44). Stored rows carry no provenance of their own
+  (§45).
+
+To reproduce what a past run saw, use the observed datasets with explicit
+instants, or `technical-indicators-pit`.
+
+## `technical-indicators-pit`
+
+`technical_indicators_pit:v1`, the same formula as `technical-indicators`
+computed on demand under full PIT, for **one** `stock_id` per request
+(`source` needed only if the stock has two price sources).
+
+| `view` | Meaning |
+| --- | --- |
+| `as_of` (default) | the series as seen at `information_as_of`, from rows recorded by `knowledge_as_of` |
+| `rolling` | each date computed at its own release instant, so no value sees a later price; takes no `information_as_of` |
+
+Each row carries `information_as_of`, `input_count` and `input_fingerprint`
+(SHA-256 of the input rows' dates and `recorded_at`); `derivation.git_commit`
+names the implementation. System PIT is refused: the on-demand series is a
+market-PIT answer.
+
+## Reference data
+
+`GET /v1/stocks` (`market=sii|otc`, repeatable `stock_id`) returns today's
+list of listed and OTC common stocks (ADR-0026): no company delisted before
+today, so history read over it carries survivorship bias, and the list is
+refreshed in place, not point in time. `GET /v1/trading-days?start=&end=`
+returns the TWSE trading calendar, corrected in place when the exchange revises
+it. Both carry provenance per row and take no PIT parameter.
 
 ## Errors
 

@@ -611,8 +611,8 @@ explicit out-of-scope work
 | 26-e | MERGED (#58) | `margin_metrics:v1` 與 `short_interest_metrics:v1` |
 | 26-f | MERGED (#59) | `valuation_metrics:v1` |
 | 27-a | MERGED (#60) | 公開 API：PIT 可見性層 |
-| 27-b | IN REVIEW (#61) | 公開 API：HTTP 層、觀測資料 |
-| 27-c | PLANNED | 公開 API：財報、衍生資料、參考資料 |
+| 27-b | MERGED (#61) | 公開 API：HTTP 層、觀測資料 |
+| 27-c | IN REVIEW | 公開 API：財報、衍生資料、參考資料 |
 | 28 | PLANNED | 排程的前向抓取 |
 | 29 | SUPERSEDED | Python SDK 與下游整合（owner 決定移除，2026-09-24） |
 | 30 | PLANNED | 維運與可觀測性 |
@@ -2014,7 +2014,7 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 
 ## Step 27 — 公開 REST API v1
 
-狀態：**27-a MERGED（#60）；27-b IN REVIEW（#61）；27-c PLANNED**。依賴：Step 15 的決定、各資料 PR。
+狀態：**27-a MERGED（#60）；27-b MERGED（#61）；27-c IN REVIEW**。依賴：Step 15 的決定、各資料 PR。
 
 提供正確的 Data Center 語意，而不暴露資料表。端點涵蓋舊系統使用者發出的查詢：每日面板、指數、估值、籌碼資料、月營收、財務 facts 與摘要、TDCC、公司行動和衍生指標。每個回應都帶有其 PIT context 和 provenance。沒有來源的欄位被省略，或明確標示為無法取得。還原價格是 Step 36，不在這裡。
 
@@ -2042,7 +2042,7 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 
 ### Step 27-b — HTTP 層與觀測資料
 
-狀態：**IN REVIEW**（#61）。
+狀態：**MERGED**（#61）。
 
 - `stock_data_center.api`：FastAPI。`GET /v1/datasets` 列出資料集與其形狀；`GET /v1/datasets/{name}` 依 PIT context 回傳列。
   十一個觀測資料集，名稱與資料表不同（§55）：`daily-prices`、`indices`、`official-valuations`、`institutional-flows`、
@@ -2057,6 +2057,23 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
   其餘的 null 是來源那一列沒給值。在 `stockdc_backfill` 上逐欄驗證這些欄位確實沒有任何值。
 - 沒有 `stock_id` 的查詢最多 31 天；每次最多 200 個 `stock_id`。
 - 驗收證據：`docs/step_reports/step-27-b-acceptance-report.md`；API 說明：`docs/api.md`。
+
+### Step 27-c — 財報、衍生資料、參考資料
+
+狀態：**IN REVIEW**。
+
+- `financial-reports`：每個 `(stock_id, report_year, report_quarter)` 回傳 PIT context 看到的那個版本，帶**該版本自己的** facts（§20）；
+  `start`／`end` 篩季末日；`statement`、`account_code` 可重複，用來縮小 facts；一次最多 200,000 個 fact。
+- 七個存表的衍生資料集（`technical-indicators`、`institutional-streaks`、`institutional-cumulative-flows`、
+  `shareholding-concentrations`、`margin-metrics`、`short-interest-metrics`、`valuation-metrics`）：只用 `information_as_of` 過濾。
+  列的 `available_at` 是它用到的輸入全部公開的時刻（`visibility.derived_rows`）：通常就是自己日期的規則時刻；它讀到的輸入 key
+  若最新一列是之後才公開的更正，就等到那時。讀整段序列的資料集等 D 以前任何一筆更正，只讀當日那列的（融資融券、借券指標）只等 D 的。
+  每個資料集讀哪些輸入宣告在 `derived_store.StoredDataset.depends`，單元測試對照它實際讀的表。
+  `knowledge_as_of` 或 `system_as_of` 早於請求時刻就 400；回應寫 `"inputs": "latest"`、定義（§42）與每列的 `computed_at`。
+- `technical-indicators-pit`：`technical_indicators_pit:v1` 即時計算，一次一檔；`view=as_of`（預設）或 `view=rolling`
+  （每個日期以自己的規則時刻計算）；不接受 system PIT。
+- `GET /v1/stocks`（今天的普通股清單，ADR-0026，揭露存活者偏差）與 `GET /v1/trading-days`：參考資料，不是 PIT，每列帶 provenance。
+- 驗收證據：`docs/step_reports/step-27-c-acceptance-report.md`。
 
 ## Step 28 — 排程的前向抓取
 

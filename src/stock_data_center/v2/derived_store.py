@@ -255,11 +255,31 @@ def within_tolerance(metric: str, incremental: float | None, full: float | None,
 Series = tuple[str, str]  # (stock_id, source of the stored row)
 
 
+@dataclass(frozen=True, slots=True)
+class Input:
+    """What a stored row reads of one input table, for when the row became public.
+
+    `source` maps the stored series' source to the input's (None: the input has
+    no source, and every row of the stock counts); `scope` is "history" when a
+    row reads the input's series up to its own date, "day" when only its own
+    date's row. A report counts from the day of its first publication."""
+
+    table: sa.Table
+    source: Callable[[str], str] | None
+    scope: str
+
+
+def _same(source: str) -> str:
+    return source
+
+
 @dataclass(frozen=True)
 class StoredDataset:
     definition: Definition
     table: sa.Table
     inputs: tuple[sa.Table, ...]
+    # Every input a row's value reads (Step 27-c: `visibility.derived_rows`).
+    depends: tuple[Input, ...]
     # An input row's source -> the stored series' source.
     series_source: Callable[[str], str]
     # (connection, stock_id, source, first date to write or None for all) -> rows
@@ -535,35 +555,48 @@ def _report_changes(connection: Connection, since: datetime | None) -> dict[Seri
 
 TECHNICAL_INDICATORS = StoredDataset(
     TECHNICAL_INDICATORS_V1, v2.technical_indicators, (v2.daily_prices,),
+    (Input(v2.daily_prices, _same, "history"),),
     lambda source: source, _technical_rows,
 )
 INSTITUTIONAL_STREAKS = StoredDataset(
     INSTITUTIONAL_STREAKS_V1, v2.institutional_streaks,
     (v2.daily_prices, v2.institutional_flows),
+    (Input(v2.daily_prices, PRICE_SOURCE.__getitem__, "history"),
+     Input(v2.institutional_flows, _same, "history")),
     lambda source: FLOW_SOURCE.get(source, source), _streak_rows,
 )
 INSTITUTIONAL_CUMULATIVE_FLOW = StoredDataset(
     INSTITUTIONAL_CUMULATIVE_FLOW_V1, v2.institutional_cumulative_flow,
     (v2.institutional_flows, v2.foreign_holdings),
+    (Input(v2.institutional_flows, _same, "history"),
+     Input(v2.foreign_holdings, HOLDING_SOURCE.__getitem__, "day")),
     lambda source: _FLOW_OF_HOLDING.get(source, source), _cumulative_rows,
 )
+# A change reads only the previous snapshot, but "history" is the safe side of
+# that: a row never shows before its inputs, at worst later.
 SHAREHOLDING_CONCENTRATION = StoredDataset(
     SHAREHOLDING_CONCENTRATION_V1, v2.shareholding_concentration,
-    (v2.shareholding_distributions,), lambda source: source, _concentration_rows,
+    (v2.shareholding_distributions,), (Input(v2.shareholding_distributions, _same, "history"),),
+    lambda source: source, _concentration_rows,
 )
 MARGIN_METRICS = StoredDataset(
-    MARGIN_METRICS_V1, v2.margin_metrics, (v2.margin_trading,), lambda source: source,
+    MARGIN_METRICS_V1, v2.margin_metrics, (v2.margin_trading,),
+    (Input(v2.margin_trading, _same, "day"),), lambda source: source,
     _day_rows(v2.margin_trading, margin_metrics.MARGIN_INPUTS, margin_metrics.margin_metrics),
 )
 SHORT_INTEREST_METRICS = StoredDataset(
     SHORT_INTEREST_METRICS_V1, v2.short_interest_metrics, (v2.securities_lending,),
-    lambda source: source,
+    (Input(v2.securities_lending, _same, "day"),), lambda source: source,
     _day_rows(v2.securities_lending, margin_metrics.SHORT_INTEREST_INPUTS,
               margin_metrics.short_interest_metrics),
 )
+# The percentile ranks against the whole series, and each day reads every
+# report public by then.
 VALUATION_METRICS = StoredDataset(
-    VALUATION_METRICS_V1, v2.valuation_metrics, (v2.daily_prices,), lambda source: source,
-    _valuation_rows, more_changes=_report_changes, exclusive_keys=(financial_reports.KEY,),
+    VALUATION_METRICS_V1, v2.valuation_metrics, (v2.daily_prices,),
+    (Input(v2.daily_prices, _same, "history"), Input(v2.financial_reports, None, "history")),
+    lambda source: source, _valuation_rows, more_changes=_report_changes,
+    exclusive_keys=(financial_reports.KEY,),
 )
 DATASETS = {
     d.definition.dataset_code: d

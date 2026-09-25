@@ -187,6 +187,16 @@ reaches. The value for date D still uses only inputs dated on or before D, and
 an input published late is aligned to its publication. `computed_at` is
 provenance only, never a publication or visibility time.
 
+A stored derived row is served by `information_as_of` alone (Step 27-c,
+`visibility.derived_rows`): its `available_at` is the instant every input row
+it was computed from was public. That is its own date's release instant, unless
+the latest row of an input key it reads is a correction available later: a
+dataset that reads its inputs' whole series up to D (technical indicators,
+streaks, cumulative flow, concentration, valuation) then waits for any such
+correction dated on or before D, one that reads only D's row (margin and
+short-interest metrics) for a correction of D. A historical `knowledge_as_of`
+or `system_as_of` is refused: the table is overwritten and cannot answer one.
+
 `technical_indicators_pit:v1` is computed on demand under the full PIT context.
 `knowledge_as_of` keeps only the input rows recorded by then; `information_as_of`
 decides which of them were public. In a rolling as-of series each observation

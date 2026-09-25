@@ -8,6 +8,7 @@ published with. Instants are ISO 8601 with their offset, dates ISO 8601.
 from __future__ import annotations
 
 import json
+import math
 from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
@@ -22,6 +23,8 @@ def _encode(value) -> str:
         if not value.is_finite():
             raise ValueError(f"not a finite number: {value}")
         return format(value, "f")
+    if isinstance(value, float) and not math.isfinite(value):
+        raise ValueError(f"not a finite number: {value}")  # JSON has none
     if isinstance(value, int | float | str):
         return json.dumps(value, ensure_ascii=False)
     if isinstance(value, datetime | date):
