@@ -64,13 +64,16 @@ LOCAL = tuple(m for m in METRICS if m not in WOW)
 BASE = {f"{m}_wow": m for m in (*(f"{g}_holder_ratio" for g in GROUPS), "concentration_spread")}
 
 
-def _exact(value: float) -> Decimal:
-    # A stored ratio is the double nearest a four-place decimal.
-    return Decimal(repr(value))
+def _change(later: float | None, earlier: float | None) -> float | None:
+    """Two stored ratios' difference, rounded as a stored change; NULL if either is.
 
-
-def _rounded(value: Decimal) -> float:
-    return float(value.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)) + 0.0
+    A stored ratio is the double nearest a four-place decimal, so its repr is
+    that decimal. A NULL ratio (a level the source did not publish) has no
+    change, and one that has to match a value then does not."""
+    if later is None or earlier is None:
+        return None
+    difference = Decimal(repr(later)) - Decimal(repr(earlier))
+    return float(difference.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)) + 0.0
 
 
 def _float(value):
@@ -178,13 +181,14 @@ def main() -> int:
             elif legacy_before is None:
                 note("wow_legacy_series_starts_later" if theirs[metric] is None
                      else "wow_unexplained", text)
-            elif (stock_id, legacy_before) in ours and _rounded(
-                    _exact(mine[BASE[metric]])
-                    - _exact(ours[(stock_id, legacy_before)][BASE[metric]])) == theirs[metric]:
+            # Past the branch above, legacy's change is not NULL here, so a
+            # NULL recomputed change never matches it.
+            elif (stock_id, legacy_before) in ours and _change(
+                    mine[BASE[metric]],
+                    ours[(stock_id, legacy_before)][BASE[metric]]) == theirs[metric]:
                 note("wow_previous_snapshot_differs", text)
-            elif (stock_id, legacy_before) not in ours and theirs[metric] == _rounded(
-                    _exact(theirs[BASE[metric]])
-                    - _exact(legacy[(stock_id, legacy_before)][BASE[metric]])):
+            elif (stock_id, legacy_before) not in ours and theirs[metric] == _change(
+                    theirs[BASE[metric]], legacy[(stock_id, legacy_before)][BASE[metric]]):
                 note("wow_previous_only_legacy_has", text)
             else:
                 note("wow_unexplained", text)

@@ -132,6 +132,14 @@ scripts/reconcile_shareholding_concentration.py --start 2020-01-02 --end 2026-09
   TDCC 歷史），不屬於 26-d。
 - 週變化跨越缺週時量的是兩個快照之間的變化，不是一週：同舊系統，截斷週 2023-10-20 附近與我們沒有的週都是這樣。
 
+## Code review 修正（#57）
+
+| 發現 | 驗證方式 | 處置 |
+|---|---|---|
+| 對帳腳本在 `wow_previous_snapshot_differs`、`wow_previous_only_legacy_has` 兩個分支對可能是 NULL 的比率呼叫 `Decimal(repr(...))`，遇到 NULL 會丟 `InvalidOperation` 中止，報告不印、結束碼也不是約定的 1 | 執行：`Decimal(repr(None))` 丟 `InvalidOperation`；讀程式：兩個分支都沒擋 NULL | **已修正。** 改成 `_change`：任一邊是 NULL 就回傳 NULL，而走到這兩個分支時舊系統的值一定不是 NULL，所以歸到 `wow_unexplained`。審查舉的例子不成立：截斷週 2023-10-20 被切斷的證券是整列隔離，沒有存成 NULL，`stockdc_backfill` 的比率 0 筆 NULL，這次對帳沒受影響；但 TDCC 寫入端遇到缺級距會寫 NULL，所以是真的潛在中止。重跑對帳，分類與數量和修正前完全相同，exit 0 |
+
+審查確認沒有問題的部分：級距分組、四捨五入與 `-0.0`、週變化的 NULL 傳遞、增量從第一個快照讀起、`period` 同時適用兩種 key、`writer_keys` 涵蓋 TDCC 的寫入者、import 沒有循環、migration 與表定義一致。
+
 ## 延後
 
 - 26-e、26-f：融資融券與借券指標、估值指標。
