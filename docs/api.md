@@ -55,6 +55,13 @@ refused; FastAPI cannot see them, and `stock_data_center.api.openapi`
 describes them from the same sets the handlers accept. A parameter a handler
 accepts without a description stops the app from starting.
 
+The page is what a client reads: it has no copy of this repository. So the
+same module carries, in client terms, what this document says a client needs
+(PIT parameters, the response, financial reports, stored derived datasets,
+`technical-indicators-pit`, reference data, errors), without section numbers,
+module names or table names; a test keeps those out. A change to this document
+that a client needs is made there too.
+
 ## Endpoints
 
 | Request | Answer |

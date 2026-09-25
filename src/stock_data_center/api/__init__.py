@@ -60,38 +60,6 @@ UNIVERSE = (
     "history read over it carries that survivorship bias."
 )
 
-DESCRIPTION = """\
-The Data Center's public API: official Taiwan market data with its publication
-time and provenance, read point-in-time.
-
-Every `/v1` request needs the API key in the `X-API-Key` header: press
-**Authorize**, paste the key, then **Try it out**.
-
-Every answer states the PIT context it used. Market PIT (`information_as_of`,
-`knowledge_as_of`) answers what was public by one instant using what the Data
-Center had recorded by another; system PIT (`system_as_of`) answers what it had
-recorded. An instant carries its UTC offset; `latest` and `now` mean the moment
-the request arrived, and so does a market parameter left out. To reproduce
-history, send both market instants.
-"""
-
-ROWS_DESCRIPTION = """\
-Each key's row as the PIT context sees it, with its `available_at`,
-`recorded_at` (observed datasets) and provenance.
-
-- At most 200 `stock_id`; without one a query spans at most 31 days. A
-  dataset without stocks (`indices`, `institutional-market-flows`) refuses
-  `stock_id`.
-- `statement` and `account_code` apply to `financial-reports` only, `view` to
-  `technical-indicators-pit` only; any other dataset refuses them.
-  `financial-reports` has one source and takes no `source`.
-- Stored derived datasets follow the latest inputs: they take
-  `information_as_of`, but not an earlier `knowledge_as_of` or `system_as_of`.
-- `technical-indicators-pit` is computed for one `stock_id` at a time.
-- A column a source never publishes is omitted from its rows and listed in
-  `unsourced`.
-"""
-
 
 @contextmanager
 def read_only(engine: Engine) -> Iterator[Connection]:
@@ -239,7 +207,7 @@ def create_app(*, api_key: str,
     None asks git, which a container image cannot."""
     if not api_key:
         raise ValueError("an API key is required: set STOCKDC_API_KEY")
-    app = FastAPI(title="stock-data-center", version="1", description=DESCRIPTION,
+    app = FastAPI(title="stock-data-center", version="1", description=openapi.DESCRIPTION,
                   redoc_url=None, swagger_ui_oauth2_redirect_url=None)
     expected = api_key.encode()
     reference = TechnicalIndicators(git_commit=git_commit)  # takes the commit once
@@ -260,16 +228,14 @@ def create_app(*, api_key: str,
         return _json({"detail": error.detail}, error.status_code)
 
     @app.get("/v1/datasets", summary="Every dataset and its shape",
-             description="Each dataset's name, kind, description, key fields, period field "
-                         "and columns; an observed one's sources and the columns each never "
-                         "publishes; a derived one's definition.")
+             description=openapi.DATASETS)
     def list_datasets() -> Response:
         return _json({"datasets": [*(_describe(d) for d in DATASETS.values()),
                                    *(_describe_derived(d) for d in DERIVED.values()),
                                    _describe_reference()]})
 
     @app.get("/v1/datasets/{name}", summary="Rows as a PIT context sees them",
-             description=ROWS_DESCRIPTION)
+             description=openapi.ROWS)
     def dataset_rows(name: str, request: Request) -> Response:
         arrived = datetime.now(UTC)
         if name in DERIVED:
@@ -398,9 +364,7 @@ def create_app(*, api_key: str,
                       **r.metrics} for r in rows],
         })
 
-    @app.get("/v1/stocks", summary="Today's stock list",
-             description="Reference data, not point-in-time: today's listed and OTC common "
-                         "stocks, refreshed in place (ADR-0026).")
+    @app.get("/v1/stocks", summary="Today's stock list", description=openapi.STOCKS)
     def stock_list(request: Request) -> Response:
         params, lists = _params(request, _STOCK_PARAMS, frozenset({"stock_id"}))
         s = v2.stocks
@@ -423,8 +387,7 @@ def create_app(*, api_key: str,
         })
 
     @app.get("/v1/trading-days", summary="The trading calendar",
-             description="TWSE trading days in [start, end]; reference data, corrected in "
-                         "place, not point-in-time.")
+             description=openapi.CALENDAR)
     def trading_calendar(request: Request) -> Response:
         params, _ = _params(request, _CALENDAR_PARAMS, frozenset())
         start, end = _range(params)

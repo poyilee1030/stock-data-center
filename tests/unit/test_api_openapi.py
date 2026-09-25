@@ -8,6 +8,8 @@ key on every data request.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -16,6 +18,7 @@ from stock_data_center import api
 from stock_data_center.api import openapi
 from stock_data_center.api.datasets import DATASETS
 from stock_data_center.api.derived import DERIVED, PIT_REFERENCE
+from stock_data_center.db.base import metadata
 
 KEY = "test-key-0123456789"
 
@@ -103,3 +106,25 @@ def test_an_undescribed_parameter_fails_when_the_app_is_created() -> None:
     app = FastAPI()
     with pytest.raises(ValueError, match="undescribed query parameter: typo"):
         openapi.install(app, {"/x": frozenset({"start", "typo"})}, {}, [])
+
+
+def test_an_unknown_dataset_is_described_as_404(client) -> None:
+    schema = client.get("/openapi.json").json()
+    assert "404" in schema["paths"]["/v1/datasets/{name}"]["get"]["responses"]
+
+
+def test_the_description_names_no_internals(client) -> None:
+    # Clients have no copy of the repository, and know datasets, not tables (§55).
+    text = client.get("/openapi.json").text
+    for internal in ("§", "ADR", "CLAUDE.md", "stock_data_center", "docs/"):
+        assert internal not in text, internal
+    tables = [name for name in metadata.tables if "_" in name]
+    assert "daily_prices" in tables
+    assert [name for name in tables if re.search(rf"\b{name}\b", text)] == []
+
+
+def test_every_stored_derived_dataset_is_explained(client) -> None:
+    rows = client.get("/openapi.json").json()["paths"]["/v1/datasets/{name}"]["get"]
+    for name in DERIVED:
+        assert f"`{name}`" in rows["description"], name
+    assert f"### {PIT_REFERENCE}" in rows["description"]
