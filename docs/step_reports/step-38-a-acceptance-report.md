@@ -115,6 +115,18 @@ quarantine 的 24 段：TDR 9188、910482、911616、912398；TPEx 911613；上�
 - 測試檔 `tests/unit/test_v2_listings.py` 與 `tests/integration/test_v2_listings.py` 同名，pytest 收集時衝突；單元測試改名
   `test_v2_listings_assembly.py`。
 
+## Code review（#66）
+
+乾淨 session 的 `/code-review medium` 提出 4 項，逐項對照程式碼都成立，已修正；每項先加會紅的測試（10 條，全紅），修正後全綠。
+修正後在 `stockdc_step38a` 重跑 refresh，2,019 段、2,006 家與修正前逐列相同：這四項都是真實資料還沒出現、但會出錯的情形。
+
+| 發現 | 處置 |
+|---|---|
+| 解析外部頁面時的 `ValueError`（ISIN 日期）、`IndexError`（欄數不足）、`AttributeError`（`tables[0]` 不是物件）沒被捕捉：不記 `fetches`，還讓整個 transaction 回滾（舊的 `load_universe` 有捕捉 `ValueError`，改寫時漏了） | 解析時的這些錯誤都記成 `quarantined`（帶原始檔）並停止 refresh，已記的 fetch 照常 commit；`test_any_page_that_does_not_parse_is_quarantined_and_logged` 三種 |
+| 今天在清單上、但交易所表顯示它在這個市場下市過或上市兩次時，開放期間的 `listed_on` 是 NULL，而 NULL 的意思是「上市早於交易所表」，`date` 查詢會把它算成一直在上市 | 這兩種情形改用 ISIN 日期，前提是它不早於上一次下市；否則保持 NULL 並留警告（2301 的 ISIN 日期 1995-11-17 早於 2002 年的下市，所以仍是 NULL，落在時間窗之前，不影響 2020 年起的查詢） |
+| ISIN 查詢只比對代號；代號被沿用時（2301 證明會發生）會拿另一檔證券的類別與名稱 | 查詢結果的 `公開發行/上市(櫃)/發行日` 必須不晚於下市日，否則 quarantine（`isin_lookup_is_another_security`），名稱也不用它。不比對名稱：公司會改名（2823 中壽 → 凱基人壽）。實際 4 筆都通過（2809 1982、2823 1995、4712 1990、5306 2022-03-08 = 下櫃當天轉上市） |
+| 兩筆下市之間沒有上市（或同一列出現兩次）時，會產生兩段起日不明的期間，同日時撞唯一鍵讓整次 refresh 失敗 | 第二筆 quarantine（`delisted_twice`） |
+
 ## 已知限制
 
 - 19 家下市公司證明不了類別，不在清單上（名單見上）。

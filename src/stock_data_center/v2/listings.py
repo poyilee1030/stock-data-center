@@ -49,7 +49,6 @@ from stock_data_center.v2.universe import (
     ISIN_URL,
     MARKETS,
     ListedStock,
-    UniverseFormatError,
     parse_isin_page,
 )
 
@@ -108,10 +107,11 @@ class Lookup:
     market_label: str
     category: str
     industry: str | None
+    registered_on: date | None = None  # 公開發行/上市(櫃)/發行日
     fetch_id: UUID | None = None
 
 
-@dataclass(frozen=True, slots=True, order=True)
+@dataclass(frozen=True, slots=True)
 class Span:
     stock_id: str
     market: str
@@ -288,7 +288,11 @@ def parse_isin_lookup(content: bytes, stock_id: str) -> Lookup | None:
     if len(matches) > 1:
         raise ListingFormatError(f"ISIN lookup lists {stock_id} {len(matches)} times")
     row = matches[0]
-    return Lookup(stock_id, row[3], row[4], row[5], row[6] or None)
+    try:
+        registered = date(*(int(part) for part in row[7].split("/"))) if row[7] else None
+    except (TypeError, ValueError):
+        raise ListingFormatError(f"ISIN lookup for {stock_id}: not a date: {row[7]!r}") from None
+    return Lookup(stock_id, row[3], row[4], row[5], row[6] or None, registered)
 
 
 # ---------------------------------------------------------------- assembly
@@ -302,8 +306,14 @@ def _pairs(listed: list[Event], delisted: list[Event]):
     previous: date | None = None
     for leave in delisted:
         opened = [e for e in listed if e.on < leave.on and (previous is None or e.on >= previous)]
-        yield (opened[-1] if opened else None, leave,
-               "listed_twice" if len(opened) > 1 else None)
+        if len(opened) > 1:
+            problem = "listed_twice"
+        elif not opened and previous is not None:
+            # Left twice with no listing between, or one row published twice.
+            problem = "delisted_twice"
+        else:
+            problem = None
+        yield opened[-1] if opened else None, leave, problem
         previous = leave.on
     after = [e for e in listed if previous is None or e.on >= previous]
     if after:
@@ -340,10 +350,12 @@ def assemble(today: Iterable[tuple[ListedStock, UUID | None]], listed: Iterable[
     quarantined: list[Left] = []
     warnings: list[Left] = []
     before_window = 0
+    named_by_lookup: set[str] = set()
     for stock_id, market in sorted(keys):
         now = current.get(stock_id)
         on_list = now is not None and now[0].market == market
         open_seen = False
+        ambiguous_open = False
         for opened, leave, problem in _pairs(ups.get((stock_id, market), []),
                                              downs.get((stock_id, market), [])):
             if leave is not None and leave.on < WINDOW_START:
@@ -351,6 +363,7 @@ def assemble(today: Iterable[tuple[ListedStock, UUID | None]], listed: Iterable[
                 continue
             if problem:
                 quarantined.append(Left(stock_id, market, problem, (leave or opened).on))
+                ambiguous_open = ambiguous_open or leave is None
                 continue
             innovation = opened is not None and INNOVATION_BOARD in opened.note
             if leave is None:  # still open by the tables
@@ -378,20 +391,37 @@ def assemble(today: Iterable[tuple[ListedStock, UUID | None]], listed: Iterable[
                 if lookup is None:
                     quarantined.append(Left(stock_id, market, "unproven_category", leave.on))
                     continue
+                if lookup.registered_on is None or lookup.registered_on > leave.on:
+                    # Registered after the delisting: a code reused by another
+                    # security (2301 shows codes are reused), not this one.
+                    quarantined.append(Left(stock_id, market, "isin_lookup_is_another_security",
+                                            leave.on))
+                    continue
                 if lookup.category not in IN_SCOPE_CATEGORIES:
                     excluded.append(Left(stock_id, market, f"category:{lookup.category}",
                                          leave.on))
                     continue
                 proof = lookup.fetch_id
+                named_by_lookup.add(stock_id)
             spans.append(Span(stock_id, market, opened.on if opened else None, leave.on, proof,
                               opened.fetch_id if opened else None, leave.fetch_id))
         if on_list and not open_seen:
+            # Today's list says it trades, so it stays in scope. A NULL start
+            # means "before the tables begin", which is false when the tables
+            # show it leaving this market or listing twice: then the ISIN date,
+            # the only other evidence, dates the span if it follows the last
+            # delisting (code review of #66).
             stock, fetch_id = now
-            if downs.get((stock_id, market)):
-                # Listed again after a delisting the tables show, with no listing
-                # row: today's list still says it trades, so it stays in scope.
-                warnings.append(Left(stock_id, market, "relisted_without_listing_row", None))
-            spans.append(Span(stock_id, market, None, None, fetch_id))
+            leaves = downs.get((stock_id, market), [])
+            start = None
+            if leaves or ambiguous_open:
+                if leaves:
+                    warnings.append(Left(stock_id, market, "relisted_without_listing_row",
+                                         None))
+                if stock.listed_on and (not leaves or stock.listed_on >= leaves[-1].on):
+                    start = stock.listed_on
+            spans.append(Span(stock_id, market, start, None, fetch_id,
+                              fetch_id if start else None))
 
     companies = []
     kept = {span.stock_id for span in spans}
@@ -402,13 +432,20 @@ def assemble(today: Iterable[tuple[ListedStock, UUID | None]], listed: Iterable[
         if stock_id in current:
             stock, fetch_id = current[stock_id]
             companies.append(Company(stock_id, stock.name, stock.industry, fetch_id))
-        elif lookups.get(stock_id) is not None:
+        elif stock_id in named_by_lookup:
             lookup = lookups[stock_id]
             companies.append(Company(stock_id, lookup.name, lookup.industry, lookup.fetch_id))
         else:
             event = last_name[stock_id]
             companies.append(Company(stock_id, event.name, None, event.fetch_id))
-    return Assembly(companies, sorted(spans), excluded, quarantined, warnings, before_window)
+    return Assembly(companies, sorted(spans, key=span_order), excluded, quarantined, warnings,
+                    before_window)
+
+
+def span_order(span: Span) -> tuple:
+    """Stock, market, then time; an unknown start sorts first, an open end last."""
+    return (span.stock_id, span.market, span.listed_on or date.min,
+            span.delisted_on or date.max)
 
 
 # ---------------------------------------------------------------- storage
@@ -494,7 +531,9 @@ def refresh(connection: Connection, *, git_commit: str,
             raise _Stop(f"{source} {key}: request failed: {error}") from None
         try:
             parsed = parse(content)
-        except (ListingFormatError, UniverseFormatError, UnicodeDecodeError) as error:
+        # Anything parsing an outside page raises is a page this code does not
+        # understand; ValueError covers the format errors and UnicodeDecodeError.
+        except (ValueError, IndexError, KeyError, TypeError, AttributeError) as error:
             record_fetch(connection, record, content=content, status="quarantined",
                          store=store, reason_code="unrecognised_layout",
                          reason_detail=str(error)[:500])
@@ -544,7 +583,7 @@ def refresh(connection: Connection, *, git_commit: str,
                                     lambda c, s=code: parse_isin_lookup(c, s))
             lookups[code] = None if found is None else Lookup(
                 found.stock_id, found.name, found.market_label, found.category,
-                found.industry, fetch_id)
+                found.industry, found.registered_on, fetch_id)
     except _Stop as stop:
         return {"written": False, "reason": stop.reason, "requests": asked}
 

@@ -321,3 +321,36 @@ def test_the_isin_list_date_is_the_taipei_date(db: Connection, tmp_path) -> None
     keys = db.scalars(sa.text(
         "SELECT resource_key FROM fetches WHERE dataset = 'stocks' ORDER BY 1")).all()
     assert keys == ["twse_isin:otc:2026-09-25", "twse_isin:sii:2026-09-25"]
+
+
+@pytest.mark.parametrize("source, broken", [
+    # ISIN date that is not a date: universe._date raises ValueError.
+    ("twse_isin", lambda url, body: body.replace("1994/09/05".encode("big5hkscs"),
+                                                 b"1994/09/xx")),
+    # A TWSE listing row with too few cells: IndexError.
+    ("twse_newlisting", lambda url, body: json.dumps(
+        {**json.loads(body), "data": [["5236", "凌陽創新"]], "total": 1},
+        ensure_ascii=False).encode()),
+    # A TPEx answer whose table is not an object: AttributeError.
+    ("tpex_latest", lambda url, body: json.dumps(
+        {"date": url.split("date=")[1].split("&")[0], "stat": "ok", "tables": ["x"]}).encode()),
+])
+def test_any_page_that_does_not_parse_is_quarantined_and_logged(
+    db: Connection, tmp_path, source, broken
+) -> None:
+    # Code review of #66: every parse failure is logged with its raw file and
+    # stops the refresh cleanly, keeping the fetches already logged.
+    class Broken(Pages):
+        def __call__(self, url):
+            body = super().__call__(url)
+            if (source == "twse_isin" and "strMode=2" in url) or (
+                    source == "twse_newlisting" and "newlisting" in url) or (
+                    source == "tpex_latest" and "/company/latest" in url):
+                return broken(url, body)
+            return body
+
+    report = _refresh(db, tmp_path, Broken())
+    assert report["written"] is False and source in report["reason"]
+    row = db.execute(sa.text(
+        "SELECT status, sha256 IS NOT NULL FROM fetches WHERE source = :s"), {"s": source}).one()
+    assert tuple(row) == ("quarantined", True)

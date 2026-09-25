@@ -240,7 +240,8 @@ def test_an_unproven_category_is_quarantined_not_guessed() -> None:
 
 
 def test_a_lookup_naming_another_category_is_left_out() -> None:
-    lookups = {**LOOKUPS, "2809": ls.Lookup("2809", "京城銀", "公開發行", "特別股", None)}
+    lookups = {**LOOKUPS, "2809": ls.Lookup("2809", "京城銀", "公開發行", "特別股", None,
+                                            date(1982, 3, 3))}
     assembly = _assembly(lookups=lookups)
     assert _reasons(assembly.excluded)[("2809", "sii")] == "category:特別股"
     assert _spans(assembly, "2809") == []
@@ -279,7 +280,7 @@ def test_assembly_does_not_depend_on_input_order() -> None:
     today = [(stock, None) for stock in TODAY]
     forward = ls.assemble(today, listed, delisted, LOOKUPS)
     backward = ls.assemble(today[::-1], listed[::-1], delisted[::-1], LOOKUPS)
-    assert sorted(forward.spans) == sorted(backward.spans)
+    assert forward.spans == backward.spans  # sorted by `span_order`
     assert sorted(forward.companies) == sorted(backward.companies)
 
 
@@ -293,3 +294,65 @@ def test_two_listings_with_no_delisting_between_are_quarantined() -> None:
     assert closed.spans == []
     still_open = ls.assemble([], listed, [], {})
     assert _reasons(still_open.quarantined) == {("7777", "otc"): "listed_twice"}
+
+
+# ---------------------------------------------------------------- code review of #66
+
+
+def test_the_isin_lookup_carries_its_registration_date() -> None:
+    assert LOOKUPS["2809"].registered_on == date(1982, 3, 3)
+
+
+def test_a_lookup_registered_after_the_delisting_is_another_security() -> None:
+    # A code can be reused (2301). A lookup registered after the delisting is not
+    # the delisted security, so neither its category nor its name is used.
+    reused = ls.Lookup("2809", "新公司", "上市", "股票", "其他業", date(2025, 11, 3))
+    assembly = _assembly(lookups={**LOOKUPS, "2809": reused})
+    assert _reasons(assembly.quarantined)[("2809", "sii")] == "isin_lookup_is_another_security"
+    assert _spans(assembly, "2809") == []
+    assert "2809" not in {c.stock_id for c in assembly.companies}
+
+
+def test_a_relisting_without_a_listing_row_starts_on_the_isin_date() -> None:
+    # Left TPEx in 2021, back in 2023 with no listing row: the ISIN date is the
+    # only evidence of the return, and a NULL start would claim it never left.
+    lookup = ls.Lookup("7777", "甲", "上櫃", "股票", None, date(2019, 5, 2))
+    today = [(ListedStock("7777", "甲", "otc", None, date(2023, 5, 2)), None)]
+    left = [ls.Event("7777", "otc", date(2021, 3, 1), "甲")]
+    assembly = ls.assemble(today, [], left, {"7777": lookup})
+    assert [(s.listed_on, s.delisted_on) for s in assembly.spans] == [
+        (None, date(2021, 3, 1)), (date(2023, 5, 2), None)]
+    assert _reasons(assembly.warnings) == {("7777", "otc"): "relisted_without_listing_row"}
+
+
+def test_a_relisting_whose_isin_date_predates_the_delisting_stays_unknown() -> None:
+    lookup = ls.Lookup("7777", "甲", "上櫃", "股票", None, date(2019, 5, 2))
+    today = [(ListedStock("7777", "甲", "otc", None, date(2019, 5, 2)), None)]
+    left = [ls.Event("7777", "otc", date(2021, 3, 1), "甲")]
+    assembly = ls.assemble(today, [], left, {"7777": lookup})
+    opened = [s for s in assembly.spans if s.delisted_on is None]
+    assert [(s.listed_on, s.listed_fetch_id) for s in opened] == [(None, None)]
+    assert _reasons(assembly.warnings) == {("7777", "otc"): "relisted_without_listing_row"}
+
+
+def test_an_ambiguous_open_listing_on_todays_list_starts_on_the_isin_date() -> None:
+    listed = [ls.Event("7777", "otc", date(2021, 1, 4), "甲"),
+              ls.Event("7777", "otc", date(2022, 1, 3), "甲")]
+    today = [(ListedStock("7777", "甲", "otc", None, date(2022, 1, 3)), None)]
+    assembly = ls.assemble(today, listed, [], {})
+    assert _reasons(assembly.quarantined) == {("7777", "otc"): "listed_twice"}
+    assert [(s.listed_on, s.delisted_on) for s in assembly.spans] == [(date(2022, 1, 3), None)]
+
+
+@pytest.mark.parametrize("second", [date(2022, 6, 1), date(2021, 3, 1)])
+def test_two_delistings_with_no_listing_between_are_quarantined(second) -> None:
+    # The same date twice would also collide on the table's unique key.
+    left = [ls.Event("7777", "otc", date(2021, 3, 1), "甲"),
+            ls.Event("7777", "otc", second, "甲")]
+    lookup = ls.Lookup("7777", "甲", "公開發行", "普通股", None, date(2010, 1, 4))
+    assembly = ls.assemble([], [], left, {"7777": lookup})
+    assert "delisted_twice" in {left.reason for left in assembly.quarantined}
+    spans = [(s.market, s.delisted_on) for s in assembly.spans]
+    assert len(spans) == len(set(spans))
+    assert all(s.listed_on is not None or s.delisted_on == date(2021, 3, 1)
+               for s in assembly.spans)
