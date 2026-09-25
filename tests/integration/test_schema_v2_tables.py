@@ -1,4 +1,4 @@
-"""ADR-0027: the schema v2 tables and the universe loader."""
+"""ADR-0027: the schema v2 tables (the universe loader is Step 38-a's `test_v2_listings`)."""
 
 from __future__ import annotations
 
@@ -11,7 +11,6 @@ from sqlalchemy import Connection
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from stock_data_center.v2.fetch_log import FetchRecord, record_fetch
-from stock_data_center.v2.universe import load_universe
 
 pytestmark = pytest.mark.integration
 
@@ -57,29 +56,12 @@ def _price(db: Connection, fetch_id, **values) -> None:
     )
 
 
-def test_the_loader_keeps_the_raw_pages_and_fills_stocks(db: Connection, tmp_path) -> None:
-    from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
-
-    store = LocalRawArtifactStore(tmp_path)
-    counts = load_universe(db, git_commit="abc", get=_pages, now=lambda: NOW, store=store)
-    assert counts == {"sii": 3, "otc": 3}
-    fetched = db.execute(
-        sa.text("SELECT status, length(sha256) FROM fetches WHERE dataset = 'stocks'")
-    ).all()
-    assert fetched == [("succeeded", 32), ("succeeded", 32)]
-    assert len([p for p in tmp_path.rglob("*") if p.is_file()]) == 2  # raw pages kept
-
-    # A second load refreshes in place: same stocks, no duplicates.
-    load_universe(db, git_commit="abc", get=_pages, now=lambda: NOW, store=store)
-    assert db.scalar(sa.text("SELECT count(*) FROM stocks")) == 6
-
-
 def test_a_value_row_is_append_only(db: Connection, tmp_path) -> None:
     fetch_id = _fetch(db, tmp_path)
     db.execute(
         sa.text(
-            "INSERT INTO stocks (stock_id, name, market, fetch_id) "
-            "VALUES ('1101', '台泥', 'sii', :f)"
+            "INSERT INTO stocks (stock_id, name, fetch_id) "
+            "VALUES ('1101', '台泥', :f)"
         ),
         {"f": fetch_id},
     )
@@ -100,8 +82,8 @@ def test_a_correction_is_a_second_row_not_an_edit(db: Connection, tmp_path) -> N
     fetch_id = _fetch(db, tmp_path)
     db.execute(
         sa.text(
-            "INSERT INTO stocks (stock_id, name, market, fetch_id) "
-            "VALUES ('1101', '台泥', 'sii', :f)"
+            "INSERT INTO stocks (stock_id, name, fetch_id) "
+            "VALUES ('1101', '台泥', :f)"
         ),
         {"f": fetch_id},
     )
@@ -137,8 +119,8 @@ def test_a_price_beyond_eight_integer_digits_is_refused(db: Connection, tmp_path
     fetch_id = _fetch(db, tmp_path)
     db.execute(
         sa.text(
-            "INSERT INTO stocks (stock_id, name, market, fetch_id) "
-            "VALUES ('1101', '台泥', 'sii', :f)"
+            "INSERT INTO stocks (stock_id, name, fetch_id) "
+            "VALUES ('1101', '台泥', :f)"
         ),
         {"f": fetch_id},
     )
@@ -151,8 +133,8 @@ def test_a_third_decimal_is_refused_not_rounded(db: Connection, tmp_path) -> Non
     fetch_id = _fetch(db, tmp_path)
     db.execute(
         sa.text(
-            "INSERT INTO stocks (stock_id, name, market, fetch_id) "
-            "VALUES ('1101', '台泥', 'sii', :f)"
+            "INSERT INTO stocks (stock_id, name, fetch_id) "
+            "VALUES ('1101', '台泥', :f)"
         ),
         {"f": fetch_id},
     )
@@ -169,42 +151,10 @@ def test_trailing_zeros_are_not_extra_decimals(db: Connection, tmp_path) -> None
     fetch_id = _fetch(db, tmp_path)
     db.execute(
         sa.text(
-            "INSERT INTO stocks (stock_id, name, market, fetch_id) "
-            "VALUES ('1101', '台泥', 'sii', :f)"
+            "INSERT INTO stocks (stock_id, name, fetch_id) "
+            "VALUES ('1101', '台泥', :f)"
         ),
         {"f": fetch_id},
     )
     _price(db, fetch_id, close="30.500000")
     assert db.scalar(sa.text("SELECT close_price = 30.5 FROM daily_prices"))
-
-
-def test_a_page_that_no_longer_parses_is_kept_and_quarantined(db: Connection, tmp_path) -> None:
-    from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
-
-    def changed_layout(url: str) -> bytes:
-        page = _pages(url).decode("big5hkscs").replace("<B> 股票 <B>", "<B> 普通股 <B>")
-        return page.encode("big5hkscs")
-
-    store = LocalRawArtifactStore(tmp_path)
-    results = load_universe(db, git_commit="abc", get=changed_layout, now=lambda: NOW, store=store)
-    assert all(str(result).startswith("quarantined") for result in results.values())
-    fetched = db.execute(
-        sa.text("SELECT status, reason_code, length(sha256) FROM fetches WHERE dataset = 'stocks'")
-    ).all()
-    assert fetched == [("quarantined", "unrecognised_layout", 32)] * 2
-    assert len([p for p in tmp_path.rglob("*") if p.is_file()]) == 2  # the pages survive
-    assert db.scalar(sa.text("SELECT count(*) FROM stocks")) == 0
-
-
-def test_the_list_date_is_the_taipei_date(db: Connection, tmp_path) -> None:
-    """17:00 UTC on the 22nd is 01:00 on the 23rd in Taipei."""
-    from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
-
-    late = datetime(2026, 9, 22, 17, 0, tzinfo=UTC)
-    load_universe(
-        db, git_commit="abc", get=_pages, now=lambda: late, store=LocalRawArtifactStore(tmp_path)
-    )
-    keys = db.scalars(
-        sa.text("SELECT resource_key FROM fetches WHERE dataset = 'stocks' ORDER BY 1")
-    ).all()
-    assert keys == ["twse_isin:otc:2026-09-23", "twse_isin:sii:2026-09-23"]

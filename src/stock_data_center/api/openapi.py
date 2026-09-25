@@ -69,9 +69,12 @@ Every answer states, in `pit`, the context it was answered in.
 
 ## Stocks
 
-The stocks are today's listed (`sii`) and OTC (`otc`) common stocks: no ETF,
-ETN, preferred share, TDR or warrant, and no company delisted before today.
-History read over them therefore carries survivorship bias.
+The stocks are listed (`sii`) and OTC (`otc`) common stocks: no ETF, ETN,
+preferred share, TDR, warrant or innovation-board stock. `/v1/stocks` lists
+every one on today's list and every one delisted since 2020-01-02 that an
+official source shows to be a common stock, with its listing spans. The
+datasets are still collected only for the stocks listed today, so history read
+through them carries survivorship bias.
 """
 
 DATASETS = """\
@@ -157,10 +160,22 @@ market PIT, for one `stock_id` at a time.
 """
 
 STOCKS = """\
-Today's listed (`sii`) and OTC (`otc`) common stocks, with name, market,
-industry and listing date. It is refreshed in place from the latest list, so
-it is not point-in-time and holds no company delisted before today. `market`
-and `stock_id` filter it; it takes no PIT parameter.
+Every listed (`sii`) and OTC (`otc`) common stock on today's list, and every one
+delisted since 2020-01-02 that an official source shows to be a common stock.
+
+- `listings` holds each span the stock traded on one market: from `listed_on`
+  to the day before `delisted_on`. A stock that moved from TPEx to TWSE has two
+  spans; one still listed has `delisted_on: null`.
+- `listed_on` is the exchange's listing date. It is `null` when the listing
+  predates the exchange's listing table: before 2001-01-03 on TWSE, before
+  2005 on TPEx.
+- `market` and `listed_on` at the top are the open span's, `null` for a
+  delisted stock.
+- Some companies delisted since 2020 are missing: no official source still
+  says whether what they listed was a common stock.
+- `date` returns the stocks listed on that day, `market` those with a span on
+  that market, `stock_id` those codes. It is refreshed in place, not
+  point-in-time, and takes no PIT parameter.
 """
 
 CALENDAR = """\
@@ -206,7 +221,11 @@ PARAMETERS: dict[str, tuple[dict, bool, str]] = {
                        "technical-indicators-pit only: as_of computes every date as of one PIT "
                        "context; rolling computes each date at its own release instant and "
                        "takes no information_as_of."),
-    "market": _described({"type": "string"}, "sii (listed) or otc."),
+    "market": _described({"type": "string"}, "sii (listed) or otc: stocks with a listing "
+                                              "span on that market."),
+    "date": _described(_DATE, "Stocks listed on this day, YYYY-MM-DD, from 2020-01-02: "
+                              "some span has listed_on on or before it (or unknown) and "
+                              "delisted_on after it (or none)."),
 }
 
 

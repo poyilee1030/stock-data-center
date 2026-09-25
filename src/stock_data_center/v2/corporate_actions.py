@@ -54,6 +54,7 @@ from stock_data_center.v2.exchange_daily import (
     key_columns,
     value_columns,
 )
+from stock_data_center.v2.listings import listed_stock_ids
 from stock_data_center.v2.release_rules import corporate_action_available_from
 
 TABLE = v2.corporate_actions
@@ -171,7 +172,7 @@ def ingest(
               "purpose": purpose, "store": store}
     with unit(bind) as connection:
         if stock_ids is None:
-            stock_ids = frozenset(connection.scalars(sa.select(v2.stocks.c.stock_id)))
+            stock_ids = listed_stock_ids(connection)
         listed = fetch_and_parse(connection, adapter, wanted, parse=lambda p: p, **common)
         if isinstance(listed, FetchOutcome):
             return Outcome(listed.status, listed.fetch_id, reason_code=listed.reason_code)

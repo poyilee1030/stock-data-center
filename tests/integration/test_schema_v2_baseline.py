@@ -28,9 +28,11 @@ V2_TABLES = set(metadata.tables)
 DERIVED = {"technical_indicators", "institutional_streaks", "institutional_cumulative_flow",
            "shareholding_concentration", "margin_metrics", "short_interest_metrics",
            "valuation_metrics"}
-BASELINE_TABLES = V2_TABLES - DERIVED
-# `stocks` is today's list, replaced when the list changes; `trading_days` is a
-# calendar. Every other table holds history and only grows.
+# Step 38-a: listing spans, reference data rebuilt from the exchanges' tables.
+AFTER_BASELINE = DERIVED | {"listings"}
+BASELINE_TABLES = V2_TABLES - AFTER_BASELINE
+# `stocks` holds each company's identity, refreshed in place; `trading_days` is
+# a calendar. Every other baseline table holds history and only grows.
 APPEND_ONLY = BASELINE_TABLES - {"stocks", "trading_days"}
 
 
@@ -64,17 +66,18 @@ def test_the_chain_starts_at_one_baseline() -> None:
     assert [r.revision for r in revisions if r.down_revision is None] == ["a273160c0288"]
 
 
-def test_the_derived_tables_are_the_only_ones_after_the_baseline(
+def test_the_derived_tables_and_listings_are_the_only_ones_after_the_baseline(
     empty_database_url: str,
 ) -> None:
-    assert DERIVED <= V2_TABLES
+    assert AFTER_BASELINE <= V2_TABLES
     config = alembic_config(empty_database_url)
     command.upgrade(config, "a273160c0288")
     assert _catalog(empty_database_url)["tables"] == BASELINE_TABLES | {"alembic_version"}
     command.upgrade(config, "head")
     assert _catalog(empty_database_url)["tables"] == V2_TABLES | {"alembic_version"}
     # Derived rows are recomputed from stored inputs, so dropping them loses no
-    # history (CLAUDE.md §81): the downgrade needs no guard.
+    # history (CLAUDE.md §81): the downgrade needs no guard. Listing spans guard
+    # their own downgrade (`test_v2_listings`); these tables are empty.
     command.downgrade(config, "a273160c0288")
     assert _catalog(empty_database_url)["tables"] == BASELINE_TABLES | {"alembic_version"}
 

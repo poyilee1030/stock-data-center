@@ -61,7 +61,7 @@ def fetch_id(db: Connection, tmp_path):
         content=b"raw", status="succeeded", store=LocalRawArtifactStore(tmp_path),
     )
     db.execute(sa.text(
-        "INSERT INTO stocks (stock_id, name, market, fetch_id) VALUES ('2330', '台積電', 'sii', :f) "
+        "INSERT INTO stocks (stock_id, name, fetch_id) VALUES ('2330', '台積電', :f) "
         "ON CONFLICT DO NOTHING"), {"f": fetch})
     return fetch
 

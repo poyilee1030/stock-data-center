@@ -33,7 +33,7 @@ from stock_data_center.api.datasets import DATASETS, Dataset
 from stock_data_center.api.derived import DERIVED, PIT_REFERENCE, Derived
 from stock_data_center.api.render import dumps
 from stock_data_center.db import schema_v2 as v2
-from stock_data_center.v2 import visibility
+from stock_data_center.v2 import listings, visibility
 from stock_data_center.v2.derived import TechnicalIndicators, UnknownStockError
 
 # A query without a stock spans at most this many days: the whole market over a
@@ -47,17 +47,19 @@ _PIT_PARAMS = frozenset({*pit_context.MARKET, pit_context.SYSTEM})
 _ROW_PARAMS = frozenset({"start", "end", "stock_id", "source", *_PIT_PARAMS})
 _REPORT_PARAMS = _ROW_PARAMS | {"statement", "account_code"}
 _REFERENCE_PARAMS = _ROW_PARAMS | {"view"}
-_STOCK_PARAMS = frozenset({"market", "stock_id"})
+_STOCK_PARAMS = frozenset({"market", "stock_id", "date"})
 _CALENDAR_PARAMS = frozenset({"start", "end"})
 _REPEATABLE = frozenset({"stock_id", "source", "statement", "account_code"})
 STATEMENTS = ("balance_sheet", "income_statement", "cash_flow")
 MARKETS = ("sii", "otc")
 VIEWS = ("as_of", "rolling")
 UNIVERSE = (
-    "Today's TWSE ISIN list of listed (sii) and OTC (otc) common stocks (ADR-0026): no "
-    "ETF, preferred share, TDR or warrant, and no company delisted before today. It is "
-    "refreshed in place from the latest list, so it is not point-in-time, and any "
-    "history read over it carries that survivorship bias."
+    "Listed (sii) and OTC (otc) common stocks: every one on today's TWSE ISIN list, and "
+    "every one delisted since 2020-01-02 that an official source shows to be a common "
+    "stock, each with its listing spans. No ETF, preferred share, TDR, warrant or "
+    "innovation-board stock. The list is refreshed in place, not point-in-time. The "
+    "datasets are still collected only for stocks listed today, so history read through "
+    "them carries survivorship bias."
 )
 
 
@@ -142,7 +144,8 @@ def _describe(dataset: Dataset) -> dict:
 
 
 def _provenance(connection: Connection, rows) -> dict:
-    ids = {row[c] for row in rows for c in ("fetch_id", "detail_fetch_id")
+    ids = {row[c] for row in rows
+           for c in ("fetch_id", "detail_fetch_id", "listed_fetch_id", "delisted_fetch_id")
            if c in row and row[c] is not None}
     if not ids:
         return {}
@@ -179,6 +182,26 @@ def _describe_reference() -> dict:
 
 def _provenance_of(row, sha: dict) -> dict:
     return {"fetch_id": row["fetch_id"], "raw_sha256": sha.get(row["fetch_id"])}
+
+
+def _stock(row, spans, sha: dict) -> dict:
+    """A company with every listing span; `market` and `listed_on` are its open span's."""
+    current = next((span for span in spans if span["delisted_on"] is None), None)
+    return {
+        "stock_id": row["stock_id"], "name": row["name"], "industry": row["industry"],
+        "market": current["market"] if current else None,
+        "listed_on": current["listed_on"] if current else None,
+        "listings": [{
+            "market": span["market"], "listed_on": span["listed_on"],
+            "delisted_on": span["delisted_on"],
+            "provenance": {
+                **_provenance_of(span, sha),
+                **{f"{end}_fetch_id": span[f"{end}_fetch_id"] for end in ("listed", "delisted")},
+                **{f"{end}_raw_sha256": sha.get(span[f"{end}_fetch_id"])
+                   for end in ("listed", "delisted")},
+            }} for span in spans],
+        "provenance": _provenance_of(row, sha),
+    }
 
 
 def _render_row(dataset: Dataset, row, sha: dict) -> dict:
@@ -367,23 +390,39 @@ def create_app(*, api_key: str,
     @app.get("/v1/stocks", summary="Today's stock list", description=openapi.STOCKS)
     def stock_list(request: Request) -> Response:
         params, lists = _params(request, _STOCK_PARAMS, frozenset({"stock_id"}))
-        s = v2.stocks
-        query = sa.select(s).order_by(s.c.stock_id)
+        s, spans = v2.stocks, v2.listings
+        chosen = sa.select(spans.c.stock_id)
         if "market" in params:
             if params["market"] not in MARKETS:
                 raise HTTPException(400, f"market is one of {', '.join(MARKETS)}: "
                                          f"{params['market']!r}")
-            query = query.where(s.c.market == params["market"])
+            chosen = chosen.where(spans.c.market == params["market"])
+        if "date" in params:
+            day = _date(params, "date")
+            if day < listings.WINDOW_START:
+                raise HTTPException(400, f"date starts at {listings.WINDOW_START}: listing "
+                                         "spans that closed before it are not kept")
+            chosen = chosen.where(
+                sa.or_(spans.c.listed_on.is_(None), spans.c.listed_on <= day),
+                sa.or_(spans.c.delisted_on.is_(None), spans.c.delisted_on > day))
+        query = sa.select(s).order_by(s.c.stock_id)
+        if "market" in params or "date" in params:
+            query = query.where(s.c.stock_id.in_(chosen))
         if lists["stock_id"] is not None:
             query = query.where(s.c.stock_id.in_(lists["stock_id"]))
         with connect() as connection:
             rows = connection.execute(query).mappings().all()
-            sha = _provenance(connection, rows)
+            held = connection.execute(
+                sa.select(spans).where(spans.c.stock_id.in_([r["stock_id"] for r in rows]))
+                .order_by(spans.c.stock_id, spans.c.listed_on.asc().nulls_first(),
+                          spans.c.delisted_on.asc().nulls_last())).mappings().all()
+            sha = _provenance(connection, [*rows, *held])
+        by_stock: dict[str, list] = {}
+        for span in held:
+            by_stock.setdefault(span["stock_id"], []).append(span)
         return _json({
             "universe": UNIVERSE,
-            "rows": [{**{c: row[c] for c in ("stock_id", "name", "market", "industry",
-                                            "listed_on")},
-                      "provenance": _provenance_of(row, sha)} for row in rows],
+            "rows": [_stock(row, by_stock.get(row["stock_id"], []), sha) for row in rows],
         })
 
     @app.get("/v1/trading-days", summary="The trading calendar",

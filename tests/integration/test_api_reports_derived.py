@@ -69,9 +69,12 @@ def fetch_id(db, tmp_path):
                     datetime(2024, 1, 1, tzinfo=UTC)),
         content=b"raw", status="succeeded", store=LocalRawArtifactStore(tmp_path))
     for stock_id, market in (("2330", "sii"), ("6488", "otc")):
-        db.execute(sa.text("INSERT INTO stocks (stock_id, name, market, industry, fetch_id) "
-                           "VALUES (:s, :n, :m, 'x', :f) ON CONFLICT DO NOTHING"),
-                   {"s": stock_id, "n": f"name {stock_id}", "m": market, "f": fetch})
+        db.execute(sa.text("INSERT INTO stocks (stock_id, name, industry, fetch_id) "
+                           "VALUES (:s, :n, 'x', :f) ON CONFLICT DO NOTHING"),
+                   {"s": stock_id, "n": f"name {stock_id}", "f": fetch})
+        db.execute(sa.text("INSERT INTO listings (stock_id, market, fetch_id) "
+                           "VALUES (:s, :m, :f) ON CONFLICT DO NOTHING"),
+                   {"s": stock_id, "m": market, "f": fetch})
     return fetch
 
 
@@ -382,11 +385,54 @@ def test_the_stock_list_is_todays_universe_with_provenance(client, db, fetch_id)
     assert set(rows) >= {"2330", "6488"}
     assert rows["6488"]["market"] == "otc"
     assert rows["2330"]["provenance"]["raw_sha256"]
-    assert "ADR-0026" in body["universe"]
+    assert "survivorship" in body["universe"]
     assert [r["stock_id"] for r in _get(client, "/v1/stocks", market="otc").json()["rows"]
             if r["stock_id"] in rows] == ["6488"]
     assert _get(client, "/v1/stocks", information_as_of="latest").status_code == 400
     assert _get(client, "/v1/stocks", market="rotc").status_code == 400
+
+
+def _transferred_and_delisted(db, fetch_id) -> None:
+    # 5236 moved from TPEx to TWSE on 2026-07-16; 2809 left TWSE on 2025-10-01.
+    db.execute(sa.text(
+        "INSERT INTO stocks (stock_id, name, industry, fetch_id) VALUES "
+        "('5236', '凌陽創新', '半導體業', :f), ('2809', '京城銀', '金融保險業', :f)"),
+        {"f": fetch_id})
+    db.execute(sa.text(
+        "INSERT INTO listings (stock_id, market, listed_on, delisted_on, fetch_id, "
+        "listed_fetch_id, delisted_fetch_id) VALUES "
+        "('5236', 'otc', '2021-07-29', '2026-07-16', :f, :f, :f), "
+        "('5236', 'sii', '2026-07-16', NULL, :f, :f, NULL), "
+        "('2809', 'sii', NULL, '2025-10-01', :f, NULL, :f)"), {"f": fetch_id})
+
+
+def test_the_stock_list_carries_every_listing_span(client, db, fetch_id) -> None:
+    _transferred_and_delisted(db, fetch_id)
+    rows = {r["stock_id"]: r for r in _get(client, "/v1/stocks").json()["rows"]}
+    assert [(s["market"], s["listed_on"], s["delisted_on"]) for s in rows["5236"]["listings"]
+            ] == [("otc", "2021-07-29", "2026-07-16"), ("sii", "2026-07-16", None)]
+    assert (rows["5236"]["market"], rows["5236"]["listed_on"]) == ("sii", "2026-07-16")
+    assert rows["2809"]["market"] is None  # delisted: no current market
+    assert rows["2809"]["listings"][0]["provenance"]["delisted_raw_sha256"]
+
+
+def test_the_stock_list_on_a_date_is_the_companies_listed_that_day(
+    client, db, fetch_id
+) -> None:
+    _transferred_and_delisted(db, fetch_id)
+
+    def listed(**params):
+        return {r["stock_id"] for r in _get(client, "/v1/stocks", **params).json()["rows"]
+                if r["stock_id"] in {"5236", "2809", "2330"}}
+
+    assert listed(date="2025-09-30") == {"5236", "2809", "2330"}
+    assert listed(date="2025-10-01") == {"5236", "2330"}  # delisted_on is the first day off
+    assert listed(date="2026-07-15", market="sii") == {"2330"}
+    assert listed(date="2026-07-16", market="sii") == {"5236", "2330"}
+    assert listed(market="otc") >= {"5236"}  # any span on that market
+    # Spans that closed before the window are not kept, so earlier days are refused.
+    assert _get(client, "/v1/stocks", date="2019-12-31").status_code == 400
+    assert _get(client, "/v1/stocks", date="2026-13-01").status_code == 400
 
 
 def test_the_trading_calendar(client, db, fetch_id) -> None:

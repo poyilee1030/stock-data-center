@@ -39,6 +39,7 @@ from stock_data_center.v2.exchange_daily import (
     check_precision,
     fetch_and_parse,
 )
+from stock_data_center.v2.listings import listed_stock_ids
 
 ADAPTER = MOPSFinancialFilingAdapter()
 KEY = "financial_reports/mops_t164sb01"
@@ -207,9 +208,9 @@ def pending(connection: Connection, wanted: Sequence[tuple[str, int, int]]) -> l
 
 def run(bind, start: date, end: date, *, fetcher, git_commit, purpose, store=None,
         refetch=False, progress=None, unit) -> dict[str, int]:
-    """Every stock on today's list for every quarter ending in [start, end]."""
+    """Every listed stock (an open span) for every quarter ending in [start, end]."""
     with unit(bind) as connection:
-        stock_ids = sorted(connection.scalars(sa.select(v2.stocks.c.stock_id)))
+        stock_ids = sorted(listed_stock_ids(connection))
         wanted = [(stock, year, quarter) for year, quarter in quarters(start, end)
                   for stock in stock_ids]
         todo = wanted if refetch else pending(connection, wanted)

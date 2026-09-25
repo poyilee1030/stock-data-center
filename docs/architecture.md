@@ -29,9 +29,11 @@ time where one is stored. Raw files are immutable and content-addressed under
 `data/raw/<ab>/<sha256>`, behind a storage abstraction; each fetch names its
 file by SHA-256.
 
-A stock is its official code. The universe is today's ISIN list of listed and
-OTC common stocks (ADR-0026); the survivorship bias of that choice is accepted
-and disclosed.
+A stock is its official code. The universe is listed and OTC common stocks
+(ADR-0026): `stocks` holds every one on today's ISIN list and every one delisted
+since 2020-01-02 that a source proves common, and `listings` each one's listing
+spans (ADR-0028). The datasets are fetched only for stocks listed today; that
+survivorship bias is accepted and disclosed until Step 38-b.
 
 ## Write path
 
@@ -82,6 +84,7 @@ market, the TDCC profile tables, the Phase 9 import framework — those two win
 - [Schema v2](schema.md)
 - [ADR-0026: v1 universe is common stocks only](decisions/0026-v1-universe-common-stocks-only.md)
 - [ADR-0027: schema v2](decisions/0027-schema-v2.md)
+- [ADR-0028: listing spans](decisions/0028-listing-spans.md)
 - [Stock universe and daily market data](security_daily_market.md)
 - [Monthly revenue](monthly_revenue.md)
 - [Financial statements (iXBRL)](financial_xbrl.md)

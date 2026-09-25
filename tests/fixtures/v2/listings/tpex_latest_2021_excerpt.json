@@ -1,0 +1,1 @@
+{"tables": [{"fields": ["索引", "股票代號", "公司名稱", "上櫃日期", "每股面額", "公司資訊連結", "近期上櫃資訊連結"], "data": [[5, "5236", "凌陽創新", "110/07/29", "新台幣 10.0000元", "company-detail.html?code=5236", "./latest/detail.html?code=5236"]], "totalCount": 1, "title": "", "notes": []}], "date": "2021", "stat": "ok"}

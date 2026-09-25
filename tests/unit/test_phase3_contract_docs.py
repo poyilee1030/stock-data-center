@@ -22,11 +22,12 @@ def test_phase3_documents_every_daily_quote_disposition() -> None:
         assert field in contract
 
 
-def test_the_universe_is_documented_as_todays_list() -> None:
-    """ADR-0026: today's ISIN list, not an effective-dated history."""
+def test_the_universe_is_documented_with_its_listing_spans() -> None:
+    """ADR-0026 and ADR-0028: identity in `stocks`, spans in `listings`, bias disclosed."""
     contract = (ROOT / "docs" / "security_daily_market.md").read_text()
     assert "`stock_id` is the identity everywhere" in contract
     assert "`stocks` is today's state, not history" in contract
+    assert "`listings` holds when and where each traded" in contract
     assert "survivorship bias" in contract
 
     inventory = json.loads(
@@ -42,6 +43,6 @@ def test_the_universe_is_documented_as_todays_list() -> None:
         field for field in market_fields if field["legacy_table"] != "market_indices"
     ]
     assert all(
-        field["disposition"] == "observed" and field["target"] == "stocks.market"
+        field["disposition"] == "observed" and field["target"] == "listings.market"
         for field in stock_market_fields
     )

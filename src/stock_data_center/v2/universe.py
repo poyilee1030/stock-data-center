@@ -7,8 +7,9 @@ shares, TDRs, beneficiary certificates, warrants and the innovation board
 (`創新板`, whose CFI code is the same `ESVUFR` as ordinary common stock, which is
 why the category and not the CFI code decides).
 
-The list is today's snapshot. Securities delisted before today are absent and
-therefore out of scope everywhere; the owner accepted that survivorship bias.
+The list is today's snapshot: it says which stocks are listed now. The
+companies delisted since the v1 window opened, and every stock's listing spans,
+come from the exchanges' tables (`stock_data_center.v2.listings`, Step 38-a).
 """
 
 from __future__ import annotations
@@ -84,98 +85,3 @@ def _date(text: str) -> date | None:
         return None
     year, month, day = (int(part) for part in text.split("/"))
     return date(year, month, day)
-
-
-ADAPTER_VERSION = "twse-isin-common-stocks:v1"
-MARKET_TIMEZONE = "Asia/Taipei"
-
-
-def load_universe(
-    connection, *, git_commit: str, get=None, now=None, store=None
-) -> dict[str, int | str]:
-    """Fetch both lists raw-first, then upsert `stocks` from each that parses.
-
-    Raw-first (CLAUDE.md §71): the page is stored before it is parsed, so a page
-    whose layout changed is kept for diagnosis. It is logged as a `quarantined`
-    fetch with the parser's reason and contributes no rows; the result maps that
-    market to the reason instead of a count, and the caller decides whether a
-    partial universe is acceptable.
-
-    Rows are never deleted: a stock that leaves a later list keeps its row,
-    because stored history references it. `get(url) -> bytes`, `now()` and the
-    raw `store` are injectable for tests.
-    """
-    from zoneinfo import ZoneInfo
-
-    import httpx
-    from sqlalchemy.dialects.postgresql import insert as pg_insert
-
-    from stock_data_center.db.schema_v2 import stocks
-    from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
-    from stock_data_center.v2.fetch_log import FetchRecord, record_fetch
-
-    get = get or (lambda url: httpx.get(url, timeout=120).raise_for_status().content)
-    store = store or LocalRawArtifactStore()
-    if now is None:
-        from datetime import UTC, datetime
-
-        def now():
-            return datetime.now(UTC)
-
-    results: dict[str, int | str] = {}
-    for market, mode in MARKETS.items():
-        url = ISIN_URL.format(mode=mode)
-        fetched_at = now()
-        content = get(url)
-        store.put(content)
-        market_date = fetched_at.astimezone(ZoneInfo(MARKET_TIMEZONE)).date()
-        record = FetchRecord(
-            dataset="stocks",
-            source="twse_isin",
-            resource_key=f"twse_isin:{market}:{market_date.isoformat()}",
-            source_uri=url,
-            purpose="first_capture",
-            adapter_version=ADAPTER_VERSION,
-            git_commit=git_commit,
-            fetched_at=fetched_at,
-        )
-        try:
-            parsed = parse_isin_page(content, market=market)
-        except (UniverseFormatError, UnicodeDecodeError, ValueError) as error:
-            record_fetch(
-                connection,
-                record,
-                content=content,
-                status="quarantined",
-                store=store,
-                reason_code="unrecognised_layout",
-                reason_detail=str(error)[:500],
-            )
-            results[market] = f"quarantined: {error}"
-            continue
-        fetch_id = record_fetch(
-            connection, record, content=content, status="succeeded", store=store
-        )
-        rows = [
-            {
-                "stock_id": item.stock_id,
-                "name": item.name,
-                "market": item.market,
-                "industry": item.industry,
-                "listed_on": item.listed_on,
-                "fetch_id": fetch_id,
-            }
-            for item in parsed
-        ]
-        statement = pg_insert(stocks).values(rows)
-        connection.execute(
-            statement.on_conflict_do_update(
-                index_elements=[stocks.c.stock_id],
-                set_={
-                    column: statement.excluded[column]
-                    for column in ("name", "market", "industry", "listed_on", "fetch_id")
-                },
-            )
-        )
-        results[market] = len(rows)
-    return results

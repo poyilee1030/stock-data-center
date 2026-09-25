@@ -148,18 +148,51 @@ sa.Index(
     fetches.c.fetched_at,
 )
 
+# A company's identity (Step 38-a): every company on today's list and every one
+# delisted since the v1 window opened. When and where it traded is `listings`.
 stocks = sa.Table(
     "stocks",
     metadata,
     sa.Column("stock_id", sa.String(6), primary_key=True),
     sa.Column("name", sa.Text(), nullable=False),
-    sa.Column("market", sa.String(3), nullable=False),
     sa.Column("industry", sa.Text()),
-    sa.Column("listed_on", sa.Date()),
     _fetch_id(),
-    sa.CheckConstraint("market IN ('sii', 'otc')", name="market_value"),
     sa.CheckConstraint("btrim(stock_id) <> ''", name="stock_id_nonempty"),
 )
+
+
+def _optional_fetch_id(name: str) -> sa.Column:
+    return sa.Column(name, uuid_type, sa.ForeignKey("fetches.id", ondelete="RESTRICT"))
+
+
+# One row per listing span: [listed_on, delisted_on) on one market (Step 38-a,
+# ADR-0028). listed_on is NULL when the span began before the exchange's listing
+# table does; delisted_on is NULL while the stock is listed. Reference data,
+# rebuilt in place from the latest fetches, not point-in-time. `fetch_id` proves
+# the span is a common stock's; the other two name where each date came from.
+listings = sa.Table(
+    "listings",
+    metadata,
+    _stock_id(),
+    sa.Column("market", sa.String(3), nullable=False),
+    sa.Column("listed_on", sa.Date()),
+    sa.Column("delisted_on", sa.Date()),
+    _fetch_id(),
+    _optional_fetch_id("listed_fetch_id"),
+    _optional_fetch_id("delisted_fetch_id"),
+    sa.UniqueConstraint("stock_id", "market", "delisted_on",
+                        postgresql_nulls_not_distinct=True),
+    sa.CheckConstraint("market IN ('sii', 'otc')", name="market_value"),
+    sa.CheckConstraint("(listed_on IS NULL) = (listed_fetch_id IS NULL)",
+                       name="listed_on_has_fetch"),
+    sa.CheckConstraint("(delisted_on IS NULL) = (delisted_fetch_id IS NULL)",
+                       name="delisted_on_has_fetch"),
+    sa.CheckConstraint("listed_on IS NULL OR delisted_on IS NULL OR listed_on < delisted_on",
+                       name="span_not_empty"),
+)
+# A stock is listed on one market at a time.
+sa.Index("uq_listings_open_stock_id", listings.c.stock_id, unique=True,
+         postgresql_where=listings.c.delisted_on.is_(None))
 
 trading_days = sa.Table(
     "trading_days",

@@ -2162,14 +2162,29 @@ legacy `stock_db` 只有 `stock_info.listing_date`，沒有下市資料。
 
 **38-a：清單與掛牌期間**（抓取範圍不變）
 
-- 來源研究，寫進 audit §4.11：四個表的欄位、日期格式（民國年）、單位；TPEx 按年查的參數（2026-09-25 以 `year=2024` 請求，兩個端點都回今年的資料，參數要重新確認）；公司表會不會列入 TDR、特別股、創新板，下市公司的類別憑什麼判定；2020-01-02 以後的下市家數。
-- ADR：局部取代 ADR-0026 §3——清單收已下市公司，但它們的資料仍不收（留給 38-b）。
-- Migration：新增 `listings`，把 `stocks.market`、`stocks.listed_on` 的現有值搬過去後刪除這兩欄；§81 的 downgrade 語意。
-- 四個 adapter 與 ISIN 清單一起寫入 `stocks`／`listings`，raw-first、每次請求一列 `fetches`、可重跑（§71、§76）。每個 adapter 同時服務歷史與前向抓取。
-- 同一代號、同一市場的上市日在 ISIN 與交易所上市表之間不一致時，不默默挑一個（§30）：優先順序寫進 ADR，或 quarantine。
-- 各 adapter 的抓取範圍改成「有尚未結束的掛牌期間」。
-- API：`/v1/stocks` 回傳所有公司與各自的 `listings`；加一個日期參數，回傳那一天在市場上的公司；`/docs` 與 `docs/api.md` 改寫存活者偏差的揭露（清單有下市公司，資料還沒有）。
-- 文件：`docs/schema.md`、`docs/data_domain_inventory.*`、audit §4.11、§4.14。
+- [x] 來源研究，寫進 audit §4.11：四個表的欄位、日期格式（民國年）；TPEx 按年查的參數是 `date`（`year` 被忽略、回今年）；
+  TPEx 下櫃表一次只給 10 筆，要用網站的分頁參數補齊；TWSE 上市表只有公司、以 `備註` 標創新板，下市表也列 TDR
+  （9188 精熙-DR 是四碼）；下市公司的類別由上市列或 ISIN 查詢（`class_main.jsp`）證明；2020-01-02 以後 97 筆下市。
+- [x] ADR-0028：局部取代 ADR-0026 §3——清單收已下市公司，但它們的資料仍不收（留給 38-b）。
+- [x] Migration `17d077a6bbe6`：新增 `listings`，`stocks.market`、`stocks.listed_on` 搬成每檔一段未結束的期間後刪除；
+  downgrade 在有已結束的期間或沒有期間的股票時先拒絕，不動任何東西。
+- [x] `stock_data_center.v2.listings`：ISIN 清單、TWSE 兩表、TPEx 兩表（2005 年起每年）與 ISIN 查詢，raw-first、每次請求一列
+  `fetches`、任一頁失敗或解析不了就整次不寫、重跑結果相同。`python -m stock_data_center.v2.listings` 執行一次 refresh。
+- [x] 上市日以交易所上市表為準，ISIN 的 `上市日` 只用於創新板轉一般板（ADR-0028 §3；兩邊都有日期的 1,238 檔中 29 檔不同，
+  抽查的都是交易所表對）。上市早於交易所表的期間為 NULL。
+- [x] 各 adapter 的抓取範圍改成「有尚未結束的掛牌期間」（`listed_stock_ids`，永久測試）。
+- [x] API：`/v1/stocks` 回傳所有公司與各自的 `listings`；`date` 參數（2020-01-02 起）回傳那一天在市場上的公司；
+  `/docs` 與 `docs/api.md` 改寫存活者偏差的揭露。
+- [x] 文件：`docs/schema.md`、`docs/security_daily_market.md`、`docs/data_domain_inventory.*`、audit §4.11、§4.14、§5。
+- 驗收證據：`docs/step_reports/step-38-a-acceptance-report.md`。
+
+實作中裁決：
+
+- **證明不了類別的下市公司 quarantine，不猜**：24 段（4 檔 TDR、TPEx 911613、19 家上市早於交易所表且 ISIN 已註銷的公司）。
+- **上市早於交易所表的 `listed_on` 為 NULL**，不拿 ISIN 日期補：709 檔上市中股票（例如 2330）。
+- **只存 2020-01-02 之後仍在的期間**；API 的 `date` 也從那天起。
+- **每個頁面都必須等於它宣告的筆數**（TWSE `total`、TPEx `totalCount`），否則整次不寫。
+- 回應的最上層保留 `market`、`listed_on`（未結束期間的值），既有使用者不必改。
 
 **38-b：下市公司的歷史資料**（需 owner 確認取代 ADR-0026 §3 的其餘部分）
 
