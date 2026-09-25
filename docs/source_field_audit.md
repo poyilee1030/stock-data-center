@@ -1585,7 +1585,9 @@ nothing; the category must come from a source. For a delisted company:
 2. without one, the ISIN lookup
    `isin.twse.com.tw/isin/class_main.jsp?owncode=<code>&…&chklike=N` gives
    `有價證券別` for a security still registered (`普通股` once it is only
-   public, `股票` while listed). Its header is `頁面編號`, `國際證券編碼`,
+   public, `股票` while listed), provided that security was registered by the
+   delisting date: a code can be reused (2301), and the lookup answers for
+   whoever holds the code today. Its header is `頁面編號`, `國際證券編碼`,
    `有價證券代號`, `有價證券名稱`, `市場別`, `有價證券別`, `產業別`,
    `公開發行/上市(櫃)/發行日`, `CFICode`, `備註`; a code no longer registered
    redirects to `class_nofind.html`.
