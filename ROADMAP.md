@@ -631,8 +631,8 @@ explicit out-of-scope work
 | 35-d-2 | MERGED (#53) | Schema v2：刪除 v1 程式、測試與 scripts |
 | 35-d-3 | MERGED (#54) | Schema v2：baseline migration，刪除 v1 表 |
 | 36 | PLANNED | 還原價格（原 Step 25） |
-| 37 | PLANNED（下一步） | 網頁儀表板：以 API 展示資料庫內容（37-a／37-b／37-c） |
-| 38 | PLANNED | 歷史股票清單：含已下市公司，每段掛牌期間的上市與下市日期（38-a／38-b） |
+| 37 | PLANNED（38-a 之後） | 網頁儀表板：以 API 展示資料庫內容（37-a／37-b／37-c） |
+| 38 | 38-a 進行中（下一步） | 歷史股票清單：含已下市公司，每段掛牌期間的上市與下市日期（38-a／38-b） |
 
 Steps 1–12 建立了儲存、PIT 和 raw-first 的基礎。它們的 writer 契約包含一些沒有任何來源會填入的欄位（§2.3）。這些欄位保持可為 null、不填值。不刪除它們，因為刪除不會帶來任何正確性上的好處。
 
@@ -646,7 +646,7 @@ Step 13 是必須重新確立 *step* 編號的地方：已放棄的股利彙總 
 
 2026-09-25 起，網頁儀表板是 Step 37，排在 Step 28 之前優先做（owner 決定）：編號只識別工作，不代表順序。
 
-2026-09-25 起，歷史股票清單是 Step 38（owner 決定，起因是 API 使用者要求歷史 universe）；它與 Step 37、28 的先後由 owner 另定。
+2026-09-25 起，歷史股票清單是 Step 38（owner 決定，起因是 API 使用者要求歷史 universe）。38-a 排在 Step 37 之前先做（owner 2026-09-25 決定）；38-b 的先後另定。
 
 ---
 
@@ -2085,7 +2085,7 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 
 ## Step 37 — 網頁儀表板
 
-狀態：**PLANNED（下一步，owner 2026-09-25 決定排在 Step 28 之前）**。依賴：Step 27（MERGED）、API 的部署（`api-listen-addresses` 分支：compose 的 `api` 容器、`0.0.0.0:28617`、資料庫只聽本機）。
+狀態：**PLANNED（Step 38-a 之後，owner 2026-09-25 決定；仍排在 Step 28 之前）**。依賴：Step 27（MERGED）、API 的部署（`api-listen-addresses` 分支：compose 的 `api` 容器、`0.0.0.0:28617`、資料庫只聽本機）。
 
 目標：一個在瀏覽器裡看資料的前端，參考 FinMind 的分析儀表板（`finmindtrade.com/analysis/#/dashboards/new-info`）：選一檔股票，看到它的價格、籌碼、營收與財報。**純粹展示**已存的資料，不做任何新的計算、選股或排名（那些屬於下游，CLAUDE.md §38–40）。
 
@@ -2126,7 +2126,7 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 
 ## Step 38 — 歷史股票清單（含已下市公司）
 
-狀態：**PLANNED**（owner 2026-09-25 決定設計；與 Step 37、28 的先後另定）。依賴：Step 35-d（MERGED）、Step 27（MERGED）。
+狀態：38-a **進行中**，排在 Step 37 之前（owner 2026-09-25 決定）；38-b **PLANNED**，先後另定。依賴：Step 35-d（MERGED）、Step 27（MERGED）。
 
 ### 背景
 
