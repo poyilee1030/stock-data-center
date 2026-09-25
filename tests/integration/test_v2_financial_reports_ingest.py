@@ -63,9 +63,14 @@ def universe(db: Connection, store) -> None:
     )
     for stock_id in ("1101", "1342", "5864"):
         db.execute(
-            sa.text("INSERT INTO stocks (stock_id, name, market, fetch_id) "
-                    "VALUES (:s, :n, 'sii', :f) ON CONFLICT DO NOTHING"),
+            sa.text("INSERT INTO stocks (stock_id, name, fetch_id) "
+                    "VALUES (:s, :n, :f) ON CONFLICT DO NOTHING"),
             {"s": stock_id, "n": stock_id, "f": fetch_id},
+        )
+        db.execute(
+            sa.text("INSERT INTO listings (stock_id, market, fetch_id) "
+                    "VALUES (:s, 'sii', :f) ON CONFLICT DO NOTHING"),
+            {"s": stock_id, "f": fetch_id},
         )
 
 

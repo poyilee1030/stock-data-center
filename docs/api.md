@@ -68,7 +68,7 @@ that a client needs is made there too.
 | --- | --- |
 | `GET /v1/datasets` | every dataset: name, `kind`, description, key fields, period field, columns; an observed one's sources and the columns each never publishes; a derived one's definition |
 | `GET /v1/datasets/{name}` | rows as a PIT context sees them |
-| `GET /v1/stocks` | today's stock list (reference data, not PIT) |
+| `GET /v1/stocks` | every stock and its listing spans (reference data, not PIT) |
 | `GET /v1/trading-days` | the trading calendar (reference data, not PIT) |
 
 Observed datasets (`kind: observed`): `daily-prices`, `indices`,
@@ -203,9 +203,17 @@ market-PIT answer.
 
 ## Reference data
 
-`GET /v1/stocks` (`market=sii|otc`, repeatable `stock_id`) returns today's
-list of listed and OTC common stocks (ADR-0026): no company delisted before
-today, so history read over it carries survivorship bias, and the list is
+`GET /v1/stocks` returns every listed and OTC common stock on today's list and
+every one delisted since 2020-01-02 that an official source proves to be a
+common stock (ADR-0026, ADR-0028), each with `listings`: one span per market,
+`listed_on` to the day before `delisted_on`, with the fetch and raw file behind
+the span and each date. `listed_on` is `null` for a listing older than the
+exchange's table (TWSE 2001-01-03, TPEx 2005); the top-level `market` and
+`listed_on` are the open span's, `null` for a delisted stock. `date=YYYY-MM-DD`
+(from 2020-01-02) returns the stocks listed that day, `market=sii|otc` those
+with a span on that market, repeatable `stock_id` those codes. The datasets are
+still fetched only for stocks listed today (Step 38-b is to add the delisted
+ones), so history read through them carries survivorship bias; the list is
 refreshed in place, not point in time. `GET /v1/trading-days?start=&end=`
 returns the TWSE trading calendar, corrected in place when the exchange revises
 it. Both carry provenance per row and take no PIT parameter.

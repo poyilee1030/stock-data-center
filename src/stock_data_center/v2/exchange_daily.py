@@ -36,6 +36,7 @@ from stock_data_center.ingestion.http import SourceFetcher
 from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
 from stock_data_center.v2.fetch_log import FetchRecord, record_fetch
 from stock_data_center.v2.indices import KEPT_INDICES
+from stock_data_center.v2.listings import listed_stock_ids
 
 # ---------------------------------------------------------------- release rule
 
@@ -507,7 +508,7 @@ def _write(connection, job, rows, parsed, log, stock_ids, first_seen) -> Outcome
     parsed_count = len(rows)
     if job.per_stock:
         if stock_ids is None:
-            stock_ids = frozenset(connection.scalars(sa.select(v2.stocks.c.stock_id)))
+            stock_ids = listed_stock_ids(connection)
         rows = [row for row in rows if row["stock_id"] in stock_ids]
     out_of_scope = parsed_count - len(rows)
 

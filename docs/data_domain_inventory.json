@@ -956,52 +956,42 @@
       "stocks": {
         "dataset_code": "stocks",
         "v1": true,
-        "roadmap_pr": "schema-v2",
-        "reason": "Today's v1 universe (ADR-0026): the 股票 section of the TWSE ISIN lists for 上市 and 上櫃.",
+        "roadmap_pr": "step-38-a",
+        "reason": "Each company's identity (Step 38-a, ADR-0028): every stock in the 股票 section of today's TWSE ISIN lists for 上市 and 上櫃, and every company delisted since 2020-01-02 that an official source proves to be a common stock. When and where it traded is `listings`.",
         "columns": {
           "stock_id": {
             "coverage": "sourced",
             "source_fields": [
-              "有價證券代號及名稱 (code part), TWSE ISIN list C_public.jsp"
+              "有價證券代號及名稱 (code part), TWSE ISIN list C_public.jsp",
+              "上市編號, TWSE company/suspendListing",
+              "股票代號, TPEx company/deListed"
             ],
-            "audit_section": "4.14",
+            "audit_section": "4.11",
             "note": "The official code, which is the identity itself (ADR-0027): listed and OTC common stocks follow one code for life."
           },
           "name": {
             "coverage": "sourced",
             "source_fields": [
-              "有價證券代號及名稱 (name part)"
+              "有價證券代號及名稱 (name part), TWSE ISIN list C_public.jsp",
+              "有價證券名稱, TWSE ISIN lookup class_main.jsp",
+              "公司名稱, TWSE company/suspendListing",
+              "公司名稱, TPEx company/deListed"
             ],
-            "audit_section": "4.14",
-            "note": "Name after the full-width space."
-          },
-          "market": {
-            "coverage": "sourced",
-            "source_fields": [
-              "市場別"
-            ],
-            "audit_section": "4.14",
-            "note": "上市 -> sii, 上櫃 -> otc; the page (strMode 2 or 4) must agree."
+            "audit_section": "4.11",
+            "note": "Today's list for a listed stock; for a delisted one the ISIN lookup if it still answers, else the name the exchange published at its last delisting (TPEx publishes the full legal name). Name history is not kept."
           },
           "industry": {
-            "coverage": "sourced",
+            "coverage": "partially_sourced",
             "source_fields": [
-              "產業別"
+              "產業別, TWSE ISIN list C_public.jsp",
+              "產業別, TWSE ISIN lookup class_main.jsp"
             ],
-            "audit_section": "4.14",
-            "note": "As published; blank is NULL."
-          },
-          "listed_on": {
-            "coverage": "sourced",
-            "source_fields": [
-              "上市日"
-            ],
-            "audit_section": "4.14",
-            "note": "Gregorian YYYY/MM/DD as published."
+            "audit_section": "4.11",
+            "note": "As published; blank is NULL. NULL for a delisted company the ISIN lookup no longer lists: the exchanges' tables publish no industry."
           },
           "fetch_id": {
             "coverage": "internal",
-            "note": "The fetch this row was parsed from; the fetch names the raw file by SHA-256."
+            "note": "The fetch the name came from; the fetch names the raw file by SHA-256."
           }
         }
       },
@@ -1810,6 +1800,66 @@
             "note": "TWT49U and TWTAUU only: the detail-page fetch the row's terms were parsed from, a second raw file. NULL for the other four feeds, whose list rows carry every term (Step 35-c-3, #50 review)."
           }
         }
+      },
+      "listings": {
+        "dataset_code": "listings",
+        "v1": true,
+        "roadmap_pr": "step-38-a",
+        "reason": "One row per listing span [listed_on, delisted_on) on one market (Step 38-a, ADR-0028), so a transfer between markets and a delisting are representable. Reference data rebuilt from the latest fetches, not point-in-time. Spans that closed before 2020-01-02 are not kept.",
+        "columns": {
+          "stock_id": {
+            "coverage": "sourced",
+            "source_fields": [
+              "公司代號, TWSE company/newlisting",
+              "上市編號, TWSE company/suspendListing",
+              "股票代號, TPEx company/latest",
+              "股票代號, TPEx company/deListed",
+              "有價證券代號及名稱 (code part), TWSE ISIN list C_public.jsp"
+            ],
+            "audit_section": "4.11",
+            "note": "TPEx codes are stripped (` 1752`)."
+          },
+          "market": {
+            "coverage": "sourced",
+            "source_fields": [
+              "which exchange publishes the row: TWSE -> sii, TPEx -> otc",
+              "市場別, TWSE ISIN list C_public.jsp"
+            ],
+            "audit_section": "4.11",
+            "note": "Each exchange's tables list only its own market."
+          },
+          "listed_on": {
+            "coverage": "partially_sourced",
+            "source_fields": [
+              "股票上市買賣日期, TWSE company/newlisting (ROC YYY.MM.DD)",
+              "上櫃日期, TPEx company/latest (ROC YYY/MM/DD)",
+              "上市日, TWSE ISIN list C_public.jsp (only for a move from the innovation board)"
+            ],
+            "audit_section": "4.11",
+            "note": "The exchange's listing date, which equals the first trade for 315 of 320 listings since 2020. NULL when the listing predates the table: TWSE from 2001-01-03, TPEx from 2005."
+          },
+          "delisted_on": {
+            "coverage": "sourced",
+            "source_fields": [
+              "終止上市日期, TWSE company/suspendListing (ROC YYY/MM/DD)",
+              "終止上櫃日期, TPEx company/deListed (ROC YYY-MM-DD)"
+            ],
+            "audit_section": "4.11",
+            "note": "The first day off the market; NULL while listed."
+          },
+          "fetch_id": {
+            "coverage": "internal",
+            "note": "The fetch proving the span is a common stock's: today's ISIN list, the listing row, or the ISIN lookup."
+          },
+          "listed_fetch_id": {
+            "coverage": "internal",
+            "note": "The fetch listed_on came from; NULL exactly when listed_on is."
+          },
+          "delisted_fetch_id": {
+            "coverage": "internal",
+            "note": "The fetch delisted_on came from; NULL exactly when delisted_on is."
+          }
+        }
       }
     }
   },
@@ -1825,8 +1875,8 @@
       "legacy_table": "daily_quotes",
       "legacy_field": "market",
       "disposition": "observed",
-      "target": "stocks.market",
-      "reason": "Today's market from the ISIN list (ADR-0026); a stock's market history is not kept."
+      "target": "listings.market",
+      "reason": "Each listing span's market (Step 38-a, ADR-0028): a stock that moved between markets has one span per market."
     },
     {
       "legacy_table": "daily_quotes",
@@ -1951,8 +2001,8 @@
       "legacy_table": "institutional_investors",
       "legacy_field": "market",
       "disposition": "observed",
-      "target": "stocks.market",
-      "reason": "Today's market from the ISIN list (ADR-0026); a stock's market history is not kept."
+      "target": "listings.market",
+      "reason": "Each listing span's market (Step 38-a, ADR-0028): a stock that moved between markets has one span per market."
     },
     {
       "legacy_table": "institutional_investors",
@@ -2119,8 +2169,8 @@
       "legacy_table": "foreign_holding",
       "legacy_field": "market",
       "disposition": "observed",
-      "target": "stocks.market",
-      "reason": "Today's market from the ISIN list (ADR-0026); a stock's market history is not kept."
+      "target": "listings.market",
+      "reason": "Each listing span's market (Step 38-a, ADR-0028): a stock that moved between markets has one span per market."
     },
     {
       "legacy_table": "foreign_holding",
@@ -2210,8 +2260,8 @@
       "legacy_table": "trust_holding",
       "legacy_field": "market",
       "disposition": "observed",
-      "target": "stocks.market",
-      "reason": "Today's market from the ISIN list (ADR-0026); a stock's market history is not kept."
+      "target": "listings.market",
+      "reason": "Each listing span's market (Step 38-a, ADR-0028): a stock that moved between markets has one span per market."
     },
     {
       "legacy_table": "trust_holding",
@@ -2280,8 +2330,8 @@
       "legacy_table": "dealer_holding",
       "legacy_field": "market",
       "disposition": "observed",
-      "target": "stocks.market",
-      "reason": "Today's market from the ISIN list (ADR-0026); a stock's market history is not kept."
+      "target": "listings.market",
+      "reason": "Each listing span's market (Step 38-a, ADR-0028): a stock that moved between markets has one span per market."
     },
     {
       "legacy_table": "dealer_holding",
@@ -2350,8 +2400,8 @@
       "legacy_table": "margin_trading",
       "legacy_field": "market",
       "disposition": "observed",
-      "target": "stocks.market",
-      "reason": "Today's market from the ISIN list (ADR-0026); a stock's market history is not kept."
+      "target": "listings.market",
+      "reason": "Each listing span's market (Step 38-a, ADR-0028): a stock that moved between markets has one span per market."
     },
     {
       "legacy_table": "margin_trading",
@@ -2490,8 +2540,8 @@
       "legacy_table": "margin_sbl",
       "legacy_field": "market",
       "disposition": "observed",
-      "target": "stocks.market",
-      "reason": "Today's market from the ISIN list (ADR-0026); a stock's market history is not kept."
+      "target": "listings.market",
+      "reason": "Each listing span's market (Step 38-a, ADR-0028): a stock that moved between markets has one span per market."
     },
     {
       "legacy_table": "margin_sbl",
@@ -2595,8 +2645,8 @@
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "market",
       "disposition": "observed",
-      "target": "stocks.market",
-      "reason": "Today's market from the ISIN list (ADR-0026); a stock's market history is not kept."
+      "target": "listings.market",
+      "reason": "Each listing span's market (Step 38-a, ADR-0028): a stock that moved between markets has one span per market."
     },
     {
       "legacy_table": "margin_pressure_analysis",
@@ -2631,21 +2681,21 @@
       "legacy_field": "margin_usage_ratio",
       "disposition": "canonical_derived",
       "target": "margin_metrics:v1.margin_usage_ratio (stored, Step 26-e)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP \u00a717)."
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "margin_long_balance_wow",
       "disposition": "canonical_derived",
       "target": "margin_metrics:v1.margin_balance_change (stored, Step 26-e)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP \u00a717). Legacy's _wow is the day's balance less the previous balance on the same source row, a daily change, so ours is _change (owner, 2026-09-25)."
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17). Legacy's _wow is the day's balance less the previous balance on the same source row, a daily change, so ours is _change (owner, 2026-09-25)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "margin_long_balance_wow_pct",
       "disposition": "canonical_derived",
       "target": "margin_metrics:v1.margin_balance_change_pct (stored, Step 26-e)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP \u00a717). Legacy's _wow is the day's balance less the previous balance on the same source row, a daily change, so ours is _change (owner, 2026-09-25)."
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17). Legacy's _wow is the day's balance less the previous balance on the same source row, a daily change, so ours is _change (owner, 2026-09-25)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
@@ -2666,28 +2716,28 @@
       "legacy_field": "short_usage_ratio",
       "disposition": "canonical_derived",
       "target": "margin_metrics:v1.short_usage_ratio (stored, Step 26-e)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP \u00a717)."
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "margin_short_balance_wow",
       "disposition": "canonical_derived",
       "target": "margin_metrics:v1.short_balance_change (stored, Step 26-e)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP \u00a717). Legacy's _wow is the day's balance less the previous balance on the same source row, a daily change, so ours is _change (owner, 2026-09-25)."
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17). Legacy's _wow is the day's balance less the previous balance on the same source row, a daily change, so ours is _change (owner, 2026-09-25)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "margin_short_balance_wow_pct",
       "disposition": "canonical_derived",
       "target": "margin_metrics:v1.short_balance_change_pct (stored, Step 26-e)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP \u00a717). Legacy's _wow is the day's balance less the previous balance on the same source row, a daily change, so ours is _change (owner, 2026-09-25)."
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17). Legacy's _wow is the day's balance less the previous balance on the same source row, a daily change, so ours is _change (owner, 2026-09-25)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "short_cover_pressure",
       "disposition": "canonical_derived",
       "target": "margin_metrics:v1.short_cover_pressure (stored, Step 26-e)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP \u00a717)."
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
@@ -2728,8 +2778,8 @@
       "legacy_table": "short_interest_analysis",
       "legacy_field": "market",
       "disposition": "observed",
-      "target": "stocks.market",
-      "reason": "Today's market from the ISIN list (ADR-0026); a stock's market history is not kept."
+      "target": "listings.market",
+      "reason": "Each listing span's market (Step 38-a, ADR-0028): a stock that moved between markets has one span per market."
     },
     {
       "legacy_table": "short_interest_analysis",
@@ -2757,14 +2807,14 @@
       "legacy_field": "sbl_balance_wow",
       "disposition": "canonical_derived",
       "target": "short_interest_metrics:v1.sbl_balance_change (stored, Step 26-e)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP \u00a717). Legacy's _wow is the day's balance less the previous balance on the same source row, a daily change, so ours is _change (owner, 2026-09-25)."
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17). Legacy's _wow is the day's balance less the previous balance on the same source row, a daily change, so ours is _change (owner, 2026-09-25)."
     },
     {
       "legacy_table": "short_interest_analysis",
       "legacy_field": "sbl_balance_wow_pct",
       "disposition": "canonical_derived",
       "target": "short_interest_metrics:v1.sbl_balance_change_pct (stored, Step 26-e)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP \u00a717). Legacy's _wow is the day's balance less the previous balance on the same source row, a daily change, so ours is _change (owner, 2026-09-25)."
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17). Legacy's _wow is the day's balance less the previous balance on the same source row, a daily change, so ours is _change (owner, 2026-09-25)."
     },
     {
       "legacy_table": "short_interest_analysis",
@@ -2785,7 +2835,7 @@
       "legacy_field": "sbl_sell_repay_ratio",
       "disposition": "canonical_derived",
       "target": "short_interest_metrics:v1.sbl_sell_repay_ratio (stored, Step 26-e)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP \u00a717)."
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
     },
     {
       "legacy_table": "short_interest_analysis",
@@ -2847,8 +2897,8 @@
       "legacy_table": "pe_ratio",
       "legacy_field": "market",
       "disposition": "observed",
-      "target": "stocks.market",
-      "reason": "Today's market from the ISIN list (ADR-0026); a stock's market history is not kept."
+      "target": "listings.market",
+      "reason": "Each listing span's market (Step 38-a, ADR-0028): a stock that moved between markets has one span per market."
     },
     {
       "legacy_table": "pe_ratio",
@@ -3141,8 +3191,8 @@
       "legacy_table": "monthly_revenue",
       "legacy_field": "market",
       "disposition": "observed",
-      "target": "stocks.market",
-      "reason": "Today's market from the ISIN list (ADR-0026); a stock's market history is not kept."
+      "target": "listings.market",
+      "reason": "Each listing span's market (Step 38-a, ADR-0028): a stock that moved between markets has one span per market."
     },
     {
       "legacy_table": "monthly_revenue",
@@ -3260,8 +3310,8 @@
       "legacy_table": "income_statement",
       "legacy_field": "market",
       "disposition": "observed",
-      "target": "stocks.market",
-      "reason": "Today's market from the ISIN list (ADR-0026); the surrounding pre-XBRL table shape is deprecated."
+      "target": "listings.market",
+      "reason": "Each listing span's market (Step 38-a, ADR-0028); the surrounding pre-XBRL table shape is deprecated."
     },
     {
       "legacy_table": "income_statement",
@@ -3540,8 +3590,8 @@
       "legacy_table": "balance_sheet",
       "legacy_field": "market",
       "disposition": "observed",
-      "target": "stocks.market",
-      "reason": "Today's market from the ISIN list (ADR-0026); the surrounding pre-XBRL table shape is deprecated."
+      "target": "listings.market",
+      "reason": "Each listing span's market (Step 38-a, ADR-0028); the surrounding pre-XBRL table shape is deprecated."
     },
     {
       "legacy_table": "balance_sheet",
@@ -3708,8 +3758,8 @@
       "legacy_table": "cash_flow",
       "legacy_field": "market",
       "disposition": "observed",
-      "target": "stocks.market",
-      "reason": "Today's market from the ISIN list (ADR-0026); the surrounding pre-XBRL table shape is deprecated."
+      "target": "listings.market",
+      "reason": "Each listing span's market (Step 38-a, ADR-0028); the surrounding pre-XBRL table shape is deprecated."
     },
     {
       "legacy_table": "cash_flow",
@@ -3862,8 +3912,8 @@
       "legacy_table": "quarterly_reports",
       "legacy_field": "market",
       "disposition": "observed",
-      "target": "stocks.market",
-      "reason": "Today's market from the ISIN list (ADR-0026); the surrounding pre-XBRL table shape is deprecated."
+      "target": "listings.market",
+      "reason": "Each listing span's market (Step 38-a, ADR-0028); the surrounding pre-XBRL table shape is deprecated."
     },
     {
       "legacy_table": "quarterly_reports",
@@ -4107,8 +4157,8 @@
       "legacy_table": "quarterly_reports_xbrl",
       "legacy_field": "market",
       "disposition": "observed",
-      "target": "stocks.market",
-      "reason": "Today's market from the ISIN list (ADR-0026); a stock's market history is not kept."
+      "target": "listings.market",
+      "reason": "Each listing span's market (Step 38-a, ADR-0028): a stock that moved between markets has one span per market."
     },
     {
       "legacy_table": "quarterly_reports_xbrl",
@@ -4520,15 +4570,15 @@
       "legacy_table": "stock_info",
       "legacy_field": "market",
       "disposition": "observed",
-      "target": "stocks.market",
-      "reason": "Today's market from the ISIN list (ADR-0026); a stock's market history is not kept."
+      "target": "listings.market",
+      "reason": "Each listing span's market (Step 38-a, ADR-0028): a stock that moved between markets has one span per market."
     },
     {
       "legacy_table": "stock_info",
       "legacy_field": "listing_date",
       "disposition": "observed",
-      "target": "stocks.listed_on",
-      "reason": "Source-observable value is stored in its schema v2 table (ADR-0027)."
+      "target": "listings.listed_on",
+      "reason": "The exchanges' listing dates per listing span (Step 38-a, ADR-0028); legacy had no delisting date, which listings.delisted_on adds."
     },
     {
       "legacy_table": "stock_info",
@@ -4682,7 +4732,7 @@
       "legacy_field": "ttm_eps_official",
       "disposition": "canonical_derived",
       "target": "valuation_metrics:v1.ttm_eps (stored, Step 26-f)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP \u00a717). Four consecutive quarters, all public on the day. Legacy's _official suffix is dropped: the value is computed, and CLAUDE.md \u00a753 keeps official for source-published values (owner, 2026-09-25)."
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17). Four consecutive quarters, all public on the day. Legacy's _official suffix is dropped: the value is computed, and CLAUDE.md §53 keeps official for source-published values (owner, 2026-09-25)."
     },
     {
       "legacy_table": "valuation_daily",
@@ -4696,14 +4746,14 @@
       "legacy_field": "pe_percentile_official",
       "disposition": "canonical_derived",
       "target": "valuation_metrics:v1.pe_percentile (stored, Step 26-f)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP \u00a717). Legacy's _official suffix is dropped: the value is computed, and CLAUDE.md \u00a753 keeps official for source-published values (owner, 2026-09-25)."
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17). Legacy's _official suffix is dropped: the value is computed, and CLAUDE.md §53 keeps official for source-published values (owner, 2026-09-25)."
     },
     {
       "legacy_table": "valuation_daily",
       "legacy_field": "roe_official",
       "disposition": "canonical_derived",
       "target": "valuation_metrics:v1.roe (stored, Step 26-f)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP \u00a717). Redefined (owner, 2026-09-25): trailing four quarters' net income attributable to the parent over the latest quarter-end equity attributable to the parent; legacy's version assumed a par value of 10 and counted non-controlling interests. Legacy's _official suffix is dropped: the value is computed, and CLAUDE.md \u00a753 keeps official for source-published values (owner, 2026-09-25)."
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17). Redefined (owner, 2026-09-25): trailing four quarters' net income attributable to the parent over the latest quarter-end equity attributable to the parent; legacy's version assumed a par value of 10 and counted non-controlling interests. Legacy's _official suffix is dropped: the value is computed, and CLAUDE.md §53 keeps official for source-published values (owner, 2026-09-25)."
     },
     {
       "legacy_table": "valuation_daily",

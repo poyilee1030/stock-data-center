@@ -1533,13 +1533,84 @@ event identity (see ROADMAP Step 13). Their contract and coverage limits are in
 
 ### 4.11 Security metadata, lifecycle, and tags
 
-- The universe is today's ISIN list (§4.14, ADR-0026). Steps 10 and 11 read
-  current company snapshots (`t187ap03_L`, `mopsfin_t187ap03_O`) and listing and
-  delisting history; schema v2 replaced both with the ISIN list and keeps no
-  history of names, industries or markets. No official source of historical name
-  or industry changes was found.
+- Today's listed stocks come from the ISIN list (§4.14, ADR-0026). Step 38-a
+  (ADR-0028) adds the listing spans below. No official source of historical name
+  or industry changes was found, so neither history is kept.
 - `stock_tags` comes from MoneyDJ, a third party: a current snapshot with no
   effective dates.
+
+#### Listing and delisting tables (Step 38-a)
+
+Probed 2026-09-25. Step 11 (ADR-0017) read the same four; 35-d-2 deleted that
+code with the ISIN universe.
+
+| Endpoint | Fields (exact) | Rows |
+| --- | --- | --- |
+| TWSE `rwd/zh/company/newlisting?response=json` | `公司代號`, `公司簡稱`, `申請日期`, `董事長`, `申請時股本(仟元)`, `上市審議委員會審議日期`, `交易所董事會通過上市日期`, `上市契約報請主管機關備查日期`, `證期局核准上市契約日期`, `股票上市買賣日期`, `承銷商`, `承銷價`, `備註` | 793, one table, listings from 2001-01-03; `股票上市買賣日期` is ROC `YYY.MM.DD` |
+| TWSE `rwd/zh/company/suspendListing?response=json` | `終止上市日期`, `公司名稱`, `上市編號` | 265, one table, from 2001-01-20 (`minYear` 2001); ROC `YYY/MM/DD` |
+| TPEx `www/zh-tw/company/latest?response=json&date=<year>` | `索引`, `股票代號`, `公司名稱`, `上櫃日期`, `每股面額`, `公司資訊連結`, `近期上櫃資訊連結` | one Gregorian year per request; empty for 1995–2004, 55 rows for 2005; ROC `YYY/MM/DD` |
+| TPEx `www/zh-tw/company/deListed?response=json&date=<year>` | `股票代號`, `公司名稱`, `終止上櫃日期`, `終止上櫃原因`, `公司資料網址` | one year per request; ROC `YYY-MM-DD`; codes may carry a leading space (` 1752`) |
+
+The TPEx year parameter is `date`. Any other name (`year=2024`) is ignored and
+the current year comes back, so the parser checks the answer's `date` and every
+row's year.
+
+**What the dates mean**, checked against `stockdc_backfill`'s daily prices
+(2020-01-02 → 2026-09-11):
+
+- A listing date is the first trading day: for 315 of the 320 listings since
+  2020 the first stored trade is on it. Of the other five, 6919 and 7584 listed
+  on typhoon closures (2024-10-02, 2024-07-25) and 3073, 3086, 8080 were halted
+  in early January 2020.
+- A delisting date is the first day off the market: all 14 stocks delisted
+  inside the price history traded last the day before or earlier. 5236 凌陽創新
+  left TPEx and joined TWSE on the same day, 2026-07-16.
+- The ISIN list's `上市日` is not a listing date. For 29 of the 1,238 stocks
+  both an exchange table and the list date, they disagree, and the trades side
+  with the table every time checked: 3718 lists `1999/01/20` but first traded
+  on its TPEx date 2026-09-03; 3054 lists `2026/09/01` but has traded since
+  before 2020. For five innovation-board companies that moved to the main board
+  (6757, 6794, 6869, 6873, 6902) it is the move's date, which no table gives.
+- A stock with no listing row listed before the table begins: all nine current
+  stocks without a row whose ISIN date falls after the table's start were
+  already trading in January 2020, before their ISIN dates.
+
+**Which securities they list.** The TWSE listing table holds only company
+listings (all 793 codes have four digits) and marks the innovation board in
+`備註`. The delisting tables also list TDRs, and a TDR's code can have four
+digits: 9188 精熙-DR left TWSE on 2022-03-18. A code's shape therefore proves
+nothing; the category must come from a source. For a delisted company:
+
+1. a listing row proves a common stock, unless its `備註` says 創新板;
+2. without one, the ISIN lookup
+   `isin.twse.com.tw/isin/class_main.jsp?owncode=<code>&…&chklike=N` gives
+   `有價證券別` for a security still registered (`普通股` once it is only
+   public, `股票` while listed), provided that security was registered by the
+   delisting date: a code can be reused (2301), and the lookup answers for
+   whoever holds the code today. Its header is `頁面編號`, `國際證券編碼`,
+   `有價證券代號`, `有價證券名稱`, `市場別`, `有價證券別`, `產業別`,
+   `公開發行/上市(櫃)/發行日`, `CFICode`, `備註`; a code no longer registered
+   redirects to `class_nofind.html`.
+
+Of the 97 delistings from 2020-01-02 to 2026-09-25 (TWSE 42, TPEx 55), a
+listing row proves 68 and the ISIN lookup 4 more (2809, 2823, 4712, 5306:
+listed before the tables begin and still in ISIN as 普通股 or 股票); 6423's
+TWSE span was the innovation board's. The other 24 cannot be proven: four TDRs (9188,
+910482, 911616, 912398), TPEx's 911613, and 19 companies that listed before
+the tables begin and are gone from ISIN (1507, 1701, 1724, 1902, 2358, 2841,
+3089, 3144, 5102, 5304, 5349, 5371, 5383, 5820, 6238, 6247, 6287, 8913, 8934).
+MOPS `t05st03` answers "不繼續公開發行" for 1701. They are quarantined, not
+guessed.
+
+**TPEx serves the delisting table ten rows at a time.** The unpaged answer
+declares the year's `totalCount` and returns at most ten rows: 2005–2009,
+2012, 2016, 2017, 2019 and 2020 are cut (2020: 10 of 12, and 3452's
+2020-01-13 is on the missing page). The site's own pager
+(`rsrc/js/tables.js`, `#pageViewOfServer`) adds `paging-table=0`,
+`paging-size=<n>` and `paging-offset=0`; that answer is a flat
+`{data, totalCount, date, stat}` with no field names, so its first rows are
+checked against the unpaged page, which has them. The TPEx listing table and
+both TWSE tables return every row they declare.
 
 ### 4.12 Trading calendar
 
@@ -1690,8 +1761,11 @@ Only the `股票` category is in scope. The CFI code cannot decide it:
 warrants 35,327; 上櫃 股票 893, 特別股 1, ETF 119, ETN 6, asset-backed 4,
 warrants 11,024.
 
-The list is a snapshot of what is listed today. It carries no history, so a
-security delisted before the fetch is absent; ADR-0026 accepts that.
+The list is a snapshot of what is listed today, so a security delisted before
+the fetch is absent. Step 38-a (§4.11) adds the companies delisted since
+2020-01-02 from the exchanges' tables; the list itself still decides which
+stocks are listed now. Its `上市日` is not a listing date (§4.11) and is used
+only for a move from the innovation board.
 
 ## 5. Schema columns with partial coverage
 
@@ -1718,9 +1792,11 @@ and a unit test fails if it does not.
 | `daily_prices.price_direction` | partially sourced | holds the values that exist | TWSE publishes `+`/`-`/`X` in its own column. stk_wn1430 signs the number instead and has no direction column, so a TPEx row claims a direction only where the feed prints its 不比價 marker (除息 / 除權 / 除權息), which is stored as `X`. |
 | `daily_prices.last_bid_volume` | partially sourced | holds the values that exist | TWSE on all dates, in shares (`hints: 單位：元、股`, corroborated by `TWT53U`). TPEx only from 2020-04-30, in lots; the label changes 千股 to 張數 on 2025-01-10, both meaning 1,000 shares, and only TPEx is converted. |
 | `daily_prices.last_ask_volume` | partially sourced | holds the values that exist | TWSE on all dates, in shares (`hints: 單位：元、股`, corroborated by `TWT53U`). TPEx only from 2020-04-30, in lots; the label changes 千股 to 張數 on 2025-01-10, both meaning 1,000 shares, and only TPEx is converted. |
+| `listings.listed_on` | partially sourced | holds the values that exist | The exchange's listing date. The TWSE table starts on 2001-01-03 and TPEx's in 2005, so an earlier listing is NULL; a move from the innovation board takes the ISIN list's 上市日, the only source of that date (§4.11). |
 | `index_prices.open_value` | partially sourced | holds the values that exist | TAIEX only, from rwd/zh/TAIEX/MI_5MINS_HIST (one calendar month per request). The whole-list index sources publish no OHLC and no TPEx equivalent was found. |
 | `index_prices.high_value` | partially sourced | holds the values that exist | TAIEX only, from rwd/zh/TAIEX/MI_5MINS_HIST. The whole-list index sources publish no OHLC and no TPEx equivalent was found. |
 | `index_prices.low_value` | partially sourced | holds the values that exist | TAIEX only, from rwd/zh/TAIEX/MI_5MINS_HIST. The whole-list index sources publish no OHLC and no TPEx equivalent was found. |
+| `stocks.industry` | partially sourced | holds the values that exist | 產業別 from today's ISIN list, or from the ISIN lookup for a delisted company it still lists. The exchanges' listing and delisting tables publish no industry, so it is NULL for a delisted company gone from ISIN (§4.11). |
 | `valuations.report_period` | partially sourced | holds the values that exist | TWSE on all dates; TPEx only from 2025-01-02. |
 
 Publication time is not a column of most tables. Exchange-published data and

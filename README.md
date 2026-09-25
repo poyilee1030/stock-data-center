@@ -19,8 +19,8 @@
 狀態快照，但 `ROADMAP.md` 永遠是最新且權威的版本）。
 
 資料庫是 schema v2（ADR-0027）：官方代號當身分、一個（股票, 來源, 日期）一列的寬表、
-數字改變才新增列、每列指向一次抓取；股票範圍是今天 ISIN 清單上的上市櫃普通股
-（ADR-0026，已接受生存者偏差）。Step 35-d-3 刪除了全部 v1 表與程式，migration 鏈從
+數字改變才新增列、每列指向一次抓取；股票範圍是上市櫃普通股（ADR-0026），各資料集只抓今天
+上市中的股票（已接受生存者偏差）。Step 35-d-3 刪除了全部 v1 表與程式，migration 鏈從
 一個 baseline 重新開始。
 
 `stockdc_backfill` 已有 2020-01-02 起的真實歷史，逐筆與 legacy `stock_db` 對帳過：
@@ -32,7 +32,12 @@
 輸入增量計算；即時計算的 PIT 對照組是 `technical_indicators_pit:v1`。Step 26 的七個衍生資料集都已存表。
 
 公開 API（Step 27）：PIT 可見性層（27-a）、十一個觀測資料集的 HTTP 端點（27-b），以及財報、七個存表的衍生資料集、
-`technical_indicators_pit:v1`、股票清單與交易日曆（27-c）已完成，說明在 `docs/api.md`。還原價格（Step 36）、排程的前向抓取（Step 28）尚未開始。
+`technical_indicators_pit:v1`、股票清單與交易日曆（27-c）已完成，說明在 `docs/api.md`。
+
+歷史股票清單（Step 38-a，IN REVIEW #66，ADR-0028）：`stocks` 收 2020 年以後下市、證明為普通股的公司，`listings` 存每段掛牌期間
+（上市日、下市日、市場）。已在暫存資料庫以真實來源驗過（2,006 家、2,019 段）；`stockdc_backfill` 要在合併後才執行
+migration 與 `python -m stock_data_center.v2.listings`。下市公司的各資料集（38-b）、還原價格（Step 36）、網頁儀表板（Step 37）、
+排程的前向抓取（Step 28）尚未開始。
 
 已知限制：2025Q4 之前的財報沒有首見證據，真正延遲申報的公司在 Market PIT 下會偏早
 （audit §7.6）；月營收的 KY 公司與更正後的值沒有證明的公開時間，`published_at` 為 NULL。
@@ -127,7 +132,7 @@ src/stock_data_center/
   ingestion/       來源 adapter、observation 型別、iXBRL parser、HTTP fetcher、raw store
   db/              schema v2 的表（`schema_v2.py`）與共用欄位型別
   provenance.py    抓取目的等共用型別
-migrations/        Alembic 遷移：一個 baseline（Step 35-d-3）
+migrations/        Alembic 遷移：一個 baseline（Step 35-d-3）與其後的衍生資料表、掛牌期間（Step 38-a）
 docs/decisions/    ADR（架構決策紀錄）
 docs/step_reports/ 各 step 的驗收報告（含真實資料證據）
 tests/

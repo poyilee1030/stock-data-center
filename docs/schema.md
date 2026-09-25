@@ -11,7 +11,8 @@ schema and audit §5 by `tests/unit/test_pr14_storage_contract_source_coverage.p
 | Table | Key | Content |
 | --- | --- | --- |
 | `fetches` | `id` | one row per fetch attempt: dataset, source, resource key, purpose, adapter version, git commit, status and reason, and the raw file's SHA-256 and size |
-| `stocks` | `stock_id` | today's ISIN list of listed and OTC common stocks (ADR-0026) |
+| `stocks` | `stock_id` | each company's identity: name, industry; every common stock on today's ISIN list and every one delisted since 2020-01-02 that a source proves common (ADR-0026, ADR-0028) |
+| `listings` | `stock_id, market, delisted_on` (NULLs not distinct) | one listing span per market: `listed_on`, `delisted_on` (NULL while listed), and the fetches behind each; at most one open span per stock (ADR-0028) |
 | `trading_days` | `trade_date` | one row per TWSE trading date |
 | `daily_prices` | `stock_id, source, trade_date, recorded_at` | OHLC, volume, value, count, change, direction, last bid/ask |
 | `index_prices` | `source, index_name, trade_date, recorded_at` | the 126 kept indices: OHLC (TAIEX only), close, change |
@@ -46,7 +47,7 @@ are code constants, not tables.
 - **Append-only.** A value table gains a row only when a published value
   changes; `recorded_at` is `statement_timestamp()`, never caller-supplied.
   `stockdc_reject_mutation()` is the one trigger function: on every table except
-  `stocks`, `trading_days` and the derived tables it refuses `UPDATE` and `DELETE` per row and
+  `stocks`, `listings`, `trading_days` and the derived tables it refuses `UPDATE` and `DELETE` per row and
   `TRUNCATE` per statement.
 - **Provenance is one hop.** Every row's `fetch_id` names the fetch it came
   from, and the fetch names its raw file by SHA-256, stored at

@@ -33,7 +33,7 @@ from datetime import date
 import sqlalchemy as sa
 from sqlalchemy import Connection, Engine
 
-from stock_data_center.db.schema_v2 import stocks, trading_days
+from stock_data_center.db.schema_v2 import trading_days
 from stock_data_center.ingestion.http import (
     MOPS_HOST,
     MOPS_MIN_INTERVAL_SECONDS,
@@ -51,6 +51,7 @@ from stock_data_center.v2 import (
 )
 from stock_data_center.v2.exchange_daily import JOBS as EXCHANGE_JOBS
 from stock_data_center.v2.exchange_daily import Job, ingest, pending
+from stock_data_center.v2.listings import listed_stock_ids
 
 JOBS: dict[str, Job] = {**EXCHANGE_JOBS, **monthly_revenue.JOBS, **shareholding.JOBS}
 # Financial reports are one document per filer and quarter, written as a whole
@@ -107,7 +108,7 @@ def run(
 ) -> dict[str, dict[str, int]]:
     report: dict[str, dict[str, int]] = {}
     with _unit(bind) as connection:
-        stock_ids = frozenset(connection.scalars(sa.select(stocks.c.stock_id)))
+        stock_ids = listed_stock_ids(connection)
     for job in sorted(jobs, key=lambda job: job.check is not None):
         with _unit(bind) as connection:
             wanted = periods(connection, job, start, end)

@@ -85,7 +85,7 @@ JSON contract resolve the exact target and rationale:
 | Legacy field | Disposition |
 | --- | --- |
 | `symbol` | The official stock code, `stocks.stock_id` and every table's `stock_id`; an index is identified by its source and published name, `index_prices.index_name`. |
-| `market` | Today's market from the ISIN list, `stocks.market` (ADR-0026); for a market-level dataset, the publishing source. |
+| `market` | Each listing span's market, `listings.market` (ADR-0028): a stock that moved between markets has a span on each; for a market-level dataset, the publishing source. |
 | `name` | Today's name, `stocks.name`; no name history is kept. |
 | `date` | The applicable observation, report, snapshot, or event date — not publication or ingestion time. |
 | `pced_file`, `pced_row`, `pced_col` | Raw-only parser coordinates. |
@@ -99,7 +99,7 @@ boundary.
 
 | Legacy table | Legacy fields reviewed | v1 disposition |
 | --- | --- | --- |
-| `stock_info` | `symbol`, `name`, `market`, industry/category, listing and delisting dates | `stocks`: today's ISIN list of listed and OTC common stocks (ADR-0026), with today's name, market, industry and listing date. No name, market or lifecycle history is kept, and stocks delisted before today are not in the universe; the survivorship bias is accepted and disclosed. |
+| `stock_info` | `symbol`, `name`, `market`, industry/category, listing and delisting dates | `stocks` (identity: name, industry) and `listings` (one span per market with `listed_on`, `delisted_on`), ADR-0028: every common stock on today's ISIN list and every one delisted since 2020-01-02 that an official source proves common. Category is a filter, not a column: every row is a common stock. No name or industry history is kept. The datasets are still fetched only for stocks listed today, so the survivorship bias is disclosed until Step 38-b. |
 | `stock_tags` | `symbol`, tag/category, effective dates | **Not in v1** (ROADMAP §16). The only known source is a MoneyDJ current snapshot — a third party, with no effective dates — and no legacy consumer reads the table (audit §4.11). No tag table exists. |
 | `daily_quotes` | `date`, `market`, `symbol`, `name`; OHLC; `volume`, `value`, `transactions`; `change`, `direction`; `bid`, `ask`; parsed last bid/ask price and volume; `pced_file`, `pced_row`, `pced_col` | OHLC, volume, trade value/count, change, and the single published last bid/ask price are observed in `daily_prices`; legacy `bid`/`ask`, NULL in every row, map to `last_bid_price`/`last_ask_price`. The source also publishes the matching last bid/ask *volume*, stored in `last_bid_volume`/`last_ask_volume`; the legacy table has no field for it. `price_direction` is TWSE-only except for the TPEx 不比價 marker (除息 / 除權 / 除權息), which is stored as `X`; an ordinary TPEx row publishes a signed 漲跌 and no direction. No order-book depth is stored: the daily whole-market files publish one level (audit §4.1). `pced_*` is raw-only. |
 | `monthly_revenue` | year/month, current revenue, currency; MoM, YoY, cumulative revenue, cumulative YoY; comment; publication timestamp; `pced_*` | Current revenue, converted ×1,000 from 千元 to TWD, is observed in `monthly_revenues`. The published comparatives — 上月營收, 去年當月營收, the three percentages, the cumulative values, and 備註 — are in the same MOPS row and read by legacy consumers, so they are stored as observed and never reconciled against our own series (audit §4.7, §6, §7.3); `monthly_revenue_growth:v1` leaves v1 with them. Currency is a page-level constant (單位：千元) and not stored. Publication time is `published_at`, set where a capture or legacy record proves it; `pced_*` is raw-only. |
@@ -137,7 +137,7 @@ changes, and each row names the fetch it came from (ADR-0027).
 
 | Dataset | Kind | Table and key | First row visible at | Planned consumers |
 | --- | --- | --- | --- | --- |
-| stock universe | observed | `stocks (stock_id)` | today's list, not history | every table's `stock_id` |
+| stock universe | observed | `stocks (stock_id)`, `listings (stock_id, market, delisted_on)` | reference data refreshed in place; spans from 2020-01-02 | every table's `stock_id` |
 | `daily_price` | observed | `daily_prices (stock_id, source, trade_date)` | release rule `exchange_daily_settled@1` | indicators, valuation, backtests |
 | `monthly_revenue` | observed | `monthly_revenues (stock_id, source, revenue_month)` | stored `published_at`; NULL is invisible | EPS and selection |
 | `financial_filing` | observed | `financial_reports (stock_id, report_year, report_quarter)` + `financial_report_facts` | stored `published_at`; NULL is invisible | EPS, canonical fundamentals |

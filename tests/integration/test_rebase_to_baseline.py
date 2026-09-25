@@ -62,8 +62,8 @@ def old_head(empty_database_url: str, tmp_path) -> str:
                 content=b"raw", status="succeeded", store=LocalRawArtifactStore(tmp_path),
             )
             connection.execute(sa.text(
-                "INSERT INTO stocks (stock_id, name, market, fetch_id) "
-                "VALUES ('2330', 'x', 'sii', :f)"), {"f": fetch})
+                "INSERT INTO stocks (stock_id, name, fetch_id) "
+                "VALUES ('2330', 'x', :f)"), {"f": fetch})
             connection.exec_driver_sql(V1_LEFTOVERS)
             connection.execute(
                 sa.text("UPDATE alembic_version SET version_num = :v"),
