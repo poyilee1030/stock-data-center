@@ -632,7 +632,7 @@ explicit out-of-scope work
 | 35-d-3 | MERGED (#54) | Schema v2：baseline migration，刪除 v1 表 |
 | 36 | PLANNED | 還原價格（原 Step 25） |
 | 37 | PLANNED（38-a 之後） | 網頁儀表板：以 API 展示資料庫內容（37-a／37-b／37-c） |
-| 38 | 38-a 進行中（下一步） | 歷史股票清單：含已下市公司，每段掛牌期間的上市與下市日期（38-a／38-b） |
+| 38 | 38-a IN REVIEW (#66)；38-b PLANNED | 歷史股票清單：含已下市公司，每段掛牌期間的上市與下市日期（38-a／38-b） |
 
 Steps 1–12 建立了儲存、PIT 和 raw-first 的基礎。它們的 writer 契約包含一些沒有任何來源會填入的欄位（§2.3）。這些欄位保持可為 null、不填值。不刪除它們，因為刪除不會帶來任何正確性上的好處。
 
@@ -2126,7 +2126,7 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 
 ## Step 38 — 歷史股票清單（含已下市公司）
 
-狀態：38-a **進行中**，排在 Step 37 之前（owner 2026-09-25 決定）；38-b **PLANNED**，先後另定。依賴：Step 35-d（MERGED）、Step 27（MERGED）。
+狀態：38-a **IN REVIEW**（#66），排在 Step 37 之前（owner 2026-09-25 決定）；38-b **PLANNED**，先後另定。依賴：Step 35-d（MERGED）、Step 27（MERGED）。
 
 ### 背景
 

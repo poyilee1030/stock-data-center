@@ -34,7 +34,7 @@
 公開 API（Step 27）：PIT 可見性層（27-a）、十一個觀測資料集的 HTTP 端點（27-b），以及財報、七個存表的衍生資料集、
 `technical_indicators_pit:v1`、股票清單與交易日曆（27-c）已完成，說明在 `docs/api.md`。
 
-歷史股票清單（Step 38-a，進行中，ADR-0028）：`stocks` 收 2020 年以後下市、證明為普通股的公司，`listings` 存每段掛牌期間
+歷史股票清單（Step 38-a，IN REVIEW #66，ADR-0028）：`stocks` 收 2020 年以後下市、證明為普通股的公司，`listings` 存每段掛牌期間
 （上市日、下市日、市場）。已在暫存資料庫以真實來源驗過（2,006 家、2,019 段）；`stockdc_backfill` 要在合併後才執行
 migration 與 `python -m stock_data_center.v2.listings`。下市公司的各資料集（38-b）、還原價格（Step 36）、網頁儀表板（Step 37）、
 排程的前向抓取（Step 28）尚未開始。
