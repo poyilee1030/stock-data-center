@@ -332,6 +332,12 @@ def test_a_report_is_filtered_by_its_period_end(db, fetch_id) -> None:
                         end=date(2024, 3, 31))) == 1
 
 
+def test_a_table_without_a_source_rejects_a_source_filter(db) -> None:
+    with pytest.raises(ValueError, match="no source filter"):
+        vis.rows(db, "financial_reports", LATEST, start=date(2024, 1, 1),
+                 end=date(2024, 3, 31), sources=["mops"])
+
+
 # ---------------------------------------------------------------- one place
 
 

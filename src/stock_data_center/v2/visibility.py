@@ -151,6 +151,8 @@ def rows(connection: Connection, dataset: str, pit: PIT, *, start: date, end: da
             raise ValueError(f"{dataset} has no stock: filter it by its own key")
         inner = inner.where(t.c.stock_id.in_(list(stock_ids)))
     if sources is not None:
+        if "source" not in t.c:
+            raise ValueError(f"{dataset} has one source: it takes no source filter")
         inner = inner.where(t.c.source.in_(list(sources)))
     inner = inner.subquery()
     if isinstance(pit, MarketPIT):

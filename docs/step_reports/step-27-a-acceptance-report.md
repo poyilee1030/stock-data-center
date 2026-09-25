@@ -11,7 +11,7 @@
 |---|---|
 | `src/stock_data_center/v2/visibility.py` | `MarketPIT`、`SystemPIT`（只收帶時區的時間點）、`FAMILIES`（十二張觀測表各一個家族）、`rows`、`report_facts` |
 | `src/stock_data_center/v2/exchange_daily.py` | `visible` 改成呼叫 `visibility.rows`（沒有知識截止），簽名不變 |
-| 測試 | `tests/integration/test_v2_visibility.py`（21） |
+| 測試 | `tests/integration/test_v2_visibility.py`（22） |
 | 文件 | ROADMAP §20 與 Step 27（拆步、owner 決定、27-a 小節；26-f 標為 MERGED）；CLAUDE.md 快照與 §19 的位置；`pit_semantics.md`（可見性的位置、公司行動撤銷、知識截止）；26-f 報告標為 MERGED |
 
 `src/` +196／−33 行。沒有新表、沒有 migration。
@@ -60,7 +60,7 @@
 | 撤銷的事件照樣回傳 | 2 |
 | 財報的日期取季初 | 1 |
 
-全套測試：838 passed（main 817，+21）。ruff：新檔案與改動的檔案 0 個問題。
+全套測試：839 passed（main 817，+22）。ruff：新檔案與改動的檔案 0 個問題。
 
 ## `stockdc_backfill` 上的實測
 
