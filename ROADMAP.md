@@ -609,8 +609,10 @@ explicit out-of-scope work
 | 26-c | MERGED (#56) | `institutional_cumulative_flow:v1` |
 | 26-d | MERGED (#57) | `shareholding_concentration:v1` |
 | 26-e | MERGED (#58) | `margin_metrics:v1` 與 `short_interest_metrics:v1` |
-| 26-f | IN REVIEW (#59) | `valuation_metrics:v1` |
-| 27 | PLANNED | 公開 REST API v1 |
+| 26-f | MERGED (#59) | `valuation_metrics:v1` |
+| 27-a | IN REVIEW | 公開 API：PIT 可見性層 |
+| 27-b | PLANNED | 公開 API：HTTP 層、觀測資料 |
+| 27-c | PLANNED | 公開 API：財報、衍生資料、參考資料 |
 | 28 | PLANNED | 排程的前向抓取 |
 | 29 | SUPERSEDED | Python SDK 與下游整合（owner 決定移除，2026-09-24） |
 | 30 | PLANNED | 維運與可觀測性 |
@@ -1789,7 +1791,7 @@ importer 以資料日期欄位為 key，絕不用檔名：`20200619.CSV` 和 `20
 
 ## Step 26 — 標準衍生 v1（移植舊系統計算程式）
 
-狀態：**26-a SUPERSEDED（#44，併入 35-c-4）；26-b MERGED（#55）；26-c MERGED（#56）；26-d MERGED（#57）；26-e MERGED（#58）；26-f IN REVIEW（#59）**。依賴：Steps 17-c–24。
+狀態：**26-a SUPERSEDED（#44，併入 35-c-4）；26-b MERGED（#55）；26-c MERGED（#56）；26-d MERGED（#57）；26-e MERGED（#58）；26-f MERGED（#59）**。依賴：Steps 17-c–24。
 
 定義，每個都從舊系統的計算程式移植，並與舊系統的表對帳：
 
@@ -1907,7 +1909,7 @@ SUPERSEDED 的 #44。
 
 ### Step 26-f — 估值指標
 
-狀態：**IN REVIEW**（#59）。
+狀態：**MERGED**（#59）。
 
 - 寬表 `valuation_metrics`，key `(stock_id, source, trade_date)`，source 是日行情來源：`ttm_eps`、`pe_ratio`、
   `pe_percentile`、`roe`，加 `computed_at`；migration `31e69301ca35`。列只在股票有成交的日子（volume > 0，舊系統
@@ -2012,9 +2014,31 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 
 ## Step 27 — 公開 REST API v1
 
-狀態：**PLANNED**。依賴：Step 15 的決定、各資料 PR。
+狀態：**27-a IN REVIEW；27-b、27-c PLANNED**。依賴：Step 15 的決定、各資料 PR。
 
-提供正確的 Data Center 語意，而不暴露資料表。端點涵蓋舊系統使用者發出的查詢：每日面板、指數、估值、籌碼資料、月營收、財務 facts 與摘要、TDCC、公司行動、還原價格和衍生指標。每個回應都帶有其 PIT context 和 provenance。沒有來源的欄位被省略，或明確標示為無法取得。
+提供正確的 Data Center 語意，而不暴露資料表。端點涵蓋舊系統使用者發出的查詢：每日面板、指數、估值、籌碼資料、月營收、財務 facts 與摘要、TDCC、公司行動和衍生指標。每個回應都帶有其 PIT context 和 provenance。沒有來源的欄位被省略，或明確標示為無法取得。還原價格是 Step 36，不在這裡。
+
+### 拆步與決定（owner，2026-09-25）
+
+| Step | 內容 |
+|---|---|
+| 27-a | PIT 可見性層：每個觀測資料表都能以 market PIT（`information_as_of` + `knowledge_as_of`）或 system PIT（`system_as_of`）查詢，沒有 HTTP |
+| 27-b | HTTP 層：FastAPI、API key、PIT context 解析、回應格式（PIT context 與每列 provenance）、交易所日資料、TDCC、月營收、公司行動 |
+| 27-c | 財報（版本與 facts）、存表的衍生資料、`technical_indicators_pit:v1`、股票清單與交易日曆 |
+
+- PIT 參數沒帶時預設 latest：以收到請求的時刻作為 `information_as_of` 與 `knowledge_as_of`，並把解析後的時間點回傳在回應裡（§59）；要重現歷史就明確帶時間點。
+- 存表的衍生資料依 `information_as_of` 過濾：D 那一列要等它用到的輸入都公開才回傳；`knowledge_as_of` 或 `system_as_of` 指定過去的時間就拒絕，因為表以最新輸入覆寫、答不出來；回應標明「最新輸入」與 `computed_at`。
+- 要 API key：請求要帶 key，key 放 `.env`，不進版本庫。
+
+### Step 27-a — PIT 可見性層
+
+狀態：**IN REVIEW**。
+
+- `stock_data_center.v2.visibility`：CLAUDE.md §19 的「一個地方」。`MarketPIT`、`SystemPIT` 只收帶時區的時間點；`rows` 對十二張觀測表回傳每個 key 在該 PIT 下看到的列，含 `available_at`；`report_facts` 回傳財報版本自己的 facts。
+- 三種家族：交易所日資料（`exchange_daily_settled@1`）、TDCC（`tdcc_weekly@1`）、公司行動（`corporate_action_ex_date@1`，撤銷的事件不回傳）用規則：規則時刻前記錄的列是暫定值，之後第一列是定案值，兩者都從規則時刻起可見，其後的列是更正，從自己的 `recorded_at` 起可見；月營收與財報用首列的 `published_at`（NULL 永不可見），其後的列從自己的 `recorded_at` 起可見。
+- `available_at` 是列的屬性，以該 key 的所有列計算，再套 `knowledge_as_of`：知識截止之後記錄的列看不到，但不改變其他列的可見時間。
+- `exchange_daily.visible` 改成呼叫這個模組（沒有知識截止），既有的呼叫端不變。
+- 驗收證據：`docs/step_reports/step-27-a-acceptance-report.md`。
 
 ## Step 28 — 排程的前向抓取
 
