@@ -1,6 +1,6 @@
 # Step 27-b 驗收報告
 
-狀態：IN REVIEW
+狀態：IN REVIEW (#61)
 
 範圍：公開 API 的 HTTP 層與十一個觀測資料集。可見性全部交給 27-a 的 `stock_data_center.v2.visibility`，API 只解析、驗證、
 呈現。API 說明在 `docs/api.md`。

@@ -611,7 +611,7 @@ explicit out-of-scope work
 | 26-e | MERGED (#58) | `margin_metrics:v1` 與 `short_interest_metrics:v1` |
 | 26-f | MERGED (#59) | `valuation_metrics:v1` |
 | 27-a | MERGED (#60) | 公開 API：PIT 可見性層 |
-| 27-b | IN REVIEW | 公開 API：HTTP 層、觀測資料 |
+| 27-b | IN REVIEW (#61) | 公開 API：HTTP 層、觀測資料 |
 | 27-c | PLANNED | 公開 API：財報、衍生資料、參考資料 |
 | 28 | PLANNED | 排程的前向抓取 |
 | 29 | SUPERSEDED | Python SDK 與下游整合（owner 決定移除，2026-09-24） |
@@ -2014,7 +2014,7 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 
 ## Step 27 — 公開 REST API v1
 
-狀態：**27-a MERGED（#60）；27-b IN REVIEW；27-c PLANNED**。依賴：Step 15 的決定、各資料 PR。
+狀態：**27-a MERGED（#60）；27-b IN REVIEW（#61）；27-c PLANNED**。依賴：Step 15 的決定、各資料 PR。
 
 提供正確的 Data Center 語意，而不暴露資料表。端點涵蓋舊系統使用者發出的查詢：每日面板、指數、估值、籌碼資料、月營收、財務 facts 與摘要、TDCC、公司行動和衍生指標。每個回應都帶有其 PIT context 和 provenance。沒有來源的欄位被省略，或明確標示為無法取得。還原價格是 Step 36，不在這裡。
 
@@ -2042,7 +2042,7 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 
 ### Step 27-b — HTTP 層與觀測資料
 
-狀態：**IN REVIEW**。
+狀態：**IN REVIEW**（#61）。
 
 - `stock_data_center.api`：FastAPI。`GET /v1/datasets` 列出資料集與其形狀；`GET /v1/datasets/{name}` 依 PIT context 回傳列。
   十一個觀測資料集，名稱與資料表不同（§55）：`daily-prices`、`indices`、`official-valuations`、`institutional-flows`、
