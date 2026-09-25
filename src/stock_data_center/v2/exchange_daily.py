@@ -622,38 +622,13 @@ def visible(
     start: date,
     end: date,
     source: str | None = None,
-    rule: ReleaseRule = RELEASE_RULE,
 ) -> list[sa.RowMapping]:
-    """Each key's value as the market could know it at `as_of`.
+    """Each key's value as the market could know it at `as_of`, from everything
+    recorded: market PIT with `information_as_of = as_of` and no knowledge
+    cutoff. The rule itself is `stock_data_center.v2.visibility`'s."""
+    from stock_data_center.v2 import visibility  # imports this module
 
-    The rule says the settled file is public at its instant, so the first row
-    recorded at or after it is the settled value, available from the instant
-    however late the Data Center recorded it. A row recorded before the instant
-    is provisional: available from the instant too, but the settled row, being
-    recorded later, supersedes it there. Every row after the settled one is a
-    correction, available from its own `recorded_at`.
-    """
-    keys = [table.c[k] for k in key_columns(table)]
-    released = available_from_sql(table.c.trade_date, rule)
-    recorded = table.c.recorded_at
-    settled = sa.func.min(recorded).filter(recorded >= released).over(partition_by=keys)
-    available = sa.case(
-        (recorded < released, released),
-        (recorded == settled, released),
-        else_=recorded,
-    )
-    inner = sa.select(table, available.label("available_at")).where(
-        table.c.trade_date.between(start, end)
-    )
-    if source is not None:
-        inner = inner.where(table.c.source == source)
-    inner = inner.subquery()
-    outer_keys = [inner.c[k.name] for k in keys]
-    query = (
-        sa.select(*(inner.c[c.name] for c in table.columns), inner.c.available_at)
-        .where(inner.c.available_at <= as_of)
-        .order_by(*outer_keys, inner.c.recorded_at.desc())
-        .distinct(*outer_keys)
-    )
-    return list(connection.execute(query).mappings())
+    return visibility.rows(
+        connection, table.name, visibility.MarketPIT(as_of, visibility.FOREVER),
+        start=start, end=end, sources=None if source is None else [source])
 

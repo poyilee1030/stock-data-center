@@ -71,7 +71,20 @@ recorded before its rule instant is provisional. It is available from the rule
 instant, and the first row recorded at or after the instant — the settled
 value — supersedes it there. The settled row is available from the rule instant
 however late it was recorded; only rows after it are corrections
-(`stock_data_center.v2.exchange_daily.visible`).
+(`stock_data_center.v2.visibility`, Step 27-a, which computes every observed
+table's visibility in one place; `exchange_daily.visible` calls it).
+
+**Retracted corporate actions.** A corporate action whose visible row is a
+retraction is not there. The rule above applies to it like any other row: an
+event listed before its ex-date whose first file seen after the ex-date no
+longer has it settled as no event, from the ex-date on; a retraction recorded
+after a settled event is a correction, from its own `recorded_at`.
+
+**The knowledge cutoff.** `available_at` is a property of the row, computed
+from all of its key's rows; `knowledge_as_of` then removes the rows recorded
+after it without moving the others. The whole `stockdc_backfill` history was
+recorded in 2026, so a knowledge cutoff before that sees none of it: the Data
+Center did not know it yet.
 
 Two supported reconstructions are:
 
