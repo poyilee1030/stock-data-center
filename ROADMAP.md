@@ -609,7 +609,7 @@ explicit out-of-scope work
 | 26-c | MERGED (#56) | `institutional_cumulative_flow:v1` |
 | 26-d | MERGED (#57) | `shareholding_concentration:v1` |
 | 26-e | MERGED (#58) | `margin_metrics:v1` 與 `short_interest_metrics:v1` |
-| 26-f | IN REVIEW | `valuation_metrics:v1` |
+| 26-f | IN REVIEW (#59) | `valuation_metrics:v1` |
 | 27 | PLANNED | 公開 REST API v1 |
 | 28 | PLANNED | 排程的前向抓取 |
 | 29 | SUPERSEDED | Python SDK 與下游整合（owner 決定移除，2026-09-24） |
@@ -1789,7 +1789,7 @@ importer 以資料日期欄位為 key，絕不用檔名：`20200619.CSV` 和 `20
 
 ## Step 26 — 標準衍生 v1（移植舊系統計算程式）
 
-狀態：**26-a SUPERSEDED（#44，併入 35-c-4）；26-b MERGED（#55）；26-c MERGED（#56）；26-d MERGED（#57）；26-e MERGED（#58）；26-f IN REVIEW**。依賴：Steps 17-c–24。
+狀態：**26-a SUPERSEDED（#44，併入 35-c-4）；26-b MERGED（#55）；26-c MERGED（#56）；26-d MERGED（#57）；26-e MERGED（#58）；26-f IN REVIEW（#59）**。依賴：Steps 17-c–24。
 
 定義，每個都從舊系統的計算程式移植，並與舊系統的表對帳：
 
@@ -1907,7 +1907,7 @@ SUPERSEDED 的 #44。
 
 ### Step 26-f — 估值指標
 
-狀態：**IN REVIEW**。
+狀態：**IN REVIEW**（#59）。
 
 - 寬表 `valuation_metrics`，key `(stock_id, source, trade_date)`，source 是日行情來源：`ttm_eps`、`pe_ratio`、
   `pe_percentile`、`roe`，加 `computed_at`；migration `31e69301ca35`。列只在股票有成交的日子（volume > 0，舊系統

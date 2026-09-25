@@ -1,6 +1,6 @@
 # Step 26-f 驗收報告
 
-狀態：IN REVIEW
+狀態：IN REVIEW (#59)
 
 範圍：`valuation_metrics:v1`，移植舊系統 `calculate_valuation.py`，含 owner 在 2026-09-25 決定的兩項修正，沿用 26-b 的增量執行器。
 Step 26 的最後一個子步驟。
