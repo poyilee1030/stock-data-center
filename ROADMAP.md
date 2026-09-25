@@ -612,7 +612,7 @@ explicit out-of-scope work
 | 26-f | MERGED (#59) | `valuation_metrics:v1` |
 | 27-a | MERGED (#60) | 公開 API：PIT 可見性層 |
 | 27-b | MERGED (#61) | 公開 API：HTTP 層、觀測資料 |
-| 27-c | IN REVIEW | 公開 API：財報、衍生資料、參考資料 |
+| 27-c | IN REVIEW (#62) | 公開 API：財報、衍生資料、參考資料 |
 | 28 | PLANNED | 排程的前向抓取 |
 | 29 | SUPERSEDED | Python SDK 與下游整合（owner 決定移除，2026-09-24） |
 | 30 | PLANNED | 維運與可觀測性 |
@@ -2014,7 +2014,7 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 
 ## Step 27 — 公開 REST API v1
 
-狀態：**27-a MERGED（#60）；27-b MERGED（#61）；27-c IN REVIEW**。依賴：Step 15 的決定、各資料 PR。
+狀態：**27-a MERGED（#60）；27-b MERGED（#61）；27-c IN REVIEW（#62）**。依賴：Step 15 的決定、各資料 PR。
 
 提供正確的 Data Center 語意，而不暴露資料表。端點涵蓋舊系統使用者發出的查詢：每日面板、指數、估值、籌碼資料、月營收、財務 facts 與摘要、TDCC、公司行動和衍生指標。每個回應都帶有其 PIT context 和 provenance。沒有來源的欄位被省略，或明確標示為無法取得。還原價格是 Step 36，不在這裡。
 
@@ -2060,7 +2060,7 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 
 ### Step 27-c — 財報、衍生資料、參考資料
 
-狀態：**IN REVIEW**。
+狀態：**IN REVIEW**（#62）。
 
 - `financial-reports`：每個 `(stock_id, report_year, report_quarter)` 回傳 PIT context 看到的那個版本，帶**該版本自己的** facts（§20）；
   `start`／`end` 篩季末日；`statement`、`account_code` 可重複，用來縮小 facts；一次最多 200,000 個 fact。
