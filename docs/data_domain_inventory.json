@@ -37,7 +37,8 @@
       "institutional_cumulative_flow": "Canonical derived institutional_cumulative_flow:v1 (Step 26-c), computed from institutional_flows and the issued shares in foreign_holdings; no column is a source field.",
       "shareholding_concentration": "Canonical derived shareholding_concentration:v1 (Step 26-d), computed from the TDCC levels in shareholding_distributions; no column is a source field.",
       "margin_metrics": "Canonical derived margin_metrics:v1 (Step 26-e), computed from each day's margin_trading row; no column is a source field.",
-      "short_interest_metrics": "Canonical derived short_interest_metrics:v1 (Step 26-e), computed from each day's securities_lending row; no column is a source field."
+      "short_interest_metrics": "Canonical derived short_interest_metrics:v1 (Step 26-e), computed from each day's securities_lending row; no column is a source field.",
+      "valuation_metrics": "Canonical derived valuation_metrics:v1 (Step 26-f), computed from daily_prices and the financial_reports public on each day; no column is a source field."
     },
     "tables": {
       "daily_prices": {
@@ -2587,7 +2588,7 @@
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "date",
       "disposition": "identity",
-      "target": "margin_metrics:v1 observation date (stored, Step 26)",
+      "target": "margin_metrics:v1 trade date (stored, Step 26-e)",
       "reason": "Date is the domain observation, report, snapshot, or event logical key."
     },
     {
@@ -2614,79 +2615,79 @@
     {
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "margin_long_balance",
-      "disposition": "canonical_derived",
-      "target": "margin_metrics:v1.margin_long_balance (stored, Step 26)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
+      "disposition": "observed",
+      "target": "margin_trading.margin_balance",
+      "reason": "Observed value legacy copied through; it stays in its observed table and is not duplicated in the derived one (Step 26-e)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "margin_long_limit",
-      "disposition": "canonical_derived",
-      "target": "margin_metrics:v1.margin_long_limit (stored, Step 26)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
+      "disposition": "observed",
+      "target": "margin_trading.margin_limit",
+      "reason": "Observed value legacy copied through; it stays in its observed table and is not duplicated in the derived one (Step 26-e)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "margin_usage_ratio",
       "disposition": "canonical_derived",
-      "target": "margin_metrics:v1.margin_usage_ratio (stored, Step 26)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
+      "target": "margin_metrics:v1.margin_usage_ratio (stored, Step 26-e)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP \u00a717)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "margin_long_balance_wow",
       "disposition": "canonical_derived",
-      "target": "margin_metrics:v1.margin_long_balance_wow (stored, Step 26)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
+      "target": "margin_metrics:v1.margin_balance_change (stored, Step 26-e)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP \u00a717). Legacy's _wow is the day's balance less the previous balance on the same source row, a daily change, so ours is _change (owner, 2026-09-25)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "margin_long_balance_wow_pct",
       "disposition": "canonical_derived",
-      "target": "margin_metrics:v1.margin_long_balance_wow_pct (stored, Step 26)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
+      "target": "margin_metrics:v1.margin_balance_change_pct (stored, Step 26-e)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP \u00a717). Legacy's _wow is the day's balance less the previous balance on the same source row, a daily change, so ours is _change (owner, 2026-09-25)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "margin_short_balance",
-      "disposition": "canonical_derived",
-      "target": "margin_metrics:v1.margin_short_balance (stored, Step 26)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
+      "disposition": "observed",
+      "target": "margin_trading.short_balance",
+      "reason": "Observed value legacy copied through; it stays in its observed table and is not duplicated in the derived one (Step 26-e)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "margin_short_limit",
-      "disposition": "canonical_derived",
-      "target": "margin_metrics:v1.margin_short_limit (stored, Step 26)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
+      "disposition": "observed",
+      "target": "margin_trading.short_limit",
+      "reason": "Observed value legacy copied through; it stays in its observed table and is not duplicated in the derived one (Step 26-e)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "short_usage_ratio",
       "disposition": "canonical_derived",
-      "target": "margin_metrics:v1.short_usage_ratio (stored, Step 26)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
+      "target": "margin_metrics:v1.short_usage_ratio (stored, Step 26-e)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP \u00a717)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "margin_short_balance_wow",
       "disposition": "canonical_derived",
-      "target": "margin_metrics:v1.margin_short_balance_wow (stored, Step 26)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
+      "target": "margin_metrics:v1.short_balance_change (stored, Step 26-e)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP \u00a717). Legacy's _wow is the day's balance less the previous balance on the same source row, a daily change, so ours is _change (owner, 2026-09-25)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "margin_short_balance_wow_pct",
       "disposition": "canonical_derived",
-      "target": "margin_metrics:v1.margin_short_balance_wow_pct (stored, Step 26)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
+      "target": "margin_metrics:v1.short_balance_change_pct (stored, Step 26-e)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP \u00a717). Legacy's _wow is the day's balance less the previous balance on the same source row, a daily change, so ours is _change (owner, 2026-09-25)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
       "legacy_field": "short_cover_pressure",
       "disposition": "canonical_derived",
-      "target": "margin_metrics:v1.short_cover_pressure (stored, Step 26)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
+      "target": "margin_metrics:v1.short_cover_pressure (stored, Step 26-e)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP \u00a717)."
     },
     {
       "legacy_table": "margin_pressure_analysis",
@@ -2720,7 +2721,7 @@
       "legacy_table": "short_interest_analysis",
       "legacy_field": "date",
       "disposition": "identity",
-      "target": "short_interest_metrics:v1 observation date (stored, Step 26)",
+      "target": "short_interest_metrics:v1 trade date (stored, Step 26-e)",
       "reason": "Date is the domain observation, report, snapshot, or event logical key."
     },
     {
@@ -2747,65 +2748,65 @@
     {
       "legacy_table": "short_interest_analysis",
       "legacy_field": "sbl_balance",
-      "disposition": "canonical_derived",
-      "target": "short_interest_metrics:v1.sbl_balance (stored, Step 26)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
+      "disposition": "observed",
+      "target": "securities_lending.balance",
+      "reason": "Observed value legacy copied through; it stays in its observed table and is not duplicated in the derived one (Step 26-e)."
     },
     {
       "legacy_table": "short_interest_analysis",
       "legacy_field": "sbl_balance_wow",
       "disposition": "canonical_derived",
-      "target": "short_interest_metrics:v1.sbl_balance_wow (stored, Step 26)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
+      "target": "short_interest_metrics:v1.sbl_balance_change (stored, Step 26-e)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP \u00a717). Legacy's _wow is the day's balance less the previous balance on the same source row, a daily change, so ours is _change (owner, 2026-09-25)."
     },
     {
       "legacy_table": "short_interest_analysis",
       "legacy_field": "sbl_balance_wow_pct",
       "disposition": "canonical_derived",
-      "target": "short_interest_metrics:v1.sbl_balance_wow_pct (stored, Step 26)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
+      "target": "short_interest_metrics:v1.sbl_balance_change_pct (stored, Step 26-e)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP \u00a717). Legacy's _wow is the day's balance less the previous balance on the same source row, a daily change, so ours is _change (owner, 2026-09-25)."
     },
     {
       "legacy_table": "short_interest_analysis",
       "legacy_field": "sbl_sell",
-      "disposition": "canonical_derived",
-      "target": "short_interest_metrics:v1.sbl_sell (stored, Step 26)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
+      "disposition": "observed",
+      "target": "securities_lending.sold",
+      "reason": "Observed value legacy copied through; it stays in its observed table and is not duplicated in the derived one (Step 26-e)."
     },
     {
       "legacy_table": "short_interest_analysis",
       "legacy_field": "sbl_repay",
-      "disposition": "canonical_derived",
-      "target": "short_interest_metrics:v1.sbl_repay (stored, Step 26)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
+      "disposition": "observed",
+      "target": "securities_lending.returned",
+      "reason": "Observed value legacy copied through; it stays in its observed table and is not duplicated in the derived one (Step 26-e)."
     },
     {
       "legacy_table": "short_interest_analysis",
       "legacy_field": "sbl_sell_repay_ratio",
       "disposition": "canonical_derived",
-      "target": "short_interest_metrics:v1.sbl_sell_repay_ratio (stored, Step 26)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
+      "target": "short_interest_metrics:v1.sbl_sell_repay_ratio (stored, Step 26-e)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP \u00a717)."
     },
     {
       "legacy_table": "short_interest_analysis",
       "legacy_field": "margin_short_balance",
-      "disposition": "canonical_derived",
-      "target": "short_interest_metrics:v1.margin_short_balance (stored, Step 26)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
+      "disposition": "observed",
+      "target": "margin_trading.short_balance",
+      "reason": "Observed value legacy copied through; it stays in its observed table and is not duplicated in the derived one (Step 26-e)."
     },
     {
       "legacy_table": "short_interest_analysis",
       "legacy_field": "margin_short_balance_wow",
       "disposition": "canonical_derived",
-      "target": "short_interest_metrics:v1.margin_short_balance_wow (stored, Step 26)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
+      "target": "margin_metrics:v1.short_balance_change (stored, Step 26-e)",
+      "reason": "The same value as margin_metrics:v1's; the SBL dataset does not carry a second copy (owner, 2026-09-25)."
     },
     {
       "legacy_table": "short_interest_analysis",
       "legacy_field": "margin_short_balance_wow_pct",
       "disposition": "canonical_derived",
-      "target": "short_interest_metrics:v1.margin_short_balance_wow_pct (stored, Step 26)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
+      "target": "margin_metrics:v1.short_balance_change_pct (stored, Step 26-e)",
+      "reason": "The same value as margin_metrics:v1's; the SBL dataset does not carry a second copy (owner, 2026-09-25)."
     },
     {
       "legacy_table": "short_interest_analysis",
@@ -4659,7 +4660,7 @@
       "legacy_table": "valuation_daily",
       "legacy_field": "date",
       "disposition": "identity",
-      "target": "valuation_metrics:v1 observation date (stored, Step 26)",
+      "target": "valuation_metrics:v1 trade date (stored, Step 26-f)",
       "reason": "Date is the domain observation, report, snapshot, or event logical key."
     },
     {
@@ -4680,8 +4681,8 @@
       "legacy_table": "valuation_daily",
       "legacy_field": "ttm_eps_official",
       "disposition": "canonical_derived",
-      "target": "valuation_metrics:v1.ttm_eps_official (stored, Step 26)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
+      "target": "valuation_metrics:v1.ttm_eps (stored, Step 26-f)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP \u00a717). Four consecutive quarters, all public on the day. Legacy's _official suffix is dropped: the value is computed, and CLAUDE.md \u00a753 keeps official for source-published values (owner, 2026-09-25)."
     },
     {
       "legacy_table": "valuation_daily",
@@ -4694,15 +4695,15 @@
       "legacy_table": "valuation_daily",
       "legacy_field": "pe_percentile_official",
       "disposition": "canonical_derived",
-      "target": "valuation_metrics:v1.pe_percentile_official (stored, Step 26)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
+      "target": "valuation_metrics:v1.pe_percentile (stored, Step 26-f)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP \u00a717). Legacy's _official suffix is dropped: the value is computed, and CLAUDE.md \u00a753 keeps official for source-published values (owner, 2026-09-25)."
     },
     {
       "legacy_table": "valuation_daily",
       "legacy_field": "roe_official",
       "disposition": "canonical_derived",
-      "target": "valuation_metrics:v1.roe_official (stored, Step 26)",
-      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP §17)."
+      "target": "valuation_metrics:v1.roe (stored, Step 26-f)",
+      "reason": "Deterministic reusable metric with an explicit derivation version, stored and computed from the latest inputs, never from one dated or published after the observation date (ROADMAP \u00a717). Redefined (owner, 2026-09-25): trailing four quarters' net income attributable to the parent over the latest quarter-end equity attributable to the parent; legacy's version assumed a par value of 10 and counted non-controlling interests. Legacy's _official suffix is dropped: the value is computed, and CLAUDE.md \u00a753 keeps official for source-published values (owner, 2026-09-25)."
     },
     {
       "legacy_table": "valuation_daily",

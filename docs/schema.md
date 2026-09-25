@@ -32,8 +32,9 @@ schema and audit §5 by `tests/unit/test_pr14_storage_contract_source_coverage.p
 | `shareholding_concentration` | `stock_id, source, snapshot_date` | `shareholding_concentration:v1`: large/mid/small-holder ratios, spread, holder counts and week-over-week changes; `computed_at` |
 | `margin_metrics` | `stock_id, source, trade_date` | `margin_metrics:v1`: margin/short usage, daily balance changes, short-cover pressure; `computed_at` |
 | `short_interest_metrics` | `stock_id, source, trade_date` | `short_interest_metrics:v1`: SBL daily balance change and sold/returned ratio; `computed_at` |
+| `valuation_metrics` | `stock_id, source, trade_date` | `valuation_metrics:v1`: TTM EPS, PE, PE percentile, ROE; `computed_at` |
 
-The last six are derived (Steps 26-b through 26-e): computed from the latest inputs and
+The last seven are derived (Steps 26-b through 26-f): computed from the latest inputs and
 overwritten in place, so they are not append-only (`docs/derived_data.md`).
 Release rules, dataset declarations, the index list and the TDCC level profile
 are code constants, not tables.
@@ -70,8 +71,8 @@ view or sequence of its own. Its downgrade refuses before any change while a
 table holds a row, and on an empty database drops everything it built.
 
 `6ecc3eefb103` (Step 26-b) adds the first two derived tables, `0f6386ea08db`
-(Step 26-c) the third, `c3f1f515e3df` (Step 26-d) the fourth and `0487c98a0e37`
-(Step 26-e) the last two. Their downgrades drop them without a guard: every derived
+(Step 26-c) the third, `c3f1f515e3df` (Step 26-d) the fourth, `0487c98a0e37`
+(Step 26-e) the next two and `31e69301ca35` (Step 26-f) the last. Their downgrades drop them without a guard: every derived
 row is recomputed from stored inputs, so nothing they discard is history.
 
 A database built by the old 45-migration chain sits at its head `5c1e8d2a7b90`,

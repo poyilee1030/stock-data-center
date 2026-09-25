@@ -129,6 +129,13 @@ report in today's database cannot make it visible in February. A quarter counts
 as complete only after a fetch following its statutory deadline, which is why a
 backfill asks again for a quarter fetched before then.
 
-The EPS summary, the Q4 single quarter (`annual − Q1 − Q2 − Q3`) and every
-ratio built on these facts are canonical derived data, computed on demand by
-Step 26 from the PIT-visible reports.
+The EPS summary, the Q4 single quarter and every ratio built on these facts are
+canonical derived data. `valuation_metrics:v1` (Step 26-f) derives the Q4 single
+quarter as the annual figure less the third quarter's year to date, as legacy
+did, and has none without the third quarter; it reads each quarter's latest
+version and counts it from its first version's `published_at`.
+
+A writer holds the job lock `financial_reports/mops_t164sb01` shared, beside its
+own stock's lock, until it commits: writers of different stocks run side by
+side, and a derived run takes the job lock exclusively so it never reads a
+report mid-transaction (`derived_store._fix_inputs`).

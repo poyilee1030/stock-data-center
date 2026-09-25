@@ -107,6 +107,9 @@ def _identity(facts) -> frozenset:
 
 
 def _write(connection, stock_id, year, quarter, fetched: Fetched, first_seen) -> Outcome:
+    # The job lock, shared with the other stocks' writers, is what a derived run
+    # takes exclusively to see no report mid-transaction (derived_store._fix_inputs).
+    connection.execute(sa.select(sa.func.pg_advisory_xact_lock_shared(sa.func.hashtext(KEY))))
     connection.execute(sa.select(sa.func.pg_advisory_xact_lock(sa.func.hashtext(
         f"{KEY}/{stock_id}"))))
     reports, facts = v2.financial_reports, v2.financial_report_facts

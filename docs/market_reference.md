@@ -31,8 +31,9 @@ Levels and changes are points; `change_percent` is percentage points.
 `valuations` holds only what the source published: PE, PB, dividend yield, and
 the source's dividend year and report period. It never stores a Data
 Center-computed PE, percentile, TTM EPS or ROE as if it were observed; those are
-canonical derived `valuation_metrics:v1` (Step 26), distinguishable from the
-published values. Official PE and PB are multiples; dividend yield is
+canonical derived `valuation_metrics:v1` (Step 26-f, table
+`valuation_metrics`: `ttm_eps`, `pe_ratio`, `pe_percentile`, `roe`),
+distinguishable from the published values. Official PE and PB are multiples; dividend yield is
 percentage points.
 
 ## Corporate actions

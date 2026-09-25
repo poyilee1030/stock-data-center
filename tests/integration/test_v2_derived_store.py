@@ -12,7 +12,9 @@ must equal bit for bit while the inputs carry no correction.
 from __future__ import annotations
 
 import math
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
+from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 import pytest
 import sqlalchemy as sa
@@ -21,6 +23,8 @@ from sqlalchemy.exc import OperationalError
 
 from stock_data_center.db.schema_v2 import (
     daily_prices,
+    financial_report_facts,
+    financial_reports,
     foreign_holdings,
     institutional_cumulative_flow,
     institutional_flows,
@@ -32,9 +36,11 @@ from stock_data_center.db.schema_v2 import (
     shareholding_distributions,
     short_interest_metrics,
     technical_indicators,
+    valuation_metrics,
 )
 from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
 from stock_data_center.v2 import backfill, derived, derived_store
+from stock_data_center.v2 import financial_reports as financial_reports_module
 from stock_data_center.v2.fetch_log import FetchRecord, record_fetch
 from stock_data_center.v2.indicators import METRIC_CODES, DailyBar
 from stock_data_center.v2.indicators import technical_indicators as formulas
@@ -52,6 +58,7 @@ MARGIN = derived_store.MARGIN_METRICS
 SHORT_INTEREST = derived_store.SHORT_INTEREST_METRICS
 MI_MARGN = "twse_mi_margn"
 TWT93U = "twse_twt93u"
+VALUATION = derived_store.VALUATION_METRICS
 QFIIS = "twse_mi_qfiis"
 EXPONENTIAL = ("k", "d", "rsi6", "rsi12", "macd_dif", "macd_dea", "macd_hist")
 
@@ -858,6 +865,194 @@ def test_a_margin_value_uses_no_row_dated_after_it(db, fetch_id) -> None:
 
     assert (_rows(db, margin_metrics, *derived_store.MARGIN_COLUMNS)[:3],
             _rows(db, short_interest_metrics, *derived_store.SHORT_INTEREST_COLUMNS)[:3]) == early
+
+
+# ---------------------------------------------------------------- valuation
+
+TAIPEI = ZoneInfo("Asia/Taipei")
+_QUARTER = {1: ((1, 1), (3, 31)), 2: ((4, 1), (6, 30)), 3: ((7, 1), (9, 30)),
+            4: ((10, 1), (12, 31))}
+
+
+def _report(db, fetch_id, year, quarter, *, eps, net_income=100, equity=1000,
+            published=None, at=time(18), stock_id="2330"):
+    """A report whose single quarter is `eps` (Q4 prints the annual figure, so
+    the third quarter's year to date is 3 x eps here), public at 18:00 on
+    `published` in Taipei (or `at`), or never when it is None."""
+    (sm, sd), (em, ed) = _QUARTER[quarter]
+    start, end = date(year, sm, sd), date(year, em, ed)
+    report_id = db.execute(sa.insert(financial_reports).values(
+        stock_id=stock_id, report_year=year, report_quarter=quarter,
+        report_category="consolidated", fetch_id=fetch_id,
+        published_at=None if published is None else datetime.combine(
+            published, at, tzinfo=TAIPEI),
+    ).returning(financial_reports.c.id)).scalar_one()
+    ytd = {1: 1, 2: 2, 3: 3, 4: 4}[quarter]
+    facts = [
+        ("income_statement", "9750", "Eps", start, end, Decimal(eps)),
+        ("income_statement", "9750", "EpsYtd", date(year, 1, 1), end, Decimal(eps) * ytd),
+        ("income_statement", "8610", "Profit", start, end, Decimal(net_income)),
+        ("income_statement", "8610", "ProfitYtd", date(year, 1, 1), end,
+         Decimal(net_income) * ytd),
+        ("balance_sheet", "31XX", "Equity", None, end, Decimal(equity)),
+    ]
+    if quarter == 1:
+        facts = [f for f in facts if not f[2].endswith("Ytd")]
+    if quarter == 4:
+        facts = [f for f in facts if f[2].endswith("Ytd") or f[0] == "balance_sheet"]
+    db.execute(sa.insert(financial_report_facts), [
+        {"report_id": report_id, "statement": statement, "account_code": code,
+         "concept": "{urn:t}" + concept, "period_start": ps, "period_end": pe,
+         "unit": "iso4217:TWD", "value": value}
+        for statement, code, concept, ps, pe, value in facts
+    ])
+    return report_id
+
+
+def _four_quarters(db, fetch_id, **kwargs):
+    """2023Q2-2024Q1, EPS 1 each, the last public on 2024-05-15."""
+    for (year, quarter), published in (((2023, 2), date(2023, 8, 14)),
+                                       ((2023, 3), date(2023, 11, 14)),
+                                       ((2023, 4), date(2024, 3, 29)),
+                                       ((2024, 1), date(2024, 5, 15))):
+        _report(db, fetch_id, year, quarter, eps="1.00", published=published, **kwargs)
+
+
+def test_the_valuation_definition() -> None:
+    assert (VALUATION.definition.dataset_code, VALUATION.definition.derivation_version) == (
+        "valuation_metrics", "v1")
+    assert VALUATION.definition.input_tables == ("daily_prices", "financial_reports")
+
+
+def test_a_valuation_counts_a_report_from_the_day_it_is_public(db, fetch_id) -> None:
+    # CLAUDE.md §43: D uses only reports public on D.
+    days = _trading_days(date(2024, 5, 13), 4)  # 05-13 .. 05-16
+    _prices(db, fetch_id, days, closes=["40.00", "40.00", "44.00", "48.00"])
+    _four_quarters(db, fetch_id)
+
+    run = derived_store.run(db, VALUATION)
+
+    assert run.series == 1
+    assert _rows(db, valuation_metrics, "source", "ttm_eps", "pe_ratio", "pe_percentile",
+                 "roe") == [
+        (date(2024, 5, 15), TWSE, 4.0, 11.0, 100.0, 40.0),
+        (date(2024, 5, 16), TWSE, 4.0, 12.0, 100.0, 40.0),
+    ]
+
+
+def test_a_reports_day_is_its_taipei_date(db, fetch_id) -> None:
+    # 00:30 on 05-15 in Taipei is 05-14 in UTC; the report is public from 05-15.
+    days = _trading_days(date(2024, 5, 14), 2)
+    _prices(db, fetch_id, days)
+    for (year, quarter) in ((2023, 2), (2023, 3), (2023, 4)):
+        _report(db, fetch_id, year, quarter, eps="1.00", published=date(2024, 1, 2))
+    _report(db, fetch_id, 2024, 1, eps="1.00", published=date(2024, 5, 15), at=time(0, 30))
+    derived_store.run(db, VALUATION)
+    assert [r[0] for r in _rows(db, valuation_metrics, "ttm_eps")] == [date(2024, 5, 15)]
+
+
+def test_a_report_never_published_is_not_used(db, fetch_id) -> None:
+    _prices(db, fetch_id, [date(2024, 5, 15)])
+    for (year, quarter) in ((2023, 2), (2023, 3), (2023, 4)):
+        _report(db, fetch_id, year, quarter, eps="1.00", published=date(2024, 1, 2))
+    _report(db, fetch_id, 2024, 1, eps="1.00", published=None)
+    derived_store.run(db, VALUATION)
+    assert _rows(db, valuation_metrics, "ttm_eps") == []
+
+
+def test_a_new_report_recomputes_from_its_publication(db, fetch_id) -> None:
+    days = _trading_days(date(2024, 8, 12), 5)  # 08-12 .. 08-16
+    _prices(db, fetch_id, days)
+    _four_quarters(db, fetch_id)
+    first = derived_store.run(db, VALUATION)
+    _report(db, fetch_id, 2024, 2, eps="3.00", published=date(2024, 8, 14))
+
+    second = derived_store.run(db, VALUATION)
+
+    assert _rows(db, valuation_metrics, "ttm_eps", "computed_at") == [
+        (days[0], 4.0, first.computed_at),
+        (days[1], 4.0, first.computed_at),
+        (days[2], 6.0, second.computed_at),
+        (days[3], 6.0, second.computed_at),
+        (days[4], 6.0, second.computed_at),
+    ]
+
+
+def test_a_restated_report_recomputes_from_its_first_publication(db, fetch_id) -> None:
+    # §43: the latest version's values, aligned to when the report was first public.
+    days = _trading_days(date(2024, 5, 14), 4)
+    _prices(db, fetch_id, days)
+    _four_quarters(db, fetch_id)
+    first = derived_store.run(db, VALUATION)
+    # A later version: annual 8.00 less the third quarter's 3.00 year to date.
+    _report(db, fetch_id, 2023, 4, eps="2.00", published=None)
+
+    second = derived_store.run(db, VALUATION)
+
+    assert _rows(db, valuation_metrics, "ttm_eps", "computed_at") == [
+        (days[1], 8.0, second.computed_at), (days[2], 8.0, second.computed_at),
+        (days[3], 8.0, second.computed_at)]
+    assert first.computed_at < second.computed_at
+
+
+def test_a_valuation_uses_no_later_price_or_report(db, fetch_id) -> None:
+    days = _trading_days(date(2024, 5, 15), 6)
+    _prices(db, fetch_id, days[:3])
+    _four_quarters(db, fetch_id)
+    derived_store.run(db, VALUATION)
+    early = _rows(db, valuation_metrics, *derived_store.VALUATION_COLUMNS)
+    _prices(db, fetch_id, days[3:], closes=["1.00", "999.00", "5.00"])
+    _report(db, fetch_id, 2024, 2, eps="9.00", published=days[4])
+
+    derived_store.run(db, VALUATION, full=True)
+
+    assert _rows(db, valuation_metrics, *derived_store.VALUATION_COLUMNS)[:3] == early
+
+
+def test_an_incremental_valuation_equals_the_full_one(db, fetch_id) -> None:
+    # The percentile ranks against every earlier PE, so it never forgets its start.
+    days = _trading_days(date(2024, 5, 15), 80)
+    _prices(db, fetch_id, days[:79])
+    _four_quarters(db, fetch_id)
+    derived_store.run(db, VALUATION)
+    _prices(db, fetch_id, days[79:], closes=["77.00"])
+    _report(db, fetch_id, 2024, 2, eps="0.50", published=days[60])
+
+    derived_store.run(db, VALUATION)
+    incremental = _rows(db, valuation_metrics, *derived_store.VALUATION_COLUMNS)
+    derived_store.run(db, VALUATION, full=True)
+
+    assert incremental == _rows(db, valuation_metrics, *derived_store.VALUATION_COLUMNS)
+    assert len(incremental) == 80
+
+
+def test_a_valuation_run_waits_for_a_report_writer(engine: Engine) -> None:
+    # A report writer holds the reports' job lock shared, beside its own
+    # stock's, until it commits; a run takes it exclusively.
+    key = financial_reports_module.KEY
+    with engine.connect() as writer, engine.connect() as runner:
+        writer.begin()
+        writer.execute(sa.select(sa.func.pg_advisory_xact_lock_shared(sa.func.hashtext(key))))
+        runner.begin()
+        runner.execute(sa.text("SET LOCAL lock_timeout = '200ms'"))
+        with pytest.raises(OperationalError, match="lock timeout"):
+            derived_store.run(runner, VALUATION)
+        runner.rollback()
+        writer.rollback()
+
+
+def test_a_report_writer_takes_the_shared_job_lock(db, fetch_id, monkeypatch) -> None:
+    taken = []
+    real = db.execute
+
+    def spy(statement, *args, **kwargs):
+        taken.append(str(statement))
+        return real(statement, *args, **kwargs)
+
+    monkeypatch.setattr(db, "execute", spy)
+    with pytest.raises(AttributeError):  # stops after the locks: no parsed document
+        financial_reports_module._write(db, "2330", 2024, 1, None, None)
+    assert "pg_advisory_xact_lock_shared" in taken[0]
 
 
 # ---------------------------------------------------------------- storage
