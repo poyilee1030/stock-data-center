@@ -139,6 +139,9 @@ input is corrected (§43); they have no knowledge axis. So:
   conventions, §42), and each row its `computed_at` (computation provenance,
   never publication time, §44). Stored rows carry no provenance of their own
   (§45).
+- Between an input's correction and the next derived run, a row still holds the
+  value computed before it while its `available_at` has already moved to the
+  correction: a `computed_at` earlier than that means it is not recomputed yet.
 
 To reproduce what a past run saw, use the observed datasets with explicit
 instants, or `technical-indicators-pit`.

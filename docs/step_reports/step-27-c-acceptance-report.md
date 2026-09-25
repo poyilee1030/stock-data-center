@@ -127,11 +127,24 @@ DATABASE_URL=.../stockdc_backfill scripts/verify_api.sh        exit 0，failures
 - `verify_api.py` 的 `_same` 把 float 當成「其他型別」轉字串比，第一次跑報了一堆 `7.52 != 7.52`；float 改成直接比。
 - 驗證伺服器有沒有殘留時用 `pgrep -f stock_data_center.api` 會找到下這個指令的 shell 自己；改用 `ps -ef | grep "[m] stock_data_center.api"`。
 
+## Code review（#62）
+
+乾淨 session 的 `/code-review medium`：沒有正確性 bug。它逐項核對了 `derived_rows`／`_late` 的可見時間（單列 key 不晚於規則時刻、
+單版財報不會洩漏、更正取最新列、streaks 的來源對應）、`depends` 與各計算實際讀的表、`_params` 的重複與未知參數、fact 上限、
+PIT 參考的拒收條件。兩點提醒，不是 bug，已分流：
+
+| 提醒 | 處置 |
+|---|---|
+| 輸入更正後、下一次衍生計算前，列仍是舊值，但 `available_at` 已移到更正時刻 | 只會讓列晚出現，不會提早；舊值在更正前本來就公開過。記入已知限制與 `docs/api.md`：列的 `computed_at` 早於更正時就是舊值 |
+| 全市場衍生查詢每次都掃每張輸入表找多列的 key | 已在已知限制（1–2 秒）；效能量測排 Step 30 |
+
 ## 已知限制
 
 - 衍生資料在輸入有更正時，讀整段序列的資料集會把 D 之後所有列延到更正公開的時刻（指數平均確實讀整段；移動平均只讀窗口，
   這是偏保守的一邊，不會讓任何列提早出現）。要「當時看得到的值」請用觀測資料或 `technical-indicators-pit`。
-- 全市場的衍生資料查詢約 1–2 秒；可觀測性（§62）是 Step 30。
+- 輸入更正之後、下一次衍生計算之前，那些列仍是更正前算的值，但 `available_at` 已經移到更正公開的時刻（code review of #62）。
+  值不會錯到未來，只是晚出現；列的 `computed_at` 早於更正時刻，就是還沒重算。排程重算是 Step 28 的前向抓取。
+- 全市場的衍生資料查詢約 1–2 秒（每次對每張輸入表做一次 group by 找多列的 key）；效能量測與可觀測性（§62）是 Step 30。
 - 沒有分頁（同 27-b）。
 
 ## 延後
