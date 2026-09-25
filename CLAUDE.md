@@ -175,7 +175,7 @@ Step 35-c-4 schema v2: derived data on v2              MERGED
 Step 35-d-1 schema v2: v2 loads no v1 module          MERGED
 Step 35-d-2 schema v2: delete the v1 code              MERGED
 Step 35-d-3 schema v2: baseline migration, drop v1     MERGED
-Step 36  adjusted prices (was Step 25)                 IN REVIEW (adjusted_prices_pit:v1, on demand)
+Step 36  adjusted prices (was Step 25)                 IN REVIEW (#67, adjusted_prices_pit:v1 on demand)
 Step 37  web dashboard over the public API             PLANNED (after 36, before 28)
 Step 38-a historical stock list: listing spans         MERGED (#66)
 Step 38-b historical stock list: delisted companies' data PLANNED (after 37)

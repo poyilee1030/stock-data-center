@@ -1,6 +1,6 @@
 # Step 36 驗收報告
 
-狀態：IN REVIEW
+狀態：IN REVIEW (#67)
 
 範圍：還原價格。`adjusted_prices_pit:v1` 以交易所結果資料的參考價比率（ROADMAP §18、CLAUDE.md §80），在查詢時依呼叫者的
 PIT 情境計算往回累積的還原因子，不建表；API 以 `adjusted-prices-pit` 提供。原始 OHLC 不動。

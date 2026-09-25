@@ -630,7 +630,7 @@ explicit out-of-scope work
 | 35-d-1 | MERGED (#52) | Schema v2：v2 不再載入任何 v1 模組 |
 | 35-d-2 | MERGED (#53) | Schema v2：刪除 v1 程式、測試與 scripts |
 | 35-d-3 | MERGED (#54) | Schema v2：baseline migration，刪除 v1 表 |
-| 36 | IN REVIEW | 還原價格（原 Step 25）：`adjusted_prices_pit:v1`，查詢時計算 |
+| 36 | IN REVIEW (#67) | 還原價格（原 Step 25）：`adjusted_prices_pit:v1`，查詢時計算 |
 | 37 | PLANNED（38-a 之後） | 網頁儀表板：以 API 展示資料庫內容（37-a／37-b／37-c） |
 | 38 | 38-a MERGED (#66)；38-b PLANNED | 歷史股票清單：含已下市公司，每段掛牌期間的上市與下市日期（38-a／38-b） |
 
@@ -1785,7 +1785,7 @@ importer 以資料日期欄位為 key，絕不用檔名：`20200619.CSV` 和 `20
 
 ## Step 36 — 還原價格
 
-狀態：**IN REVIEW**（PR 見驗收報告）。依賴：Step 16、Step 17-c、Steps 19-a–e（皆 MERGED）。2026-09-26 owner 決定排在 Step 37、38-b 之前。
+狀態：**IN REVIEW**（#67）。依賴：Step 16、Step 17-c、Steps 19-a–e（皆 MERGED）。2026-09-26 owner 決定排在 Step 37、38-b 之前。
 
 方法：§18 的參考價比率。逐證券計算往回累積的因子。原始 OHLC 不動。
 
