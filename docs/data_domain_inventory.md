@@ -156,6 +156,7 @@ changes, and each row names the fetch it came from (ADR-0027).
 | `xbrl_concept_catalog` | **not in v1** | — | — | — |
 | `technical_indicators:v1` | canonical derived | `technical_indicators (stock_id, source, trade_date)` | latest inputs; D uses prices dated on or before D; `computed_at` is provenance | both ML repos/API |
 | `technical_indicators_pit:v1` | canonical derived | computed on demand | inherited from PIT-visible prices; the reference the stored series is checked against | API |
+| `adjusted_prices_pit:v1` | canonical derived | computed on demand (Step 36) | PIT-visible prices and corporate actions under the caller's context; backward from the last visible price; `reference_price / close_before` per event, total-return | returns, backtests/API |
 | `shareholding_concentration:v1` | canonical derived | `shareholding_concentration (stock_id, source, snapshot_date)` | latest TDCC inputs; a change is against the stock's previous snapshot | selection/API |
 | `valuation_metrics:v1` | canonical derived | `valuation_metrics (stock_id, source, trade_date)` | latest inputs; a report counts from its first version's `published_at` | both ML repos/API |
 | `margin_metrics:v1` | canonical derived | `margin_metrics (stock_id, source, trade_date)` | latest margin inputs; each value from that day's row | selection/API |

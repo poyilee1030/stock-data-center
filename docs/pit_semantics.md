@@ -202,3 +202,9 @@ or `system_as_of` is refused: the table is overwritten and cannot answer one.
 decides which of them were public. In a rolling as-of series each observation
 date is computed at the instant its own inputs became public, so no value can
 see a later price. See [Canonical Derived Data](derived_data.md).
+
+`adjusted_prices_pit:v1` (Step 36) is computed on demand too, under market or
+system PIT: an event adjusts the series only in a context that sees both the
+event and the price of its ex-date, so no corporate action reaches a price
+before it could be known (CLAUDE.md §51.3), a retraction removes it from its
+own `recorded_at`, and a correction changes its factor only from then.

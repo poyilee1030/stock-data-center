@@ -630,9 +630,9 @@ explicit out-of-scope work
 | 35-d-1 | MERGED (#52) | Schema v2：v2 不再載入任何 v1 模組 |
 | 35-d-2 | MERGED (#53) | Schema v2：刪除 v1 程式、測試與 scripts |
 | 35-d-3 | MERGED (#54) | Schema v2：baseline migration，刪除 v1 表 |
-| 36 | PLANNED | 還原價格（原 Step 25） |
+| 36 | IN REVIEW | 還原價格（原 Step 25）：`adjusted_prices_pit:v1`，查詢時計算 |
 | 37 | PLANNED（38-a 之後） | 網頁儀表板：以 API 展示資料庫內容（37-a／37-b／37-c） |
-| 38 | 38-a IN REVIEW (#66)；38-b PLANNED | 歷史股票清單：含已下市公司，每段掛牌期間的上市與下市日期（38-a／38-b） |
+| 38 | 38-a MERGED (#66)；38-b PLANNED | 歷史股票清單：含已下市公司，每段掛牌期間的上市與下市日期（38-a／38-b） |
 
 Steps 1–12 建立了儲存、PIT 和 raw-first 的基礎。它們的 writer 契約包含一些沒有任何來源會填入的欄位（§2.3）。這些欄位保持可為 null、不填值。不刪除它們，因為刪除不會帶來任何正確性上的好處。
 
@@ -647,6 +647,8 @@ Step 13 是必須重新確立 *step* 編號的地方：已放棄的股利彙總 
 2026-09-25 起，網頁儀表板是 Step 37，排在 Step 28 之前優先做（owner 決定）：編號只識別工作，不代表順序。
 
 2026-09-25 起，歷史股票清單是 Step 38（owner 決定，起因是 API 使用者要求歷史 universe）。38-a 排在 Step 37 之前先做（owner 2026-09-25 決定）；38-b 的先後另定。
+
+2026-09-26 起，順序是 Step 36（還原價格）→ Step 37（網頁儀表板）→ Step 38-b（owner 決定）。
 
 ---
 
@@ -1783,9 +1785,32 @@ importer 以資料日期欄位為 key，絕不用檔名：`20200619.CSV` 和 `20
 
 ## Step 36 — 還原價格
 
-狀態：**PLANNED**。依賴：Step 16、Step 17-c、Steps 19-a–e。
+狀態：**IN REVIEW**（PR 見驗收報告）。依賴：Step 16、Step 17-c、Steps 19-a–e（皆 MERGED）。2026-09-26 owner 決定排在 Step 37、38-b 之前。
 
 方法：§18 的參考價比率。逐證券計算往回累積的因子。原始 OHLC 不動。
+
+- [x] `adjusted_prices_pit:v1`（`stock_data_center.v2.adjusted_prices`）：查詢時計算、不建表。每個交易所結果事件的
+  `factor = reference_price / close_before`；日期 t 的累積因子是 t 之後、到序列最後一筆可見價格為止的事件因子乘積；
+  還原開高低收 = 原始 × 累積因子。
+- [x] 兩個輸入都經 `visibility.rows` 讀取，market PIT 與 system PIT 都支援；事件撤回、更正、`knowledge_as_of` 都照可見性層的規則。
+- [x] API：`adjusted-prices-pit`（`kind: derived_on_demand`），一次一檔；每列同時給原始與還原價格、累積因子；`events`
+  列出套用的事件及其因子、`available_at`、provenance。
+- [x] `scripts/report_adjusted_price_gaps.py`：原始與還原序列超過漲跌幅的缺口全部分類。
+- [x] 第三方交叉比對：`third-party/fubon/fetch_adjusted.py`、`compare_adjusted.py`（§30.1，只作佐證）。
+- [x] 文件：`docs/derived_data.md`、`docs/pit_semantics.md`、`docs/api.md`、`docs/data_domain_inventory.md`、audit §4.10。
+- 驗收證據：`docs/step_reports/step-36-acceptance-report.md`。
+
+實作中裁決：
+
+- **不建表**：§43 要求還原價格保留 PIT 的公司行動可見性，跟著最新輸入覆寫的表做不到；單檔整段序列是一次價格讀取加幾筆事件，
+  約 0.03 秒，建表不會多得到任何東西。資料集代碼依 §46 的命名規則帶 `_pit`。
+- **錨點是 PIT 情境看得到的最後一筆價格**，不是請求的 `end`：同一天的值不隨查詢區間改變；除權息日當天的價格公布前，事件不生效。
+- **一個價格來源一條序列**（§30）：TWSE 的結果資料只調整 `twse_mi_index`，TPEx 的只調整 `tpex_otc_quotes`；轉市場的股票有兩條。
+- **因子未知的事件讓它之前的累積因子都是 NULL**，不默默略過。現有 10,860 筆事件全都有兩個價格。
+- **成交量不還原**：ROADMAP 只要求還原 OHLC；總報酬因子套在成交量上沒有意義。
+- **門檻是漲跌幅限制**：相隔 k 個交易日的兩筆收盤價，上限 1.1^k − 1、下限 0.9^k − 1。
+- **現金增資除權日的跳動屬於「其他有記載的市場事件」**：交易所公布的漲跌停價不以除權參考價為中心（audit §4.10），
+  市場不反映稀釋時，還原序列會移動認股權的價值。這是 §80 的慣例，保留；Fubon 的還原 K 線對現金增資完全不調整，差異已分類。
 
 驗收：
 
@@ -1793,7 +1818,7 @@ importer 以資料日期欄位為 key，絕不用檔名：`20200619.CSV` 和 `20
 - 事件日的連續性
 - 在請求的 PIT context 中，事件的證據可見之前，任何事件都不會影響序列
 
-範圍外：純價格（不含現金股利）序列；2020 年之前的歷史。
+範圍外：純價格（不含現金股利）序列；2020 年之前的歷史；成交量還原；指標的還原價格版本；已下市公司的序列（Step 38-b）。
 
 ## Step 26 — 標準衍生 v1（移植舊系統計算程式）
 
@@ -2126,7 +2151,7 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 
 ## Step 38 — 歷史股票清單（含已下市公司）
 
-狀態：38-a **IN REVIEW**（#66），排在 Step 37 之前（owner 2026-09-25 決定）；38-b **PLANNED**，先後另定。依賴：Step 35-d（MERGED）、Step 27（MERGED）。
+狀態：38-a **MERGED**（#66），排在 Step 37 之前（owner 2026-09-25 決定）；38-b **PLANNED**，排在 Step 36、37 之後（owner 2026-09-26 決定）。依賴：Step 35-d（MERGED）、Step 27（MERGED）。
 
 ### 背景
 

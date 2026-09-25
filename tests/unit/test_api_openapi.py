@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 from stock_data_center import api
 from stock_data_center.api import openapi
 from stock_data_center.api.datasets import DATASETS
-from stock_data_center.api.derived import DERIVED, PIT_REFERENCE
+from stock_data_center.api.derived import ADJUSTED, DERIVED, PIT_REFERENCE
 from stock_data_center.db.base import metadata
 
 KEY = "test-key-0123456789"
@@ -83,7 +83,7 @@ def test_every_dataset_is_offered_by_name(client) -> None:
     schema = client.get("/openapi.json").json()
     (name,) = [p for p in schema["paths"]["/v1/datasets/{name}"]["get"]["parameters"]
                if p["in"] == "path"]
-    assert name["schema"]["enum"] == [*DATASETS, *DERIVED, PIT_REFERENCE]
+    assert name["schema"]["enum"] == [*DATASETS, *DERIVED, PIT_REFERENCE, ADJUSTED]
 
 
 def test_choices_are_the_ones_the_handlers_accept(client) -> None:
@@ -128,3 +128,4 @@ def test_every_stored_derived_dataset_is_explained(client) -> None:
     for name in DERIVED:
         assert f"`{name}`" in rows["description"], name
     assert f"### {PIT_REFERENCE}" in rows["description"]
+    assert f"### {ADJUSTED}" in rows["description"]

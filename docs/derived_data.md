@@ -114,6 +114,34 @@ every value after that instant and nothing before it
 (`docs/pit_semantics.md`). One stock's full series takes about 0.11 s; reading
 it from the stored table takes about 0.017 s.
 
+## Adjusted prices (Step 36)
+
+`adjusted_prices_pit:v1` (`stock_data_center.v2.adjusted_prices`) is computed
+on demand and never stored: adjusted prices keep PIT corporate-action
+visibility (CLAUDE.md §43, §51.3), which a table following the latest inputs
+could not. Nothing is lost without a table — one stock's whole series is one
+read of its prices and its few events.
+
+- Every exchange result event on ex-date D has `factor(D) = reference_price /
+  close_before` (ROADMAP §18, CLAUDE.md §80). The cumulative factor of date t
+  is the product of the factors of the events with t < D <= the series' last
+  price, and the adjusted open, high, low and close are the raw ones times it.
+  Backward adjustment: the last price is unadjusted.
+- Both inputs are read through `visibility.rows` under the caller's PIT
+  context, market or system. The series is anchored at the last price that
+  context sees, so an event whose ex-date price is not yet public adjusts
+  nothing, and a value never depends on the requested window.
+- The reference price deducts cash dividends, so the series is total-return.
+  An event with no reference price or close before leaves every earlier
+  cumulative factor unknown instead of silently unadjusted. Volume is not
+  adjusted.
+- One series per daily-price source (§30): TWSE feeds adjust `twse_mi_index`,
+  TPEx feeds `tpex_otc_quotes`, and a stock that changed market has two.
+
+`scripts/report_adjusted_price_gaps.py` classifies every raw and adjusted
+close-to-close gap beyond the daily price limit on the real history (Step 36
+report).
+
 ## `computed_at`
 
 Computation provenance, never a publication time or an eligibility cutoff
