@@ -1,6 +1,6 @@
 # Step 27-a 驗收報告
 
-狀態：IN REVIEW (#60)
+狀態：MERGED (#60)
 
 範圍：公開 API 的第一步，PIT 可見性層。每張觀測表都能以 market PIT（`information_as_of` + `knowledge_as_of`）或 system PIT
 （`system_as_of`）查詢，沒有 HTTP。Step 27 的拆步與 owner 決定（2026-09-25）記在 ROADMAP Step 27。

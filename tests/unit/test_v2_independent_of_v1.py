@@ -31,12 +31,15 @@ KEPT = (
     "stock_data_center.ingestion.models",
     "stock_data_center.ingestion.observations",
     "stock_data_center.ingestion.raw_storage",
+    # Step 27: the public API, over the v2 visibility layer.
+    "stock_data_center.api",
 )
 
 
 def _kept(module: str) -> bool:
     return module in KEPT or module.startswith(
-        ("stock_data_center.v2.", "stock_data_center.ingestion.adapters.")
+        ("stock_data_center.v2.", "stock_data_center.ingestion.adapters.",
+         "stock_data_center.api.")
     )
 
 

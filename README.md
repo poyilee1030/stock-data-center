@@ -31,7 +31,8 @@
 `margin_metrics:v1` 與 `short_interest_metrics:v1`（Step 26-e）、`valuation_metrics:v1`（Step 26-f），都以最新的
 輸入增量計算；即時計算的 PIT 對照組是 `technical_indicators_pit:v1`。Step 26 的七個衍生資料集都已存表。
 
-公開 API（Step 27）、還原價格（Step 36）、排程的前向抓取（Step 28）尚未開始。
+公開 API（Step 27）：PIT 可見性層（27-a）與十一個觀測資料集的 HTTP 端點（27-b）已完成，說明在 `docs/api.md`；
+財報、衍生資料、股票清單與交易日曆的端點是 27-c。還原價格（Step 36）、排程的前向抓取（Step 28）尚未開始。
 
 已知限制：2025Q4 之前的財報沒有首見證據，真正延遲申報的公司在 Market PIT 下會偏早
 （audit §7.6）；月營收的 KY 公司與更正後的值沒有證明的公開時間，`published_at` 為 NULL。
@@ -40,7 +41,7 @@
 
 ```text
 Python 3.12+
-FastAPI（規劃中，API 尚未開放）
+FastAPI + uvicorn（Step 27-b 起，`python -m stock_data_center.api`）
 Pydantic 2.x
 SQLAlchemy 2.x
 Alembic
