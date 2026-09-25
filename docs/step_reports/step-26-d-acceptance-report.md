@@ -1,6 +1,6 @@
 # Step 26-d 驗收報告
 
-狀態：IN REVIEW
+狀態：IN REVIEW (#57)
 
 範圍：`shareholding_concentration:v1`，移植舊系統 `calculate_shareholding_concentration.py`，沿用 26-b 的增量執行器。
 

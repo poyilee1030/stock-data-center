@@ -607,7 +607,7 @@ explicit out-of-scope work
 | 26-a | SUPERSEDED | 衍生服務與 `technical_indicators:v1`（#44，併入 35-c-4） |
 | 26-b | MERGED (#55) | 存表的衍生資料：`technical_indicators:v1` 與 `institutional_streaks:v1` |
 | 26-c | MERGED (#56) | `institutional_cumulative_flow:v1` |
-| 26-d | IN REVIEW | `shareholding_concentration:v1` |
+| 26-d | IN REVIEW (#57) | `shareholding_concentration:v1` |
 | 26-e | PLANNED | `margin_metrics:v1` 與 `short_interest_metrics:v1` |
 | 26-f | PLANNED | `valuation_metrics:v1` |
 | 27 | PLANNED | 公開 REST API v1 |
@@ -1789,7 +1789,7 @@ importer 以資料日期欄位為 key，絕不用檔名：`20200619.CSV` 和 `20
 
 ## Step 26 — 標準衍生 v1（移植舊系統計算程式）
 
-狀態：**26-a SUPERSEDED（#44，併入 35-c-4）；26-b MERGED（#55）；26-c MERGED（#56）；26-d IN REVIEW；26-e–26-f PLANNED**。依賴：Steps 17-c–24。
+狀態：**26-a SUPERSEDED（#44，併入 35-c-4）；26-b MERGED（#55）；26-c MERGED（#56）；26-d IN REVIEW（#57）；26-e–26-f PLANNED**。依賴：Steps 17-c–24。
 
 定義，每個都從舊系統的計算程式移植，並與舊系統的表對帳：
 
@@ -1865,7 +1865,7 @@ SUPERSEDED 的 #44。
 
 ### Step 26-d — 股權集中度
 
-狀態：**IN REVIEW**。
+狀態：**IN REVIEW**（#57）。
 
 - 寬表 `shareholding_concentration`，key `(stock_id, source, snapshot_date)`：大、中、小戶持股比率，大減小的
   spread，大、小戶人數，三個比率與 spread 的週變化，加 `computed_at`；migration `c3f1f515e3df`。key 用集保的
