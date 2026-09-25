@@ -43,7 +43,7 @@ priced (legacy's daily quotes are its priced days). ROE is redefined (owner, 202
 Exit 1 on anything unexplained.
 
     python scripts/reconcile_valuation_metrics.py \\
-        --database-url postgresql+psycopg://stockdc:stockdc@localhost:5432/stockdc_backfill \\
+        --database-url postgresql+psycopg://stockdc:stockdc@localhost:26519/stockdc_backfill \\
         --legacy-database-url postgresql+psycopg://user:password@127.0.0.1:5419/stock_db \\
         --start 2020-01-02 --end 2026-09-11
 """

@@ -21,7 +21,7 @@ from decimal import Decimal
 
 import sqlalchemy as sa
 
-SERVER = "postgresql+psycopg://stockdc:stockdc@localhost:5432"
+SERVER = "postgresql+psycopg://stockdc:stockdc@localhost:26519"
 V1_SEEN_THROUGH = date(2026, 9, 11)  # Step 19-d requested --end 2026-09-11
 COLUMNS = ("event_type", "close_before", "reference_price", "rights_dividend_value",
            "cash_dividend_per_share", "free_share_ratio", "rights_ratio",

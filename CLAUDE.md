@@ -114,7 +114,7 @@ Each required criterion must be PASS/FAIL with concrete evidence.
 
 ## Current Step Sequence
 
-ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–18, 19-a through 19-e, 20-a through 20-d, 21-a, 21-b, 22-a through 22-c, 23-a through 24-b, 35-a, 35-b-1, 35-c-1 through 35-c-4, 35-d-1 through 35-d-3, 26-b through 26-f, 27-a and 27-b as MERGED, 26-a, 29, 32 and 35-b-2 as SUPERSEDED, and labels Step 27-c as `THIS STEP` (a contextual marker, not an additional status value):
+ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–18, 19-a through 19-e, 20-a through 20-d, 21-a, 21-b, 22-a through 22-c, 23-a through 24-b, 35-a, 35-b-1, 35-c-1 through 35-c-4, 35-d-1 through 35-d-3, 26-b through 26-f and 27-a through 27-c as MERGED, and 26-a, 29, 32 and 35-b-2 as SUPERSEDED; no step is currently marked `THIS STEP` (a contextual marker, not an additional status value):
 
 ```text
 Step 11  authoritative security lifecycle history        MERGED
@@ -158,7 +158,7 @@ Step 26-e margin + short-interest metrics              MERGED
 Step 26-f valuation metrics                            MERGED
 Step 27-a public API: PIT visibility layer             MERGED
 Step 27-b public API: HTTP layer + observed datasets   MERGED
-Step 27-c public API: reports, derived, reference data THIS STEP
+Step 27-c public API: reports, derived, reference data MERGED
 Step 28  scheduled forward capture                     PLANNED
 Step 29  Python SDK + downstream integration           SUPERSEDED (removed by owner)
 Step 30  operations + observability                    PLANNED
@@ -176,6 +176,7 @@ Step 35-d-1 schema v2: v2 loads no v1 module          MERGED
 Step 35-d-2 schema v2: delete the v1 code              MERGED
 Step 35-d-3 schema v2: baseline migration, drop v1     MERGED
 Step 36  adjusted prices (was Step 25)                 PLANNED
+Step 37  web dashboard over the public API             PLANNED (next, before 28)
 ```
 
 `ROADMAP.md` remains authoritative if this snapshot becomes stale.

@@ -33,7 +33,7 @@ institutional file has, which is the same input difference. Exit 1 on any
 unexplained sum, ratio or key.
 
     python scripts/reconcile_institutional_cumulative_flow.py \\
-        --database-url postgresql+psycopg://stockdc:stockdc@localhost:5432/stockdc_backfill \\
+        --database-url postgresql+psycopg://stockdc:stockdc@localhost:26519/stockdc_backfill \\
         --legacy-database-url postgresql+psycopg://user:password@127.0.0.1:5419/stock_db \\
         --start 2020-01-02 --end 2026-09-11
 """

@@ -23,7 +23,7 @@ import sqlalchemy as sa
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from client import fetch
 
-DATABASE_URL = "postgresql+psycopg://stockdc:stockdc@localhost:5432/stockdc_backfill"
+DATABASE_URL = "postgresql+psycopg://stockdc:stockdc@localhost:26519/stockdc_backfill"
 
 CASES = (
     ("2330", "2026-09-01", "2026-09-11"),

@@ -195,13 +195,17 @@ def _fact(fact) -> dict:
 
 
 def create_app(*, api_key: str,
-               connect: Callable[[], AbstractContextManager[Connection]]) -> FastAPI:
-    """The API; `connect` opens the connection one request reads through."""
+               connect: Callable[[], AbstractContextManager[Connection]],
+               git_commit: str | None = None) -> FastAPI:
+    """The API; `connect` opens the connection one request reads through.
+
+    `git_commit` is the implementation `technical-indicators-pit` reports;
+    None asks git, which a container image cannot."""
     if not api_key:
         raise ValueError("an API key is required: set STOCKDC_API_KEY")
     app = FastAPI(title="stock-data-center", version="1")
     expected = api_key.encode()
-    reference = TechnicalIndicators()  # takes the git commit once
+    reference = TechnicalIndicators(git_commit=git_commit)  # takes the commit once
 
     @app.middleware("http")
     async def require_key(request: Request, call_next):

@@ -1,0 +1,12 @@
+.env
+.git
+.venv
+.pytest_cache
+**/__pycache__
+data
+log
+docs
+tests
+third-party
+migrations
+scripts

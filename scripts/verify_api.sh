@@ -2,7 +2,7 @@
 # Steps 27-b and 27-c acceptance: start the API against a database, run verify_api.py
 # against it, and stop the server whatever happens.
 #
-#   DATABASE_URL=postgresql+psycopg://stockdc:stockdc@localhost:5432/stockdc_backfill \
+#   DATABASE_URL=postgresql+psycopg://stockdc:stockdc@localhost:26519/stockdc_backfill \
 #       scripts/verify_api.sh [port]
 #
 # The API key is generated for this run and never printed. The server runs in
@@ -15,7 +15,7 @@ PORT="${1:-8765}"
 export STOCKDC_API_KEY="$(.venv/bin/python -c 'import secrets; print(secrets.token_hex(16))')"
 export DATABASE_URL
 
-setsid .venv/bin/python -m stock_data_center.api --port "$PORT" >/dev/null 2>&1 &
+setsid .venv/bin/python -m stock_data_center.api --host 127.0.0.1 --port "$PORT" >/dev/null 2>&1 &
 LAUNCHER=$!
 PGID="$(ps -o pgid= "$LAUNCHER" | tr -d ' ')"
 cleanup() {

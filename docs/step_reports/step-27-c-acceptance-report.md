@@ -1,6 +1,6 @@
 # Step 27-c 驗收報告
 
-狀態：IN REVIEW (#62)
+狀態：MERGED (#62)
 
 範圍：公開 API 的財報、七個存表的衍生資料集、`technical_indicators_pit:v1`、股票清單與交易日曆。可見性仍然只在
 `stock_data_center.v2.visibility`（CLAUDE.md §19）；API 只解析、驗證、呈現。API 說明在 `docs/api.md`。

@@ -27,7 +27,7 @@ has (`ours_only_input_only_ours_has`, `legacy_only_input_only_legacy_has`).
 Exit 1 on anything unexplained.
 
     python scripts/reconcile_margin_metrics.py \\
-        --database-url postgresql+psycopg://stockdc:stockdc@localhost:5432/stockdc_backfill \\
+        --database-url postgresql+psycopg://stockdc:stockdc@localhost:26519/stockdc_backfill \\
         --legacy-database-url postgresql+psycopg://user:password@127.0.0.1:5419/stock_db \\
         --start 2020-01-02 --end 2026-09-11
 """

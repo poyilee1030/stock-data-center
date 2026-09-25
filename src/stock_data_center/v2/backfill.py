@@ -1,6 +1,6 @@
 """Backfill the v2 exchange-daily tables over the stored trading days.
 
-    DATABASE_URL=postgresql+psycopg://stockdc:stockdc@localhost:5432/stockdc_backfill \\
+    DATABASE_URL=postgresql+psycopg://stockdc:stockdc@localhost:26519/stockdc_backfill \\
         .venv/bin/python -m stock_data_center.v2.backfill \\
         --job daily_prices/twse_mi_index --start 2026-09-01 --end 2026-09-11
 

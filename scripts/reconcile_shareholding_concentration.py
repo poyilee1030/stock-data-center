@@ -37,7 +37,7 @@ A key only one side has must be a snapshot only that side's input has:
 none. Exit 1 on any unexplained difference or key.
 
     python scripts/reconcile_shareholding_concentration.py \\
-        --database-url postgresql+psycopg://stockdc:stockdc@localhost:5432/stockdc_backfill \\
+        --database-url postgresql+psycopg://stockdc:stockdc@localhost:26519/stockdc_backfill \\
         --legacy-database-url postgresql+psycopg://user:password@127.0.0.1:5419/stock_db \\
         --start 2020-01-02 --end 2026-09-11
 """

@@ -49,7 +49,7 @@ from stock_data_center.v2.backfill import HOST_INTERVALS, _unit, run
 from stock_data_center.v2.exchange_daily import ingest
 from stock_data_center.v2.fetch_log import current_git_commit
 
-SERVER = "postgresql+psycopg://stockdc:stockdc@localhost:5432"
+SERVER = "postgresql+psycopg://stockdc:stockdc@localhost:26519"
 BACKFILL = f"{SERVER}/stockdc_backfill"
 SCRATCH = "stockdc_v2_verify_35c"
 TDCC_HOST = "opendata.tdcc.com.tw"

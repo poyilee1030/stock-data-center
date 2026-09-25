@@ -27,8 +27,8 @@ Exit 1 if any fails. The server is started by the caller:
 
     STOCKDC_API_KEY=... DATABASE_URL=... python -m stock_data_center.api &
     STOCKDC_API_KEY=... python scripts/verify_api.py \\
-        --database-url postgresql+psycopg://stockdc:stockdc@localhost:5432/stockdc_backfill \\
-        --base-url http://127.0.0.1:8000
+        --database-url postgresql+psycopg://stockdc:stockdc@localhost:26519/stockdc_backfill \\
+        --base-url http://127.0.0.1:28617
 """
 
 from __future__ import annotations
@@ -244,7 +244,7 @@ def _same(api_value, db_value) -> bool:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--database-url", default=os.getenv("DATABASE_URL"))
-    parser.add_argument("--base-url", default="http://127.0.0.1:8000")
+    parser.add_argument("--base-url", default="http://127.0.0.1:28617")
     args = parser.parse_args()
     key = os.getenv("STOCKDC_API_KEY")
     if not key:

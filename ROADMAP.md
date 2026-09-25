@@ -2,7 +2,7 @@
 
 > 交付以 step 追蹤。一個 step = 一個 branch = 一個 pull request；大到無法審閱的 step 拆成 `step-N-a`、`step-N-b`……（CLAUDE.md §1）。歷史上的 phase 名稱只保留作為舊參照。
 >
-> 狀態日期：2026-09-24。
+> 狀態日期：2026-09-25。
 >
 > 來源實況基準：[`docs/source_field_audit.md`](docs/source_field_audit.md)。本 roadmap 中每個規劃中的 PR，範圍都限於 audit 證明確實存在的欄位。
 >
@@ -557,7 +557,7 @@ explicit out-of-scope work
 
 # 20. Step 帳本
 
-狀態日期：2026-09-24。
+狀態日期：2026-09-25。
 
 | Step | 狀態 | 交付內容 |
 |---|---|---|
@@ -612,7 +612,7 @@ explicit out-of-scope work
 | 26-f | MERGED (#59) | `valuation_metrics:v1` |
 | 27-a | MERGED (#60) | 公開 API：PIT 可見性層 |
 | 27-b | MERGED (#61) | 公開 API：HTTP 層、觀測資料 |
-| 27-c | IN REVIEW (#62) | 公開 API：財報、衍生資料、參考資料 |
+| 27-c | MERGED (#62) | 公開 API：財報、衍生資料、參考資料 |
 | 28 | PLANNED | 排程的前向抓取 |
 | 29 | SUPERSEDED | Python SDK 與下游整合（owner 決定移除，2026-09-24） |
 | 30 | PLANNED | 維運與可觀測性 |
@@ -631,6 +631,7 @@ explicit out-of-scope work
 | 35-d-2 | MERGED (#53) | Schema v2：刪除 v1 程式、測試與 scripts |
 | 35-d-3 | MERGED (#54) | Schema v2：baseline migration，刪除 v1 表 |
 | 36 | PLANNED | 還原價格（原 Step 25） |
+| 37 | PLANNED（下一步） | 網頁儀表板：以 API 展示資料庫內容（37-a／37-b／37-c） |
 
 Steps 1–12 建立了儲存、PIT 和 raw-first 的基礎。它們的 writer 契約包含一些沒有任何來源會填入的欄位（§2.3）。這些欄位保持可為 null、不填值。不刪除它們，因為刪除不會帶來任何正確性上的好處。
 
@@ -641,6 +642,8 @@ Step 13 是必須重新確立 *step* 編號的地方：已放棄的股利彙總 
 2026-09-23 起，公開 REST API 從 Step 28 提前為 Step 27，排程的前向抓取改為 Step 28，讓下游不必等前向抓取完成才能接上。在這之前寫成的 step 報告、ADR 和 migration 中，「Step 27」指前向抓取，「Step 28」指 API；它們是歷史紀錄，不改寫。
 
 2026-09-24 起，還原價格從 Step 25 改為 Step 36（owner 決定）。在這之前寫成的 step 報告與 ADR 中，「Step 25」指還原價格；它們同樣不改寫。
+
+2026-09-25 起，網頁儀表板是 Step 37，排在 Step 28 之前優先做（owner 決定）：編號只識別工作，不代表順序。
 
 ---
 
@@ -2014,7 +2017,7 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 
 ## Step 27 — 公開 REST API v1
 
-狀態：**27-a MERGED（#60）；27-b MERGED（#61）；27-c IN REVIEW（#62）**。依賴：Step 15 的決定、各資料 PR。
+狀態：**27-a MERGED（#60）；27-b MERGED（#61）；27-c MERGED（#62）**。依賴：Step 15 的決定、各資料 PR。
 
 提供正確的 Data Center 語意，而不暴露資料表。端點涵蓋舊系統使用者發出的查詢：每日面板、指數、估值、籌碼資料、月營收、財務 facts 與摘要、TDCC、公司行動和衍生指標。每個回應都帶有其 PIT context 和 provenance。沒有來源的欄位被省略，或明確標示為無法取得。還原價格是 Step 36，不在這裡。
 
@@ -2029,6 +2032,7 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 - PIT 參數沒帶時預設 latest：以收到請求的時刻作為 `information_as_of` 與 `knowledge_as_of`，並把解析後的時間點回傳在回應裡（§59）；要重現歷史就明確帶時間點。
 - 存表的衍生資料依 `information_as_of` 過濾：D 那一列要等它用到的輸入都公開才回傳；`knowledge_as_of` 或 `system_as_of` 指定過去的時間就拒絕，因為表以最新輸入覆寫、答不出來；回應標明「最新輸入」與 `computed_at`。
 - 要 API key：請求要帶 key，key 放 `.env`，不進版本庫。
+- 連線位址（owner，2026-09-25，27-c 合併後）：client 從區網 IP 或 Tailscale IP 呼叫 API，所以預設聽 `0.0.0.0`（原本只聽 127.0.0.1），port 預設 28617（不用常見的 8000；在 Linux 動態 port 範圍 32768–60999 之外）。API 包成 compose 的 `api` 服務（`Dockerfile`、`scripts/api_up.sh`），與 PostgreSQL 一起啟動；PostgreSQL 改成只聽 `127.0.0.1:26519`（原本 `0.0.0.0:5432`，區網拿 `stockdc`／`stockdc` 就能繞過 API 直接連、還能寫入）。這台是放在辦公室的桌機；`--host 127.0.0.1` 可以只限本機。區網是明文 HTTP，同網段看得到 key；Tailscale 由 WireGuard 加密。
 
 ### Step 27-a — PIT 可見性層
 
@@ -2048,7 +2052,7 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
   十一個觀測資料集，名稱與資料表不同（§55）：`daily-prices`、`indices`、`official-valuations`、`institutional-flows`、
   `institutional-market-flows`、`foreign-holdings`、`margin-trading`、`securities-lending`、`shareholding-distributions`、
   `monthly-revenues`、`corporate-actions`。
-- 每個請求要 `X-API-Key`；只聽 127.0.0.1；每次讀取都在唯讀交易裡；key 與資料庫 URL 只從環境變數來。
+- 每個請求要 `X-API-Key`；預設聽所有介面（2026-09-25 起，見上方決定；`--host 127.0.0.1` 可只限本機）；每次讀取都在唯讀交易裡；key 與資料庫 URL 只從環境變數來。
 - PIT context：`information_as_of`＋`knowledge_as_of` 或 `system_as_of`，不能混用；時間點必須帶時區；`latest`／`now` 與沒帶的
   market 參數都解析成請求抵達的時刻，回應寫明哪些是別名、哪些是預設。不認得的參數一律 400，打錯字的 PIT 參數不會默默變成 latest。
 - 每列帶 `available_at`、`recorded_at` 與 provenance（fetch 與其原始檔的 SHA-256；TWSE 的除權息與減資另帶明細頁的）。精確小數以
@@ -2060,7 +2064,7 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 
 ### Step 27-c — 財報、衍生資料、參考資料
 
-狀態：**IN REVIEW**（#62）。
+狀態：**MERGED**（#62）。
 
 - `financial-reports`：每個 `(stock_id, report_year, report_quarter)` 回傳 PIT context 看到的那個版本，帶**該版本自己的** facts（§20）；
   `start`／`end` 篩季末日；`statement`、`account_code` 可重複，用來縮小 facts；一次最多 200,000 個 fact。
@@ -2074,6 +2078,47 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
   （每個日期以自己的規則時刻計算）；不接受 system PIT。
 - `GET /v1/stocks`（今天的普通股清單，ADR-0026，揭露存活者偏差）與 `GET /v1/trading-days`：參考資料，不是 PIT，每列帶 provenance。
 - 驗收證據：`docs/step_reports/step-27-c-acceptance-report.md`。
+
+## Step 37 — 網頁儀表板
+
+狀態：**PLANNED（下一步，owner 2026-09-25 決定排在 Step 28 之前）**。依賴：Step 27（MERGED）、API 的部署（`api-listen-addresses` 分支：compose 的 `api` 容器、`0.0.0.0:28617`、資料庫只聽本機）。
+
+目標：一個在瀏覽器裡看資料的前端，參考 FinMind 的分析儀表板（`finmindtrade.com/analysis/#/dashboards/new-info`）：選一檔股票，看到它的價格、籌碼、營收與財報。**純粹展示**已存的資料，不做任何新的計算、選股或排名（那些屬於下游，CLAUDE.md §38–40）。
+
+### 邊界
+
+- 前端**只透過公開 API 讀資料**（§57 的讀取路徑），不連資料庫，也不知道表名（§55）。畫面上的每個數字都是某個 API 回應裡的值；前端不自己算 MA、YoY 或任何比率——這些 API 已經有（衍生資料集、月營收發布的比較值），沒有的就不顯示。
+- PIT：預設 latest，並在畫面上標出回應的 `pit` 時間點。來源從不發布的欄位（`unsourced`）不畫成 0 或空值線；NULL 就是缺值（例如沒成交的日子）。
+- 多來源的資料集依來源分開顯示，不合併（§30）；股票只有一個價格來源時照常顯示。
+- 範圍：今天的普通股清單（ADR-0026），畫面上揭露存活者偏差。
+
+### 開工前要定（寫成 ADR，CLAUDE.md §2 的技術棧沒有前端）
+
+1. **框架與圖表庫**。建議 Vite + TypeScript + Apache ECharts（K 線、成交量、長條、面積圖都有），建成靜態檔。
+2. **怎麼提供網頁**。建議由 `api` 容器以同一個 origin 提供靜態檔（Docker 多階段建置：node 建置、Python 映像只帶成品），不必處理 CORS。API 的 key 中介層要讓靜態檔不需要 key，`/v1` 仍然要。
+3. **瀏覽器怎麼拿 API key**。建議第一次開啟時輸入，存在瀏覽器的 localStorage；區網是明文 HTTP，同 API 本身的限制。
+4. **端到端測試工具**（例如 Playwright）或只做建置與型別檢查加截圖。
+
+### 拆步（每步一個 PR）
+
+| Step | 內容 |
+|---|---|
+| 37-a | 骨架：ADR、建置與提供網頁、key 輸入、股票搜尋（`/v1/stocks`）、個股頁的 K 線＋成交量＋均線（`daily-prices`、`technical-indicators`）、交易日曆決定 x 軸 |
+| 37-b | 籌碼：法人買賣與連續天數、外資持股、融資融券與借券、股權分散與集中度；市場頁的指數與法人彙總 |
+| 37-c | 基本面：月營收（發布的 MoM／YoY）、財報重點 facts（EPS、營收、淨利）、官方估值與計算的估值（分開標示，§53）、公司行動列表 |
+
+### 驗收
+
+- 每個面板對一檔真實股票（例如 2330、6488），畫出來的值等於同一個 API 回應的值（逐點比對或抽樣比對，方法寫進驗收報告）。
+- 缺值與沒有來源的欄位不被畫成數字。
+- 從另一台電腦經區網與 Tailscale 打開頁面可用；深淺兩種主題與手機寬度要人眼確認（PR 描述附截圖，明講哪些沒看過）。
+
+### 不在範圍
+
+- 任何新的 API 端點或計算：需要時另開 step，不在前端補算。
+- 使用者帳號、權限、寫入功能、警示通知。
+- 歷史時間點（`information_as_of`）的選擇器：37-a–c 都用 latest；要重現歷史再另外排。
+- 還原價格（Step 36）。
 
 ## Step 28 — 排程的前向抓取
 
@@ -2604,6 +2649,7 @@ stock-data-center/
 │       └── ingestion/
 │           ├── adapters/       每個端點一個
 │           └── …               observation 型別、iXBRL parser、HTTP fetcher、raw store
+├── web/                        網頁儀表板（Step 37），只透過 API 讀資料
 └── tests/
     ├── unit/
     └── integration/
