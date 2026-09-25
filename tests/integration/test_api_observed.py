@@ -158,6 +158,22 @@ def test_an_unknown_parameter_is_refused_not_ignored(client) -> None:
     assert "infomation_as_of" in response.json()["detail"]
 
 
+def test_a_repeated_parameter_is_refused_not_resolved_to_one(client) -> None:
+    # Code review of #61: Starlette keeps only the last value of a repeated key,
+    # so an instant followed by "latest" would silently mean latest.
+    for name, value in (("information_as_of", "2024-07-02T12:00:00+08:00"),
+                        ("knowledge_as_of", "2024-07-02T12:00:00+08:00"),
+                        ("system_as_of", "2024-07-02T12:00:00+08:00"),
+                        ("start", DAY.isoformat()), ("end", DAY.isoformat())):
+        params = [("start", DAY), ("end", DAY), (name, value), (name, "latest")]
+        if name in ("start", "end"):
+            params = [("start", DAY), ("end", DAY), (name, value)]
+        response = client.get("/v1/datasets/daily-prices", params=params,
+                              headers={"X-API-Key": KEY})
+        assert response.status_code == 400, name
+        assert name in response.json()["detail"]
+
+
 def test_market_pit_answers_as_of_both_instants(client, db, fetch) -> None:
     fetch_id = fetch()
     _price(db, fetch_id, "100", RELEASED)

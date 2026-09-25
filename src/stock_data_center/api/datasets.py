@@ -9,10 +9,16 @@ it:
 - indices: the whole-list files publish close and changes only; TAIEX's open,
   high and low come from `MI_5MINS_HIST`, which publishes no change (§52,
   audit §4.2);
-- corporate actions: the ex-right files publish no share exchange and no
-  returned cash; the capital-reduction files no rights or dividend terms beyond
-  TWTAUU's merged cash dividend; the par-value-change files only their prices,
-  with TPEx's exchange rate (audit §4.10, "corporate_actions column" table).
+- corporate actions: what each feed's adapter can set
+  (`ingestion.adapters.corporate_action`, audit §4.10): the ex-right files no
+  share exchange and no returned cash; TWTAUU no rights-plus-dividend value and
+  no free shares, though its detail page gives a cash dividend merged into the
+  reduction and the terms of a cash increase that goes with one; `revivt` none
+  of those, since its adapter refuses a reduction with a cash increase rather
+  than guess the ratio's unit; the par-value-change files only their prices,
+  with TPEx's exchange rate. A unit test reads each adapter's code to keep this
+  list from naming a column it can fill: data that has not met a case yet is no
+  proof the source never publishes it (code review of #61).
 """
 
 from __future__ import annotations
@@ -31,8 +37,7 @@ from stock_data_center.v2.corporate_actions import FEEDS
 HIDDEN = frozenset({"fetch_id", "detail_fetch_id", "published_at", "retracted"})
 
 _EX_RIGHT = frozenset({"old_shares", "new_shares", "cash_return_per_share"})
-_REDUCTION = frozenset({"rights_dividend_value", "free_share_ratio", "rights_ratio",
-                        "subscription_price"})
+_REDUCTION = frozenset({"rights_dividend_value", "free_share_ratio"})
 _PAR_VALUE = frozenset({"rights_dividend_value", "cash_dividend_per_share", "free_share_ratio",
                         "rights_ratio", "subscription_price", "cash_return_per_share"})
 _WHOLE_LIST_INDEX = frozenset({"open_value", "high_value", "low_value"})
@@ -47,7 +52,8 @@ UNSOURCED: dict[str, dict[str, frozenset[str]]] = {
         "twse_twt49u": _EX_RIGHT,
         "tpex_exdailyq": _EX_RIGHT,
         "twse_twtauu": _REDUCTION,
-        "tpex_revivt": _REDUCTION | {"cash_dividend_per_share"},
+        "tpex_revivt": _REDUCTION | {"cash_dividend_per_share", "rights_ratio",
+                                     "subscription_price"},
         "twse_twtb8u": _PAR_VALUE | {"old_shares", "new_shares"},
         "tpex_pvchgrslt": _PAR_VALUE,
     },

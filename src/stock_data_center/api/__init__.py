@@ -131,6 +131,12 @@ def create_app(*, api_key: str,
         unknown = sorted(set(query) - _ROW_PARAMS)
         if unknown:
             raise HTTPException(400, f"unknown parameter: {', '.join(unknown)}")
+        # Only stock_id and source repeat; any other key given twice is ambiguous,
+        # and Starlette would keep its last value (code review of #61).
+        repeated = sorted(k for k in set(query) if k not in ("stock_id", "source")
+                          and len(query.getlist(k)) > 1)
+        if repeated:
+            raise HTTPException(400, f"repeated parameter: {', '.join(repeated)}")
         params = {k: v for k, v in query.items() if k not in ("stock_id", "source")}
         start, end = _date(params, "start"), _date(params, "end")
         if start > end:

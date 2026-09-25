@@ -16,7 +16,7 @@
 | `src/stock_data_center/api/__main__.py` | `python -m stock_data_center.api`，只聽 127.0.0.1，key 與 URL 只從環境變數來 |
 | `pyproject.toml` | `fastapi`、`uvicorn`（CLAUDE.md §2 的固定技術棧；Pydantic 2 隨 FastAPI） |
 | scripts | `verify_api.py`（驗收）、`verify_api.sh`（啟動伺服器、跑驗收、一定收掉伺服器） |
-| 測試 | `tests/integration/test_api_observed.py`（21）、`tests/unit/test_api_datasets.py`（3）；`test_v2_independent_of_v1.py` 允許 `stock_data_center.api` |
+| 測試 | `tests/integration/test_api_observed.py`（22）、`tests/unit/test_api_datasets.py`（4）（各含 code review 補的 1 條）；`test_v2_independent_of_v1.py` 允許 `stock_data_center.api` |
 | 文件 | `docs/api.md`（新）；ROADMAP §20 與 Step 27（27-a 標為 MERGED、新增 27-b 小節）；CLAUDE.md 快照；README；27-a 報告標為 MERGED |
 
 `src/` +426 行。沒有新表、沒有 migration。
@@ -71,7 +71,7 @@
 `test_api_datasets.py` 的三條寫在 registry 之後，也用改壞驗證：拼錯來源、拼錯欄位、少一個資料集都抓得到；「`fetch_id`
 被當成欄位」原本抓不到（測試拿 `HIDDEN` 自己比），改成對照明列的名單後抓到。
 
-全套測試：863 passed（main 839，+24）。ruff：新檔案與改動的檔案 0 個問題。
+全套測試：865 passed（main 839，+26，含 code review 補的 2 條）。ruff：新檔案與改動的檔案 0 個問題。
 
 ## `stockdc_backfill` 上的實測
 
@@ -87,7 +87,8 @@ DATABASE_URL=.../stockdc_backfill scripts/verify_api.sh        exit 0，結束�
 | indices / `tpex_index_summary`（開高低） | 70,732 | 0 |
 | indices / `twse_mi_5mins_hist`（漲跌） | 1,630 | 0 |
 | corporate-actions / `twse_twt49u`、`tpex_exdailyq`（換股、退還股款） | 6,053、4,532 | 0 |
-| corporate-actions / `twse_twtauu`、`tpex_revivt`（權值、配股、認購） | 146、107 | 0 |
+| corporate-actions / `twse_twtauu`（權值、配股） | 146 | 0 |
+| corporate-actions / `tpex_revivt`（權值、配股、認購、配息） | 107 | 0 |
 | corporate-actions / `twse_twtb8u`、`tpex_pvchgrslt`（價格以外） | 9、13 | 0 |
 
 **透過伺服器的查詢**（latest，逐列逐欄等於 `visibility.rows`）：
@@ -114,6 +115,15 @@ DATABASE_URL=.../stockdc_backfill scripts/verify_api.sh        exit 0，結束�
 - **原本以為** 小數的測試值用什麼都行。`1234.56` 經過 float 印出來一樣，要用有尾數 0 的值才分得出來。
 - 35-d 的 `test_src_holds_only_what_v2_keeps` 只允許 v2 保留的模組，新的 `stock_data_center.api` 要加進清單。
 - `starlette.testclient` 對 httpx 發出 deprecation warning（建議 `httpx2`）；httpx 是 CLAUDE.md §2 的固定技術棧，不換。
+
+## Code review 修正（#61）
+
+| 發現 | 驗證方式 | 處置 |
+|---|---|---|
+| `twse_twtauu` 把 `rights_ratio`、`subscription_price` 列成 unsourced，但 `TWSEReductionAdapter` 遇到「減資並（有償）現金增資」會從明細頁填入這兩欄；API 會丟掉真的有的值還標成未公布 | 讀 adapter（`corporate_action.py` 411–413 行）；另把六個 feed 的 adapter 會填的欄位逐一列出，只有這一處不一致；`tpex_revivt` 的 adapter 遇到現金增資就拒收（fail closed），它的兩欄維持 unsourced 是對的 | **已修正。** TWTAUU 只剩權值與配股。**原本以為** 「audit 欄位表 + `stockdc_backfill` 裡整欄是 NULL」就夠當證據；但資料沒遇過這種事件不代表來源不發布。新增單元測試直接讀每個 feed 的 adapter 原始碼，`UNSOURCED` 不得包含 adapter 會填的欄位；修正前它抓到的正是這兩欄 |
+| 同一個參數重複出現時只留最後一個值：`?information_as_of=<時刻>&information_as_of=latest` 會默默變成 latest；`start`、`end`、`knowledge_as_of`、`system_as_of` 也一樣 | 讀 Starlette：`QueryParams.items()` 對重複的 key 只回最後一個值；新測試在修正前 200 | **已修正。** `stock_id`、`source` 以外的參數重複就 400，並指出是哪個參數 |
+
+修正後重跑 `scripts/verify_api.sh`：exit 0，12 個查詢 0 差異，`twse_twtauu` 剩下的兩個 unsourced 欄位在 146 列中 0 個值，結束後沒有殘留伺服器。
 
 ## 已知限制
 
