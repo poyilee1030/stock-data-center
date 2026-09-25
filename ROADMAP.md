@@ -608,7 +608,7 @@ explicit out-of-scope work
 | 26-b | MERGED (#55) | 存表的衍生資料：`technical_indicators:v1` 與 `institutional_streaks:v1` |
 | 26-c | MERGED (#56) | `institutional_cumulative_flow:v1` |
 | 26-d | MERGED (#57) | `shareholding_concentration:v1` |
-| 26-e | IN REVIEW | `margin_metrics:v1` 與 `short_interest_metrics:v1` |
+| 26-e | IN REVIEW (#58) | `margin_metrics:v1` 與 `short_interest_metrics:v1` |
 | 26-f | PLANNED | `valuation_metrics:v1` |
 | 27 | PLANNED | 公開 REST API v1 |
 | 28 | PLANNED | 排程的前向抓取 |
@@ -1789,7 +1789,7 @@ importer 以資料日期欄位為 key，絕不用檔名：`20200619.CSV` 和 `20
 
 ## Step 26 — 標準衍生 v1（移植舊系統計算程式）
 
-狀態：**26-a SUPERSEDED（#44，併入 35-c-4）；26-b MERGED（#55）；26-c MERGED（#56）；26-d MERGED（#57）；26-e IN REVIEW；26-f PLANNED**。依賴：Steps 17-c–24。
+狀態：**26-a SUPERSEDED（#44，併入 35-c-4）；26-b MERGED（#55）；26-c MERGED（#56）；26-d MERGED（#57）；26-e IN REVIEW（#58）；26-f PLANNED**。依賴：Steps 17-c–24。
 
 定義，每個都從舊系統的計算程式移植，並與舊系統的表對帳：
 
@@ -1886,7 +1886,7 @@ SUPERSEDED 的 #44。
 
 ### Step 26-e — 融資融券與借券指標
 
-狀態：**IN REVIEW**。
+狀態：**IN REVIEW**（#58）。
 
 - 兩張寬表，key `(stock_id, source, trade_date)`，加 `computed_at`；migration `0487c98a0e37`。
   - `margin_metrics`（輸入 `margin_trading`）：融資、融券使用率（餘額／限額 × 100），融資、融券餘額變化（股）與
