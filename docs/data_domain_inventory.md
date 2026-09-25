@@ -127,8 +127,8 @@ boundary.
 | `valuation_daily` | close, official TTM EPS, official PE, official PE percentile, official ROE | Legacy `pe_official` is observed and maps to `valuations.pe_ratio`. Data Center-calculated TTM EPS/PE percentile/ROE and other computed valuations are canonical derived `valuation_metrics:v1`; close is referenced from PIT-visible daily prices, not duplicated. |
 | `technical_indicators` | MA 5/10/20/60/120/240; volume MA 5/10/20; K/D; RSI 6/12; MACD DIF/DEA/histogram; Bollinger upper/middle/lower; foreign/trust/dealer streak days | Canonical derived `technical_indicators:v1` (table `technical_indicators`, from `daily_prices`) and `institutional_streaks:v1` (table `institutional_streaks`, from `institutional_flows` over the traded days of `daily_prices`), both stored by Step 26-b. `technical_indicators_pit:v1` computes the same formula on demand under full PIT (Step 35-c-4). Formula, calendar, and adjustment conventions are the versioned code constant. |
 | `shareholding_concentration` | large/mid/small-holder ratios and counts, spread and week-over-week changes | Canonical derived `shareholding_concentration:v1` from `shareholding_distributions`. |
-| `margin_pressure_analysis` | margin utilization/balance ratios, changes, week-over-week metrics, pressure score | Stable ratios/changes are canonical derived `margin_metrics:v1`. The composite pressure score has no stable source-independent legacy specification and is downstream-owned; it is not persisted as a source fact. |
-| `short_interest_analysis` | short/SBL balances and ratios, changes, week-over-week metrics, pressure score | Stable ratios/changes are canonical derived `short_interest_metrics:v1`. The composite pressure score is downstream-owned. |
+| `margin_pressure_analysis` | margin utilization/balance ratios, changes, week-over-week metrics, pressure score | Stable ratios/changes are canonical derived `margin_metrics:v1` (its `_wow` columns are daily changes, named `_change`); the balances and limits it copied are observed in `margin_trading`. The composite pressure score has no stable source-independent legacy specification and is downstream-owned; it is not persisted as a source fact. |
+| `short_interest_analysis` | short/SBL balances and ratios, changes, week-over-week metrics, pressure score | Stable ratios/changes are canonical derived `short_interest_metrics:v1`; its copy of the short-sale change is `margin_metrics:v1`'s, and the balances and SBL flows it copied are observed in `securities_lending`. The composite pressure score is downstream-owned. |
 
 ## v1 storage contract matrix
 
@@ -158,8 +158,8 @@ changes, and each row names the fetch it came from (ADR-0027).
 | `technical_indicators_pit:v1` | canonical derived | computed on demand | inherited from PIT-visible prices; the reference the stored series is checked against | API |
 | `shareholding_concentration:v1` | canonical derived | `shareholding_concentration (stock_id, source, snapshot_date)` | latest TDCC inputs; a change is against the stock's previous snapshot | selection/API |
 | `valuation_metrics:v1` | canonical derived | planned table (Step 26) | latest inputs; reports aligned to their publication | both ML repos/API |
-| `margin_metrics:v1` | canonical derived | planned table (Step 26) | latest margin inputs | selection/API |
-| `short_interest_metrics:v1` | canonical derived | planned table (Step 26) | latest margin/SBL inputs | selection/API |
+| `margin_metrics:v1` | canonical derived | `margin_metrics (stock_id, source, trade_date)` | latest margin inputs; each value from that day's row | selection/API |
+| `short_interest_metrics:v1` | canonical derived | `short_interest_metrics (stock_id, source, trade_date)` | latest SBL inputs; each value from that day's row | selection/API |
 | `monthly_revenue_growth:v1` | **not in v1** | — | — | superseded by the observed published comparatives (Step 22) |
 | `institutional_cumulative_flow:v1` | canonical derived proxy | `institutional_cumulative_flow (stock_id, source, trade_date)` | zero-origin cumulative net flows and their ratio to the same day's issued shares; latest inputs; not absolute holdings | selection/API |
 | `institutional_streaks:v1` | canonical derived | `institutional_streaks (stock_id, source, trade_date)` | latest inputs; D uses flows and prices dated on or before D | selection/API |
@@ -172,7 +172,7 @@ affected dates and overwrites them (ROADMAP §17, disclosed downstream).
 Backfill status: every observed dataset except the Step 33 declarations holds
 2020-01-02 onward in `stockdc_backfill` (Steps 17-c through 24-b, 35-c-3).
 `technical_indicators:v1`, `institutional_streaks:v1` (Step 26-b),
-`institutional_cumulative_flow:v1` (Step 26-c) and
-`shareholding_concentration:v1` (Step 26-d) hold every date of their inputs;
-the other canonical derived datasets are **not started** and belong to Steps
-26-e and 26-f.
+`institutional_cumulative_flow:v1` (Step 26-c),
+`shareholding_concentration:v1` (Step 26-d), `margin_metrics:v1` and
+`short_interest_metrics:v1` (Step 26-e) hold every date of their inputs;
+`valuation_metrics:v1` is **not started** and belongs to Step 26-f.

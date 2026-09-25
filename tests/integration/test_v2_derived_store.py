@@ -25,8 +25,12 @@ from stock_data_center.db.schema_v2 import (
     institutional_cumulative_flow,
     institutional_flows,
     institutional_streaks,
+    margin_metrics,
+    margin_trading,
+    securities_lending,
     shareholding_concentration,
     shareholding_distributions,
+    short_interest_metrics,
     technical_indicators,
 )
 from stock_data_center.ingestion.raw_storage import LocalRawArtifactStore
@@ -44,6 +48,10 @@ STREAKS = derived_store.INSTITUTIONAL_STREAKS
 CUMULATIVE = derived_store.INSTITUTIONAL_CUMULATIVE_FLOW
 CONCENTRATION = derived_store.SHAREHOLDING_CONCENTRATION
 TDCC = "tdcc_opendata"
+MARGIN = derived_store.MARGIN_METRICS
+SHORT_INTEREST = derived_store.SHORT_INTEREST_METRICS
+MI_MARGN = "twse_mi_margn"
+TWT93U = "twse_twt93u"
 QFIIS = "twse_mi_qfiis"
 EXPONENTIAL = ("k", "d", "rsi6", "rsi12", "macd_dif", "macd_dea", "macd_hist")
 
@@ -718,6 +726,138 @@ def test_a_concentration_uses_no_snapshot_dated_after_it(db, fetch_id) -> None:
     derived_store.run(db, CONCENTRATION, full=True)
 
     assert _concentration(db, "large_holder_ratio", "large_holder_ratio_wow")[:3] == early
+
+
+# ---------------------------------------------------------------- margin and short interest
+
+
+def _margin(db, fetch_id, day, *, balance=1_500, previous=1_000, limit=10_000,
+            source=MI_MARGN, stock_id="2330") -> None:
+    db.execute(sa.insert(margin_trading).values(
+        stock_id=stock_id, source=source, trade_date=day, margin_buy=0, margin_sell=0,
+        margin_cash_repayment=0, margin_previous_balance=previous, margin_balance=balance,
+        margin_limit=limit, short_buy=30, short_sell=0, short_stock_repayment=10,
+        short_previous_balance=200, short_balance=150, short_limit=limit, offset_balance=0,
+        fetch_id=fetch_id))
+
+
+def _lending(db, fetch_id, day, *, balance=4_500, previous=4_000, sold=900, returned=400,
+             stock_id="2330") -> None:
+    db.execute(sa.insert(securities_lending).values(
+        stock_id=stock_id, source=TWT93U, trade_date=day, previous_balance=previous,
+        sold=sold, returned=returned, adjustment=0, balance=balance, fetch_id=fetch_id))
+
+
+def _rows(db, table, *columns, stock_id="2330") -> list[tuple]:
+    t = table.c
+    return [tuple(row) for row in db.execute(
+        sa.select(t.trade_date, *(t[c] for c in columns))
+        .where(t.stock_id == stock_id).order_by(t.trade_date))]
+
+
+def test_the_margin_and_short_interest_definitions() -> None:
+    assert (MARGIN.definition.dataset_code, MARGIN.definition.derivation_version) == (
+        "margin_metrics", "v1")
+    assert MARGIN.definition.input_tables == ("margin_trading",)
+    assert (SHORT_INTEREST.definition.dataset_code,
+            SHORT_INTEREST.definition.derivation_version) == ("short_interest_metrics", "v1")
+    assert SHORT_INTEREST.definition.input_tables == ("securities_lending",)
+
+
+def test_margin_metrics_come_from_each_days_own_row(db, fetch_id) -> None:
+    # Legacy: a change is the day's balance minus the previous balance the
+    # source publishes on the same row, not the stored row before it.
+    days = _trading_days(date(2024, 7, 1), 2)
+    _margin(db, fetch_id, days[0], balance=1_500, previous=1_000)
+    _margin(db, fetch_id, days[1], balance=1_200, previous=1_600)  # the source's own previous
+
+    run = derived_store.run(db, MARGIN)
+
+    assert (run.series, run.rows) == (1, 2)
+    assert _rows(db, margin_metrics, "source", "margin_usage_ratio", "margin_balance_change",
+                 "margin_balance_change_pct", "short_cover_pressure") == [
+        (days[0], MI_MARGN, 15.0, 500, 50.0, 20.0),
+        (days[1], MI_MARGN, 12.0, -400, -25.0, 20.0),
+    ]
+
+
+def test_short_interest_metrics_come_from_each_days_own_row(db, fetch_id) -> None:
+    days = _trading_days(date(2024, 7, 1), 2)
+    _lending(db, fetch_id, days[0])
+    _lending(db, fetch_id, days[1], balance=100, previous=0, sold=100, returned=0)
+
+    derived_store.run(db, SHORT_INTEREST)
+
+    assert _rows(db, short_interest_metrics, "source", "sbl_balance_change",
+                 "sbl_balance_change_pct", "sbl_sell_repay_ratio") == [
+        (days[0], TWT93U, 500, 12.5, 2.25),
+        (days[1], TWT93U, 100, None, None),
+    ]
+
+
+def test_a_corrected_margin_row_recomputes_its_day(db, fetch_id) -> None:
+    days = _trading_days(date(2024, 7, 1), 3)
+    for day in days:
+        _margin(db, fetch_id, day)
+    first = derived_store.run(db, MARGIN)
+    _margin(db, fetch_id, days[1], balance=2_500)  # a correction of the second day
+
+    second = derived_store.run(db, MARGIN)
+
+    assert _rows(db, margin_metrics, "margin_balance_change", "computed_at") == [
+        (days[0], 500, first.computed_at),
+        (days[1], 1_500, second.computed_at),
+        (days[2], 500, second.computed_at),
+    ]
+
+
+def test_each_margin_and_lending_source_is_its_own_series(db, fetch_id) -> None:
+    day = date(2024, 7, 1)
+    _margin(db, fetch_id, day)
+    _margin(db, fetch_id, day + timedelta(days=1), source="tpex_margin_balance", limit=0)
+    derived_store.run(db, MARGIN)
+    assert _rows(db, margin_metrics, "source", "margin_usage_ratio") == [
+        (day, MI_MARGN, 15.0), (day + timedelta(days=1), "tpex_margin_balance", None)]
+
+
+def test_an_incremental_margin_run_equals_the_full_one(db, fetch_id) -> None:
+    days = _trading_days(date(2021, 1, 1), 60)
+    for index, day in enumerate(days[:59]):
+        _margin(db, fetch_id, day, balance=1_000 + 37 * index, previous=1_000 + 11 * index)
+        _lending(db, fetch_id, day, balance=5_000 + index, sold=index, returned=index % 4)
+    for dataset in (MARGIN, SHORT_INTEREST):
+        derived_store.run(db, dataset)
+    _margin(db, fetch_id, days[59], balance=9_999)
+    _lending(db, fetch_id, days[59], balance=1)
+
+    for dataset, table, columns in ((MARGIN, margin_metrics, derived_store.MARGIN_COLUMNS),
+                                    (SHORT_INTEREST, short_interest_metrics,
+                                     derived_store.SHORT_INTEREST_COLUMNS)):
+        derived_store.run(db, dataset)
+        incremental = _rows(db, table, *columns)
+        derived_store.run(db, dataset, full=True)
+        assert incremental == _rows(db, table, *columns), table.name
+        assert len(incremental) == 60
+
+
+def test_a_margin_value_uses_no_row_dated_after_it(db, fetch_id) -> None:
+    days = _trading_days(date(2024, 7, 1), 6)
+    for day in days[:3]:
+        _margin(db, fetch_id, day)
+        _lending(db, fetch_id, day)
+    for dataset in (MARGIN, SHORT_INTEREST):
+        derived_store.run(db, dataset)
+    early = (_rows(db, margin_metrics, *derived_store.MARGIN_COLUMNS),
+             _rows(db, short_interest_metrics, *derived_store.SHORT_INTEREST_COLUMNS))
+    for day in days[3:]:
+        _margin(db, fetch_id, day, balance=1, previous=9, limit=3)
+        _lending(db, fetch_id, day, balance=1, previous=9, sold=1, returned=3)
+
+    for dataset in (MARGIN, SHORT_INTEREST):
+        derived_store.run(db, dataset, full=True)
+
+    assert (_rows(db, margin_metrics, *derived_store.MARGIN_COLUMNS)[:3],
+            _rows(db, short_interest_metrics, *derived_store.SHORT_INTEREST_COLUMNS)[:3]) == early
 
 
 # ---------------------------------------------------------------- storage

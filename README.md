@@ -27,8 +27,9 @@
 全市場日行情、126 個指數、官方估值、三大法人個股與市場彙總、外資持股、融資融券、借券、
 月營收、財務報表（iXBRL 三張表）、TDCC 股權分散、交易所公司行動結果檔，共 16 張表、
 33,828,374 列。衍生資料已存表的有 `technical_indicators:v1`、`institutional_streaks:v1`（Step 26-b）與
-`institutional_cumulative_flow:v1`（Step 26-c）、`shareholding_concentration:v1`（Step 26-d），都以最新的
-輸入增量計算；即時計算的 PIT 對照組是 `technical_indicators_pit:v1`。其餘三個衍生資料集是 Step 26-e–26-f。
+`institutional_cumulative_flow:v1`（Step 26-c）、`shareholding_concentration:v1`（Step 26-d）、
+`margin_metrics:v1` 與 `short_interest_metrics:v1`（Step 26-e），都以最新的輸入增量計算；即時計算的 PIT 對照組是
+`technical_indicators_pit:v1`。剩下的 `valuation_metrics:v1` 是 Step 26-f。
 
 公開 API（Step 27）、還原價格（Step 36）、排程的前向抓取（Step 28）尚未開始。
 

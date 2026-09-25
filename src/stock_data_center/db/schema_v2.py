@@ -22,6 +22,7 @@ from stock_data_center.db.base import aware_timestamp, metadata, uuid_type
 from stock_data_center.v2.concentration import METRICS as CONCENTRATION_METRICS
 from stock_data_center.v2.cumulative_flow import PARTIES as CUMULATIVE_PARTIES
 from stock_data_center.v2.indicators import METRIC_CODES
+from stock_data_center.v2.margin_metrics import MARGIN_METRICS, SHORT_INTEREST_METRICS
 from stock_data_center.v2.streaks import PARTIES
 
 # Decimal columns are unconstrained `numeric` with a CHECK, not `numeric(p, 2)`:
@@ -632,6 +633,26 @@ shareholding_concentration = sa.Table(
     sa.PrimaryKeyConstraint("stock_id", "source", "snapshot_date",
                             name="pk_shareholding_concentration"),
 )
+
+
+def _day_metrics(name: str, metrics: tuple[str, ...]) -> sa.Table:
+    """A derived table of one day's metrics: a change is a share count, the rest ratios."""
+    return sa.Table(
+        name,
+        metadata,
+        *_derived_key(),
+        *(
+            sa.Column(metric, sa.BigInteger() if metric.endswith("_change")
+                      else postgresql.DOUBLE_PRECISION())
+            for metric in metrics
+        ),
+        _computed_at(),
+        sa.PrimaryKeyConstraint("stock_id", "source", "trade_date", name=f"pk_{name}"),
+    )
+
+
+margin_metrics = _day_metrics("margin_metrics", MARGIN_METRICS)
+short_interest_metrics = _day_metrics("short_interest_metrics", SHORT_INTEREST_METRICS)
 
 # Append-only tables: every value table and the fetch log. `stocks` is reference
 # data refreshed in place from the latest list; `trading_days` is corrected in

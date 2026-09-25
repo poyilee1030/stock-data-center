@@ -607,8 +607,8 @@ explicit out-of-scope work
 | 26-a | SUPERSEDED | 衍生服務與 `technical_indicators:v1`（#44，併入 35-c-4） |
 | 26-b | MERGED (#55) | 存表的衍生資料：`technical_indicators:v1` 與 `institutional_streaks:v1` |
 | 26-c | MERGED (#56) | `institutional_cumulative_flow:v1` |
-| 26-d | IN REVIEW (#57) | `shareholding_concentration:v1` |
-| 26-e | PLANNED | `margin_metrics:v1` 與 `short_interest_metrics:v1` |
+| 26-d | MERGED (#57) | `shareholding_concentration:v1` |
+| 26-e | IN REVIEW (#58) | `margin_metrics:v1` 與 `short_interest_metrics:v1` |
 | 26-f | PLANNED | `valuation_metrics:v1` |
 | 27 | PLANNED | 公開 REST API v1 |
 | 28 | PLANNED | 排程的前向抓取 |
@@ -1789,7 +1789,7 @@ importer 以資料日期欄位為 key，絕不用檔名：`20200619.CSV` 和 `20
 
 ## Step 26 — 標準衍生 v1（移植舊系統計算程式）
 
-狀態：**26-a SUPERSEDED（#44，併入 35-c-4）；26-b MERGED（#55）；26-c MERGED（#56）；26-d IN REVIEW（#57）；26-e–26-f PLANNED**。依賴：Steps 17-c–24。
+狀態：**26-a SUPERSEDED（#44，併入 35-c-4）；26-b MERGED（#55）；26-c MERGED（#56）；26-d MERGED（#57）；26-e IN REVIEW（#58）；26-f PLANNED**。依賴：Steps 17-c–24。
 
 定義，每個都從舊系統的計算程式移植，並與舊系統的表對帳：
 
@@ -1865,7 +1865,7 @@ SUPERSEDED 的 #44。
 
 ### Step 26-d — 股權集中度
 
-狀態：**IN REVIEW**（#57）。
+狀態：**MERGED**（#57）。
 
 - 寬表 `shareholding_concentration`，key `(stock_id, source, snapshot_date)`：大、中、小戶持股比率，大減小的
   spread，大、小戶人數，三個比率與 spread 的週變化，加 `computed_at`；migration `c3f1f515e3df`。key 用集保的
@@ -1883,6 +1883,27 @@ SUPERSEDED 的 #44。
 - `derived_store` 取輸入寫入者的鎖，改從 `backfill.JOBS` 取：原本只看 `exchange_daily.JOBS`，TDCC 的寫入者
   （`shareholding.JOBS`）不在裡面。新增測試檢查每個資料集的每張輸入表都有寫入者的鎖。
 - 驗收證據：`docs/step_reports/step-26-d-acceptance-report.md`。
+
+### Step 26-e — 融資融券與借券指標
+
+狀態：**IN REVIEW**（#58）。
+
+- 兩張寬表，key `(stock_id, source, trade_date)`，加 `computed_at`；migration `0487c98a0e37`。
+  - `margin_metrics`（輸入 `margin_trading`）：融資、融券使用率（餘額／限額 × 100），融資、融券餘額變化（股）與
+    變化％，券償壓力（融券買進＋現券償還）／融券前日餘額 × 100。
+  - `short_interest_metrics`（輸入 `securities_lending`）：借券餘額變化（股）與變化％，借券賣出／還券比。
+- 移植舊系統 `calculate_margin_pressure_analysis.py`、`calculate_short_interest_analysis.py`。每個值都只來自當天那一列：
+  變化是當天餘額減去來源在同一列公布的前日餘額，不讀前一天的列，所以增量執行只讀要重寫的日子，沒有暖機、沒有容差。
+- 比率照舊系統：double 運算、轉 numeric 保留 15 位有效數字、四捨五入遠離零到四位；分母不為正時是 NULL。舊系統融資融券
+  以張計、我們以股計，同兩個整數各乘 1,000 的比值是同一個 double，所以逐位相同；變化以股存。舊系統的 `COALESCE(x, 0)`
+  在它自己的資料上從未觸發；來源沒發布的值讓需要它的欄位為 NULL。
+- 欄位取捨（owner 決定，2026-09-25）：
+  - 舊系統的 `_wow` 其實是每日變化，改名 `_change`。
+  - 借券表不帶舊系統那份融券變化：它和 `margin_metrics` 的是同一個值，要帶還得配對借券與融資融券兩個來源。
+  - 不存綜合壓力分數（下游，Step 26 範圍外）；不存舊系統照抄的餘額、限額、借券賣出／償還，它們是 `margin_trading`／
+    `securities_lending` 的觀測值（同 26-c 不存發行股數）。
+  - 兩張表照 Step 26 的決定存表：拿掉它們，資料正確性沒有損失（每個值都是同一列的一次運算），損失的是讀取路徑一致。
+- 驗收證據：`docs/step_reports/step-26-e-acceptance-report.md`。
 
 ## Step 34 — 穩定的 Publication-Evidence Hash
 
