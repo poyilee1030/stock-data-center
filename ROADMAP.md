@@ -2033,6 +2033,7 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 - 存表的衍生資料依 `information_as_of` 過濾：D 那一列要等它用到的輸入都公開才回傳；`knowledge_as_of` 或 `system_as_of` 指定過去的時間就拒絕，因為表以最新輸入覆寫、答不出來；回應標明「最新輸入」與 `computed_at`。
 - 要 API key：請求要帶 key，key 放 `.env`，不進版本庫。
 - 連線位址（owner，2026-09-25，27-c 合併後）：client 從區網 IP 或 Tailscale IP 呼叫 API，所以預設聽 `0.0.0.0`（原本只聽 127.0.0.1），port 預設 28617（不用常見的 8000；在 Linux 動態 port 範圍 32768–60999 之外）。API 包成 compose 的 `api` 服務（`Dockerfile`、`scripts/api_up.sh`），與 PostgreSQL 一起啟動；PostgreSQL 改成只聽 `127.0.0.1:26519`（原本 `0.0.0.0:5432`，區網拿 `stockdc`／`stockdc` 就能繞過 API 直接連、還能寫入）。這台是放在辦公室的桌機；`--host 127.0.0.1` 可以只限本機。區網是明文 HTTP，同網段看得到 key；Tailscale 由 WireGuard 加密。
+- API 說明（owner，2026-09-25）：`/docs`（Swagger UI）與 `/openapi.json` 不用 key，其餘路徑照舊要 key。它們只描述 API 的形狀，不含資料；說明列出每個端點接受的參數（與 handler 解析用的是同一組集合，測試比對），並宣告 `X-API-Key`，Swagger 的 Authorize 按鈕會帶上它。ReDoc 與 OAuth2 redirect 關閉。
 
 ### Step 27-a — PIT 可見性層
 
@@ -2052,7 +2053,7 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
   十一個觀測資料集，名稱與資料表不同（§55）：`daily-prices`、`indices`、`official-valuations`、`institutional-flows`、
   `institutional-market-flows`、`foreign-holdings`、`margin-trading`、`securities-lending`、`shareholding-distributions`、
   `monthly-revenues`、`corporate-actions`。
-- 每個請求要 `X-API-Key`；預設聽所有介面（2026-09-25 起，見上方決定；`--host 127.0.0.1` 可只限本機）；每次讀取都在唯讀交易裡；key 與資料庫 URL 只從環境變數來。
+- 每個資料請求要 `X-API-Key`（`/docs`、`/openapi.json` 除外，見上方決定）；預設聽所有介面（2026-09-25 起，見上方決定；`--host 127.0.0.1` 可只限本機）；每次讀取都在唯讀交易裡；key 與資料庫 URL 只從環境變數來。
 - PIT context：`information_as_of`＋`knowledge_as_of` 或 `system_as_of`，不能混用；時間點必須帶時區；`latest`／`now` 與沒帶的
   market 參數都解析成請求抵達的時刻，回應寫明哪些是別名、哪些是預設。不認得的參數一律 400，打錯字的 PIT 參數不會默默變成 latest。
 - 每列帶 `available_at`、`recorded_at` 與 provenance（fetch 與其原始檔的 SHA-256；TWSE 的除權息與減資另帶明細頁的）。精確小數以

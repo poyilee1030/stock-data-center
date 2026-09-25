@@ -6,9 +6,10 @@
     GET /v1/trading-days?start=&end=      the trading calendar (reference data, not PIT)
 
 The API parses and renders; which row a PIT context sees is
-`stock_data_center.v2.visibility`'s alone (CLAUDE.md §19). Every request needs
-the API key in `X-API-Key` (owner, 2026-09-25), and every read runs in a
-read-only transaction. A query parameter the endpoint does not know is refused:
+`stock_data_center.v2.visibility`'s alone (CLAUDE.md §19). Every data request
+needs the API key in `X-API-Key` (owner, 2026-09-25); only the description,
+`/docs` (Swagger UI) and `/openapi.json`, is served without it. Every read runs
+in a read-only transaction. A query parameter the endpoint does not know is refused:
 a misspelled PIT parameter must never silently mean "latest".
 
     STOCKDC_API_KEY=... DATABASE_URL=... python -m stock_data_center.api
@@ -26,7 +27,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import Response
 from sqlalchemy import Connection, Engine
 
-from stock_data_center.api import derived
+from stock_data_center.api import derived, openapi
 from stock_data_center.api import pit as pit_context
 from stock_data_center.api.datasets import DATASETS, Dataset
 from stock_data_center.api.derived import DERIVED, PIT_REFERENCE, Derived
@@ -46,15 +47,50 @@ _PIT_PARAMS = frozenset({*pit_context.MARKET, pit_context.SYSTEM})
 _ROW_PARAMS = frozenset({"start", "end", "stock_id", "source", *_PIT_PARAMS})
 _REPORT_PARAMS = _ROW_PARAMS | {"statement", "account_code"}
 _REFERENCE_PARAMS = _ROW_PARAMS | {"view"}
+_STOCK_PARAMS = frozenset({"market", "stock_id"})
+_CALENDAR_PARAMS = frozenset({"start", "end"})
 _REPEATABLE = frozenset({"stock_id", "source", "statement", "account_code"})
 STATEMENTS = ("balance_sheet", "income_statement", "cash_flow")
 MARKETS = ("sii", "otc")
+VIEWS = ("as_of", "rolling")
 UNIVERSE = (
     "Today's TWSE ISIN list of listed (sii) and OTC (otc) common stocks (ADR-0026): no "
     "ETF, preferred share, TDR or warrant, and no company delisted before today. It is "
     "refreshed in place from the latest list, so it is not point-in-time, and any "
     "history read over it carries that survivorship bias."
 )
+
+DESCRIPTION = """\
+The Data Center's public API: official Taiwan market data with its publication
+time and provenance, read point-in-time.
+
+Every `/v1` request needs the API key in the `X-API-Key` header: press
+**Authorize**, paste the key, then **Try it out**.
+
+Every answer states the PIT context it used. Market PIT (`information_as_of`,
+`knowledge_as_of`) answers what was public by one instant using what the Data
+Center had recorded by another; system PIT (`system_as_of`) answers what it had
+recorded. An instant carries its UTC offset; `latest` and `now` mean the moment
+the request arrived, and so does a market parameter left out. To reproduce
+history, send both market instants.
+"""
+
+ROWS_DESCRIPTION = """\
+Each key's row as the PIT context sees it, with its `available_at`,
+`recorded_at` (observed datasets) and provenance.
+
+- At most 200 `stock_id`; without one a query spans at most 31 days. A
+  dataset without stocks (`indices`, `institutional-market-flows`) refuses
+  `stock_id`.
+- `statement` and `account_code` apply to `financial-reports` only, `view` to
+  `technical-indicators-pit` only; any other dataset refuses them.
+  `financial-reports` has one source and takes no `source`.
+- Stored derived datasets follow the latest inputs: they take
+  `information_as_of`, but not an earlier `knowledge_as_of` or `system_as_of`.
+- `technical-indicators-pit` is computed for one `stock_id` at a time.
+- A column a source never publishes is omitted from its rows and listed in
+  `unsourced`.
+"""
 
 
 @contextmanager
@@ -203,12 +239,17 @@ def create_app(*, api_key: str,
     None asks git, which a container image cannot."""
     if not api_key:
         raise ValueError("an API key is required: set STOCKDC_API_KEY")
-    app = FastAPI(title="stock-data-center", version="1")
+    app = FastAPI(title="stock-data-center", version="1", description=DESCRIPTION,
+                  redoc_url=None, swagger_ui_oauth2_redirect_url=None)
     expected = api_key.encode()
     reference = TechnicalIndicators(git_commit=git_commit)  # takes the commit once
+    # The description only: it names no data (owner, 2026-09-25).
+    public = frozenset({app.docs_url, app.openapi_url})
 
     @app.middleware("http")
     async def require_key(request: Request, call_next):
+        if request.url.path in public:
+            return await call_next(request)
         given = request.headers.get("x-api-key", "").encode()
         if not hmac.compare_digest(given, expected):
             return _json({"detail": "a valid X-API-Key header is required"}, 401)
@@ -218,13 +259,17 @@ def create_app(*, api_key: str,
     async def http_error(request: Request, error: HTTPException):
         return _json({"detail": error.detail}, error.status_code)
 
-    @app.get("/v1/datasets")
+    @app.get("/v1/datasets", summary="Every dataset and its shape",
+             description="Each dataset's name, kind, description, key fields, period field "
+                         "and columns; an observed one's sources and the columns each never "
+                         "publishes; a derived one's definition.")
     def list_datasets() -> Response:
         return _json({"datasets": [*(_describe(d) for d in DATASETS.values()),
                                    *(_describe_derived(d) for d in DERIVED.values()),
                                    _describe_reference()]})
 
-    @app.get("/v1/datasets/{name}")
+    @app.get("/v1/datasets/{name}", summary="Rows as a PIT context sees them",
+             description=ROWS_DESCRIPTION)
     def dataset_rows(name: str, request: Request) -> Response:
         arrived = datetime.now(UTC)
         if name in DERIVED:
@@ -312,7 +357,7 @@ def create_app(*, api_key: str,
         if "stock_id" not in params:
             raise HTTPException(400, f"{PIT_REFERENCE} is computed for one stock_id at a time")
         view = params.get("view", "as_of")
-        if view not in ("as_of", "rolling"):
+        if view not in VIEWS:
             raise HTTPException(400, f"view is as_of or rolling: {view!r}")
         if view == "rolling" and "information_as_of" in params:
             raise HTTPException(400, "view=rolling computes each date at its own release "
@@ -353,10 +398,11 @@ def create_app(*, api_key: str,
                       **r.metrics} for r in rows],
         })
 
-    @app.get("/v1/stocks")
+    @app.get("/v1/stocks", summary="Today's stock list",
+             description="Reference data, not point-in-time: today's listed and OTC common "
+                         "stocks, refreshed in place (ADR-0026).")
     def stock_list(request: Request) -> Response:
-        params, lists = _params(request, frozenset({"market", "stock_id"}),
-                                frozenset({"stock_id"}))
+        params, lists = _params(request, _STOCK_PARAMS, frozenset({"stock_id"}))
         s = v2.stocks
         query = sa.select(s).order_by(s.c.stock_id)
         if "market" in params:
@@ -376,9 +422,11 @@ def create_app(*, api_key: str,
                       "provenance": _provenance_of(row, sha)} for row in rows],
         })
 
-    @app.get("/v1/trading-days")
+    @app.get("/v1/trading-days", summary="The trading calendar",
+             description="TWSE trading days in [start, end]; reference data, corrected in "
+                         "place, not point-in-time.")
     def trading_calendar(request: Request) -> Response:
-        params, _ = _params(request, frozenset({"start", "end"}), frozenset())
+        params, _ = _params(request, _CALENDAR_PARAMS, frozenset())
         start, end = _range(params)
         t = v2.trading_days
         with connect() as connection:
@@ -393,4 +441,10 @@ def create_app(*, api_key: str,
                      for row in rows],
         })
 
+    openapi.install(
+        app,
+        {"/v1/datasets": frozenset(), "/v1/datasets/{name}": _REPORT_PARAMS | _REFERENCE_PARAMS,
+         "/v1/stocks": _STOCK_PARAMS, "/v1/trading-days": _CALENDAR_PARAMS},
+        {"statement": STATEMENTS, "market": MARKETS, "view": VIEWS},
+        [*DATASETS, *DERIVED, PIT_REFERENCE])
     return app

@@ -7,7 +7,7 @@ SHA-256, §27). Visibility is `stock_data_center.v2.visibility`'s (§19); the AP
 only parses, validates and renders. Clients see dataset names, never table
 names (§55). A column a source never publishes is omitted for that source and
 named in `unsourced`; a NULL anywhere else is a value the source did not give
-for that row. Every request needs the API key (owner, 2026-09-25).
+for that row. Every data request needs the API key (owner, 2026-09-25).
 """
 
 from __future__ import annotations
