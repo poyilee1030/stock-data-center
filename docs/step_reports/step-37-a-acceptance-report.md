@@ -1,6 +1,6 @@
 # Step 37-a 驗收報告
 
-狀態：IN REVIEW
+狀態：IN REVIEW (#69)
 
 範圍：網頁儀表板的骨架（ROADMAP Step 37、ADR-0029）。`api` 容器在 `/` 同源提供一個 React + ECharts 的網頁，只透過公開 API
 讀資料：股票搜尋、個股頁的 K 線＋成交量＋均線＋KD／RSI／MACD、原始價／還原價切換、白天／黑夜主題（預設黑夜）。
