@@ -183,7 +183,7 @@ Step 38-a historical stock list: listing spans         MERGED (#66)
 Step 38-b historical stock list: delisted companies' data PLANNED (after 37)
 Step 39-a industry classification: announcements        MERGED (#72, ADR-0030, industry_changes)
 Step 39-b industry classification: by-category quotes    MERGED (#73, industry_observations)
-Step 39-c industry classification: periods + API         IN REVIEW (#PR, industry-classifications)
+Step 39-c industry classification: periods + API         IN REVIEW (#74, industry-classifications)
 ```
 
 `ROADMAP.md` remains authoritative if this snapshot becomes stale.

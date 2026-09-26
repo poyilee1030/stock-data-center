@@ -1,6 +1,6 @@
 # Step 39-c 驗收報告
 
-狀態：IN REVIEW (#PR)
+狀態：IN REVIEW (#74)
 
 範圍：歷史產業分類的最後一步。分類期間在查詢時推出（`stock_data_center.v2.visibility.industry_periods`），不另建表；
 API 新增資料集 `industry-classifications`，`/v1/stocks` 的下市公司帶最後已知產業。設計見 ADR-0030 §3，
