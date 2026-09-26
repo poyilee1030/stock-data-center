@@ -81,6 +81,11 @@ class LocalRawArtifactStore:
             created=created,
         )
 
+    def get(self, digest: str, byte_size: int) -> bytes:
+        """The bytes stored under a SHA-256, validated like `read`."""
+        return self.read(storage_uri=(self._root / digest[:2] / digest).as_posix(),
+                         expected_digest=digest, expected_byte_size=byte_size)
+
     def read(
         self,
         *,
