@@ -631,7 +631,7 @@ explicit out-of-scope work
 | 35-d-2 | MERGED (#53) | Schema v2：刪除 v1 程式、測試與 scripts |
 | 35-d-3 | MERGED (#54) | Schema v2：baseline migration，刪除 v1 表 |
 | 36 | MERGED (#67) | 還原價格（原 Step 25）：`adjusted_prices_pit:v1`，查詢時計算 |
-| 37 | 37-a MERGED (#69)；37-b MERGED (#70)；37-c IN REVIEW | 網頁儀表板：以 API 展示資料庫內容（37-a／37-b／37-c，ADR-0029） |
+| 37 | 37-a MERGED (#69)；37-b MERGED (#70)；37-c IN REVIEW (#71) | 網頁儀表板：以 API 展示資料庫內容（37-a／37-b／37-c，ADR-0029） |
 | 38 | 38-a MERGED (#66)；38-b PLANNED | 歷史股票清單：含已下市公司，每段掛牌期間的上市與下市日期（38-a／38-b） |
 
 Steps 1–12 建立了儲存、PIT 和 raw-first 的基礎。它們的 writer 契約包含一些沒有任何來源會填入的欄位（§2.3）。這些欄位保持可為 null、不填值。不刪除它們，因為刪除不會帶來任何正確性上的好處。
@@ -2112,7 +2112,7 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 
 ## Step 37 — 網頁儀表板
 
-狀態：37-a **MERGED**（#69）；37-b **MERGED**（#70）；37-c **IN REVIEW**（Step 36 之後、Step 28 之前，owner 2026-09-26 決定）。依賴：Step 27（MERGED）、Step 36（MERGED）、API 的部署（compose 的 `api` 容器、`0.0.0.0:28617`、資料庫只聽本機）。
+狀態：37-a **MERGED**（#69）；37-b **MERGED**（#70）；37-c **IN REVIEW**（#71）（Step 36 之後、Step 28 之前，owner 2026-09-26 決定）。依賴：Step 27（MERGED）、Step 36（MERGED）、API 的部署（compose 的 `api` 容器、`0.0.0.0:28617`、資料庫只聽本機）。
 
 目標：一個在瀏覽器裡看資料的前端：選一檔股票，看到它的價格、籌碼、營收與財報。版面自己設計，不照抄 FinMind（owner 2026-09-26：提 FinMind 只是給概念）。**純粹展示**已存的資料，不做任何新的計算、選股或排名（那些屬於下游，CLAUDE.md §38–40）。
 
@@ -2182,7 +2182,7 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 - **同一個指數在兩個來源的名稱不同**（`指數:發行量加權股價指數` 與 `指數/臺灣證券交易所:發行量加權股價指數`），各自照來源保留。
 - **x 軸涵蓋該交易所所有籌碼資料集的日期**：轉市場前一晚兩個交易所的借券表都列出該股（audit Step 21-b），那天在另一邊是空格。
 
-### 37-c（IN REVIEW）
+### 37-c（IN REVIEW，#71）
 
 - [x] 個股頁「基本面」分頁（`#/stock/2330/fundamentals`）。
 - [x] 月營收：月營收長條與公司發布的年增率、月增率、累計年增率；最近 12 個月的表（含備註）。沒有公開時間證明的月份留空。

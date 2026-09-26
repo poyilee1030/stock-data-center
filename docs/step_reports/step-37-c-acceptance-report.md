@@ -1,6 +1,6 @@
 # Step 37-c 驗收報告
 
-狀態：IN REVIEW
+狀態：IN REVIEW (#71)
 
 範圍：網頁儀表板的基本面（ROADMAP Step 37、ADR-0029）。個股頁多一個「基本面」分頁：月營收、財報重點、官方與計算的估值、
 公司行動。沒有 API 或 Python 的改動。37-b 狀態改為 MERGED（#70）。
