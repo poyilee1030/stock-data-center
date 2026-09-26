@@ -313,3 +313,69 @@ def test_tpex_merged_categories_are_valid_only_before_2023_07_03():
     later = _notice(source="tpex_announcement", effective_date=date(2024, 6, 3))
     with pytest.raises(ic.AnnouncementFormatError, match="industry_not_in_effect"):
         ic.validate(later, [ic.Change("5903", "貿易百貨", "居家生活")])
+
+
+# ---------------------------------------------------------------- code review of #72
+
+
+@pytest.mark.parametrize("attachments", ["[[broken", '[["only-title"]]', '{"a": 1}'])
+def test_an_unreadable_attachment_field_quarantines_the_notice(attachments):
+    payload = json.loads(_read("twse_detail_1121802250.json"))
+    payload["data"][0][6] = attachments
+    with pytest.raises(ic.AnnouncementFormatError, match="unrecognised_layout"):
+        ic.parse_twse_detail(json.dumps(payload, ensure_ascii=False).encode())
+
+
+@pytest.mark.parametrize("link", [
+    "./announce/detail.html?content_file=x&docId=abc",  # not base64
+    "./announce/detail.html?content_file=x&docId=%FF%FE",  # not ASCII
+    "./announce/detail.html?content_file=x",  # no docId
+])
+def test_an_unreadable_tpex_locator_is_a_format_error(link):
+    payload = json.loads(_read("tpex_list_2023.json"))
+    payload["tables"][0]["data"][1][4] = link
+    with pytest.raises(ic.AnnouncementFormatError, match="unrecognised_layout"):
+        ic.parse_tpex_list(json.dumps(payload, ensure_ascii=False).encode(), 2023)
+
+
+def test_an_unreadable_tpex_detail_is_a_format_error():
+    payload = json.loads(_read("tpex_detail_11402010541.json"))
+    payload["data"]["number"] = None
+    with pytest.raises(ic.AnnouncementFormatError, match="unrecognised_layout"):
+        ic.parse_tpex_detail(json.dumps(payload, ensure_ascii=False).encode())
+
+
+def _sheet(monkeypatch, text: str) -> list[ic.Change]:
+    """Parse an attachment whose extracted text is `text`."""
+    import pypdf
+
+    class Page:
+        def extract_text(self):
+            return text
+
+    class Reader:
+        def __init__(self, _stream):
+            self.pages = [Page()]
+
+    monkeypatch.setattr(pypdf, "PdfReader", Reader)
+    return ic.parse_attachment(b"", "sii")
+
+
+SHEET = ("112年上市公司產業類別調整名單\n調整至「半導體業」：共計1家\n序號 股票代號 公司名稱 原產業別 備註\n"
+         "1 3450 聯鈞光電股份有限公司 {cell}\n{next}\n上開公司之證券代號不予變更仍續採用原證券代號。\n")
+
+
+def test_a_wrapped_cell_whose_first_line_is_a_category_takes_the_longer_name(monkeypatch):
+    sheet = SHEET.format(cell="其他", next="電子業")
+    assert _sheet(monkeypatch, sheet) == [ic.Change("3450", "其他電子業", "半導體業")]
+
+
+def test_a_cell_wrapped_over_three_lines_is_joined(monkeypatch):
+    sheet = SHEET.format(cell="電腦", next="及週邊\n設備業")
+    assert _sheet(monkeypatch, sheet) == [ic.Change("3450", "電腦及週邊設備業", "半導體業")]
+
+
+def test_a_stray_line_after_a_row_quarantines_the_attachment(monkeypatch):
+    sheet = SHEET.format(cell="其他", next="註：本表僅供參考")
+    with pytest.raises(ic.AnnouncementFormatError, match="unrecognised_attachment"):
+        _sheet(monkeypatch, sheet)

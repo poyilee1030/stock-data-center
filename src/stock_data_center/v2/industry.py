@@ -63,6 +63,16 @@ _BY_NAME = {
 }
 
 
+_SPELLINGS = frozenset({*NAMES.values(), *ALIASES,
+                        *(name for names in FORMER_NAMES.values() for _, name in names)})
+
+
+def begins_a_name(text: str) -> bool:
+    """Whether some category's name, as any document spells it, starts with `text`."""
+    text = text.strip()
+    return bool(text) and any(name.startswith(text) for name in _SPELLINGS)
+
+
 def code_of(name: str) -> str | None:
     """The code of a category as any exchange document spells it, or None."""
     return _BY_NAME.get(_plain(name)) if name.strip() else None

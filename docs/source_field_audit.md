@@ -1822,7 +1822,10 @@ numbered notice. 〈上市公司產業類別劃分暨調整要點〉 and
   「調整至「B」：共計N家」 with `序號`, `股票代號`, `公司名稱`/`公司簡稱`, `原產業別`
   (TWSE adds `備註`, TPEx `市場類別`). TPEx attaches the OTC table and the
   emerging-board table separately. A long `原產業別` (電腦及週邊設備業) wraps onto
-  the next line. The adapter extracts the text with pypdf; the codes must be
+  the next line, and the first line may itself be a category (「其他」 before
+  「電子業」), so every line after a row that is not a page number, a table
+  header or the closing note 「上開公司…」 continues its cell; a line that
+  continues no category name quarantines the attachment. The adapter extracts the text with pypdf; the codes must be
   exactly those in the notice text, and each table must hold the count its
   title declares.
 - **Spelling**: the notices do not use the ISIN names: 「建材營造」, 「其他」 or

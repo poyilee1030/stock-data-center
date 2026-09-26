@@ -25,12 +25,16 @@ Raw-first: every list, detail and attachment is one `fetches` row with its raw
 file. A notice whose detail was once parsed and written is not asked again
 unless `refetch`; its rows are then compared, and only a changed value is a new
 row. A key already held by another notice is refused, never overwritten, so
-what is stored does not depend on the order notices were read.
+what is stored does not depend on the order notices were read. A refetched
+notice that no longer lists a key it wrote (its effective date corrected, a
+company dropped) is quarantined: nothing retracts a row, so the owner decides.
+A page any parser cannot read is quarantined alone, never the whole run.
 """
 
 from __future__ import annotations
 
 import base64
+import functools
 import html as html_lib
 import io
 import json
@@ -71,6 +75,9 @@ TPEX_LIST_FIELDS = ["項次", "資料日期", "發文字號", "主旨", "詳細�
 ATTACHMENT_TITLES = {"上市公司產業類別調整名單": "sii", "上櫃公司產業類別調整名單": "otc",
                      "興櫃公司產業類別調整名單": "emerging"}
 REMARKS = frozenset({"第一上市", "創新版", "創新板"})
+# The attachments' lines that are neither rows nor a wrapped cell: each table's
+# header and the closing note (「上開公司之證券代號不予變更…」).
+NOT_A_ROW = ("序號", "上開公司")
 
 
 class AnnouncementFormatError(ValueError):
@@ -143,6 +150,26 @@ def _key(document_number: str) -> str:
     return digits
 
 
+def _readable(parse):
+    """A parser whose every failure is a format error, so it quarantines one page
+    instead of rolling back the whole run (code review of #72)."""
+
+    @functools.wraps(parse)
+    def wrapped(*args, **kwargs):
+        try:
+            return parse(*args, **kwargs)
+        except AnnouncementFormatError:
+            raise
+        # Anything parsing an outside page raises is a page this code does not
+        # understand; ValueError also covers JSON, base64 and Unicode errors.
+        except (ValueError, KeyError, IndexError, TypeError, AttributeError) as error:
+            raise AnnouncementFormatError(
+                "unrecognised_layout", f"{type(error).__name__}: {error}"[:300]) from None
+
+    return wrapped
+
+
+@_readable
 def parse_twse_list(content: bytes) -> list[Listed]:
     payload = _payload(content)
     if payload.get("fields") != TWSE_LIST_FIELDS:
@@ -156,6 +183,7 @@ def parse_twse_list(content: bytes) -> list[Listed]:
                    row[3].strip(), {"id": row[4].strip()}) for row in rows]
 
 
+@_readable
 def parse_tpex_list(content: bytes, year: int) -> list[Listed]:
     payload = _payload(content)
     if payload.get("date") != f"{year}0101~{year}1231":
@@ -174,7 +202,7 @@ def parse_tpex_list(content: bytes, year: int) -> list[Listed]:
         query = parse_qs(urlsplit(row[4]).query)
         locator = {"content_file": query["content_file"][0], "docId": query["docId"][0]}
         key = _key(row[2])
-        if base64.b64decode(locator["docId"]).decode() != key:
+        if base64.b64decode(locator["docId"], validate=True).decode() != key:
             raise AnnouncementFormatError("unrecognised_layout",
                                           f"TPEx docId does not name {row[2]!r}")
         listed.append(Listed("tpex_announcement", key, _roc(row[1]), row[2].strip(),
@@ -204,6 +232,7 @@ def _effective_date(*texts: str) -> date:
     return found.pop()
 
 
+@_readable
 def parse_twse_detail(content: bytes) -> Announcement:
     payload = _payload(content)
     fields = payload.get("fields") or []
@@ -225,6 +254,7 @@ def _html_text(content: str) -> str:
     return html_lib.unescape(re.sub(r"<[^>]+>", "", content)).strip()
 
 
+@_readable
 def parse_tpex_detail(content: bytes) -> Announcement:
     payload = _payload(content)
     data = payload.get("data")
@@ -270,7 +300,7 @@ def parse_attachment(content: bytes, market: str) -> list[Change]:
     """An attachment's changes, if its table is `market`'s; [] if another board's.
 
     A row's last cell is its old category, which the PDF may wrap onto the
-    next line; the joined cell must then be a known category."""
+    lines after it; the joined cell must then be a known category."""
     from pypdf import PdfReader
 
     try:
@@ -284,30 +314,36 @@ def parse_attachment(content: bytes, market: str) -> list[Change]:
     if titles.pop() != market:
         return []
     sections: list[tuple[str, int, list[list[str]]]] = []
-    pending: list[str] | None = None  # a row whose old category is still wrapped
+    entry: list[str] | None = None  # the last row, whose old-category cell may go on
     for line in lines:
         if (section := _SECTION.search(line)) is not None:
-            _unwrapped(pending)
+            _unwrapped(entry)
+            entry = None
             sections.append((section.group(1), int(section.group(2)), []))
             continue
-        if pending is not None and line and not line.isdigit() and not _ROW.match(line):
-            pending[1] += line
-            if industry.code_of(pending[1]) is not None:
-                pending = None
+        if (row := _ROW.match(line)) is not None and sections:
+            _unwrapped(entry)
+            number, board, code, rest = row.groups()
+            if board is not None and board != "上櫃":
+                raise AnnouncementFormatError("unrecognised_attachment", f"{code} is on {board}")
+            cells = rest.split()
+            if len(cells) > 2 and cells[-1] in REMARKS:
+                cells.pop()
+            entry = [code, cells[-1], number]
+            sections[-1][2].append(entry)
             continue
-        if (row := _ROW.match(line)) is None or not sections:
-            continue
-        _unwrapped(pending)
-        number, board, code, rest = row.groups()
-        if board is not None and board != "上櫃":
-            raise AnnouncementFormatError("unrecognised_attachment", f"{code} is on {board}")
-        cells = rest.split()
-        if len(cells) > 2 and cells[-1] in REMARKS:
-            cells.pop()
-        entry = [code, cells[-1], number]
-        sections[-1][2].append(entry)
-        pending = entry if industry.code_of(entry[1]) is None else None
-    _unwrapped(pending)
+        if (not line or line.isdigit() or line.startswith(NOT_A_ROW)
+                or any(title in line for title in ATTACHMENT_TITLES)):
+            continue  # page numbers, the title, table headers and the closing note
+        # Anything else continues the last row's old category, which the PDF
+        # wraps: 「電腦及週邊」+「設備業」, or 「其他」+「電子業」, where the
+        # first line alone is a category too. Text that continues no category
+        # is not understood, and is never dropped (code review of #72).
+        joined = entry[1] + line if entry is not None else line
+        if entry is None or not industry.begins_a_name(joined):
+            raise AnnouncementFormatError("unrecognised_attachment", f"stray line {line!r}")
+        entry[1] = joined
+    _unwrapped(entry)
     changes = []
     for new, declared, rows in sections:
         if [int(number) for _, _, number in rows] != list(range(1, declared + 1)):
@@ -319,9 +355,9 @@ def parse_attachment(content: bytes, market: str) -> list[Change]:
     return changes
 
 
-def _unwrapped(pending) -> None:
-    if pending is not None:
-        raise AnnouncementFormatError("unknown_industry", f"{pending[0]}: {pending[1]!r}")
+def _unwrapped(entry) -> None:
+    if entry is not None and industry.code_of(entry[1]) is None:
+        raise AnnouncementFormatError("unknown_industry", f"{entry[0]}: {entry[1]!r}")
 
 
 def validate(notice: Announcement, changes: list[Change]) -> list[Change]:
@@ -366,13 +402,31 @@ def _latest(connection: Connection, source: str) -> dict[tuple, dict]:
 VALUES = ("announced_on", "document_number", "old_industry", "new_industry")
 
 
+def _lock(connection: Connection, source: str) -> None:
+    connection.execute(sa.select(sa.func.pg_advisory_xact_lock(
+        sa.func.hashtext(f"{DATASET}/{source}"))))
+
+
+def withdrawn(connection: Connection, source: str, document_number: str,
+              rows: list[dict]) -> list[tuple[str, date]]:
+    """The keys this notice held that its refetched text no longer lists.
+
+    A notice whose effective date was corrected, or that dropped a company,
+    would leave its old rows standing: there is no retraction, so such a notice
+    is quarantined for the owner instead (code review of #72). A company that
+    joined `stocks` since is simply added."""
+    _lock(connection, source)
+    listed = {(row["stock_id"], row["effective_date"]) for row in rows}
+    return sorted(key for key, old in _latest(connection, source).items()
+                  if old["document_number"] == document_number and key not in listed)
+
+
 def write(connection: Connection, source: str, rows: list[dict]) -> Counter:
     """Append each row whose values differ from its key's latest; refuse a key
     another notice already holds."""
     from stock_data_center.db.schema_v2 import industry_changes as table
 
-    connection.execute(sa.select(sa.func.pg_advisory_xact_lock(
-        sa.func.hashtext(f"{DATASET}/{source}"))))
+    _lock(connection, source)
     stored = _latest(connection, source)
     counts: Counter = Counter(appended=0, unchanged=0, conflicts=0)
     fresh = []
@@ -524,9 +578,6 @@ def ingest(connection: Connection, source: str, *, git_commit: str, http: Http |
             log(record, content, "quarantined", error.reason, str(error)[:500])
             quarantined.append((notice.key, error.reason))
             continue
-        fetch_id = log(record, content)
-        report["notices"] += 1
-        report["changes"] += len(changes)
         rows = []
         for change in changes:
             if change.stock_id not in universe:
@@ -536,7 +587,18 @@ def ingest(connection: Connection, source: str, *, git_commit: str, http: Http |
                          "announced_on": parsed.announced_on,
                          "document_number": parsed.document_number,
                          "old_industry": change.old_industry, "new_industry": change.new_industry,
-                         "fetch_id": fetch_id, "attachment_fetch_id": sheet.get(change.stock_id)})
+                         "attachment_fetch_id": sheet.get(change.stock_id)})
+        if gone := withdrawn(connection, source, parsed.document_number, rows):
+            detail = ", ".join(f"{stock} {day}" for stock, day in gone)
+            log(record, content, "quarantined", "notice_changed",
+                f"no longer lists {detail}"[:500])
+            quarantined.append((notice.key, "notice_changed"))
+            continue
+        fetch_id = log(record, content)
+        report["notices"] += 1
+        report["changes"] += len(changes)
+        for row in rows:
+            row["fetch_id"] = fetch_id
         counts = write(connection, source, rows)
         report.update(counts)
         if counts["conflicts"]:

@@ -57,7 +57,7 @@
 | 不核對內文的發文字號 | `test_a_detail_naming_another_notice_is_quarantined` |
 | 不限於 `stocks` 內的公司 | 6 條（外鍵違反） |
 
-全套測試：1071 passed。ruff：改動與新增的檔案沒有問題。
+全套測試：1071 passed（review 修正後 1086）。ruff：改動與新增的檔案沒有問題。
 
 ## 真實資料
 
@@ -130,3 +130,16 @@ legacy 沒有產業歷史：`stock_info` 只有一份快照（`symbol`、`name`�
 - 39-b：`industry_observations`、兩個交易所的類股行情 adapter。
 - 39-c：查詢時推出的分類期間、`industry-classifications` API、`/v1/stocks` 的下市公司產業、完整的一致性與對帳報告。
 - 前向抓取（Step 28）：每年 5 月的年度調整與個別申請，重跑本 CLI 即可補上新公告。
+
+## Code review（#72）
+
+三項都先寫會紅的測試再修，都在 39-a 範圍內。
+
+| 發現 | 處置 | 測試 |
+|---|---|---|
+| 重抓的公告若更正了實施日期或拿掉某家公司，舊列會留著、沒有撤回 | owner 選「出現就隔離」，不改 key、不加撤回語意（ADR-0030 §6）：重抓的公告不再列出它寫過的 key 時，整則 quarantine（`notice_changed`），一列都不寫；因 `stocks` 擴大而多出的公司照常新增 | `test_a_refetched_notice_with_a_new_effective_date_is_quarantined`、`test_a_refetched_notice_without_a_company_is_quarantined`（兩條先紅）、`test_a_company_new_to_the_universe_is_added_on_refetch`（守住不誤擋，原本就綠） |
+| 解析失敗若不是 `AnnouncementFormatError`（附件欄位 JSON 壞掉、欄位不是一對、`docId` 不是 base64 或不是 ASCII、少了 `docId`、欄位型別不對）會往外丟，整個交易所的寫入回滾 | 四個 parser 都轉成 `unrecognised_layout`，只隔離那一頁；`docId` 改用嚴格 base64 解碼 | 單元 7 條、整合 `test_an_unreadable_detail_quarantines_only_its_notice`、`test_an_unreadable_list_is_quarantined_not_raised`，全部先紅 |
+| 附件換行的舊類別：第一行本身就是類別時（「其他」／「電子業」）會存成較短的類別，第二行被默默丟掉 | 列之後除了頁碼、表頭、標題與結尾說明「上開公司…」以外的每一行都接到舊類別；接不成任何類別名稱開頭的文字整份附件 quarantine | `test_a_wrapped_cell_whose_first_line_is_a_category_takes_the_longer_name`、`test_a_stray_line_after_a_row_quarantines_the_attachment`（先紅）、`test_a_cell_wrapped_over_three_lines_is_joined`（原本就綠，守住改寫） |
+
+修完後對 `stockdc_backfill` 再跑一次 `--refetch --purpose correction_check`：170 列全部 unchanged，quarantine 0，
+新的檢查在真實資料上沒有誤擋（`log/step-39-a-review-refetch.json`）。

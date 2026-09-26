@@ -287,3 +287,74 @@ def test_the_downgrade_refuses_stored_changes(isolated_database_url, tmp_path) -
                 sa.select(sa.func.count()).select_from(industry_changes)) == 1
     finally:
         engine.dispose()
+
+
+# ---------------------------------------------------------------- code review of #72
+
+
+def test_a_refetched_notice_with_a_new_effective_date_is_quarantined(
+        db: Connection, tmp_path) -> None:
+    _seed(db, tmp_path, TWSE_CODES)
+    _ingest(db, tmp_path)
+
+    def postponed(content: bytes) -> bytes:
+        return content.decode().replace("115年9月1日", "115年10月1日").encode()
+
+    report = _ingest(db, tmp_path, refetch=True,
+                     http=Source(edit={"twse_detail_1151802340.json": postponed}))
+    assert report["quarantined"] == [("1151802340", "notice_changed")]
+    assert [row["effective_date"] for row in _rows(db) if row["stock_id"] == "3054"] == [
+        date(2023, 7, 3), date(2026, 9, 1)]
+    assert report["unchanged"] == TWSE_ROWS - 1  # every other notice is written as before
+
+
+def test_a_refetched_notice_without_a_company_is_quarantined(db: Connection, tmp_path) -> None:
+    _seed(db, tmp_path, TWSE_CODES)
+    _ingest(db, tmp_path)
+
+    def dropped(content: bytes) -> bytes:
+        text = content.decode()
+        start = text.index("(十一)鼎炫-KY")
+        return (text[:start] + text[text.index("\\n", start) + 2:]).encode()
+
+    report = _ingest(db, tmp_path, refetch=True,
+                     http=Source(edit={"twse_detail_1101802256.json": dropped}))
+    assert report["quarantined"] == [("1101802256", "notice_changed")]
+    assert db.execute(sa.select(fetches.c.status, fetches.c.reason_code)
+                      .where(fetches.c.resource_key == "twse_announcement:1101802256")
+                      .order_by(fetches.c.fetched_at.desc(), fetches.c.id).limit(1)
+                      ).one().reason_code == "notice_changed"
+
+
+def test_a_company_new_to_the_universe_is_added_on_refetch(db: Connection, tmp_path) -> None:
+    _seed(db, tmp_path, TWSE_CODES)
+    _ingest(db, tmp_path)
+    _seed(db, tmp_path, ["1439"])  # e.g. a delisted company Step 38 adds later
+    report = _ingest(db, tmp_path, refetch=True)
+    assert report["quarantined"] == [] and report["appended"] == 1
+
+
+def test_an_unreadable_detail_quarantines_only_its_notice(db: Connection, tmp_path) -> None:
+    _seed(db, tmp_path, TWSE_CODES)
+
+    def broken(content: bytes) -> bytes:
+        payload = json.loads(content)
+        payload["data"][0][6] = "[[broken"
+        return json.dumps(payload, ensure_ascii=False).encode()
+
+    report = _ingest(db, tmp_path, http=Source(edit={"twse_detail_1121802250.json": broken}))
+    assert report["quarantined"] == [("1121802250", "unrecognised_layout")]
+    assert report["appended"] == 11 + 1  # 2021 and 2026 are written
+
+
+def test_an_unreadable_list_is_quarantined_not_raised(db: Connection, tmp_path) -> None:
+    _seed(db, tmp_path, TPEX_CODES)
+
+    def no_doc_id(content: bytes) -> bytes:
+        return content.decode().replace("&docId=", "&doc=").encode()
+
+    report = _ingest(db, tmp_path, source="tpex_announcement",
+                     http=Source(edit={"tpex_list_2023.json": no_doc_id}))
+    assert not report["written"]
+    assert db.scalar(sa.select(fetches.c.reason_code).where(
+        fetches.c.resource_key.like("tpex_announcement:list:2023:%"))) == "unrecognised_layout"
