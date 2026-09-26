@@ -40,10 +40,10 @@ migration 與 `python -m stock_data_center.v2.listings`。
 
 還原價格（Step 36，MERGED #67）：`adjusted_prices_pit:v1`，查詢時計算、一次一檔。
 
-網頁儀表板（Step 37-a，IN REVIEW，ADR-0029）：`api` 容器在 `/` 提供網頁（React + ECharts），只透過公開 API 讀資料；
-股票搜尋、個股 K 線／成交量／均線／KD・RSI・MACD、原始價／還原價切換、深淺主題（預設黑夜）。畫出來的每個值已用
-`scripts/verify_web.sh`（Playwright）對同一個 API 回應逐點比對（2330、6488、5236）。從區網與 Tailscale 開啟要在部署後由人確認。
-籌碼（37-b）、基本面（37-c）、下市公司的各資料集（38-b）、排程的前向抓取（Step 28）尚未開始。
+網頁儀表板（Step 37-a MERGED #69、37-b IN REVIEW，ADR-0029）：`api` 容器在 `/` 提供網頁（React + ECharts），只透過公開 API 讀資料；
+股票搜尋、個股 K 線／成交量／均線／KD・RSI・MACD、原始價／還原價切換、深淺主題（預設黑夜）；37-b 加個股籌碼分頁（法人、外資、融資融券、借券、股權分散）與市場頁（指數、法人彙總）。畫出來的每個值已用
+`scripts/verify_web.sh`（Playwright）對同一個 API 回應逐點比對（2330、6488、5236）。
+基本面（37-c）、下市公司的各資料集（38-b）、排程的前向抓取（Step 28）尚未開始。
 
 已知限制：2025Q4 之前的財報沒有首見證據，真正延遲申報的公司在 Market PIT 下會偏早
 （audit §7.6）；月營收的 KY 公司與更正後的值沒有證明的公開時間，`published_at` 為 NULL。

@@ -152,8 +152,12 @@ FAMILIES: dict[str, Family] = {
 
 def rows(connection: Connection, dataset: str, pit: PIT, *, start: date, end: date,
          stock_ids: Sequence[str] | None = None,
-         sources: Sequence[str] | None = None) -> list[sa.RowMapping]:
+         sources: Sequence[str] | None = None,
+         index_names: Sequence[str] | None = None) -> list[sa.RowMapping]:
     """Each key's row as `pit` sees it, for keys whose date is in [start, end].
+
+    `stock_ids`, `sources` and `index_names` narrow the keys; a filter never
+    changes which row a key's PIT context sees.
 
     Every row carries the table's columns and its `available_at` (NULL for a
     first row with no proven publication), in key order."""
@@ -169,6 +173,10 @@ def rows(connection: Connection, dataset: str, pit: PIT, *, start: date, end: da
         if "source" not in t.c:
             raise ValueError(f"{dataset} has one source: it takes no source filter")
         inner = inner.where(t.c.source.in_(list(sources)))
+    if index_names is not None:
+        if "index_name" not in t.c:
+            raise ValueError(f"{dataset} has no index name")
+        inner = inner.where(t.c.index_name.in_(list(index_names)))
     inner = inner.subquery()
     if isinstance(pit, MarketPIT):
         eligible = sa.and_(inner.c.available_at <= pit.information_as_of,

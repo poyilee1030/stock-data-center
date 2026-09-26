@@ -129,3 +129,81 @@ export interface RowsAnswer<Row> {
 export interface AdjustedAnswer extends RowsAnswer<AdjustedRow> {
   events: AdjustmentEvent[];
 }
+
+// Step 37-b: chips. Quantities are shares and amounts TWD (docs/schema.md);
+// ratios are percentages as published or as the derived formula states.
+
+export interface FlowRow extends Dated {
+  foreign_net: number | null;
+  trust_net: number | null;
+  dealer_net: number | null;
+  total_net: number | null;
+}
+
+export interface StreakRow extends Dated {
+  foreign_streak_days: number | null;
+  trust_streak_days: number | null;
+  dealer_streak_days: number | null;
+}
+
+export interface CumulativeRow extends Dated {
+  trust_cumulative_net_ratio: number | null;
+  dealer_cumulative_net_ratio: number | null;
+}
+
+export interface ForeignRow extends Dated {
+  held_ratio: number | null;
+  investable_ratio: number | null;
+  foreign_legal_limit_ratio: number | null;
+}
+
+export interface MarginRow extends Dated {
+  margin_balance: number | null;
+  short_balance: number | null;
+}
+
+export interface MarginMetricsRow extends Dated {
+  margin_usage_ratio: number | null;
+  short_usage_ratio: number | null;
+}
+
+export interface LendingRow extends Dated {
+  balance: number | null;
+  sold: number | null;
+  returned: number | null;
+}
+
+export interface Snapshot {
+  stock_id: string;
+  source: string;
+  snapshot_date: string;
+}
+
+export interface ConcentrationRow extends Snapshot {
+  large_holder_ratio: number | null;
+  mid_holder_ratio: number | null;
+  small_holder_ratio: number | null;
+}
+
+export type DistributionRow = Snapshot & Record<string, number | string | null>;
+
+export interface IndexRow {
+  source: string;
+  index_name: string;
+  trade_date: string;
+  open_value?: number | null;
+  high_value?: number | null;
+  low_value?: number | null;
+  close_value: number | null;
+  change_points?: number | null;
+  change_percent?: number | null;
+}
+
+export interface MarketFlowRow {
+  source: string;
+  trade_date: string;
+  institution: string;
+  buy: number | null;
+  sell: number | null;
+  net: number | null;
+}

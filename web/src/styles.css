@@ -276,3 +276,46 @@ table.data .num { text-align: right; }
   .hits li { grid-template-columns: 48px minmax(0, 1fr) auto; }
   .hits .industry { display: none; }
 }
+
+/* ---- Step 37-b: tabs, panels, market page ---- */
+.brand-nav { display: flex; align-items: center; gap: 18px; }
+.nav { color: var(--muted); padding: 6px 10px; border-radius: 8px; white-space: nowrap; }
+.nav:hover { color: var(--text); }
+.nav.on { color: var(--text); background: var(--surface); border: 1px solid var(--border); }
+
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); }
+.tabs a {
+  padding: 8px 16px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; font-weight: 600;
+}
+.tabs a:hover { color: var(--text); }
+.tabs a.on { color: var(--text); border-bottom-color: var(--accent); }
+
+.chips-tab, .market-page { display: grid; gap: 16px; }
+.panel-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.panel-card { display: grid; gap: 6px; min-width: 0; padding: 14px 14px 10px; }
+.panel-card .card-title { margin: 0; }
+.panel-chart { width: 100%; }
+.panel-empty { display: grid; place-items: center; min-height: 120px; color: var(--muted); font-size: 13px; }
+.card-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+
+.weekly { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 20px; }
+.weekly-chart, .weekly-table { display: grid; gap: 6px; align-content: start; min-width: 0; }
+table.data.compact td, table.data.compact th { padding: 4px 8px; font-size: 12.5px; }
+table.data .total-row td { font-weight: 650; border-top: 1px solid var(--border); }
+table.data .muted-row td { color: var(--muted); }
+table.data .num.up { color: var(--up); }
+table.data .num.down { color: var(--down); }
+table.data tr.clickable { cursor: pointer; }
+table.data tr.clickable:hover td { background: var(--raised); }
+table.data tr.on td { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.table-wrap.scroll { max-height: 420px; overflow-y: auto; }
+.flows-body { display: grid; grid-template-columns: minmax(0, 1fr) 440px; gap: 16px; align-items: start; }
+.flows-body table.data td:first-child { white-space: normal; }
+
+@media (max-width: 1100px) {
+  .panel-grid, .weekly, .flows-body { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 720px) {
+  .brand-nav { gap: 8px; }
+  .brand span { display: none; }
+}

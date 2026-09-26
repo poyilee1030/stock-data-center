@@ -50,10 +50,13 @@ MAX_FACTS = 200_000
 _PIT_PARAMS = frozenset({*pit_context.MARKET, pit_context.SYSTEM})
 _ROW_PARAMS = frozenset({"start", "end", "stock_id", "source", *_PIT_PARAMS})
 _REPORT_PARAMS = _ROW_PARAMS | {"statement", "account_code"}
+# A whole source's indices over its history are tens of megabytes: the name
+# narrows the query itself (owner, 2026-09-26, Step 37-b).
+_INDEX_PARAMS = _ROW_PARAMS | {"index_name"}
 _REFERENCE_PARAMS = _ROW_PARAMS | {"view"}
 _STOCK_PARAMS = frozenset({"market", "stock_id", "date"})
 _CALENDAR_PARAMS = frozenset({"start", "end"})
-_REPEATABLE = frozenset({"stock_id", "source", "statement", "account_code"})
+_REPEATABLE = frozenset({"stock_id", "source", "statement", "account_code", "index_name"})
 STATEMENTS = ("balance_sheet", "income_statement", "cash_flow")
 MARKETS = ("sii", "otc")
 VIEWS = ("as_of", "rolling")
@@ -293,7 +296,9 @@ def create_app(*, api_key: str,
         if dataset is None:
             raise HTTPException(404, f"no dataset {name!r}; see /v1/datasets")
         reports = dataset.table is v2.financial_reports
-        params, lists = _params(request, _REPORT_PARAMS if reports else _ROW_PARAMS)
+        named = dataset.table is v2.index_prices
+        params, lists = _params(request, _REPORT_PARAMS if reports
+                                else _INDEX_PARAMS if named else _ROW_PARAMS)
         start, end = _range(params)
         stock_ids, sources = lists["stock_id"], lists["source"]
         _bounded(name, start, end, stock_ids, dataset.has_stock)
@@ -307,7 +312,8 @@ def create_app(*, api_key: str,
         resolved = _resolve(params, arrived)
         with connect() as connection:
             rows = visibility.rows(connection, dataset.table.name, resolved.pit, start=start,
-                                   end=end, stock_ids=stock_ids, sources=sources)
+                                   end=end, stock_ids=stock_ids, sources=sources,
+                                   index_names=lists.get("index_name"))
             sha = _provenance(connection, rows)
             facts = None
             if reports:
@@ -324,6 +330,8 @@ def create_app(*, api_key: str,
         query = {"start": start, "end": end, "stock_id": stock_ids, "source": sources}
         if reports:
             query.update(statement=lists["statement"], account_code=lists["account_code"])
+        if named:
+            query["index_name"] = lists["index_name"]
         return _json({
             "dataset": name,
             "pit": resolved.describe(),
@@ -503,7 +511,8 @@ def create_app(*, api_key: str,
 
     openapi.install(
         app,
-        {"/v1/datasets": frozenset(), "/v1/datasets/{name}": _REPORT_PARAMS | _REFERENCE_PARAMS,
+        {"/v1/datasets": frozenset(),
+         "/v1/datasets/{name}": _REPORT_PARAMS | _REFERENCE_PARAMS | _INDEX_PARAMS,
          "/v1/stocks": _STOCK_PARAMS, "/v1/trading-days": _CALENDAR_PARAMS},
         {"statement": STATEMENTS, "market": MARKETS, "view": VIEWS},
         [*DATASETS, *DERIVED, PIT_REFERENCE, ADJUSTED])

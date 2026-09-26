@@ -1,7 +1,11 @@
 // The only way the dashboard reads data: the public API, same origin, with the
 // key the viewer typed (ADR-0029 §4). No PIT parameter is ever sent, so every
 // answer is "latest" and says which instant that resolved to.
-import type { AdjustedAnswer, IndicatorRow, PriceRow, RowsAnswer, StocksAnswer, TradingDaysAnswer } from "./types";
+import type {
+  AdjustedAnswer, ConcentrationRow, CumulativeRow, DistributionRow, FlowRow, ForeignRow, IndexRow, IndicatorRow,
+  LendingRow, MarginMetricsRow, MarginRow, MarketFlowRow, PriceRow, RowsAnswer, StocksAnswer, StreakRow,
+  TradingDaysAnswer,
+} from "./types";
 
 const KEY = "stockdc.apiKey";
 
@@ -66,6 +70,11 @@ export async function get<T>(path: string, params: Record<string, string | strin
 // backfill of older years visible without a code change.
 const FIRST = "2000-01-01";
 
+function stockRows<Row>(dataset: string) {
+  return (stockId: string, signal?: AbortSignal) =>
+    get<RowsAnswer<Row>>(`datasets/${dataset}`, { start: FIRST, end: todayInTaipei(), stock_id: stockId }, signal);
+}
+
 export const api = {
   stocks: (signal?: AbortSignal) => get<StocksAnswer>("stocks", {}, signal),
   tradingDays: (signal?: AbortSignal) =>
@@ -76,6 +85,23 @@ export const api = {
   indicators: (stockId: string, signal?: AbortSignal) =>
     get<RowsAnswer<IndicatorRow>>("datasets/technical-indicators",
                                   { start: FIRST, end: todayInTaipei(), stock_id: stockId }, signal),
+  flows: stockRows<FlowRow>("institutional-flows"),
+  streaks: stockRows<StreakRow>("institutional-streaks"),
+  cumulative: stockRows<CumulativeRow>("institutional-cumulative-flows"),
+  foreign: stockRows<ForeignRow>("foreign-holdings"),
+  margin: stockRows<MarginRow>("margin-trading"),
+  marginMetrics: stockRows<MarginMetricsRow>("margin-metrics"),
+  lending: stockRows<LendingRow>("securities-lending"),
+  distributions: stockRows<DistributionRow>("shareholding-distributions"),
+  concentrations: stockRows<ConcentrationRow>("shareholding-concentrations"),
+  // Indices have no stock: a name narrows the query itself (index_name).
+  indices: (params: { source?: string; index_name?: string; start?: string }, signal?: AbortSignal) =>
+    get<RowsAnswer<IndexRow>>("datasets/indices",
+                              { start: params.start ?? FIRST, end: todayInTaipei(), source: params.source,
+                                index_name: params.index_name }, signal),
+  marketFlows: (source: string, signal?: AbortSignal) =>
+    get<RowsAnswer<MarketFlowRow>>("datasets/institutional-market-flows",
+                                   { start: FIRST, end: todayInTaipei(), source }, signal),
   adjusted: (stockId: string, source: string, signal?: AbortSignal) =>
     get<AdjustedAnswer>("datasets/adjusted-prices-pit",
                         { start: FIRST, end: todayInTaipei(), stock_id: stockId, source }, signal),

@@ -92,7 +92,7 @@ dataset's keys, date field, columns and sources.
   revenue month, ex-date, or a financial report's quarter end.
 - At most 200 `stock_id`; without one a query spans at most 31 days.
   `indices` and `institutional-market-flows` have no stocks and refuse
-  `stock_id`.
+  `stock_id`; `indices` takes `index_name`, the published name, repeatable.
 - A parameter the dataset does not take, or a single-valued one given twice,
   is refused with 400, so a misspelled PIT parameter never silently means
   "latest".
@@ -238,6 +238,8 @@ PARAMETERS: dict[str, tuple[dict, bool, str]] = {
     "system_as_of": _described(_INSTANT, "System PIT: what the Data Center had recorded by "
                                          "this instant, public or not. Not combinable with "
                                          "information_as_of or knowledge_as_of."),
+    "index_name": _described(_LIST, "indices only: the published index name, such as "
+                                    "發行量加權股價指數 or 指數:櫃買指數; repeatable."),
     "statement": _described(_LIST, "financial-reports only: the statements whose facts to "
                                    "return; repeatable."),
     "account_code": _described(_LIST, "financial-reports only: the account codes whose facts "

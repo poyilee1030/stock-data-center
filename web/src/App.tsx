@@ -4,6 +4,7 @@ import { Key, Logo, Moon, Sun } from "./components/Icons";
 import { KeyDialog } from "./components/KeyDialog";
 import { SearchBox } from "./components/SearchBox";
 import { Home } from "./pages/Home";
+import { MarketPage } from "./pages/MarketPage";
 import { StockPage } from "./pages/StockPage";
 import { useRoute } from "./lib/router";
 import { useTheme } from "./lib/theme";
@@ -34,13 +35,17 @@ export default function App() {
 
   useEffect(() => {
     document.title = route.page === "stock"
-      ? `${route.stockId} ${byId.get(route.stockId)?.name ?? ""} · 台股資料中心` : "台股資料中心";
+      ? `${route.stockId} ${byId.get(route.stockId)?.name ?? ""} · 台股資料中心`
+      : route.page === "market" ? "市場 · 台股資料中心" : "台股資料中心";
   }, [route, byId]);
 
   return (
     <>
       <header className="topbar">
-        <a className="brand" href="#/"><Logo /><span>台股資料中心</span></a>
+        <div className="brand-nav">
+          <a className="brand" href="#/"><Logo /><span>台股資料中心</span></a>
+          <a className={route.page === "market" ? "nav on" : "nav"} href="#/market">市場</a>
+        </div>
         <SearchBox stocks={stockList} />
         <div className="actions">
           <button type="button" className="icon" onClick={toggleTheme} data-testid="theme-toggle"
@@ -64,8 +69,10 @@ export default function App() {
       <main>
         {!ready ? null : route.page === "home"
           ? <Home stocks={stockList} />
-          : <StockPage key={`${route.stockId}:${session}`} stockId={route.stockId} stock={byId.get(route.stockId)}
-                       calendar={days} theme={theme} onError={onError} />}
+          : route.page === "market"
+            ? <MarketPage key={session} calendar={days} theme={theme} onError={onError} />
+            : <StockPage key={`${route.stockId}:${session}`} stockId={route.stockId} tab={route.tab}
+                         stock={byId.get(route.stockId)} calendar={days} theme={theme} onError={onError} />}
       </main>
 
       <footer className="site-footer">
