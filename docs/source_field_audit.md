@@ -1552,11 +1552,10 @@ event identity (see ROADMAP Step 13). Their contract and coverage limits are in
 - Today's listed stocks come from the ISIN list (§4.14, ADR-0026). Step 38-a
   (ADR-0028) adds the listing spans below. No official source of historical name
   changes was found, so no name history is kept. Industry history has one: both
-  exchanges' reclassification announcements (probed 2026-09-26, ROADMAP Step 39,
-  PLANNED), each stating the announcement date, the effective date and each
-  company's old and new category. `MI_INDEX?type=<category>` is not one: it
-  rebuilds history under today's classification (2020-01-02 lists the 數位雲端
-  category, created 2023-07-03). Until Step 39, no industry history is kept.
+  exchanges' reclassification announcements (§4.15, Step 39), each stating the
+  announcement date, the effective date and each company's old and new category.
+  `MI_INDEX?type=<category>` is not one: it rebuilds history under today's
+  classification (2020-01-02 lists the 數位雲端 category, created 2023-07-03).
 - `stock_tags` comes from MoneyDJ, a third party: a current snapshot with no
   effective dates.
 
@@ -1787,6 +1786,69 @@ the fetch is absent. Step 38-a (§4.11) adds the companies delisted since
 2020-01-02 from the exchanges' tables; the list itself still decides which
 stocks are listed now. Its `上市日` is not a listing date (§4.11) and is used
 only for a move from the innovation board.
+
+### 4.15 Industry reclassification announcements
+
+Added by Step 39-a (ADR-0030), probed 2026-09-26. Each exchange publishes its
+yearly reclassification, and a company's own application when granted, as a
+numbered notice. 〈上市公司產業類別劃分暨調整要點〉 and
+〈上櫃公司產業類別劃分暨調整要點〉 require the notice.
+
+- **TWSE list**: `GET https://www.twse.com.tw/rwd/zh/announcement/announcement?keyword=產業類別&response=json`,
+  fields `項次`, `發文日期` (中華民國YYY年MM月DD日), `發文字號`, `主旨`, `id`, with
+  `total`. One answer covers every year: 11 notices from 106-05-18 to 115-08-19,
+  of which two amend the rules (要點, 審查準則) and change no company. The
+  keywords 「調整產業」, 「產業」 (which adds TDR and ETF noise) and 「類別」 find no
+  other reclassification; none is dated 113 or 114.
+- **TWSE detail**: `GET .../announcement_detail?id=<id>&response=json`, fields
+  `發文機關`, `發文日期`, `發文字號`, `主旨`, `依據`, `公告事項`, and `相關附件` when
+  there is one (a JSON string of `[title, path]`). `公告事項` is plain text:
+  「名稱(代號XXXX)由「A」改為「B」」 per company and 「實施日期：YYY年M月D日」.
+- **TPEx list**: `POST https://www.tpex.org.tw/www/zh-tw/bulletin/announcement`,
+  form `startDate`, `endDate` (YYYY/MM/DD), `txtKeyword=產業類別`, `response=json`;
+  `tables[0]` fields `項次`, `資料日期` (YYY/MM/DD), `發文字號`, `主旨`, `詳細資料`
+  (a link whose `content_file` and `docId` are base64; `docId` decodes to the
+  number's digits), with `totalCount`. A multi-year range takes over a minute,
+  so the adapter asks one year at a time from 2019. Every year 2019–2026 has one
+  OTC notice in May; the others concern the emerging board (興櫃) or the pioneer
+  board (創櫃), or amend the rules.
+- **TPEx detail**: `POST .../bulletin/annDetail`, form `content_file`, `docId`,
+  `response=json`; `data` has `date`, `number`, `subject`, `content` (HTML
+  paragraphs 「(股票代號：XXXX)由「A」調整為「B」」 and 「實施日期」, or only the
+  subject's 「自YYY年M月D日起實施」) and `files` (`title`, `url`).
+- **The 2023 notices** (TWSE 臺證上一字第1121802250號, TPEx
+  證櫃監字第11202011201號) name only each company's new category in the text;
+  the old one is in the attached PDF, a table per new category titled
+  「調整至「B」：共計N家」 with `序號`, `股票代號`, `公司名稱`/`公司簡稱`, `原產業別`
+  (TWSE adds `備註`, TPEx `市場類別`). TPEx attaches the OTC table and the
+  emerging-board table separately. A long `原產業別` (電腦及週邊設備業) wraps onto
+  the next line, and the first line may itself be a category (「其他」 before
+  「電子業」), so every line after a row that is not a page number, a table
+  header or the closing note 「上開公司…」 continues its cell; a line that
+  continues no category name quarantines the attachment. The adapter extracts the text with pypdf; the codes must be
+  exactly those in the notice text, and each table must hold the count its
+  title declares.
+- **Spelling**: the notices do not use the ISIN names: 「建材營造」, 「其他」 or
+  「其他業」, 「生技醫療」, 「半導體」, 「電子商務」 or 「電子商務業」, 「文化創意」.
+  A name matches its ISIN category with the trailing 業 dropped; 觀光事業 (renamed
+  觀光餐旅, code 16) and 電子商務 (code 34, TPEx only, merged into 36) are listed
+  outright. The codes are the ISIN industry list
+  (`isin.twse.com.tw/isin/class_i.jsp?kind=1`, 01–38 without 07 and 34), which
+  both exchanges' by-category quotes use.
+- **Source typos kept as published**: TPEx 114 writes 「（股票代號：6187由」 with no
+  closing bracket, 「由「其他」」調整為」 with a doubled bracket, and
+  「鴻翊國際股份有限公司由（股票代號：3521）由」.
+- **Counts** of changes taking effect in the v1 window: TWSE 109 (2), 110 (11),
+  111 (3), 112 (47), 115-05 (1), 115-08 (1); TPEx 109 (4), 110 (10), 111 (4),
+  112 (56 OTC), 113 (7), 114 (11), 115 (13). The TWSE 108 notice takes effect on
+  2019-07-01 and is not stored.
+- **Publication**: a notice has a date and no time; the change is public from
+  00:00 Asia/Taipei the day after (`industry_announcement_next_day@1`, owner
+  decision 2026-09-26). Every notice takes effect weeks later.
+- **Completeness** cannot be proven from the notices alone: a company that
+  changed category without a notice leaves no trace here. Step 39-c checks
+  each change chain against today's ISIN category, and the OTC chains against
+  TPEx's by-category quotes.
 
 ## 5. Schema columns with partial coverage
 

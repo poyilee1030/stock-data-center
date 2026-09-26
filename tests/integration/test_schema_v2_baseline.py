@@ -29,11 +29,13 @@ DERIVED = {"technical_indicators", "institutional_streaks", "institutional_cumul
            "shareholding_concentration", "margin_metrics", "short_interest_metrics",
            "valuation_metrics"}
 # Step 38-a: listing spans, reference data rebuilt from the exchanges' tables.
-AFTER_BASELINE = DERIVED | {"listings"}
+# Step 39-a: industry changes, history like any value table.
+LATER_HISTORY = {"industry_changes"}
+AFTER_BASELINE = DERIVED | {"listings"} | LATER_HISTORY
 BASELINE_TABLES = V2_TABLES - AFTER_BASELINE
 # `stocks` holds each company's identity, refreshed in place; `trading_days` is
 # a calendar. Every other baseline table holds history and only grows.
-APPEND_ONLY = BASELINE_TABLES - {"stocks", "trading_days"}
+APPEND_ONLY = (BASELINE_TABLES - {"stocks", "trading_days"}) | LATER_HISTORY
 
 
 def _catalog(url: str) -> dict[str, set[str]]:
@@ -76,8 +78,9 @@ def test_the_derived_tables_and_listings_are_the_only_ones_after_the_baseline(
     command.upgrade(config, "head")
     assert _catalog(empty_database_url)["tables"] == V2_TABLES | {"alembic_version"}
     # Derived rows are recomputed from stored inputs, so dropping them loses no
-    # history (CLAUDE.md §81): the downgrade needs no guard. Listing spans guard
-    # their own downgrade (`test_v2_listings`); these tables are empty.
+    # history (CLAUDE.md §81): the downgrade needs no guard. Listing spans and
+    # industry changes guard their own downgrades (`test_v2_listings`,
+    # `test_v2_industry_changes`); these tables are empty.
     command.downgrade(config, "a273160c0288")
     assert _catalog(empty_database_url)["tables"] == BASELINE_TABLES | {"alembic_version"}
 

@@ -13,6 +13,9 @@ dependencies = [
   "fastapi>=0.141,<1",
   "httpx>=0.28,<1",
   "psycopg[binary]>=3.2,<4",
+  # Step 39-a: the 2023 industry reclassification notices keep the old category
+  # in a PDF attachment (audit §4.15).
+  "pypdf>=6,<7",
   # Step 24: the TDCC archive stores 2021 onward as .7z (audit §4.9).
   "py7zr>=1.0,<2",
   "sqlalchemy>=2.0,<2.1",

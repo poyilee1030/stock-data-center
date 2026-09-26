@@ -45,6 +45,26 @@ CORPORATE_ACTION_EX_DATE = Rule(
 )
 
 
+INDUSTRY_ANNOUNCEMENT = Rule(
+    "industry_announcement_next_day",
+    1,
+    "Owner decision (2026-09-26, ADR-0030, ADR-0020 §3): an exchange's industry "
+    "reclassification announcement carries its 發文日期 and no time, so it is public from "
+    "00:00 Asia/Taipei on the next day. Every announcement since 2019 takes effect weeks later.",
+)
+
+
+def industry_announcement_available_from(announced_on: date) -> datetime:
+    local = datetime.combine(announced_on + timedelta(days=1), time(0, 0),
+                             tzinfo=ZoneInfo(TAIPEI))
+    return local.astimezone(UTC)
+
+
+def industry_announcement_available_from_sql(announced_on):
+    day = sa.cast(announced_on, sa.Date) + 1
+    return sa.func.timezone(TAIPEI, sa.cast(day, sa.DateTime))
+
+
 def tdcc_available_from(snapshot_date: date) -> datetime:
     ahead = (TDCC_WEEKDAY - snapshot_date.weekday()) % 7 or 7
     local = datetime.combine(snapshot_date + timedelta(days=ahead), TDCC_AT,
