@@ -1395,6 +1395,22 @@ TWSE details sampled across years and instrument kinds: 息 has cash and no
 shares, 權 has shares and no cash, 權息 has both, and a rights ratio always comes
 with a subscription price. An adapter treats a disagreement as a quarantine.
 
+**Limit prices on an ex-rights date are not centred on the reference price.**
+TWT49U publishes, beside 除權息參考價, a dividend-only 減除股利參考價 and the trading
+base 開盤競價基準; TPEx `exDailyQ` publishes 開始交易基準價 and 減除股利參考價. For a
+cash capital increase the base leaves the rights issue out, and the limit
+prices follow it: TWSE computes both limits from the base (6225 on 2026-08-18,
+raw `aeb2a599…`: close before 44.40, 除權息參考價 30.04, 開盤競價基準 44.40, 漲停價格
+48.80 = 44.40 × 1.1), TPEx the limit up from the base and the limit down from
+the reference (8097 on 2021-07-01, raw `b969b5c6…`: reference 30.80, 開始交易基準價
+34.40, 漲停價 37.80, 跌停價 27.75). Measured on 2026-09-26 over every stored
+TWT49U and `exDailyQ` row (Step 36): all 10,424 ex-date closes in
+`daily_prices` lie inside the limit prices their list file published, 631 of
+them for rows with a rights ratio; 161 ex-dates had no trade. None of these
+columns is stored (§6): Step 36 uses 除權息參考價 and the close before, and reads
+the limits from the raw file only to classify the ten ex-rights dates on which
+the adjusted series moves by more than 10%.
+
 - **TWSE `rwd/zh/exRight/TWT49U?startDate=&endDate=&response=json`**: 資料日期
   (`113年01月04日`), 股票代號, 股票名稱, 除權息前收盤價, 除權息參考價, 權值+息值, 權/息
   (息 6,943 / 權息 443 / 權 441), 漲停價格, 跌停價格, 開盤競價基準, 減除股利參考價,

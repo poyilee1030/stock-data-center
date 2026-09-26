@@ -5,7 +5,8 @@ A stored dataset follows the latest inputs (CLAUDE.md §43) and is filtered by
 from is public (`visibility.derived_rows`). It has no knowledge axis, so a
 historical `knowledge_as_of` or `system_as_of` is refused (owner, 2026-09-25).
 `technical-indicators-pit` is `technical_indicators_pit:v1`, computed on demand
-under full PIT (§43, §46).
+under full PIT (§43, §46), and so is `adjusted-prices-pit`,
+`adjusted_prices_pit:v1` (Step 36), which keeps PIT corporate-action visibility.
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ from dataclasses import dataclass
 
 from stock_data_center.api.datasets import DATASETS
 from stock_data_center.v2 import derived_store
+from stock_data_center.v2.adjusted_prices import ADJUSTED_PRICES_PIT_V1
 from stock_data_center.v2.derived import TECHNICAL_INDICATORS_PIT_V1, Definition
 from stock_data_center.v2.derived_store import StoredDataset
 
@@ -73,3 +75,6 @@ DERIVED: dict[str, Derived] = {
 
 PIT_REFERENCE = "technical-indicators-pit"
 PIT_REFERENCE_DEFINITION = TECHNICAL_INDICATORS_PIT_V1
+
+ADJUSTED = "adjusted-prices-pit"
+ADJUSTED_DEFINITION = ADJUSTED_PRICES_PIT_V1

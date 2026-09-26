@@ -81,7 +81,7 @@ Stored derived datasets (`kind: derived`, Step 26): `technical-indicators`,
 `institutional-streaks`, `institutional-cumulative-flows`,
 `shareholding-concentrations`, `margin-metrics`, `short-interest-metrics`,
 `valuation-metrics` (computed, not `official-valuations`). On demand
-(`kind: derived_on_demand`): `technical-indicators-pit`.
+(`kind: derived_on_demand`): `technical-indicators-pit`, `adjusted-prices-pit`.
 
 ### Parameters of `/v1/datasets/{name}`
 
@@ -200,6 +200,37 @@ Each row carries `information_as_of`, `input_count` and `input_fingerprint`
 (SHA-256 of the input rows' dates and `recorded_at`); `derivation.git_commit`
 names the implementation. System PIT is refused: the on-demand series is a
 market-PIT answer.
+
+## `adjusted-prices-pit`
+
+`adjusted_prices_pit:v1` (Step 36), daily prices adjusted for corporate
+actions, computed on demand for **one** `stock_id` per request under market or
+system PIT (`source` needed only if the stock has two price sources). Nothing is
+stored: adjusted prices keep PIT corporate-action visibility (CLAUDE.md §43).
+
+Every visible event of `corporate-actions` from the series' own exchange has
+`factor = reference_price / close_before`. A day's `adjustment_factor` is the
+product of the factors of the events after it, up to the last price the context
+sees; its adjusted open, high, low and close are the raw ones times it, so the
+last price is unadjusted and a value never depends on the requested window.
+The reference price already deducts cash dividends, so returns from the series
+are total returns (§80). Volume is not adjusted.
+
+Each row carries the raw `open_price` … `close_price` beside
+`adjusted_open_price` … `adjusted_close_price` and `adjustment_factor`.
+`events` lists every event that adjusts a returned row, rendered like a
+`corporate-actions` row with its `available_at` and provenance, plus its exact
+`factor`. An event without a factor leaves every earlier `adjustment_factor`
+null. A stock that moved from TPEx to TWSE has two series, neither adjusted by
+the other exchange's events (§30).
+
+On a cash capital increase's ex-rights date the exchange's limit prices follow
+a base that leaves the rights issue out (TWT49U's 開盤競價基準, TPEx's
+開始交易基準價), not the ex-rights reference price, so where the market does not
+price the dilution the adjusted series moves by the subscription right's value
+— up to +62% on 6225's 2026-08-18 (audit §4.10). That is the §80 convention (the return of a holder
+who subscribes), not an error; Fubon's adjusted candles do not adjust cash
+rights issues at all (Step 36 report).
 
 ## Reference data
 

@@ -30,10 +30,11 @@ from sqlalchemy import Connection, Engine
 from stock_data_center.api import derived, openapi
 from stock_data_center.api import pit as pit_context
 from stock_data_center.api.datasets import DATASETS, Dataset
-from stock_data_center.api.derived import DERIVED, PIT_REFERENCE, Derived
+from stock_data_center.api.derived import ADJUSTED, DERIVED, PIT_REFERENCE, Derived
 from stock_data_center.api.render import dumps
 from stock_data_center.db import schema_v2 as v2
 from stock_data_center.v2 import listings, visibility
+from stock_data_center.v2.adjusted_prices import AdjustedPrices
 from stock_data_center.v2.derived import TechnicalIndicators, UnknownStockError
 
 # A query without a stock spans at most this many days: the whole market over a
@@ -180,6 +181,18 @@ def _describe_reference() -> dict:
     }
 
 
+def _describe_adjusted() -> dict:
+    return {
+        "name": ADJUSTED,
+        "kind": "derived_on_demand",
+        "description": "Daily prices adjusted for corporate actions, total-return style, "
+                       "computed on demand under PIT, one stock at a time.",
+        "keys": ["stock_id", "source", "trade_date"],
+        "period": "trade_date",
+        "derivation": derived.describe(derived.ADJUSTED_DEFINITION),
+    }
+
+
 def _provenance_of(row, sha: dict) -> dict:
     return {"fetch_id": row["fetch_id"], "raw_sha256": sha.get(row["fetch_id"])}
 
@@ -234,6 +247,7 @@ def create_app(*, api_key: str,
                   redoc_url=None, swagger_ui_oauth2_redirect_url=None)
     expected = api_key.encode()
     reference = TechnicalIndicators(git_commit=git_commit)  # takes the commit once
+    adjusted = AdjustedPrices(git_commit=reference.git_commit)
     # The description only: it names no data (owner, 2026-09-25).
     public = frozenset({app.docs_url, app.openapi_url})
 
@@ -255,7 +269,7 @@ def create_app(*, api_key: str,
     def list_datasets() -> Response:
         return _json({"datasets": [*(_describe(d) for d in DATASETS.values()),
                                    *(_describe_derived(d) for d in DERIVED.values()),
-                                   _describe_reference()]})
+                                   _describe_reference(), _describe_adjusted()]})
 
     @app.get("/v1/datasets/{name}", summary="Rows as a PIT context sees them",
              description=openapi.ROWS)
@@ -265,6 +279,8 @@ def create_app(*, api_key: str,
             return _derived_rows(DERIVED[name], request, arrived)
         if name == PIT_REFERENCE:
             return _reference_rows(request, arrived)
+        if name == ADJUSTED:
+            return _adjusted_rows(request, arrived)
         dataset = DATASETS.get(name)
         if dataset is None:
             raise HTTPException(404, f"no dataset {name!r}; see /v1/datasets")
@@ -387,6 +403,40 @@ def create_app(*, api_key: str,
                       **r.metrics} for r in rows],
         })
 
+    def _adjusted_rows(request: Request, arrived: datetime) -> Response:
+        params, _ = _params(request, _ROW_PARAMS, frozenset())
+        start, end = _range(params)
+        if "stock_id" not in params:
+            raise HTTPException(400, f"{ADJUSTED} is computed for one stock_id at a time")
+        resolved = _resolve(params, arrived)
+        with connect() as connection:
+            try:
+                series = adjusted.compute(connection, stock_id=params["stock_id"],
+                                          start_date=start, end_date=end, pit=resolved.pit,
+                                          source=params.get("source"))
+            except (UnknownStockError, ValueError) as error:
+                raise HTTPException(400, str(error)) from None
+            sha = _provenance(connection, [e.row for e in series.events])
+        return _json({
+            "dataset": ADJUSTED,
+            "derivation": {**derived.describe(derived.ADJUSTED_DEFINITION),
+                           "git_commit": series.git_commit},
+            "pit": resolved.describe(),
+            "query": {"start": start, "end": end, "stock_id": params["stock_id"],
+                      "source": params.get("source")},
+            "rows": [{"stock_id": series.stock_id, "source": series.source,
+                      "trade_date": r.bar.trade_date,
+                      "open_price": r.bar.open, "high_price": r.bar.high,
+                      "low_price": r.bar.low, "close_price": r.bar.close,
+                      "adjustment_factor": r.factor,
+                      "adjusted_open_price": r.adjusted_open,
+                      "adjusted_high_price": r.adjusted_high,
+                      "adjusted_low_price": r.adjusted_low,
+                      "adjusted_close_price": r.adjusted_close} for r in series.rows],
+            "events": [{**_render_row(DATASETS["corporate-actions"], e.row, sha),
+                        "factor": e.factor} for e in series.events],
+        })
+
     @app.get("/v1/stocks", summary="Today's stock list", description=openapi.STOCKS)
     def stock_list(request: Request) -> Response:
         params, lists = _params(request, _STOCK_PARAMS, frozenset({"stock_id"}))
@@ -448,5 +498,5 @@ def create_app(*, api_key: str,
         {"/v1/datasets": frozenset(), "/v1/datasets/{name}": _REPORT_PARAMS | _REFERENCE_PARAMS,
          "/v1/stocks": _STOCK_PARAMS, "/v1/trading-days": _CALENDAR_PARAMS},
         {"statement": STATEMENTS, "market": MARKETS, "view": VIEWS},
-        [*DATASETS, *DERIVED, PIT_REFERENCE])
+        [*DATASETS, *DERIVED, PIT_REFERENCE, ADJUSTED])
     return app

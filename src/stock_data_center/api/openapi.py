@@ -144,6 +144,7 @@ computed from the latest inputs and recomputed when an input is corrected.
   `available_at` means it has not been recomputed since an input's correction.
 - To see what was known at a past instant, read the observed datasets with
   explicit instants, or `technical-indicators-pit`.
+- They are computed on raw prices. `adjusted-prices-pit` is the adjusted series.
 
 ### technical-indicators-pit
 
@@ -157,6 +158,30 @@ market PIT, for one `stock_id` at a time.
 - Each row carries `information_as_of`, `input_count` and `input_fingerprint`
   (a SHA-256 of its input rows' dates and recording times);
   `derivation.git_commit` names the implementation. System PIT is refused.
+
+### adjusted-prices-pit
+
+Prices adjusted for corporate actions, computed on request for one `stock_id`
+at a time, under market or system PIT.
+
+- Every event in `corporate-actions` has a factor, its reference price over
+  its close before. A day's `adjustment_factor` is the product of the factors
+  of the events after it, up to the last price the PIT context sees, and its
+  adjusted prices are the raw ones times it. The last price is unadjusted.
+- The reference price already deducts cash dividends, so the series reinvests
+  them: returns computed from it are total returns. Volume is not adjusted.
+- An event adjusts the series only once the PIT context sees it; a price-only
+  series without dividends is not offered.
+- Each row carries the raw open, high, low and close beside the adjusted ones.
+  `events` lists every event that adjusts a returned row, with its `factor`,
+  `available_at` and provenance. An event without a factor leaves every earlier
+  `adjustment_factor` null.
+- One series per source: an event adjusts the prices of its own exchange only,
+  so a stock that moved from TPEx to TWSE has two series; name the `source`.
+- On a cash capital increase's ex-date the exchange's price limits leave the
+  rights issue out, so where the market does not price the dilution the
+  adjusted close can move by more than 10% that day: the subscription right's
+  value, as the reference price models it.
 """
 
 STOCKS = """\
