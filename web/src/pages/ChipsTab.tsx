@@ -11,6 +11,9 @@ import { grouped, MISSING } from "../lib/format";
 import { useAsync } from "../lib/useAsync";
 
 const GROUP = "chips";
+// A stable object: PanelChart re-applies its range whenever the reference changes,
+// and every hover re-renders this chart's parent.
+const WEEKLY_RANGE: RangeCommand = { months: 36, nonce: 0 };
 
 type Loaded = { [K in keyof ChipAnswers]: RowsAnswer<ChipAnswers[K][number]> };
 
@@ -81,7 +84,7 @@ function Distribution({ stockId, palette, onError }: {
         <p className="note">大戶、中實戶、散戶的持股佔比：TDCC 各分級發布的百分比加總（shareholding-concentrations）。游標所在的週，右表列出 15 個持股分級。</p>
         {built.axis.length === 0
           ? <div className="panel-empty">沒有這檔股票的股權分散資料。</div>
-          : <PanelChart id="concentration" input={input} range={{ months: 36, nonce: 0 }} onHover={setHover} height={260} />}
+          : <PanelChart id="concentration" input={input} range={WEEKLY_RANGE} onHover={setHover} height={260} />}
         <footer className="captions">
           <PitNote pit={concentrations.pit} what="shareholding-concentrations · tdcc_opendata" />
           <span className="pit">衍生資料：latest 輸入</span>

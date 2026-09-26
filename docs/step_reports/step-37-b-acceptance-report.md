@@ -13,7 +13,7 @@ API 的 `indices` 多一個可重複的 `index_name` 篩選參數（owner 2026-0
 | `src/stock_data_center/api/__init__.py`、`openapi.py` | `indices` 接受可重複的 `index_name`，回應的 `query` 帶出；其他資料集照舊 400；Swagger 說明 |
 | `web/src/lib/`（新） | `panel.ts` 通用時間序列面板、`chips.ts` 籌碼面板與 TDCC 分級表、`market.ts` 指數與法人彙總、`exchange.ts` 來源對應交易所；`router.ts` 加分頁與市場頁 |
 | `web/src/pages/ChipsTab.tsx`、`MarketPage.tsx`（新）、`components/PanelChart.tsx`、`PitNote.tsx`（新） | 籌碼分頁、市場頁、共用縮放與游標的面板元件 |
-| 測試 | `tests/integration/test_api_observed.py` +3、`tests/unit/test_api_openapi.py`；Vitest 69（+27）；Playwright 16（+5） |
+| 測試 | `tests/integration/test_api_observed.py` +3、`tests/unit/test_api_openapi.py`；Vitest 69（+27）；Playwright 17（+6） |
 | 文件 | ROADMAP（§20、Step 37 的 37-a／37-b）、CLAUDE.md 快照、`docs/api.md`、README、37-a 報告狀態 |
 
 `src/` +25／−6 行；`web/src` 新檔約 800 行、既有檔 +335／−38。沒有 migration。
@@ -80,6 +80,14 @@ API 的 `indices` 多一個可重複的 `index_name` 篩選參數（owner 2026-0
 ![市場 白天](step-37-b/market-light.png)
 
 ![6488 籌碼 手機 黑夜](step-37-b/phone-chips-6488-dark.png)
+
+## Code review 修正（#70）
+
+| 發現 | 判斷 | 回核 | 修正 |
+|---|---|---|---|
+| 股權分散圖的 `range` 每次 render 都是新物件，游標一移就把縮放拉回最近 36 個月 | 成立 | 新 e2e 先紅：把圖縮到前 21 週後移動游標，縮放變成 221–375 | `range` 改成模組層常數 `WEEKLY_RANGE` |
+
+修正後：`verify_web.sh` 17 passed、Vitest 69 passed、`tsc` 通過。
 
 ## 已知限制
 

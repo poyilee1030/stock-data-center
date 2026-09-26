@@ -227,6 +227,29 @@ for (const stockId of ["2330", "6488"]) {
   });
 }
 
+test("hovering the weekly chart keeps the viewer's zoom", async ({ page }) => {
+  // Regression (code review of #70): a range object rebuilt on every render
+  // re-applied the 36-month window on each hover, undoing the viewer's zoom.
+  await withKey(page);
+  await page.goto("/#/stock/2330/chips");
+  const { axis } = await panelOption(page, "concentration");
+  const zoomed = () => page.evaluate(() => {
+    const zoom = (window.__stockdc!.charts.concentration.getOption().dataZoom as { startValue: number; endValue: number }[])[0];
+    return [zoom.startValue, zoom.endValue];
+  });
+  await page.evaluate(() => window.__stockdc!.charts.concentration.dispatchAction({ type: "dataZoom", startValue: 0, endValue: 20 }));
+  expect(await zoomed()).toEqual([0, 20]);
+  const box = (await page.getByTestId("chart-concentration").boundingBox())!;
+  for (const x of [0.3, 0.5, 0.7]) {
+    await page.mouse.move(box.x + box.width * x, box.y + box.height / 2);
+    await page.waitForTimeout(100);
+  }
+  expect(await zoomed()).toEqual([0, 20]);
+  // The hovered week is one inside the zoom, and the table follows it.
+  const week = await page.getByTestId("panel-distribution").locator(".day-date").textContent();
+  expect(axis.slice(0, 21)).toContain(week);
+});
+
 test("5236: each exchange's chips stand apart", async ({ page }) => {
   await withKey(page);
   await page.goto("/#/stock/5236/chips");
