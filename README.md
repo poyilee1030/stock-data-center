@@ -45,7 +45,7 @@ migration 與 `python -m stock_data_center.v2.listings`。
 `scripts/verify_web.sh`（Playwright）對同一個 API 回應逐點比對（2330、6488、5236）。
 歷史產業分類（Step 39，ADR-0030）：39-a（MERGED #72）把兩個交易所的產業類別調整公告存進 `industry_changes`；39-b（MERGED #73）把依類股查的每日行情存進 `industry_observations`，作為已結束掛牌期間的錨點與上櫃對帳；39-c（MERGED #74）在查詢時推出分類期間，API `industry-classifications`（`date=` 或 `start`/`end`，三個 PIT 參數），`/v1/stocks` 的下市公司帶最後已知產業。已在 `stockdc_backfill` 以需求方的檢查驗過；API 容器已在合併後重新部署（5a2c397）。
 
-排程的前向抓取（Step 28，拆成 28-a／28-b／28-c）：28-a（IN REVIEW）寫入 `trading_days`（FMTQIK），宣告每個 job 何時可抓、何時穩定、何時升級，並以 `python -m stock_data_center.v2.schedule` 在不抓取的情況下列出待辦；`stockdc_backfill` 已以 `gap_fill` 補到 2026-09-24。每小時的迴圈、ntfy 通知與 systemd timer 是 28-b，尚未開始，所以資料目前仍要手動補；舊系統的排程照常執行。
+排程的前向抓取（Step 28，拆成 28-a／28-b／28-c）：28-a（IN REVIEW #75）寫入 `trading_days`（FMTQIK），宣告每個 job 何時可抓、何時穩定、何時升級，並以 `python -m stock_data_center.v2.schedule` 在不抓取的情況下列出待辦；`stockdc_backfill` 已以 `gap_fill` 補到 2026-09-24。每小時的迴圈、ntfy 通知與 systemd timer 是 28-b，尚未開始，所以資料目前仍要手動補；舊系統的排程照常執行。
 已知缺口：KY 公司的財報沒有歷史（舊系統的檔案庫沒有它們），前向抓取從開著的季開始收。
 
 下市公司的各資料集（38-b）尚未開始。

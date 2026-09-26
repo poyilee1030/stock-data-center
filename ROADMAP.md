@@ -613,7 +613,7 @@ explicit out-of-scope work
 | 27-a | MERGED (#60) | 公開 API：PIT 可見性層 |
 | 27-b | MERGED (#61) | 公開 API：HTTP 層、觀測資料 |
 | 27-c | MERGED (#62) | 公開 API：財報、衍生資料、參考資料 |
-| 28 | 28-a IN REVIEW；28-b PLANNED；28-c PLANNED | 排程的前向抓取 |
+| 28 | 28-a IN REVIEW (#75)；28-b PLANNED；28-c PLANNED | 排程的前向抓取 |
 | 29 | SUPERSEDED | Python SDK 與下游整合（owner 決定移除，2026-09-24） |
 | 30 | PLANNED | 維運與可觀測性 |
 | 31 | PLANNED | 完整的正確性 CI 關卡 |
@@ -2411,7 +2411,7 @@ legacy `stock_db` 只有 `stock_info.listing_date`，沒有下市資料。
 
 ## Step 28 — 排程的前向抓取
 
-狀態：**28-a IN REVIEW；28-b PLANNED；28-c PLANNED**（2026-09-27 依 CLAUDE.md §1 拆成三段）。依賴：Steps 16–24、Step 35（schema v2）、Step 38-a、Step 39。
+狀態：**28-a IN REVIEW（#75）；28-b PLANNED；28-c PLANNED**（2026-09-27 依 CLAUDE.md §1 拆成三段）。依賴：Steps 16–24、Step 35（schema v2）、Step 38-a、Step 39。
 
 每日、每週、每月和每季的工作執行 adapter（Step 38 之後也包括上市／下市表，才能持續記到新的上市與下市）。它們包括重試、以日曆為基礎的缺漏資料警示，以及透過重新抓取近期期間來偵測更正。每個資料集的 revision 比率報告，量化 Step 15 描述的 backfill 限制。
 

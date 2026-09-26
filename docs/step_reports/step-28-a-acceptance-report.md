@@ -1,6 +1,6 @@
 # Step 28-a 驗收報告
 
-狀態：IN REVIEW
+狀態：IN REVIEW (#75)
 
 範圍：前向抓取的第一段——`trading_days` 的 v2 writer、每個 job 的排程宣告，以及不抓取就能
 列出待辦的 `plan`；再以 `gap_fill` 把 `stockdc_backfill` 補到今天。每小時的迴圈、通知與

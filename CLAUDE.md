@@ -159,7 +159,7 @@ Step 26-f valuation metrics                            MERGED
 Step 27-a public API: PIT visibility layer             MERGED
 Step 27-b public API: HTTP layer + observed datasets   MERGED
 Step 27-c public API: reports, derived, reference data MERGED
-Step 28-a forward capture: calendar, declarations, plan IN REVIEW
+Step 28-a forward capture: calendar, declarations, plan IN REVIEW (#75)
 Step 28-b forward capture: hourly loop + notices      PLANNED
 Step 28-c forward capture: two-week run + revisions   PLANNED
 Step 29  Python SDK + downstream integration           SUPERSEDED (removed by owner)
