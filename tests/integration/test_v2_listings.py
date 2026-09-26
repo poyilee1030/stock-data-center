@@ -29,6 +29,8 @@ pytestmark = pytest.mark.integration
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "v2" / "listings"
 NOW = datetime(2026, 9, 25, 6, 0, tzinfo=UTC)
+# The revision before Step 38-a: later migrations are undone on the way.
+BEFORE_LISTINGS = "31e69301ca35"
 
 
 def _empty_tpex(year: int, kind: str) -> bytes:
@@ -245,7 +247,7 @@ def test_a_span_must_be_well_formed(db: Connection, tmp_path, values) -> None:
 
 def test_the_migration_turns_each_stock_into_an_open_span(isolated_database_url, tmp_path):
     config = alembic_config(isolated_database_url)
-    command.downgrade(config, "-1")
+    command.downgrade(config, BEFORE_LISTINGS)
     engine = sa.create_engine(isolated_database_url)
     try:
         with engine.begin() as connection:
@@ -266,7 +268,7 @@ def test_the_migration_turns_each_stock_into_an_open_span(isolated_database_url,
             columns = {c["name"] for c in sa.inspect(connection).get_columns("stocks")}
             assert columns == {"stock_id", "name", "industry", "fetch_id"}
         # Open spans alone go back into stocks.
-        command.downgrade(config, "-1")
+        command.downgrade(config, BEFORE_LISTINGS)
         with engine.connect() as connection:
             back = connection.execute(sa.text(
                 "SELECT stock_id, market, listed_on FROM stocks ORDER BY stock_id")).all()
@@ -287,7 +289,7 @@ def test_the_downgrade_refuses_a_closed_span(isolated_database_url, tmp_path) ->
                 stock_id="2809", market="sii", delisted_on=date(2025, 10, 1),
                 fetch_id=fetch_id, delisted_fetch_id=fetch_id))
         with pytest.raises(DBAPIError, match="closed listing span"):
-            command.downgrade(alembic_config(isolated_database_url), "-1")
+            command.downgrade(alembic_config(isolated_database_url), BEFORE_LISTINGS)
         with engine.connect() as connection:
             assert connection.scalar(sa.select(sa.func.count()).select_from(listings)) == 1
     finally:

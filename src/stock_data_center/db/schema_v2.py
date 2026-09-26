@@ -594,6 +594,33 @@ corporate_actions = sa.Table(
     ),
 )
 
+# One row per company an exchange announced would change industry category
+# (Step 39-a, ADR-0030), keyed by its effective date; the names are as the notice
+# spells them, `stock_data_center.v2.industry` maps them to codes. `fetch_id` is
+# the notice's text; `attachment_fetch_id` the PDF that gave the old category,
+# where the text does not. Public from the day after `announced_on`
+# (`industry_announcement_next_day@1`).
+industry_changes = sa.Table(
+    "industry_changes",
+    metadata,
+    *_daily_key()[:2],
+    sa.Column("effective_date", sa.Date(), nullable=False),
+    _recorded_at(),
+    sa.Column("announced_on", sa.Date(), nullable=False),
+    sa.Column("document_number", sa.Text(), nullable=False),
+    sa.Column("old_industry", sa.Text(), nullable=False),
+    sa.Column("new_industry", sa.Text(), nullable=False),
+    _fetch_id(),
+    _optional_fetch_id("attachment_fetch_id"),
+    sa.PrimaryKeyConstraint(
+        "stock_id", "source", "effective_date", "recorded_at", name="pk_industry_changes"
+    ),
+    sa.CheckConstraint(
+        "source IN ('twse_announcement', 'tpex_announcement')", name="source_value"
+    ),
+    sa.CheckConstraint("old_industry <> new_industry", name="category_changes"),
+)
+
 # ---------------------------------------------------------------- derived (Step 26)
 #
 # One wide row per (stock, source, date), computed from the latest input rows and
@@ -715,4 +742,5 @@ APPEND_ONLY = (
     "financial_report_facts",
     "shareholding_distributions",
     "corporate_actions",
+    "industry_changes",
 )

@@ -1860,6 +1860,80 @@
             "note": "The fetch delisted_on came from; NULL exactly when delisted_on is."
           }
         }
+      },
+      "industry_changes": {
+        "dataset_code": "industry_changes",
+        "v1": true,
+        "roadmap_pr": "step-39-a",
+        "reason": "One append-only row per company an exchange announced would change industry category (Step 39-a, ADR-0030), keyed by (stock, source, effective date); the category periods are derived from it at query time (Step 39-c). Changes taking effect before 2020-01-02 are not kept.",
+        "columns": {
+          "stock_id": {
+            "coverage": "sourced",
+            "source_fields": [
+              "代號 / 證券代號 / 股票代號 in the notice text (公告事項, TWSE announcement_detail; content, TPEx annDetail)",
+              "股票代號, the 2023 attachments' tables"
+            ],
+            "audit_section": "4.15",
+            "note": "Only companies in `stocks` are stored; the others are counted as outside the universe."
+          },
+          "effective_date": {
+            "coverage": "sourced",
+            "source_fields": [
+              "實施日期 in the notice text",
+              "自…起實施 in the subject (主旨 / subject)"
+            ],
+            "audit_section": "4.15",
+            "note": "ROC date; the day the new category applies. Every date the notice states must agree."
+          },
+          "recorded_at": {
+            "coverage": "internal",
+            "note": "The Data Center's own write instant, stamped by the database; never a publication time."
+          },
+          "announced_on": {
+            "coverage": "sourced",
+            "source_fields": [
+              "發文日期, TWSE announcement_detail",
+              "date, TPEx annDetail"
+            ],
+            "audit_section": "4.15",
+            "note": "ROC date without a time; the change is public from 00:00 Asia/Taipei the next day (industry_announcement_next_day@1)."
+          },
+          "document_number": {
+            "coverage": "sourced",
+            "source_fields": [
+              "發文字號, TWSE announcement_detail",
+              "number, TPEx annDetail"
+            ],
+            "audit_section": "4.15",
+            "note": "The notice's identity; its digits are the fetch resource key. A key another notice already holds is refused."
+          },
+          "old_industry": {
+            "coverage": "sourced",
+            "source_fields": [
+              "「A」 of 由「A」改為/調整為「B」 in the notice text",
+              "原產業別, the 2023 attachments' tables"
+            ],
+            "audit_section": "4.15",
+            "note": "As the notice spells it (「其他」, 「建材營造」, 「觀光事業」); stock_data_center.v2.industry maps it to the ISIN code."
+          },
+          "new_industry": {
+            "coverage": "sourced",
+            "source_fields": [
+              "「B」 of 由「A」改為/調整為「B」 in the notice text",
+              "調整至「B」, the 2023 attachments' section titles"
+            ],
+            "audit_section": "4.15",
+            "note": "As the notice spells it; mapped to the ISIN code like old_industry."
+          },
+          "fetch_id": {
+            "coverage": "internal",
+            "note": "The notice's detail fetch; the fetch names the raw file by SHA-256."
+          },
+          "attachment_fetch_id": {
+            "coverage": "internal",
+            "note": "The PDF attachment the old category came from, a second raw file; NULL when the text itself names both categories (every notice but the two of 2023)."
+          }
+        }
       }
     }
   },
