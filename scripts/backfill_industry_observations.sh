@@ -19,29 +19,35 @@ TAG="${TAG:-step-39-b}"
 # ~60 dates x 38 pages x 2.5 s is under two hours; a run still going after
 # four is stuck, not slow.
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-14400}"
-PATTERN="stock_data_center.v2.industry_observations"
+MODULE="stock_data_center.v2.industry_observations"
 
 mkdir -p "$LOG_DIR"
 PIDS=()
 
 cleanup() {
+    # Only this script's own workers. GNU `timeout` puts itself in a process
+    # group of its own, so `$!` leads the worker's group; `timeout` also passes
+    # a TERM on to the worker. A pattern match would also reach a manual
+    # `--refetch` running alongside, or any shell whose command line names the
+    # module (#73 review).
     for pid in "${PIDS[@]:-}"; do
-        [[ -n "$pid" ]] && kill -- "-$pid" 2>/dev/null || true
+        [[ -n "$pid" ]] && { kill -- "-$pid" 2>/dev/null; kill "$pid" 2>/dev/null; } || true
     done
     wait 2>/dev/null || true
-    # `setsid` forks, so the PID above is the launcher, not the worker: this
-    # reaches the worker itself.
-    pkill -f -- "$PATTERN" 2>/dev/null || true
-    if pgrep -f -- "$PATTERN" >/dev/null 2>&1; then
-        echo "warning: still running: $PATTERN" >&2
-        exit 1
-    fi
+    for pid in "${PIDS[@]:-}"; do
+        if [[ -n "$pid" ]] && pgrep -g "$pid" >/dev/null 2>&1; then
+            echo "warning: still running: process group $pid" >&2
+            exit 1
+        fi
+    done
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+# A signal ends the script here; the EXIT trap then stops the workers once.
+trap 'exit 130' INT TERM
 
 run() {
     local source="$1"; shift
-    setsid timeout "$TIMEOUT_SECONDS" .venv/bin/python -m "$PATTERN" \
+    timeout "$TIMEOUT_SECONDS" .venv/bin/python -m "$MODULE" \
         --source "$source" "$@" \
         >"$LOG_DIR/$TAG-$source.jsonl" 2>"$LOG_DIR/$TAG-$source.err" &
     PIDS+=("$!")

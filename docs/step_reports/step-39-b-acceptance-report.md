@@ -151,3 +151,12 @@ legacy 沒有產業歷史，`stock_info` 只有一份目前的快照，也不含
 
 - 39-c：查詢時推出的分類期間、`industry-classifications` API、`/v1/stocks` 的下市公司產業、完整的變更鏈一致性與上櫃對帳報告。
 - 前向抓取（Step 28）：新下市的公司要在下市後補一次錨點（重跑本 CLI 的 `--anchors` 即可）。
+
+## Code review（#73）
+
+核心程式沒有發現項；兩支輔助腳本各一項，都在 39-b 範圍內，都先重現再修。
+
+| 發現 | 處置 | 驗證 |
+|---|---|---|
+| `scripts/report_industry_observations.py`：`quoted_but_not_placed` 把 80 管理股票上的股票也算成缺口，而 adapter 本來就不存它們 | 從已存的 80 頁原始檔讀出管理股票，另列為 `managed`，從缺口扣掉 | 臨時資料庫造一天 3452 在 80：修正前 `quoted_but_not_placed: ['3452']`，修正後 `managed: ['3452']`、缺口空；真實資料 57 個日期 `managed` 0、缺口 0，其餘數字不變 |
+| `scripts/backfill_industry_observations.sh`：cleanup 每次結束都 `pkill -f stock_data_center.v2.industry_observations`，會砍掉同時手動執行的 `--refetch`，甚至任何命令列含這段字串的 shell（重現時連執行測試的 shell 都被砍） | 只停自己的 worker：不再用 `setsid`，GNU `timeout` 本身就自成 process group，`$!` 即是那一組；對整組與 `timeout` 各送 TERM，再以 `pgrep -g` 確認沒有殘留。收到 INT／TERM 直接 `exit 130`，由 EXIT trap 收尾一次 | 旁觀程序（命令列含模組名的 `--refetch`）：修正前被砍、修正後存活；中途送 TERM：兩個 worker 都停、腳本回 130、旁觀程序存活；真實資料重跑：82 個日期全部 skipped、exit 0、無殘留 |

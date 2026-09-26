@@ -5,7 +5,8 @@
 Prints one JSON document:
 
 - `coverage`: per source and date, the stocks observed and the fetches behind them;
-  for TPEx, whether every OTC stock that day's whole-market file lists was placed.
+  for TPEx, whether every OTC stock that day's whole-market file lists was placed,
+  the ones on the 管理股票 page (asked, never stored) listed apart.
 - `anchors`: every listing span that ended, its last quoted date, the category
   observed there, the category its market's announcements imply on that date
   (the old category of the next change, or the new one of the last), and
@@ -71,6 +72,12 @@ def main() -> None:
                 "WHERE dataset = 'daily_price' AND source = 'tpex_otc_quotes' "
                 "AND status = 'succeeded' ORDER BY resource_key, fetched_at DESC")):
             whole_market[key.rsplit(":", 1)[1]] = (sha, size)
+        managed_pages = {day: (sha, size) for day, sha, size in c.execute(sa.text(
+            "SELECT DISTINCT ON (resource_key) split_part(resource_key, ':', 3)::date, sha256, "
+            "byte_size FROM fetches WHERE dataset = :d AND source = 'tpex_otc_quotes' "
+            "AND resource_key LIKE :k AND status = 'succeeded' "
+            "ORDER BY resource_key, fetched_at DESC"),
+            {"d": obs.DATASET, "k": f"tpex_otc_quotes:by-category:%:{obs.MANAGED}"})}
         reconcile = obs.reconciliation_dates(c)
     engine.dispose()
 
@@ -120,8 +127,14 @@ def main() -> None:
             otc = {s.stock_id for s in spans if s.market == "otc"
                    and (s.listed_on is None or s.listed_on <= day)
                    and (s.delisted_on is None or s.delisted_on > day)}
+            # 管理股票 is asked but never stored: its stocks are placed there, not missing.
+            managed = set()
+            if day in managed_pages:
+                sha, size = managed_pages[day]
+                managed = set(obs.parse_tpex_page(store.get(sha.hex(), size), day, obs.MANAGED))
             entry["otc_stocks_quoted"] = len(otc & listed)
-            entry["quoted_but_not_placed"] = sorted((otc & listed) - set(stocks))
+            entry["managed"] = sorted(otc & listed & managed)
+            entry["quoted_but_not_placed"] = sorted((otc & listed) - set(stocks) - managed)
         coverage.append(entry)
 
     agreement = {}
