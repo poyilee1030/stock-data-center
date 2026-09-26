@@ -633,7 +633,7 @@ explicit out-of-scope work
 | 36 | MERGED (#67) | 還原價格（原 Step 25）：`adjusted_prices_pit:v1`，查詢時計算 |
 | 37 | MERGED（37-a #69、37-b #70、37-c #71） | 網頁儀表板：以 API 展示資料庫內容（37-a／37-b／37-c，ADR-0029） |
 | 38 | 38-a MERGED (#66)；38-b PLANNED | 歷史股票清單：含已下市公司，每段掛牌期間的上市與下市日期（38-a／38-b） |
-| 39 | 39-a IN REVIEW (#72)；39-b、39-c PLANNED | 歷史產業分類：交易所產業類別調整公告與櫃買類股行情，PIT 的分類期間（起因：stock-model-selection 的資料需求） |
+| 39 | 39-a MERGED (#72)；39-b IN REVIEW (#PR)；39-c PLANNED | 歷史產業分類：交易所產業類別調整公告與櫃買類股行情，PIT 的分類期間（起因：stock-model-selection 的資料需求） |
 
 Steps 1–12 建立了儲存、PIT 和 raw-first 的基礎。它們的 writer 契約包含一些沒有任何來源會填入的欄位（§2.3）。這些欄位保持可為 null、不填值。不刪除它們，因為刪除不會帶來任何正確性上的好處。
 
@@ -2306,7 +2306,7 @@ legacy `stock_db` 只有 `stock_info.listing_date`，沒有下市資料。
 
 ## Step 39 — 歷史產業分類
 
-狀態：**39-a IN REVIEW（#72）；39-b、39-c PLANNED**（owner 2026-09-26 決定加入，排在 38-b 之前）。依賴：Step 27（MERGED）、Step 38-a（MERGED）。
+狀態：**39-a MERGED（#72）；39-b IN REVIEW（#PR）；39-c PLANNED**（owner 2026-09-26 決定加入，排在 38-b 之前）。依賴：Step 27（MERGED）、Step 38-a（MERGED）。
 起因：`stock-model-selection` 的資料需求（`docs/requests/industry-classifications.md`，2026-09-26）。
 
 ### 背景
@@ -2376,10 +2376,16 @@ legacy `stock_db` 只有 `stock_info.listing_date`，沒有下市資料。
 
 - **39-a — 公告 adapter、`industry_changes`、backfill**：產業代碼常數、release rule、兩個交易所的列表／內文／附件 parser（附件用 pypdf），
   raw-first 抓取、只新增有變的列、可重跑；ADR；backfill 到 `stockdc_backfill` 並報告每則公告的筆數與 parse 結果。
-  **IN REVIEW（#72）**：TWSE 6 則公告 65 筆、TPEx 7 則 105 筆，quarantine 0；163 條變更鏈相鄰不一致 0、上市中的 159 條終點都等於今天的
+  **MERGED（#72）**：TWSE 6 則公告 65 筆、TPEx 7 則 105 筆，quarantine 0；163 條變更鏈相鄰不一致 0、上市中的 159 條終點都等於今天的
   ISIN 產業別；legacy 快照 160 檔一致、0 檔不同（`docs/step_reports/step-39-a-acceptance-report.md`，ADR-0030）。
 - **39-b — 類股行情觀測、`industry_observations`**：兩個交易所依類股查的每日行情 adapter；已結束期間最後交易日的錨點、上櫃的對帳日期；
   backfill 與報告。
+  **IN REVIEW（#PR）**：一個日期整批查 36 個類別（不查 13，櫃買另查 80）、整批寫或整批 quarantine；錨點日期是最後一個列出該檔的
+  全市場行情檔（公司常在下市前數週就停止買賣，4712 最後出現在 2024-02-05）。`stockdc_backfill`：櫃買 58 個日期、證交所 27 個日期，
+  3,118 頁、72,991 列，quarantine 0；72 段已結束期間除 5259（窗內從未出現）外都有錨點，4 條已結束的變更鏈都接得上錨點；
+  上櫃 16 個對帳日期 13,022 筆中 10 筆不同，全部是櫃買類股行情晚了 7 個交易日（2021-06-10）才套用 110 年的調整
+  （`docs/step_reports/step-39-b-acceptance-report.md`）。
+  **給 39-c**：分類期間照公告的實施日期；上櫃對帳要把 2021-06-01～06-09 這 10 檔歸類為「櫃買行情延後套用」，不是公告缺漏。
 - **39-c — 分類期間與 API**：查詢時推出分類期間（`stock_data_center.v2.visibility`），API 資料集 `industry-classifications`
   （`start`／`end`、`date=`、`stock_id` 與三個 PIT 參數），`/v1/stocks` 的下市公司帶最後已知產業；變更鏈一致性與上櫃對帳報告；
   依需求方的檢查驗收。

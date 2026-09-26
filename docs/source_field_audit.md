@@ -1850,6 +1850,42 @@ numbered notice. 〈上市公司產業類別劃分暨調整要點〉 and
   each change chain against today's ISIN category, and the OTC chains against
   TPEx's by-category quotes.
 
+#### By-category daily quotes (Step 39-b)
+
+Probed 2026-09-26; stored in `industry_observations` (ADR-0030 §2).
+
+- **TPEx**: `GET https://www.tpex.org.tw/www/zh-tw/afterTrading/otc?date=YYYY/MM/DD&type=<code>&response=json`.
+  One table; fields start `代號`, `名稱` (the daily-quote header of §4.1), with
+  `date` (ROC `YYY/MM/DD`), `category` and `totalCount`; the answer's `date` is
+  `YYYYMMDD`. It answers **as of the date**: 2022-07-01's `type=18` (貿易百貨)
+  lists 15 stocks and 2023-07-03's none, 5903 and 5904 moving to 38; 4419 is 04
+  on 2024-05-31 and 16 on 2024-06-03; 3687 is 32 on 2020-05-29 and 34 on
+  2020-06-01. `category` is not a reliable name: `其他` for 20, `金融業` for 17,
+  `生技醫療類`-style suffixes, `電腦及週邊類` for 25, and `''` for 33, 34 and every
+  code TPEx does not have (01, 09, 12, 13, 19). `80` is `管理股票`, a trading
+  bucket that would hide a stock's industry; it was empty on every date probed
+  (2020-04-06, 2021-06-01, 2022-11-16, 2023-07-03, 2023-11-21, 2024-02-05,
+  2024-09-24, 2025-06-02, 2026-09-25). One sweep of 2024-09-24 placed 824
+  securities, each on exactly one page, covering all 821 OTC stocks that day's
+  whole-market file lists.
+- **TWSE**: `GET https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?date=YYYYMMDD&type=<code>&response=json`.
+  The answer echoes `type` and `date`; its one quote table has the §4.1 header
+  starting `證券代號` and the title `YYY年MM月DD日 每日收盤行情(<name>)`, where
+  `<name>` is empty for a code TWSE does not have (32, 33, 34, 80). It
+  **rebuilds** history under today's categories (2020-04-06 lists 35–38) but
+  keeps delisted companies (2025-07-11's 17 has 2888, 2867, 2809; 2020-04-06's
+  26 has 2499). `type=13` (電子工業) lists every member of 24–31 again (405 of
+  its 406 rows on 2020-04-06), so it is not asked. Preferred shares (2881A) sit
+  with their issuer's category and are not stored.
+- **Non-trading days**: both answer a Saturday (2020-01-04) with `stat` OK and
+  empty pages, so only `trading_days` are asked.
+- **Last trading day**: a company often leaves the market weeks or months
+  before its delisting date — of the 72 spans that ended since 2020, only the
+  13 moves from TPEx to TWSE and a few others were quoted the day before (4712
+  last on 2024-02-05, delisted 2024-09-25; 6404 last on 2023-11-21, delisted
+  2024-07-02). A span is anchored on the last stored whole-market file that
+  lists it; 5259 (delisted 2020-01-09) is in none inside the window.
+
 ## 5. Schema columns with partial coverage
 
 One row per stored column that an official source provides for only some dates,

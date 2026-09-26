@@ -43,6 +43,8 @@ migration 與 `python -m stock_data_center.v2.listings`。
 網頁儀表板（Step 37-a MERGED #69、37-b MERGED #70、37-c MERGED #71，ADR-0029）：`api` 容器在 `/` 提供網頁（React + ECharts），只透過公開 API 讀資料；
 股票搜尋、個股 K 線／成交量／均線／KD・RSI・MACD、原始價／還原價切換、深淺主題（預設黑夜）；37-b 加個股籌碼分頁（法人、外資、融資融券、借券、股權分散）與市場頁（指數、法人彙總）；37-c 加基本面分頁（月營收、財報重點、官方與計算的估值、公司行動）。畫出來的每個值已用
 `scripts/verify_web.sh`（Playwright）對同一個 API 回應逐點比對（2330、6488、5236）。
+歷史產業分類（Step 39，ADR-0030）：39-a（MERGED #72）把兩個交易所的產業類別調整公告存進 `industry_changes`；39-b（IN REVIEW #PR）把依類股查的每日行情存進 `industry_observations`，作為已結束掛牌期間的錨點與上櫃對帳，兩者都已在 `stockdc_backfill` 以真實來源回補。分類期間與 API（39-c）尚未開始，所以產業歷史還不能經 API 查詢。
+
 下市公司的各資料集（38-b）、排程的前向抓取（Step 28）尚未開始。
 
 已知限制：2025Q4 之前的財報沒有首見證據，真正延遲申報的公司在 Market PIT 下會偏早
@@ -139,7 +141,7 @@ src/stock_data_center/
   ingestion/       來源 adapter、observation 型別、iXBRL parser、HTTP fetcher、raw store
   db/              schema v2 的表（`schema_v2.py`）與共用欄位型別
   provenance.py    抓取目的等共用型別
-migrations/        Alembic 遷移：一個 baseline（Step 35-d-3）與其後的衍生資料表、掛牌期間（Step 38-a）
+migrations/        Alembic 遷移：一個 baseline（Step 35-d-3）與其後的衍生資料表、掛牌期間（Step 38-a）、產業分類（Step 39）
 docs/decisions/    ADR（架構決策紀錄）
 docs/step_reports/ 各 step 的驗收報告（含真實資料證據）
 tests/
