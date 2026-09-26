@@ -633,7 +633,7 @@ explicit out-of-scope work
 | 36 | MERGED (#67) | 還原價格（原 Step 25）：`adjusted_prices_pit:v1`，查詢時計算 |
 | 37 | MERGED（37-a #69、37-b #70、37-c #71） | 網頁儀表板：以 API 展示資料庫內容（37-a／37-b／37-c，ADR-0029） |
 | 38 | 38-a MERGED (#66)；38-b PLANNED | 歷史股票清單：含已下市公司，每段掛牌期間的上市與下市日期（38-a／38-b） |
-| 39 | 39-a MERGED (#72)；39-b IN REVIEW (#73)；39-c PLANNED | 歷史產業分類：交易所產業類別調整公告與櫃買類股行情，PIT 的分類期間（起因：stock-model-selection 的資料需求） |
+| 39 | 39-a MERGED (#72)；39-b MERGED (#73)；39-c IN REVIEW (#74) | 歷史產業分類：交易所產業類別調整公告與櫃買類股行情，PIT 的分類期間（起因：stock-model-selection 的資料需求） |
 
 Steps 1–12 建立了儲存、PIT 和 raw-first 的基礎。它們的 writer 契約包含一些沒有任何來源會填入的欄位（§2.3）。這些欄位保持可為 null、不填值。不刪除它們，因為刪除不會帶來任何正確性上的好處。
 
@@ -2306,7 +2306,7 @@ legacy `stock_db` 只有 `stock_info.listing_date`，沒有下市資料。
 
 ## Step 39 — 歷史產業分類
 
-狀態：**39-a MERGED（#72）；39-b IN REVIEW（#73）；39-c PLANNED**（owner 2026-09-26 決定加入，排在 38-b 之前）。依賴：Step 27（MERGED）、Step 38-a（MERGED）。
+狀態：**39-a MERGED（#72）；39-b MERGED（#73）；39-c IN REVIEW（#74）**（owner 2026-09-26 決定加入，排在 38-b 之前）。依賴：Step 27（MERGED）、Step 38-a（MERGED）。
 起因：`stock-model-selection` 的資料需求（`docs/requests/industry-classifications.md`，2026-09-26）。
 
 ### 背景
@@ -2380,7 +2380,7 @@ legacy `stock_db` 只有 `stock_info.listing_date`，沒有下市資料。
   ISIN 產業別；legacy 快照 160 檔一致、0 檔不同（`docs/step_reports/step-39-a-acceptance-report.md`，ADR-0030）。
 - **39-b — 類股行情觀測、`industry_observations`**：兩個交易所依類股查的每日行情 adapter；已結束期間最後交易日的錨點、上櫃的對帳日期；
   backfill 與報告。
-  **IN REVIEW（#73）**：一個日期整批查 36 個類別（不查 13，櫃買另查 80）、整批寫或整批 quarantine；錨點日期是最後一個列出該檔的
+  **MERGED（#73）**：一個日期整批查 36 個類別（不查 13，櫃買另查 80）、整批寫或整批 quarantine；錨點日期是最後一個列出該檔的
   全市場行情檔（公司常在下市前數週就停止買賣，4712 最後出現在 2024-02-05）。`stockdc_backfill`：櫃買 58 個日期、證交所 27 個日期，
   3,118 頁、72,991 列，quarantine 0；72 段已結束期間除 5259（窗內從未出現）外都有錨點，4 條已結束的變更鏈都接得上錨點；
   上櫃 16 個對帳日期 13,022 筆中 10 筆不同，全部是櫃買類股行情晚了 7 個交易日（2021-06-10）才套用 110 年的調整
@@ -2389,6 +2389,12 @@ legacy `stock_db` 只有 `stock_info.listing_date`，沒有下市資料。
 - **39-c — 分類期間與 API**：查詢時推出分類期間（`stock_data_center.v2.visibility`），API 資料集 `industry-classifications`
   （`start`／`end`、`date=`、`stock_id` 與三個 PIT 參數），`/v1/stocks` 的下市公司帶最後已知產業；變更鏈一致性與上櫃對帳報告；
   依需求方的檢查驗收。
+  **IN REVIEW（#74）**：`stockdc_backfill` 的 2,019 段掛牌期間推出 2,228 段分類期間（5259 沒有：窗內沒有行情），
+  變更鏈不一致 0；需求方六項檢查：140 檔今天屬 35–38 的股票，2023-07-03 前有期間的 96 檔都不是 35–38；2888、2867 下市前是金融保險業；
+  2448 在 2020 年是光電業；上櫃 2023-06-30 各類家數與類股行情相同（差的 2 檔當天沒有行情），上市沒有當日成分的來源；
+  1,947 段目前有效的期間都等於 `/v1/stocks` 的 `industry`；546 個時點 `available_at` 都不晚於 `information_as_of`、
+  沒有尚未公開的結束日。上櫃 58 個日期 46,740 筆，只有 110 年調整的 10 檔在 2021-06-01～06-09 不同（櫃買行情延後）
+  （`docs/step_reports/step-39-c-acceptance-report.md`）。
 
 ### 驗收（依需求方的檢查）
 

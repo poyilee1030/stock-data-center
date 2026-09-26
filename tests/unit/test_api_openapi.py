@@ -62,7 +62,8 @@ def test_each_endpoint_documents_exactly_the_parameters_it_accepts(client) -> No
     schema = client.get("/openapi.json").json()
     accepted = {
         "/v1/datasets": set(),
-        "/v1/datasets/{name}": api._REPORT_PARAMS | api._REFERENCE_PARAMS | api._INDEX_PARAMS,
+        "/v1/datasets/{name}": (api._REPORT_PARAMS | api._REFERENCE_PARAMS | api._INDEX_PARAMS
+                                | api._INDUSTRY_PARAMS),
         "/v1/stocks": api._STOCK_PARAMS,
         "/v1/trading-days": api._CALENDAR_PARAMS,
     }
@@ -75,15 +76,18 @@ def test_each_endpoint_documents_exactly_the_parameters_it_accepts(client) -> No
             repeatable = parameter["name"] in api._REPEATABLE
             assert (parameter["schema"]["type"] == "array") == repeatable, parameter["name"]
     rows = _documented(schema, "/v1/datasets/{name}")
-    assert rows["start"]["required"] and rows["end"]["required"]
-    assert not any(p["required"] for n, p in rows.items() if n not in ("start", "end"))
+    # industry-classifications takes date instead of start and end (Step 39-c), so
+    # nothing is required on the shared path; the handlers refuse what is missing.
+    assert not any(p["required"] for p in rows.values())
+    assert "industry-classifications" in rows["date"]["description"]
 
 
 def test_every_dataset_is_offered_by_name(client) -> None:
     schema = client.get("/openapi.json").json()
     (name,) = [p for p in schema["paths"]["/v1/datasets/{name}"]["get"]["parameters"]
                if p["in"] == "path"]
-    assert name["schema"]["enum"] == [*DATASETS, *DERIVED, PIT_REFERENCE, ADJUSTED]
+    assert name["schema"]["enum"] == [*DATASETS, *DERIVED, PIT_REFERENCE, ADJUSTED,
+                                      api.INDUSTRY]
 
 
 def test_choices_are_the_ones_the_handlers_accept(client) -> None:

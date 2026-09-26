@@ -356,3 +356,22 @@ def test_any_page_that_does_not_parse_is_quarantined_and_logged(
     row = db.execute(sa.text(
         "SELECT status, sha256 IS NOT NULL FROM fetches WHERE source = :s"), {"s": source}).one()
     assert tuple(row) == ("quarantined", True)
+
+
+def test_a_refresh_keeps_the_fetch_that_first_recorded_an_unchanged_company(
+        db: Connection, tmp_path) -> None:
+    # A company's fetch is the one its current values came from, so its time is
+    # when the Data Center first recorded them: the industry periods (Step 39-c)
+    # read today's ISIN category as known from then (code review of #74).
+    first, later = _fetch(db, tmp_path), _fetch(db, tmp_path)
+
+    def assembled(industry: str, fetch_id) -> ls.Assembly:
+        return ls.Assembly([ls.Company("2330", "台積電", industry, fetch_id)],
+                           [ls.Span("2330", "sii", None, None, fetch_id)], [], [], [], 0)
+
+    ls.write(db, assembled("半導體業", first))
+    ls.write(db, assembled("半導體業", later))
+    assert db.scalar(sa.select(stocks.c.fetch_id).where(stocks.c.stock_id == "2330")) == first
+    ls.write(db, assembled("電子零組件業", later))
+    assert db.execute(sa.select(stocks.c.industry, stocks.c.fetch_id)
+                      .where(stocks.c.stock_id == "2330")).one() == ("電子零組件業", later)

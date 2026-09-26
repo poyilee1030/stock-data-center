@@ -150,6 +150,8 @@ sa.Index(
 
 # A company's identity (Step 38-a): every company on today's list and every one
 # delisted since the v1 window opened. When and where it traded is `listings`.
+# `fetch_id` is the fetch its current name and industry first came from: a
+# refresh that finds them unchanged keeps it (Step 39-c).
 stocks = sa.Table(
     "stocks",
     metadata,

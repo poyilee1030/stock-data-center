@@ -23,6 +23,8 @@ from datetime import date
 
 WINDOW_START = date(2020, 1, 2)
 RECLASSIFIED_2023 = date(2023, 7, 3)
+# The date of both exchanges' notices changing the categories themselves.
+CATEGORIES_ANNOUNCED_2023 = date(2023, 3, 28)
 MARKETS = ("sii", "otc")
 
 # Today's ISIN names.
@@ -92,3 +94,8 @@ def exists(code: str, market: str, on: date) -> bool:
         return False
     since, until = EXISTED.get((code, market), (None, None))
     return (since is None or on >= since) and (until is None or on < until)
+
+
+def existence(code: str, market: str) -> tuple[date | None, date | None]:
+    """(from, until) the market had this category, either end open."""
+    return EXISTED.get((code, market), (None, None))

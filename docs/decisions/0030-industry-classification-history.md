@@ -65,6 +65,28 @@
 - 錨點：上市中的期間用 `stocks.industry`（今天的 ISIN）；已結束的上櫃期間用最後交易日的櫃買類股
   行情；已結束的上市期間用 `MI_INDEX?type=` 的最後已知類別（owner 決定 4、5）。
 
+39-c 的實作（`stock_data_center.v2.visibility.industry_periods`，API `industry-classifications`）：
+
+- **一段掛牌期間一條鏈**：該市場交易所的公告（上市看 `twse_announcement`、上櫃看 `tpex_announcement`），
+  實施日在期間內的才算；期間開始前的變更（創新板轉主板的 6869、6873）不屬於這段，報告為「在期間外」。
+- **鏈用 `knowledge_as_of`（`system_as_of`）之前已記錄的東西建**：公告各列的 `recorded_at`、類股行情的 `recorded_at`，
+  今天的 ISIN 類別以存它的那次 fetch 時間為準。在那之前的查詢是空的，不拿今天的資料填過去。
+  為此 `stocks.fetch_id` 只在名稱或產業改變時才換（`listings.write`，#74 code review）：它指向目前的值**第一次**
+  出現的原始檔，時間就是第一次記錄的時間；原本每次刷新都覆寫，刷新之後以較早的 `knowledge_as_of` 查詢，
+  沒有公告過變更的股票會全部消失。
+- **變更前那段的類別**也照 market PIT：更正了原類別的版本自它自己的 `available_at` 起才算；公告公開前用原本的版本。
+- **類別停用的截斷**（櫃買的 34、18 到 2023-07-03）保留到輸出：之後才公告的移出不會讓期間延伸過停用日，中間留空檔。
+- **market PIT**：還沒公開的變更不出現，**它的實施日也不會變成前一段的結束日**——前一段的 `effective_to` 是 null，
+  否則未來的實施日期會從結束日漏出來。最後一段在下市當天之後才結束於下市日。
+- **類別存續**：任何一段都不超出其類別的存續期間（35–38 自 2023-07-03，櫃買的 18、34 到 2023-07-03 為止），
+  所以只有錨點（今天的類別）時，也不會把 2023 年才有的類別套到之前。
+- **改名**：16 在 2023-07-03 由觀光事業改名觀光餐旅，跨過那天的期間切成兩段，後段自 2023-03-29 00:00 公開
+  （兩個交易所 2023-03-28 的公告，決定 2）。
+- **錨點的比對**：類股行情錨點帶自己的日期，一致性檢查比的是那天的類別（4712 在最後交易日 2024-02-05 之後、
+  下櫃之前又被調整過一次）。
+- **`/v1/stocks`**：不在 ISIN 清單上的公司，`industry` 改填最後一段期間的類別，`industry_source` 標明
+  `isin` 或 `last_period`。
+
 ### 4. 公開時點：release rule `industry_announcement_next_day@1`
 
 公告只有發文日期、沒有時刻：自發文日**隔天 00:00 Asia/Taipei** 起公開（owner 決定 2，ADR-0020 的
@@ -93,4 +115,4 @@ quarantine。
 
 ## 結果
 
-39-a 交付 `industry_changes`、公告 adapter、release rule 與代碼常數；39-b 交付 `industry_observations`、兩個交易所的類股行情 adapter 與錨點日期；39-c 依 ROADMAP。
+39-a 交付 `industry_changes`、公告 adapter、release rule 與代碼常數；39-b 交付 `industry_observations`、兩個交易所的類股行情 adapter 與錨點日期；39-c 交付查詢時推出的分類期間、API `industry-classifications` 與 `/v1/stocks` 的最後已知產業。
