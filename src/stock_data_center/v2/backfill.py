@@ -6,7 +6,9 @@
 
 Dates come from `trading_days`, so a closure is never requested; a monthly job
 (TAIEX OHLC, monthly revenue) asks once per month that has a trading day in the
-range. TDCC OpenData serves only its latest week, so its job fetches once. Each
+range. TDCC OpenData serves only its latest week, so its job fetches once. The
+calendar (`trading_days/twse`, FMTQIK) runs before every other job, so the
+days it adds are walked in the same run. Each
 resource commits on its own, so an interrupted run loses at most the resource
 in flight, and a rerun skips every resource `pending` counts as done.
 `--refetch` fetches them again anyway (a correction check): an unchanged file
@@ -48,6 +50,7 @@ from stock_data_center.v2 import (
     financial_reports,
     monthly_revenue,
     shareholding,
+    trading_calendar,
 )
 from stock_data_center.v2.exchange_daily import JOBS as EXCHANGE_JOBS
 from stock_data_center.v2.exchange_daily import Job, ingest, pending
@@ -59,7 +62,7 @@ JOBS: dict[str, Job] = {**EXCHANGE_JOBS, **monthly_revenue.JOBS, **shareholding.
 # Corporate actions are a year's list plus per-event detail pages, with
 # retractions; they have their own runner too.
 CORPORATE_KEYS = {corporate_actions.key(source): source for source in corporate_actions.FEEDS}
-ALL_KEYS = (*sorted(JOBS), financial_reports.KEY, *sorted(CORPORATE_KEYS))
+ALL_KEYS = (trading_calendar.KEY, *sorted(JOBS), financial_reports.KEY, *sorted(CORPORATE_KEYS))
 
 EXCHANGE_MIN_INTERVAL_SECONDS = 1.5
 HOST_INTERVALS = {
@@ -166,8 +169,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         "store": LocalRawArtifactStore(args.raw_root), "refetch": args.refetch,
         "progress": progress,
     }
-    report = run(engine, [JOBS[key] for key in keys if key in JOBS], args.start, args.end,
-                 **common)
+    report = {}
+    if trading_calendar.KEY in keys:
+        report[trading_calendar.KEY] = trading_calendar.run(
+            engine, args.start, args.end, unit=_unit, **common)
+    report.update(run(engine, [JOBS[key] for key in keys if key in JOBS], args.start, args.end,
+                      **common))
     if sources := [CORPORATE_KEYS[key] for key in keys if key in CORPORATE_KEYS]:
         report.update(corporate_actions.run(engine, sources, args.start, args.end,
                                             unit=_unit, **common))

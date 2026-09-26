@@ -91,9 +91,19 @@ def test_an_empty_month_is_rejected_rather_than_read_as_a_full_closure() -> None
 
 def test_a_source_level_error_is_not_read_as_an_empty_calendar() -> None:
     with pytest.raises(SourceDataError) as error:
-        parse(payload("113/07/01", stat="很抱歉，沒有符合條件的資料!"))
+        parse(payload("113/07/01", stat="查詢日期大於今日，請重新查詢!"))
 
     assert error.value.reason_code == "source_error"
+
+
+def test_the_exchange_no_data_answer_is_its_own_reason_and_still_writes_nothing() -> None:
+    """Step 28-a: a month whose first trading day has not closed yet answers
+    TWSE's no-data stat. It is "nothing published yet", asked again later, and
+    still never read as a month with no trading day."""
+    with pytest.raises(SourceDataError) as error:
+        parse(payload("113/07/01", stat="很抱歉，沒有符合條件的資料!"))
+
+    assert error.value.reason_code == "no_data_for_period"
 
 
 @pytest.mark.parametrize(
