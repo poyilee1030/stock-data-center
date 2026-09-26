@@ -633,7 +633,7 @@ explicit out-of-scope work
 | 36 | MERGED (#67) | 還原價格（原 Step 25）：`adjusted_prices_pit:v1`，查詢時計算 |
 | 37 | MERGED（37-a #69、37-b #70、37-c #71） | 網頁儀表板：以 API 展示資料庫內容（37-a／37-b／37-c，ADR-0029） |
 | 38 | 38-a MERGED (#66)；38-b PLANNED | 歷史股票清單：含已下市公司，每段掛牌期間的上市與下市日期（38-a／38-b） |
-| 39 | 39-a MERGED (#72)；39-b MERGED (#73)；39-c IN REVIEW (#74) | 歷史產業分類：交易所產業類別調整公告與櫃買類股行情，PIT 的分類期間（起因：stock-model-selection 的資料需求） |
+| 39 | 39-a MERGED (#72)；39-b MERGED (#73)；39-c MERGED (#74) | 歷史產業分類：交易所產業類別調整公告與櫃買類股行情，PIT 的分類期間（起因：stock-model-selection 的資料需求） |
 
 Steps 1–12 建立了儲存、PIT 和 raw-first 的基礎。它們的 writer 契約包含一些沒有任何來源會填入的欄位（§2.3）。這些欄位保持可為 null、不填值。不刪除它們，因為刪除不會帶來任何正確性上的好處。
 
@@ -1681,7 +1681,7 @@ HTTP 狀態碼還是 200（2026-09-21 對 1101 與 1342 實測）。那一頁是
 
 ### Step 23-c — 全量 backfill、抽樣關卡與對帳
 
-狀態：**IN REVIEW** (#41)。依賴：Step 23-b。
+狀態：**MERGED** (#41)。依賴：Step 23-b。
 
 範圍內：2020Q1–2026Q2 全量匯入、檔案庫對官方的抽樣比較、發布證據（2025Q4 起的
 `legacy_capture_bound`，其餘 release rule），以及舊系統對帳。
@@ -2306,7 +2306,7 @@ legacy `stock_db` 只有 `stock_info.listing_date`，沒有下市資料。
 
 ## Step 39 — 歷史產業分類
 
-狀態：**39-a MERGED（#72）；39-b MERGED（#73）；39-c IN REVIEW（#74）**（owner 2026-09-26 決定加入，排在 38-b 之前）。依賴：Step 27（MERGED）、Step 38-a（MERGED）。
+狀態：**39-a MERGED（#72）；39-b MERGED（#73）；39-c MERGED（#74）**（owner 2026-09-26 決定加入，排在 38-b 之前）。依賴：Step 27（MERGED）、Step 38-a（MERGED）。
 起因：`stock-model-selection` 的資料需求（`docs/requests/industry-classifications.md`，2026-09-26）。
 
 ### 背景
@@ -2389,7 +2389,7 @@ legacy `stock_db` 只有 `stock_info.listing_date`，沒有下市資料。
 - **39-c — 分類期間與 API**：查詢時推出分類期間（`stock_data_center.v2.visibility`），API 資料集 `industry-classifications`
   （`start`／`end`、`date=`、`stock_id` 與三個 PIT 參數），`/v1/stocks` 的下市公司帶最後已知產業；變更鏈一致性與上櫃對帳報告；
   依需求方的檢查驗收。
-  **IN REVIEW（#74）**：`stockdc_backfill` 的 2,019 段掛牌期間推出 2,228 段分類期間（5259 沒有：窗內沒有行情），
+  **MERGED（#74）**：`stockdc_backfill` 的 2,019 段掛牌期間推出 2,228 段分類期間（5259 沒有：窗內沒有行情），
   變更鏈不一致 0；需求方六項檢查：140 檔今天屬 35–38 的股票，2023-07-03 前有期間的 96 檔都不是 35–38；2888、2867 下市前是金融保險業；
   2448 在 2020 年是光電業；上櫃 2023-06-30 各類家數與類股行情相同（差的 2 檔當天沒有行情），上市沒有當日成分的來源；
   1,947 段目前有效的期間都等於 `/v1/stocks` 的 `industry`；546 個時點 `available_at` 都不晚於 `information_as_of`、
