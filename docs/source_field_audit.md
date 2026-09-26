@@ -1551,7 +1551,12 @@ event identity (see ROADMAP Step 13). Their contract and coverage limits are in
 
 - Today's listed stocks come from the ISIN list (§4.14, ADR-0026). Step 38-a
   (ADR-0028) adds the listing spans below. No official source of historical name
-  or industry changes was found, so neither history is kept.
+  changes was found, so no name history is kept. Industry history has one: both
+  exchanges' reclassification announcements (probed 2026-09-26, ROADMAP Step 39,
+  PLANNED), each stating the announcement date, the effective date and each
+  company's old and new category. `MI_INDEX?type=<category>` is not one: it
+  rebuilds history under today's classification (2020-01-02 lists the 數位雲端
+  category, created 2023-07-03). Until Step 39, no industry history is kept.
 - `stock_tags` comes from MoneyDJ, a third party: a current snapshot with no
   effective dates.
 
