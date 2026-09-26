@@ -34,10 +34,16 @@
 公開 API（Step 27）：PIT 可見性層（27-a）、十一個觀測資料集的 HTTP 端點（27-b），以及財報、七個存表的衍生資料集、
 `technical_indicators_pit:v1`、股票清單與交易日曆（27-c）已完成，說明在 `docs/api.md`。
 
-歷史股票清單（Step 38-a，IN REVIEW #66，ADR-0028）：`stocks` 收 2020 年以後下市、證明為普通股的公司，`listings` 存每段掛牌期間
+歷史股票清單（Step 38-a，MERGED #66，ADR-0028）：`stocks` 收 2020 年以後下市、證明為普通股的公司，`listings` 存每段掛牌期間
 （上市日、下市日、市場）。已在暫存資料庫以真實來源驗過（2,006 家、2,019 段）；`stockdc_backfill` 要在合併後才執行
-migration 與 `python -m stock_data_center.v2.listings`。下市公司的各資料集（38-b）、還原價格（Step 36）、網頁儀表板（Step 37）、
-排程的前向抓取（Step 28）尚未開始。
+migration 與 `python -m stock_data_center.v2.listings`。
+
+還原價格（Step 36，MERGED #67）：`adjusted_prices_pit:v1`，查詢時計算、一次一檔。
+
+網頁儀表板（Step 37-a，IN REVIEW，ADR-0029）：`api` 容器在 `/` 提供網頁（React + ECharts），只透過公開 API 讀資料；
+股票搜尋、個股 K 線／成交量／均線／KD・RSI・MACD、原始價／還原價切換、深淺主題（預設黑夜）。畫出來的每個值已用
+`scripts/verify_web.sh`（Playwright）對同一個 API 回應逐點比對（2330、6488、5236）。從區網與 Tailscale 開啟要在部署後由人確認。
+籌碼（37-b）、基本面（37-c）、下市公司的各資料集（38-b）、排程的前向抓取（Step 28）尚未開始。
 
 已知限制：2025Q4 之前的財報沒有首見證據，真正延遲申報的公司在 Market PIT 下會偏早
 （audit §7.6）；月營收的 KY 公司與更正後的值沒有證明的公開時間，`published_at` 為 NULL。
@@ -54,6 +60,7 @@ PostgreSQL 18+
 pytest
 httpx
 Docker / Docker Compose
+網頁（web/）：React 19 + TypeScript + Vite、ECharts 6、Vitest、Playwright（ADR-0029）
 ```
 
 PostgreSQL 是唯一的正確性來源，沒有快取（`CLAUDE.md` §4）。

@@ -557,7 +557,7 @@ explicit out-of-scope work
 
 # 20. Step 帳本
 
-狀態日期：2026-09-25。
+狀態日期：2026-09-26。
 
 | Step | 狀態 | 交付內容 |
 |---|---|---|
@@ -630,8 +630,8 @@ explicit out-of-scope work
 | 35-d-1 | MERGED (#52) | Schema v2：v2 不再載入任何 v1 模組 |
 | 35-d-2 | MERGED (#53) | Schema v2：刪除 v1 程式、測試與 scripts |
 | 35-d-3 | MERGED (#54) | Schema v2：baseline migration，刪除 v1 表 |
-| 36 | IN REVIEW (#67) | 還原價格（原 Step 25）：`adjusted_prices_pit:v1`，查詢時計算 |
-| 37 | PLANNED（38-a 之後） | 網頁儀表板：以 API 展示資料庫內容（37-a／37-b／37-c） |
+| 36 | MERGED (#67) | 還原價格（原 Step 25）：`adjusted_prices_pit:v1`，查詢時計算 |
+| 37 | 37-a IN REVIEW；37-b、37-c PLANNED | 網頁儀表板：以 API 展示資料庫內容（37-a／37-b／37-c，ADR-0029） |
 | 38 | 38-a MERGED (#66)；38-b PLANNED | 歷史股票清單：含已下市公司，每段掛牌期間的上市與下市日期（38-a／38-b） |
 
 Steps 1–12 建立了儲存、PIT 和 raw-first 的基礎。它們的 writer 契約包含一些沒有任何來源會填入的欄位（§2.3）。這些欄位保持可為 null、不填值。不刪除它們，因為刪除不會帶來任何正確性上的好處。
@@ -1785,7 +1785,7 @@ importer 以資料日期欄位為 key，絕不用檔名：`20200619.CSV` 和 `20
 
 ## Step 36 — 還原價格
 
-狀態：**IN REVIEW**（#67）。依賴：Step 16、Step 17-c、Steps 19-a–e（皆 MERGED）。2026-09-26 owner 決定排在 Step 37、38-b 之前。
+狀態：**MERGED**（#67）。依賴：Step 16、Step 17-c、Steps 19-a–e（皆 MERGED）。2026-09-26 owner 決定排在 Step 37、38-b 之前。
 
 方法：§18 的參考價比率。逐證券計算往回累積的因子。原始 OHLC 不動。
 
@@ -2112,9 +2112,9 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 
 ## Step 37 — 網頁儀表板
 
-狀態：**PLANNED（Step 38-a 之後，owner 2026-09-25 決定；仍排在 Step 28 之前）**。依賴：Step 27（MERGED）、API 的部署（`api-listen-addresses` 分支：compose 的 `api` 容器、`0.0.0.0:28617`、資料庫只聽本機）。
+狀態：37-a **IN REVIEW**；37-b、37-c **PLANNED**（Step 36 之後、Step 28 之前，owner 2026-09-26 決定）。依賴：Step 27（MERGED）、Step 36（MERGED）、API 的部署（compose 的 `api` 容器、`0.0.0.0:28617`、資料庫只聽本機）。
 
-目標：一個在瀏覽器裡看資料的前端，參考 FinMind 的分析儀表板（`finmindtrade.com/analysis/#/dashboards/new-info`）：選一檔股票，看到它的價格、籌碼、營收與財報。**純粹展示**已存的資料，不做任何新的計算、選股或排名（那些屬於下游，CLAUDE.md §38–40）。
+目標：一個在瀏覽器裡看資料的前端：選一檔股票，看到它的價格、籌碼、營收與財報。版面自己設計，不照抄 FinMind（owner 2026-09-26：提 FinMind 只是給概念）。**純粹展示**已存的資料，不做任何新的計算、選股或排名（那些屬於下游，CLAUDE.md §38–40）。
 
 ### 邊界
 
@@ -2125,6 +2125,8 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 
 ### 開工前要定（寫成 ADR，CLAUDE.md §2 的技術棧沒有前端）
 
+已定：ADR-0029（2026-09-26）。React 19 + TypeScript + Vite、ECharts 6；`api` 容器同源提供（多階段建置）；key 第一次開啟時輸入、存 localStorage；Vitest 測純函式、Playwright 對真實 API 逐點比對並截圖。owner 另定：個股頁有「原始價／還原價」切換；白天／黑夜主題切換，預設黑夜。下面是當初的四個待決事項。
+
 1. **框架與圖表庫**。建議 Vite + TypeScript + Apache ECharts（K 線、成交量、長條、面積圖都有），建成靜態檔。
 2. **怎麼提供網頁**。建議由 `api` 容器以同一個 origin 提供靜態檔（Docker 多階段建置：node 建置、Python 映像只帶成品），不必處理 CORS。API 的 key 中介層要讓靜態檔不需要 key，`/v1` 仍然要。
 3. **瀏覽器怎麼拿 API key**。建議第一次開啟時輸入，存在瀏覽器的 localStorage；區網是明文 HTTP，同 API 本身的限制。
@@ -2134,9 +2136,31 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 
 | Step | 內容 |
 |---|---|
-| 37-a | 骨架：ADR、建置與提供網頁、key 輸入、股票搜尋（`/v1/stocks`）、個股頁的 K 線＋成交量＋均線（`daily-prices`、`technical-indicators`）、交易日曆決定 x 軸 |
+| 37-a | 骨架：ADR、建置與提供網頁、key 輸入、股票搜尋（`/v1/stocks`）、個股頁的 K 線＋成交量＋均線（`daily-prices`、`technical-indicators`）、交易日曆決定 x 軸；原始價／還原價切換（`adjusted-prices-pit`）、深淺主題 |
 | 37-b | 籌碼：法人買賣與連續天數、外資持股、融資融券與借券、股權分散與集中度；市場頁的指數與法人彙總 |
 | 37-c | 基本面：月營收（發布的 MoM／YoY）、財報重點 facts（EPS、營收、淨利）、官方估值與計算的估值（分開標示，§53）、公司行動列表 |
+
+### 37-a（IN REVIEW）
+
+- [x] ADR-0029；CLAUDE.md §2 補前端技術棧。
+- [x] `create_app(web_dir=...)`／`STOCKDC_WEB_DIR`：`/` 與 `/assets/*` 不需 key，`/v1` 與其他路徑照舊 401；`index.html` 回 `no-cache`。
+- [x] Dockerfile 多階段建置（`node:22-slim` 建置 → Python 映像只帶 `web/dist`）。
+- [x] 網頁：key 輸入（localStorage，401 時重問）、股票搜尋（代號、名稱，上市櫃在前、已下市標示）、最近看過。
+- [x] 個股頁：K 線＋成交量＋均線（MA5–240 可選）＋布林；下方 KD／RSI／MACD；游標所在交易日的當日面板（行情、MA、公開與入庫時間、raw 雜湊）；
+  期間 1 月–全部；交易日曆決定 x 軸，停牌留空。
+- [x] 原始價／還原價切換：還原模式畫 `adjusted-prices-pit` 的還原 OHLC，標出並列出套用的公司行動；均線與布林隱藏（以原始收盤價計算）。
+- [x] 兩個價格來源的股票（轉市場）出現來源切換，不合併。
+- [x] 白天／黑夜主題，預設黑夜，記在 localStorage；手機寬度無水平捲動。
+- [x] `scripts/verify_web.sh`：建置、本機提供、Playwright 逐點比對與截圖。
+- 驗收證據：`docs/step_reports/step-37-a-acceptance-report.md`。
+
+實作中裁決：
+
+- **漲跌方向讀帶正負號的 `price_change`**：兩個來源都發布帶號的漲跌；TPEx 沒有方向欄（只有不比價 `X`），只看 `price_direction` 會讓櫃買股全變灰、
+  漲跌少了負號。不比價的日子不著紅綠色、標「不比價」。
+- **KD／RSI／MACD 面板屬 37-a**：與均線同一個 `technical-indicators` 回應，不多一個請求；原本的拆步只寫「均線」。
+- **x 軸止於選定來源的最後一筆價格**，不延到今天：今天的價格公布前，每檔股票的最後一格都會是空的。
+- 圖上的數字只做顯示格式（千分位、萬／億、兩位小數、台北時間），比對用原值。
 
 ### 驗收
 
@@ -2149,7 +2173,7 @@ published_at       前向抓取時用 capture_bound；backfill 時一次匯入�
 - 任何新的 API 端點或計算：需要時另開 step，不在前端補算。
 - 使用者帳號、權限、寫入功能、警示通知。
 - 歷史時間點（`information_as_of`）的選擇器：37-a–c 都用 latest；要重現歷史再另外排。
-- 還原價格（Step 36）。
+- ~~還原價格（Step 36）~~：寫於 Step 36 之前；owner 2026-09-26 決定納入 37-a（原始價／還原價切換）。
 
 ## Step 38 — 歷史股票清單（含已下市公司）
 

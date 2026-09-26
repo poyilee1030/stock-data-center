@@ -8,7 +8,8 @@
 The API parses and renders; which row a PIT context sees is
 `stock_data_center.v2.visibility`'s alone (CLAUDE.md §19). Every data request
 needs the API key in `X-API-Key` (owner, 2026-09-25); only the description,
-`/docs` (Swagger UI) and `/openapi.json`, is served without it. Every read runs
+`/docs` (Swagger UI) and `/openapi.json`, and the web dashboard's page and assets
+(`/`, `/assets/*`, ADR-0029) are served without it: none of them holds data. Every read runs
 in a read-only transaction. A query parameter the endpoint does not know is refused:
 a misspelled PIT parameter must never silently mean "latest".
 
@@ -21,10 +22,12 @@ import hmac
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager
 from datetime import UTC, date, datetime
+from pathlib import Path
 
 import sqlalchemy as sa
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import Connection, Engine
 
 from stock_data_center.api import derived, openapi
@@ -236,24 +239,29 @@ def _fact(fact) -> dict:
 
 def create_app(*, api_key: str,
                connect: Callable[[], AbstractContextManager[Connection]],
-               git_commit: str | None = None) -> FastAPI:
+               git_commit: str | None = None, web_dir: Path | None = None) -> FastAPI:
     """The API; `connect` opens the connection one request reads through.
 
     `git_commit` is the implementation `technical-indicators-pit` reports;
-    None asks git, which a container image cannot."""
+    None asks git, which a container image cannot. `web_dir` is the built web
+    dashboard (`web/dist`, ADR-0029): its `index.html` at `/` and its hashed
+    files at `/assets/*`; None serves no page."""
     if not api_key:
         raise ValueError("an API key is required: set STOCKDC_API_KEY")
+    if web_dir is not None and not (Path(web_dir) / "index.html").is_file():
+        raise ValueError(f"the web directory has no index.html: {web_dir}")
     app = FastAPI(title="stock-data-center", version="1", description=openapi.DESCRIPTION,
                   redoc_url=None, swagger_ui_oauth2_redirect_url=None)
     expected = api_key.encode()
     reference = TechnicalIndicators(git_commit=git_commit)  # takes the commit once
     adjusted = AdjustedPrices(git_commit=reference.git_commit)
     # The description only: it names no data (owner, 2026-09-25).
-    public = frozenset({app.docs_url, app.openapi_url})
+    public = frozenset({app.docs_url, app.openapi_url, *(("/",) if web_dir else ())})
 
     @app.middleware("http")
     async def require_key(request: Request, call_next):
-        if request.url.path in public:
+        path = request.url.path
+        if path in public or (web_dir is not None and path.startswith("/assets/")):
             return await call_next(request)
         given = request.headers.get("x-api-key", "").encode()
         if not hmac.compare_digest(given, expected):
@@ -499,4 +507,14 @@ def create_app(*, api_key: str,
          "/v1/stocks": _STOCK_PARAMS, "/v1/trading-days": _CALENDAR_PARAMS},
         {"statement": STATEMENTS, "market": MARKETS, "view": VIEWS},
         [*DATASETS, *DERIVED, PIT_REFERENCE, ADJUSTED])
+    if web_dir is not None:
+        page = Path(web_dir) / "index.html"
+
+        # The page is revalidated on every visit, so a redeploy reaches the
+        # browser; its assets are named by their content hash.
+        @app.get("/", include_in_schema=False)
+        def dashboard() -> FileResponse:
+            return FileResponse(page, headers={"Cache-Control": "no-cache"})
+
+        app.mount("/assets", StaticFiles(directory=Path(web_dir) / "assets"), name="assets")
     return app

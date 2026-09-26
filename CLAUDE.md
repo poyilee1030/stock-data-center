@@ -114,7 +114,7 @@ Each required criterion must be PASS/FAIL with concrete evidence.
 
 ## Current Step Sequence
 
-ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–18, 19-a through 19-e, 20-a through 20-d, 21-a, 21-b, 22-a through 22-c, 23-a through 24-b, 35-a, 35-b-1, 35-c-1 through 35-c-4, 35-d-1 through 35-d-3, 26-b through 26-f, 27-a through 27-c and 38-a as MERGED, and 26-a, 29, 32 and 35-b-2 as SUPERSEDED; 36 as IN REVIEW; no step is currently marked `THIS STEP` (a contextual marker, not an additional status value):
+ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–18, 19-a through 19-e, 20-a through 20-d, 21-a, 21-b, 22-a through 22-c, 23-a through 24-b, 35-a, 35-b-1, 35-c-1 through 35-c-4, 35-d-1 through 35-d-3, 26-b through 26-f, 27-a through 27-c, 36 and 38-a as MERGED, and 26-a, 29, 32 and 35-b-2 as SUPERSEDED; 37-a as IN REVIEW; no step is currently marked `THIS STEP` (a contextual marker, not an additional status value):
 
 ```text
 Step 11  authoritative security lifecycle history        MERGED
@@ -175,8 +175,10 @@ Step 35-c-4 schema v2: derived data on v2              MERGED
 Step 35-d-1 schema v2: v2 loads no v1 module          MERGED
 Step 35-d-2 schema v2: delete the v1 code              MERGED
 Step 35-d-3 schema v2: baseline migration, drop v1     MERGED
-Step 36  adjusted prices (was Step 25)                 IN REVIEW (#67, adjusted_prices_pit:v1 on demand)
-Step 37  web dashboard over the public API             PLANNED (after 36, before 28)
+Step 36  adjusted prices (was Step 25)                 MERGED (#67, adjusted_prices_pit:v1 on demand)
+Step 37-a web dashboard: skeleton, K-line, raw/adjusted  IN REVIEW (ADR-0029)
+Step 37-b web dashboard: chips + market page           PLANNED
+Step 37-c web dashboard: fundamentals                  PLANNED
 Step 38-a historical stock list: listing spans         MERGED (#66)
 Step 38-b historical stock list: delisted companies' data PLANNED (after 37)
 ```
@@ -222,6 +224,16 @@ pytest
 httpx
 Docker / Docker Compose
 ```
+
+The web dashboard (Step 37, ADR-0029) adds, under `web/` only:
+
+```text
+React 19 + TypeScript, built by Vite into static files
+Apache ECharts 6
+Vitest (pure functions), Playwright (end-to-end against the real API)
+```
+
+It reads data through the public API alone, served same-origin by the `api` container.
 
 Use:
 
