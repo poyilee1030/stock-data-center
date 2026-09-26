@@ -62,7 +62,7 @@ def test_each_endpoint_documents_exactly_the_parameters_it_accepts(client) -> No
     schema = client.get("/openapi.json").json()
     accepted = {
         "/v1/datasets": set(),
-        "/v1/datasets/{name}": api._REPORT_PARAMS | api._REFERENCE_PARAMS,
+        "/v1/datasets/{name}": api._REPORT_PARAMS | api._REFERENCE_PARAMS | api._INDEX_PARAMS,
         "/v1/stocks": api._STOCK_PARAMS,
         "/v1/trading-days": api._CALENDAR_PARAMS,
     }

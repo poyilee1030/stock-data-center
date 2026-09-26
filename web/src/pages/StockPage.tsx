@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
-import type { AdjustedRow, AdjustmentEvent, IndicatorRow, MaWindow, Pit, PriceRow, Stock } from "../api/types";
+import type { AdjustedRow, AdjustmentEvent, IndicatorRow, MaWindow, PriceRow, Stock } from "../api/types";
 import { MA_WINDOWS } from "../api/types";
+import { PitNote } from "../components/PitNote";
 import { PriceChart, type RangeCommand } from "../components/PriceChart";
 import { Segmented } from "../components/Segmented";
 import { marketLabel, sourceLabel } from "../components/labels";
@@ -9,6 +10,9 @@ import type { IndicatorKind, PriceMode } from "../lib/chart";
 import { compact, grouped, MISSING, priceText, taipei } from "../lib/format";
 import { changeText, movement } from "../lib/movement";
 import { rememberStock } from "../lib/recent";
+import { stockHref, type StockTab } from "../lib/router";
+import { exchangeOf } from "../lib/exchange";
+import { ChipsTab } from "./ChipsTab";
 import { align, bySource, defaultSource, tradingAxis } from "../lib/series";
 import { readPalette, type Theme } from "../lib/theme";
 import { useAsync } from "../lib/useAsync";
@@ -35,16 +39,6 @@ function keep(key: string, value: string): void {
   }
 }
 
-function PitNote({ pit, what }: { pit: Pit | undefined; what: string }) {
-  if (!pit) return null;
-  const instant = pit.information_as_of ?? pit.system_as_of;
-  const latest = (pit.defaulted?.length ?? 0) > 0;
-  return (
-    <span className="pit" title={`information_as_of = knowledge_as_of = ${instant}`}>
-      {what} · 資料時點 {instant ? taipei(instant) : MISSING}{latest ? "（latest）" : ""}
-    </span>
-  );
-}
 
 
 function DayPanel({ date, price, adjusted, indicator, mode, maShown, palette }: {
@@ -124,8 +118,9 @@ function EventsTable({ events }: { events: AdjustmentEvent[] }) {
   );
 }
 
-export function StockPage({ stockId, stock, calendar, theme, onError }: {
+export function StockPage({ stockId, tab, stock, calendar, theme, onError }: {
   stockId: string;
+  tab: StockTab;
   stock: Stock | undefined;
   calendar: string[] | null;
   theme: Theme;
@@ -148,8 +143,8 @@ export function StockPage({ stockId, stock, calendar, theme, onError }: {
   const groups = useMemo(() => (priceRows ? bySource(priceRows) : new Map<string, PriceRow[]>()), [priceRows]);
   const source = chosenSource !== null && groups.has(chosenSource) ? chosenSource : defaultSource(priceRows ?? []);
 
-  const adjusted = useAsync(mode === "adjusted" && source ? (s) => api.adjusted(stockId, source, s) : null,
-                            [stockId, source, mode]);
+  const adjusted = useAsync(tab === "price" && mode === "adjusted" && source
+    ? (s) => api.adjusted(stockId, source, s) : null, [stockId, source, mode, tab]);
 
   useEffect(() => {
     for (const state of [prices, indicators, ...(mode === "adjusted" ? [adjusted] : [])]) {
@@ -214,10 +209,17 @@ export function StockPage({ stockId, stock, calendar, theme, onError }: {
         )}
       </header>
 
+      <nav className="tabs" aria-label="分頁">
+        <a href={stockHref(stockId)} className={tab === "price" ? "on" : ""} aria-current={tab === "price" ? "page" : undefined}>價格</a>
+        <a href={stockHref(stockId, "chips")} className={tab === "chips" ? "on" : ""} aria-current={tab === "chips" ? "page" : undefined}>籌碼</a>
+      </nav>
+
       <div className="toolbar">
-        <Segmented label="價格" testId="price-mode" value={mode} onChange={setMode}
-                   options={[{ value: "raw", label: "原始價" },
-                             { value: "adjusted", label: "還原價", title: "依交易所參考價往回還原，含息（total return）" }]} />
+        {tab === "price" && (
+          <Segmented label="價格" testId="price-mode" value={mode} onChange={setMode}
+                     options={[{ value: "raw", label: "原始價" },
+                               { value: "adjusted", label: "還原價", title: "依交易所參考價往回還原，含息（total return）" }]} />
+        )}
         {groups.size > 1 && source && (
           <Segmented label="來源" testId="source" value={source} onChange={setSource}
                      options={[...groups.keys()].map((s) => ({ value: s, label: sourceLabel(s), title: s }))} />
@@ -237,13 +239,18 @@ export function StockPage({ stockId, stock, calendar, theme, onError }: {
             : ""}
         </div>
       )}
-      {axis.offCalendar.length > 0 && (
+      {tab === "chips" && source && (
+        <ChipsTab stockId={stockId} exchange={exchangeOf(source)} calendar={calendar} palette={palette}
+                  range={range} onError={onError} />
+      )}
+
+      {tab === "price" && axis.offCalendar.length > 0 && (
         <div className="card warn" role="alert">
           有 {axis.offCalendar.length} 個價格日期不在交易日曆上，仍照原樣畫出：{axis.offCalendar.slice(0, 5).join("、")}
         </div>
       )}
 
-      <div className="stock-grid">
+      {tab === "price" && <div className="stock-grid">
         <section className="card chart-card">
           <div className="legend-row">
             {mode === "raw" ? (
@@ -279,9 +286,9 @@ export function StockPage({ stockId, stock, calendar, theme, onError }: {
 
         <DayPanel date={axis.dates[at]} price={input.prices[at]} indicator={input.indicators[at]}
                   adjusted={input.adjusted?.[at]} mode={input.mode} maShown={ma} palette={palette} />
-      </div>
+      </div>}
 
-      {adjustedReady && (
+      {tab === "price" && adjustedReady && (
         <section className="card">
           <h2 className="card-title">套用的公司行動</h2>
           <p className="muted small">

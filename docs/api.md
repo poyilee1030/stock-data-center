@@ -107,6 +107,7 @@ Stored derived datasets (`kind: derived`, Step 26): `technical-indicators`,
 | --- | --- |
 | `start`, `end` | required, `YYYY-MM-DD`: the key's own date (trade date, snapshot date, revenue month, ex-date) is in `[start, end]` |
 | `stock_id` | repeatable; a dataset without stocks (indices, market flows) refuses it |
+| `index_name` | `indices` only, repeatable: the published index name, such as `指數:櫃買指數`; the query itself is narrowed, so one index's history is about 0.6 MB where a whole source's is 30–50 MB (Step 37-b); any other dataset refuses it |
 | `source` | repeatable; results are always per source, never merged (§30) |
 | `information_as_of`, `knowledge_as_of` | market PIT (§15) |
 | `system_as_of` | system PIT (§16); not combinable with the two above |

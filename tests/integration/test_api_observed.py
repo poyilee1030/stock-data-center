@@ -271,6 +271,45 @@ def test_a_stock_filter_on_a_table_without_stocks_is_400(client) -> None:
                 stock_id="2330").status_code == 400
 
 
+def _index(db, fetch_id, name, close, *, source="tpex_index_summary"):
+    db.execute(sa.insert(index_prices).values(
+        source=source, index_name=name, trade_date=DAY, close_value=Decimal(close),
+        fetch_id=fetch_id, recorded_at=RELEASED))
+
+
+def test_indices_are_filtered_by_name_in_the_query(client, db, fetch) -> None:
+    # Step 37-b (owner, 2026-09-26): a whole source's indices over its history
+    # are tens of megabytes; index_name narrows the query itself, repeatable
+    # like stock_id.
+    fetch_id = fetch()
+    _index(db, fetch_id, "指數:櫃買指數", "250.1")
+    _index(db, fetch_id, "指數:半導體業", "600.2")
+    _index(db, fetch_id, "報酬指數:櫃買指數", "300.3")
+    rows = client.get("/v1/datasets/indices", headers={"X-API-Key": KEY}, params=[
+        ("start", DAY), ("end", DAY), ("index_name", "指數:櫃買指數"),
+        ("index_name", "指數:半導體業")]).json()["rows"]
+    assert sorted(r["index_name"] for r in rows) == ["指數:半導體業", "指數:櫃買指數"]
+    body = _get(client, "/v1/datasets/indices", start=DAY, end=DAY,
+                index_name="報酬指數:櫃買指數").json()
+    assert [r["close_value"] for r in body["rows"]] == [300.3]
+    assert body["query"]["index_name"] == ["報酬指數:櫃買指數"]
+    assert len(_get(client, "/v1/datasets/indices", start=DAY, end=DAY).json()["rows"]) == 3
+
+
+def test_an_index_name_nothing_publishes_is_an_empty_answer(client, db, fetch) -> None:
+    _index(db, fetch(), "指數:櫃買指數", "250.1")
+    body = _get(client, "/v1/datasets/indices", start=DAY, end=DAY, index_name="櫃買").json()
+    assert body["rows"] == []
+
+
+def test_only_indices_take_an_index_name(client) -> None:
+    for name in ("daily-prices", "institutional-market-flows", "technical-indicators"):
+        response = _get(client, f"/v1/datasets/{name}", start=DAY, end=DAY,
+                        index_name="指數:櫃買指數")
+        assert response.status_code == 400, name
+        assert "index_name" in response.json()["detail"]
+
+
 def test_an_unknown_publication_is_invisible_to_market_pit_only(client, db, fetch) -> None:
     recorded = datetime(2026, 9, 19, tzinfo=UTC)
     db.execute(sa.insert(monthly_revenues).values(
