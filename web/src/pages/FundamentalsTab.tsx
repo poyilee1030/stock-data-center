@@ -8,10 +8,9 @@ import { Segmented } from "../components/Segmented";
 import { sourceLabel } from "../components/labels";
 import type { Palette } from "../lib/chart";
 import type { Exchange } from "../lib/exchange";
-import { rowsOfExchange } from "../lib/exchange";
 import { compact, MISSING, taipei } from "../lib/format";
 import {
-  ACTION_TERMS, actionCells, REPORT_ITEMS, reportRows, reportSeries, revenuePanels, sortedActions, valuationPanels,
+  ACTION_TERMS, actionCells, REPORT_ITEMS, reportCodes, reportRows, reportSeries, revenuePanels, sortedActions, valuationPanels,
   type ReportMode, type ValuationPanel,
 } from "../lib/fundamentals";
 import { unitText } from "../lib/panel";
@@ -30,15 +29,25 @@ function pct(value: number | null | undefined): string {
 }
 
 function Revenue({ rows, pit, palette }: { rows: RevenueRow[]; pit: Pit; palette: Palette }) {
-  const built = useMemo(() => revenuePanels(rows, palette), [rows, palette]);
-  const bars = useMemo(() => ({ axis: built.axis, series: built.revenue, unit: "twd" as const, palette }), [built, palette]);
-  const lines = useMemo(() => ({ axis: built.axis, series: built.growth, unit: "percent" as const, palette }), [built, palette]);
+  // Two rows for one month would be two sources: refused, and said here
+  // rather than taking the page down.
+  const built = useMemo(() => {
+    try {
+      return revenuePanels(rows, palette);
+    } catch (error) {
+      return error as Error;
+    }
+  }, [rows, palette]);
+  const ok = !(built instanceof Error);
+  const bars = useMemo(() => (ok ? { axis: built.axis, series: built.revenue, unit: "twd" as const, palette } : null), [built, ok, palette]);
+  const lines = useMemo(() => (ok ? { axis: built.axis, series: built.growth, unit: "percent" as const, palette } : null), [built, ok, palette]);
   const latest = [...rows].sort((a, b) => b.revenue_month.localeCompare(a.revenue_month)).slice(0, 12);
   return (
     <section className="card" data-testid="section-revenue">
       <h2 className="card-title">月營收</h2>
       <p className="note">月增率、年增率與累計年增率都是公司發布的值，網頁不另外計算。沒有公開時間證明的月份（例如部分 KY 公司）在 latest 下看不到，圖上留空。</p>
-      {rows.length === 0 ? <div className="panel-empty">沒有這檔股票的月營收資料。</div> : (
+      {!ok ? <div className="panel-empty">{built.message}</div>
+        : rows.length === 0 || !bars || !lines ? <div className="panel-empty">沒有這檔股票的月營收資料。</div> : (
         <>
           <div className="panel-grid">
             <PanelChart id="revenue" input={bars} group="revenue" range={MONTHLY_RANGE} height={240} />
@@ -74,7 +83,7 @@ function Reports({ stockId, industry, palette, onError }: {
   palette: Palette;
   onError: (error: Error) => void;
 }) {
-  const answer = useAsync((s) => api.reports(stockId, REPORT_ITEMS.map((i) => i.code), s), [stockId]);
+  const answer = useAsync((s) => api.reports(stockId, reportCodes(), s), [stockId]);
   const [mode, setMode] = useState<ReportMode>("ytd");
   useEffect(() => {
     if (answer.status === "error") onError(answer.error);
@@ -108,7 +117,7 @@ function Reports({ stockId, industry, palette, onError }: {
             <PanelChart id={`eps-${mode}`} input={eps} range={QUARTERLY_RANGE} height={220} />
             <div className="table-wrap">
               <table className="data compact" data-testid="report-table">
-                <thead><tr><th>季度</th>{REPORT_ITEMS.map((i) => <th key={i.code} className="num" title={i.code}>{i.name}</th>)}<th>報表</th><th>公開</th></tr></thead>
+                <thead><tr><th>季度</th>{REPORT_ITEMS.map((i) => <th key={i.code} className="num" title={i.byCategory ? "合併報告 8610；個體報告 8200" : i.code}>{i.name}</th>)}<th>報表</th><th>公開</th></tr></thead>
                 <tbody>
                   {lines.slice(0, 12).map((l) => (
                     <tr key={l.label}>
@@ -220,7 +229,9 @@ export function FundamentalsTab({ stockId, industry, exchange, calendar, palette
   const [revenues, official, metrics, actions] = loaded.value;
   return (
     <div className="chips-tab">
-      <Revenue rows={rowsOfExchange(revenues.rows, exchange)} pit={revenues.pit} palette={palette} />
+      {/* Not split by market: MOPS files a stock's whole revenue history under
+          today's market (code review of #71). */}
+      <Revenue rows={revenues.rows} pit={revenues.pit} palette={palette} />
       <Reports stockId={stockId} industry={industry} palette={palette} onError={onError} />
       <h2 className="section-title">估值 · 官方發布與資料中心計算分開（{sourceLabel(exchange === "twse" ? "twse_mi_index" : "tpex_otc_quotes")}）</h2>
       <div className="panel-grid">

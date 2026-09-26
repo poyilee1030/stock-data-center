@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  actionCells, monthAxis, reportRows, reportSeries, revenuePanels, valuationPanels, REPORT_ITEMS,
+  actionCells, monthAxis, reportCodes, reportRows, reportSeries, revenuePanels, valuationPanels, REPORT_ITEMS,
 } from "../src/lib/fundamentals";
 import { PALETTE } from "./palette";
 
@@ -59,6 +59,17 @@ describe("financial reports", () => {
     const q4 = reportRows([Q4], "quarter")[0];
     expect(q4.values["9750"]).toBeNull();
     expect(q4.missingQuarter).toBe(true);
+  });
+
+  it("reads the parent's net income from 8200 in an individual report, as valuation_metrics does", () => {
+    // Code review of #71: an individual report has no 8610; its 8200 is the
+    // parent's own net income (stock_data_center.v2.valuation.NET_INCOME).
+    const individual = { ...Q4, report_category: "individual",
+                         facts: [fact("8200", "2024-01-01", "2024-12-31", 1200), fact("8610", "2024-01-01", "2024-12-31", 999)] };
+    expect(reportRows([individual], "ytd")[0].values["8610"]).toBe(1200);
+    const consolidated = { ...individual, report_category: "consolidated" };
+    expect(reportRows([consolidated], "ytd")[0].values["8610"]).toBe(999);
+    expect(reportCodes()).toContain("8200");
   });
 
   it("leaves an account the report does not carry empty", () => {

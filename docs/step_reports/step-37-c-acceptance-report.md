@@ -12,7 +12,7 @@
 | `web/src/lib/fundamentals.ts`（新） | 月份軸與月營收面板、財報自己那一期的科目值（累計／單季）、估值面板（官方與計算分開）、公司行動的儲存格分類 |
 | `web/src/pages/FundamentalsTab.tsx`（新） | 基本面分頁 |
 | `web/src/lib/router.ts`、`exchange.ts`、`panel.ts`、`api/client.ts`、`api/types.ts`、`pages/StockPage.tsx` | `#/stock/<id>/fundamentals`、估值與月營收來源對應交易所、「倍」與「元」單位、五個資料集的請求 |
-| 測試 | Vitest 79（+10）；Playwright 20（+3） |
+| 測試 | Vitest 81（+12）；Playwright 21（+4） |
 | 文件 | ROADMAP（§20、Step 37）、CLAUDE.md 快照、README、37-b 報告狀態 |
 
 `src/` 沒有改動；`web/src` 新檔約 420 行、既有檔 +87／−6。
@@ -54,6 +54,15 @@
 ![2330 基本面 黑夜](step-37-c/fundamentals-2330-dark.png)
 
 ![2330 基本面 白天](step-37-c/fundamentals-2330-light.png)
+
+## Code review 修正（#71）
+
+| 發現 | 判斷 | 回核 | 修正 |
+|---|---|---|---|
+| 月營收照價格來源的交易所過濾，但 MOPS 照今天的市場歸檔 | 成立 | 4736（2023-12-22 由上櫃轉上市）、1597、3092 的 80 個月營收全在 `mops_t21sc03_sii`，連上櫃期間也是；新 e2e 先紅：4736 切到櫃買中心，營收圖畫不出來 | 月營收不按市場過濾；`exchange.ts` 移除 MOPS 月營收的對應，並測試它被拒絕；同一月兩筆時只在卡片內報錯 |
+| 「歸屬母公司淨利」只讀 8610，個體報告永遠空白 | 成立 | `stockdc_backfill` 的 3,589 份個體報告沒有一份有 8610、全部有 8200；後端 `valuation.NET_INCOME` 是合併 8610、個體 8200 | 同一套規則：個體報告讀 8200；新 Vitest 先紅 |
+
+修正後：Vitest 81 passed、`tsc` 通過、`verify_web.sh` 20 passed。
 
 ## 已知限制
 

@@ -11,8 +11,9 @@ const EXCHANGE: Record<string, Exchange> = {
   twse_mi_margn: "twse", tpex_margin_balance: "tpex",
   twse_twt93u: "twse", tpex_margin_sbl: "tpex",
   twse_bwibbu_d: "twse", tpex_pe_qry_date: "tpex",
-  // MOPS publishes monthly revenue per market (sii listed, otc OTC).
-  mops_t21sc03_sii: "twse", mops_t21sc03_otc: "tpex",
+  // MOPS monthly revenue (mops_t21sc03_sii/_otc) has no exchange: MOPS files a
+  // stock's whole history under today's market, so it is never split by one
+  // (code review of #71).
 };
 
 export function exchangeOf(source: string): Exchange {

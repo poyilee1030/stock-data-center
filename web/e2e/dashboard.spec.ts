@@ -286,7 +286,6 @@ for (const stockId of ["2330", "6488"]) {
       });
     }
 
-    const exchange = revenues[0].source === "mops_t21sc03_sii" ? "twse" : "tpex";
     const official = (await apiRows(page, "datasets/official-valuations", { stock_id: stockId })).rows as Row[];
     const metrics = (await apiRows(page, "datasets/valuation-metrics", { stock_id: stockId })).rows as Row[];
     for (const [id, rows, fields] of [
@@ -297,7 +296,6 @@ for (const stockId of ["2330", "6488"]) {
       const drawn = await panelOption(page, id);
       for (const f of fields) compareByDate(drawn.axis, find(drawn.series, f), rows, f);
     }
-    expect(exchange).toBe(stockId === "2330" ? "twse" : "tpex");
 
     const actions = (await apiRows(page, "datasets/corporate-actions", { stock_id: stockId })).rows as Row[];
     const shown = await page.getByTestId("actions-table").locator("tbody tr td:first-child").allTextContents();
@@ -305,6 +303,20 @@ for (const stockId of ["2330", "6488"]) {
     console.log(`${stockId} fundamentals: ${revenues.length} months, ${reports.length} reports, ${metrics.length} valuation days, ${actions.length} actions`);
   });
 }
+
+test("4736: monthly revenue is not split by market", async ({ page }) => {
+  // Code review of #71: MOPS files a stock's revenue under today's market, so
+  // 4736's OTC months (before 2023-12-22) are under mops_t21sc03_sii too.
+  await withKey(page);
+  await page.goto("/#/stock/4736/fundamentals");
+  const revenues = (await apiRows(page, "datasets/monthly-revenues", { stock_id: "4736" })).rows as Row[];
+  for (const label of ["櫃買中心", "證交所"]) {
+    await page.getByTestId("source").getByRole("radio", { name: label }).click();
+    await page.waitForTimeout(300);
+    const bars = await panelOption(page, "revenue");
+    compareByDate(bars.axis, find(bars.series, "revenue"), revenues, "revenue", "revenue_month");
+  }
+});
 
 test("a financial-industry stock says why it has no reports", async ({ page }) => {
   await withKey(page);

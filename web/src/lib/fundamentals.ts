@@ -46,15 +46,22 @@ export function revenuePanels(rows: RevenueRow[], p: Palette): { axis: string[];
 
 export type ReportMode = "ytd" | "quarter";
 
-// The income-statement accounts shown, by their TIFRS account codes.
-export const REPORT_ITEMS: { code: string; name: string; unit: PanelUnit }[] = [
+// The income-statement accounts shown, by their TIFRS account codes. An
+// individual report has no 8610: its 8200 is the parent's own net income, the
+// rule valuation_metrics:v1 reads by (stock_data_center.v2.valuation.NET_INCOME).
+export const REPORT_ITEMS: { code: string; name: string; unit: PanelUnit; byCategory?: Record<string, string> }[] = [
   { code: "4000", name: "營業收入", unit: "twd" },
   { code: "5900", name: "營業毛利", unit: "twd" },
   { code: "6900", name: "營業利益", unit: "twd" },
   { code: "8200", name: "本期淨利", unit: "twd" },
-  { code: "8610", name: "歸屬母公司淨利", unit: "twd" },
+  { code: "8610", name: "歸屬母公司淨利", unit: "twd", byCategory: { consolidated: "8610", individual: "8200" } },
   { code: "9750", name: "基本每股盈餘", unit: "per_share" },
 ];
+
+/** Every account code the items read, for the request. */
+export function reportCodes(): string[] {
+  return [...new Set(REPORT_ITEMS.flatMap((i) => [i.code, ...Object.values(i.byCategory ?? {})]))];
+}
 
 const QUARTER_START = ["01-01", "04-01", "07-01", "10-01"];
 const QUARTER_END = ["03-31", "06-30", "09-30", "12-31"];
@@ -81,7 +88,8 @@ export function reportRows(reports: ReportRow[], mode: ReportMode): ReportLine[]
       const start = mode === "ytd" ? `${r.report_year}-01-01` : `${r.report_year}-${QUARTER_START[q]}`;
       const values: Record<string, number | null> = {};
       for (const item of REPORT_ITEMS) {
-        const found = r.facts.filter((f) => f.account_code === item.code && f.period_end === end && f.period_start === start);
+        const code = item.byCategory?.[r.report_category] ?? item.code;
+        const found = r.facts.filter((f) => f.account_code === code && f.period_end === end && f.period_start === start);
         const distinct = new Set(found.map((f) => f.value));
         if (distinct.size > 1) {
           throw new Error(`${r.report_year}Q${r.report_quarter} states ${item.code} twice for ${start}..${end}`);
