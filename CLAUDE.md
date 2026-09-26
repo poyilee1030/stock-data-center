@@ -181,7 +181,7 @@ Step 37-b web dashboard: chips + market page           MERGED (#70, indices inde
 Step 37-c web dashboard: fundamentals                  MERGED (#71)
 Step 38-a historical stock list: listing spans         MERGED (#66)
 Step 38-b historical stock list: delisted companies' data PLANNED (after 37)
-Step 39-a industry classification: announcements        IN REVIEW (ADR-0030, industry_changes)
+Step 39-a industry classification: announcements        IN REVIEW (#72, ADR-0030, industry_changes)
 Step 39-b industry classification: by-category quotes    PLANNED
 Step 39-c industry classification: periods + API         PLANNED
 ```
