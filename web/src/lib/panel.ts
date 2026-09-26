@@ -5,7 +5,7 @@ import type { EChartsOption } from "echarts";
 import type { Palette } from "./chart";
 import { compact, grouped, MISSING, priceText } from "./format";
 
-export type PanelUnit = "shares" | "twd" | "percent" | "days" | "points";
+export type PanelUnit = "shares" | "twd" | "percent" | "days" | "points" | "times" | "per_share";
 export type PanelKind = "bar" | "line" | "step" | "candle";
 
 export interface Ohlc {
@@ -40,12 +40,14 @@ export function unitText(value: number | null, unit: PanelUnit): string {
     case "percent": return `${value.toFixed(2)}%`;
     case "days": return `${grouped(value)} 天`;
     case "points": return priceText(value);
+    case "times": return `${value.toFixed(2)} 倍`;
+    case "per_share": return `${priceText(value)} 元`;
   }
 }
 
 function axisText(value: number, unit: PanelUnit): string {
   if (unit === "percent") return `${value}%`;
-  if (unit === "days" || unit === "points") return grouped(value);
+  if (unit === "days" || unit === "points" || unit === "times" || unit === "per_share") return grouped(value);
   return compact(value).replace(/\.0+ /, " ");
 }
 

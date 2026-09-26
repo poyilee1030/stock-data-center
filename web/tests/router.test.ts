@@ -11,6 +11,8 @@ describe("routes", () => {
     expect(parse("#/market")).toEqual({ page: "market" });
     expect(stockHref("6488", "chips")).toBe("#/stock/6488/chips");
     expect(stockHref("6488")).toBe("#/stock/6488");
+    expect(parse("#/stock/2330/fundamentals")).toEqual({ page: "stock", stockId: "2330", tab: "fundamentals" });
+    expect(stockHref("2330", "fundamentals")).toBe("#/stock/2330/fundamentals");
   });
 
   it("falls back to home for anything else", () => {

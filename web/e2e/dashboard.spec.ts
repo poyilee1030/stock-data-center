@@ -250,6 +250,81 @@ test("hovering the weekly chart keeps the viewer's zoom", async ({ page }) => {
   expect(axis.slice(0, 21)).toContain(week);
 });
 
+// ---------------------------------------------------------------- Step 37-c
+
+function ownPeriod(report: Row, mode: "ytd" | "quarter", code: string): number | null {
+  // The report's own period, read here independently of the page: year to date
+  // from 1 January, or the three months ending at the quarter end.
+  const q = report.report_quarter as number, y = report.report_year as number;
+  const end = `${y}-${["03-31", "06-30", "09-30", "12-31"][q - 1]}`;
+  const start = mode === "ytd" ? `${y}-01-01` : `${y}-${["01-01", "04-01", "07-01", "10-01"][q - 1]}`;
+  const facts = (report.facts as Row[]).filter((f) => f.account_code === code && f.period_end === end && f.period_start === start);
+  return (facts[0]?.value as number | undefined) ?? null;
+}
+
+for (const stockId of ["2330", "6488"]) {
+  test(`${stockId}: every fundamentals panel equals the API`, async ({ page }) => {
+    await withKey(page);
+    await page.goto(`/#/stock/${stockId}/fundamentals`);
+    const revenues = (await apiRows(page, "datasets/monthly-revenues", { stock_id: stockId })).rows as Row[];
+    const bars = await panelOption(page, "revenue");
+    compareByDate(bars.axis, find(bars.series, "revenue"), revenues, "revenue", "revenue_month");
+    const growth = await panelOption(page, "revenue-growth");
+    for (const f of ["yoy_pct", "mom_pct", "cumulative_yoy_pct"]) compareByDate(growth.axis, find(growth.series, f), revenues, f, "revenue_month");
+
+    const qs = new URLSearchParams({ start: "2000-01-01", end: TODAY, stock_id: stockId, statement: "income_statement", account_code: "9750" });
+    const reports = (await (await page.request.get(`/v1/datasets/financial-reports?${qs}`, { headers: { "X-API-Key": KEY } })).json()).rows as Row[];
+    for (const mode of ["ytd", "quarter"] as const) {
+      if (mode === "quarter") await page.getByTestId("report-mode").getByRole("radio", { name: "單季" }).click();
+      const eps = await panelOption(page, `eps-${mode}`);
+      expect(eps.axis).toEqual(reports.map((r) => `${r.report_year}Q${r.report_quarter}`));
+      eps.axis.forEach((label, i) => {
+        const expected = mode === "quarter" && label.endsWith("Q4") ? null : ownPeriod(reports[i], mode, "9750");
+        const drawn = valueOf(find(eps.series, "9750").data[i]);
+        if (expected === null) expect(["-", null], `${mode} ${label}`).toContain(drawn);
+        else expect(drawn, `${mode} ${label}`).toBe(expected);
+      });
+    }
+
+    const official = (await apiRows(page, "datasets/official-valuations", { stock_id: stockId })).rows as Row[];
+    const metrics = (await apiRows(page, "datasets/valuation-metrics", { stock_id: stockId })).rows as Row[];
+    for (const [id, rows, fields] of [
+      ["official-pe-pb", official, ["pe_ratio", "pb_ratio"]], ["official-yield", official, ["dividend_yield"]],
+      ["computed-pe", metrics, ["pe_ratio"]], ["computed-eps", metrics, ["ttm_eps"]],
+      ["computed-roe", metrics, ["roe"]], ["computed-percentile", metrics, ["pe_percentile"]],
+    ] as [string, Row[], string[]][]) {
+      const drawn = await panelOption(page, id);
+      for (const f of fields) compareByDate(drawn.axis, find(drawn.series, f), rows, f);
+    }
+
+    const actions = (await apiRows(page, "datasets/corporate-actions", { stock_id: stockId })).rows as Row[];
+    const shown = await page.getByTestId("actions-table").locator("tbody tr td:first-child").allTextContents();
+    expect(shown.sort()).toEqual(actions.map((a) => a.ex_date as string).sort());
+    console.log(`${stockId} fundamentals: ${revenues.length} months, ${reports.length} reports, ${metrics.length} valuation days, ${actions.length} actions`);
+  });
+}
+
+test("4736: monthly revenue is not split by market", async ({ page }) => {
+  // Code review of #71: MOPS files a stock's revenue under today's market, so
+  // 4736's OTC months (before 2023-12-22) are under mops_t21sc03_sii too.
+  await withKey(page);
+  await page.goto("/#/stock/4736/fundamentals");
+  const revenues = (await apiRows(page, "datasets/monthly-revenues", { stock_id: "4736" })).rows as Row[];
+  for (const label of ["櫃買中心", "證交所"]) {
+    await page.getByTestId("source").getByRole("radio", { name: label }).click();
+    await page.waitForTimeout(300);
+    const bars = await panelOption(page, "revenue");
+    compareByDate(bars.axis, find(bars.series, "revenue"), revenues, "revenue", "revenue_month");
+  }
+});
+
+test("a financial-industry stock says why it has no reports", async ({ page }) => {
+  await withKey(page);
+  await page.goto("/#/stock/2881/fundamentals");
+  await expect(page.getByTestId("section-reports")).toContainText("金融業的財報不在 v1 範圍");
+  await expect(page.getByTestId("section-revenue").getByTestId("revenue-table")).toBeVisible();
+});
+
 test("5236: each exchange's chips stand apart", async ({ page }) => {
   await withKey(page);
   await page.goto("/#/stock/5236/chips");
@@ -367,6 +442,11 @@ test("screenshots for the owner: both themes, desktop and phone", async ({ brows
     await panelOption(page, "concentration");
     await page.waitForTimeout(300);
     await page.screenshot({ path: `${SHOTS}/chips-2330-${theme}.png`, fullPage: true });
+    await page.goto("/#/stock/2330/fundamentals");
+    await panelOption(page, "computed-percentile");
+    await panelOption(page, "eps-ytd");
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${SHOTS}/fundamentals-2330-${theme}.png`, fullPage: true });
     await page.goto("/#/market");
     await panelOption(page, "flows-tpex_insti_summary");
     await panelOption(page, "index");

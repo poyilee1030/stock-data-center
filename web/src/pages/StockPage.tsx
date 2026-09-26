@@ -13,6 +13,7 @@ import { rememberStock } from "../lib/recent";
 import { stockHref, type StockTab } from "../lib/router";
 import { exchangeOf } from "../lib/exchange";
 import { ChipsTab } from "./ChipsTab";
+import { FundamentalsTab } from "./FundamentalsTab";
 import { align, bySource, defaultSource, tradingAxis } from "../lib/series";
 import { readPalette, type Theme } from "../lib/theme";
 import { useAsync } from "../lib/useAsync";
@@ -212,6 +213,8 @@ export function StockPage({ stockId, tab, stock, calendar, theme, onError }: {
       <nav className="tabs" aria-label="分頁">
         <a href={stockHref(stockId)} className={tab === "price" ? "on" : ""} aria-current={tab === "price" ? "page" : undefined}>價格</a>
         <a href={stockHref(stockId, "chips")} className={tab === "chips" ? "on" : ""} aria-current={tab === "chips" ? "page" : undefined}>籌碼</a>
+        <a href={stockHref(stockId, "fundamentals")} className={tab === "fundamentals" ? "on" : ""}
+           aria-current={tab === "fundamentals" ? "page" : undefined}>基本面</a>
       </nav>
 
       <div className="toolbar">
@@ -242,6 +245,11 @@ export function StockPage({ stockId, tab, stock, calendar, theme, onError }: {
       {tab === "chips" && source && (
         <ChipsTab stockId={stockId} exchange={exchangeOf(source)} calendar={calendar} palette={palette}
                   range={range} onError={onError} />
+      )}
+
+      {tab === "fundamentals" && source && (
+        <FundamentalsTab stockId={stockId} industry={stock?.industry ?? null} exchange={exchangeOf(source)}
+                         calendar={calendar} palette={palette} range={range} onError={onError} />
       )}
 
       {tab === "price" && axis.offCalendar.length > 0 && (
