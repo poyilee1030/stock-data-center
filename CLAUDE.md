@@ -177,7 +177,7 @@ Step 35-d-2 schema v2: delete the v1 code              MERGED
 Step 35-d-3 schema v2: baseline migration, drop v1     MERGED
 Step 36  adjusted prices (was Step 25)                 MERGED (#67, adjusted_prices_pit:v1 on demand)
 Step 37-a web dashboard: skeleton, K-line, raw/adjusted  MERGED (#69, ADR-0029)
-Step 37-b web dashboard: chips + market page           IN REVIEW (indices index_name)
+Step 37-b web dashboard: chips + market page           IN REVIEW (#70, indices index_name)
 Step 37-c web dashboard: fundamentals                  PLANNED
 Step 38-a historical stock list: listing spans         MERGED (#66)
 Step 38-b historical stock list: delisted companies' data PLANNED (after 37)
