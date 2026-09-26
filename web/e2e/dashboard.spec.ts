@@ -168,6 +168,34 @@ test("the theme toggles, is remembered, and defaults to dark", async ({ page }) 
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 });
 
+test("toggling the theme repaints the chart in the new theme's colours", async ({ page }) => {
+  // Code review of #69: the palette was read while rendering, before the
+  // theme reached <html>, so the chart kept the old theme's colours.
+  await withKey(page, "dark");
+  await page.goto("/#/stock/2330");
+  await chartOption(page);
+  for (const theme of ["light", "dark", "light"]) {
+    await page.getByTestId("theme-toggle").click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    const [drawn, css] = await page.evaluate(() => {
+      const series = window.__stockdc!.charts.price.getOption().series as { id: string; itemStyle: { color: string } }[];
+      return [series.find((s) => s.id === "candles")!.itemStyle.color,
+              getComputedStyle(document.documentElement).getPropertyValue("--up").trim()];
+    });
+    expect(drawn, theme).toBe(css);
+  }
+});
+
+test("a stock without prices shows no endless loading in adjusted mode", async ({ page }) => {
+  // Code review of #69: with no price source the adjusted request is never
+  // sent, and the page waited for it forever. 1258 is delisted: listed, no data.
+  await withKey(page);
+  await page.addInitScript(() => localStorage.setItem("stockdc.mode", "adjusted"));
+  await page.goto("/#/stock/1258");
+  await expect(page.getByText("這檔股票沒有任何價格資料")).toBeVisible();
+  await expect(page.getByText("載入中…")).toHaveCount(0);
+});
+
 test("a wrong key is refused and asked again", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("stockdc.apiKey", "wrong"));
   await page.goto("/#/stock/2330");

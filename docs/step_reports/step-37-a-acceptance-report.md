@@ -89,6 +89,17 @@ Running 9 tests using 1 worker
 |---|---|
 | ![6488 手機 黑夜](step-37-a/phone-6488-dark.png) | ![6488 手機 白天](step-37-a/phone-6488-light.png) |
 
+## Code review 修正（#69）
+
+| 發現 | 判斷 | 回核 | 修正 |
+|---|---|---|---|
+| 切換主題後圖表顏色慢一拍 | 成立 | 新 e2e 先紅：切到淺色後 K 線仍是深色的 `#f0555a`（應為 `#d63a3a`） | `useTheme` 的切換先同步改 `<html data-theme>` 再 re-render |
+| 沒有價格的股票在還原模式永遠「載入中」 | 成立 | 新 e2e 先紅：1258（已下市、清單有、資料集無）在還原模式出現「載入中…」 | 沒有價格來源就不等還原價 |
+| `verify_web.sh` 可能在 setsid 生效前讀到自己的 process group | 理論上成立 | 非互動腳本 200 次都沒碰上，但碰上時會殺掉呼叫者的整個 group | 等到 launcher 成為自己的 group leader 才繼續，否則中止；`verify_api.sh` 同一段一併修 |
+
+同時修進腳本：這個 session 的 PATH 沒有 nvm 裝的 node，`verify_web.sh` 在 `npm` 不在 PATH 時載入 `~/.nvm/nvm.sh`。
+修正後：`verify_web.sh` 10 passed（多了上面兩條回歸）、Vitest 42 passed、`tsc` 通過、`verify_api.sh` failures 0。
+
 ## 已知限制
 
 - `stockdc_backfill` 的價格到 2026-09-11 為止（前向抓取是 Step 28），所以「最新」是那天。

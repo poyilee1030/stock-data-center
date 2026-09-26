@@ -263,7 +263,7 @@ export function StockPage({ stockId, stock, calendar, theme, onError }: {
             <Segmented label="指標" value={indicator} onChange={setIndicator}
                        options={[{ value: "kd", label: "KD" }, { value: "rsi", label: "RSI" }, { value: "macd", label: "MACD" }]} />
           </div>
-          {loading || (mode === "adjusted" && adjusted.status === "loading")
+          {loading || (mode === "adjusted" && source !== null && adjusted.status === "loading")
             ? <div className="chart chart-loading">載入中…</div>
             : own.length > 0 && <PriceChart input={input} range={range} onHover={onHover} />}
           <footer className="captions">

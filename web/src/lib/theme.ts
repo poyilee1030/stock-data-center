@@ -19,7 +19,13 @@ export function useTheme(): [Theme, () => void] {
       // Kept for this visit only.
     }
   }, [theme]);
-  const toggle = useCallback(() => setTheme((t) => (t === "dark" ? "light" : "dark")), []);
+  // <html> changes before React re-renders: the chart reads its palette from
+  // the CSS custom properties while rendering (code review of #69).
+  const toggle = useCallback(() => {
+    const next: Theme = document.documentElement.dataset.theme === "light" ? "dark" : "light";
+    document.documentElement.dataset.theme = next;
+    setTheme(next);
+  }, []);
   return [theme, toggle];
 }
 

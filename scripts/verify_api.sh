@@ -17,7 +17,20 @@ export DATABASE_URL
 
 setsid .venv/bin/python -m stock_data_center.api --host 127.0.0.1 --port "$PORT" >/dev/null 2>&1 &
 LAUNCHER=$!
-PGID="$(ps -o pgid= "$LAUNCHER" | tr -d ' ')"
+# setsid makes the launcher its own group leader, but only once it has run:
+# until then `ps` reports this script's group, and killing that would kill the
+# caller too (code review of #69). Wait for it, and never take our own group.
+PGID=""
+for _ in $(seq 100); do
+    PGID="$(ps -o pgid= "$LAUNCHER" | tr -d ' ')"
+    [ "$PGID" = "$LAUNCHER" ] && break
+    sleep 0.05
+done
+if [ "$PGID" != "$LAUNCHER" ]; then
+    echo "the API server did not get its own process group" >&2
+    kill "$LAUNCHER" 2>/dev/null || true
+    exit 1
+fi
 cleanup() {
     kill -- "-$PGID" 2>/dev/null || true
     for _ in $(seq 50); do
