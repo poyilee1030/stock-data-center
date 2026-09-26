@@ -1934,6 +1934,47 @@
             "note": "The PDF attachment the old category came from, a second raw file; NULL when the text itself names both categories (every notice but the two of 2023)."
           }
         }
+      },
+      "industry_observations": {
+        "dataset_code": "industry_observations",
+        "v1": true,
+        "roadmap_pr": "step-39-b",
+        "reason": "One append-only row per (stock, source, trade date) an exchange's by-category daily quotes listed under an industry category (Step 39-b, ADR-0030 §2): TPEx as of the date, TWSE rebuilt under the categories of the day it was fetched. Evidence for the Step 39-c category periods: the anchor of every listing span that has ended, and the OTC reconciliation of the announcements. No release rule, so not market-PIT visible on its own.",
+        "columns": {
+          "stock_id": {
+            "coverage": "sourced",
+            "source_fields": [
+              "代號, TPEx afterTrading/otc?type=<code>",
+              "證券代號, TWSE MI_INDEX?type=<code>"
+            ],
+            "audit_section": "4.15",
+            "note": "Only companies in `stocks` are stored; the others (preferred shares, companies outside the universe) are counted."
+          },
+          "trade_date": {
+            "coverage": "sourced",
+            "source_fields": [
+              "date, TPEx and TWSE (YYYYMMDD), with the table's own date (TPEx `date`, TWSE `title`)"
+            ],
+            "audit_section": "4.15",
+            "note": "Only dates in `trading_days` are asked: both exchanges answer a Saturday with empty pages."
+          },
+          "recorded_at": {
+            "coverage": "internal",
+            "note": "The Data Center's own write instant, stamped by the database; never a publication time."
+          },
+          "industry_code": {
+            "coverage": "sourced",
+            "source_fields": [
+              "the `type` parameter the page answered (TWSE echoes it as `type`); TPEx `category` and the TWSE title's (…) must name the same category when not empty"
+            ],
+            "audit_section": "4.15",
+            "note": "The ISIN industry code (stock_data_center.v2.industry), never read from a label: TPEx labels 33 and 34 with ''. 13 is not asked (TWSE's page repeats every 24-31 member); TPEx 80 管理股票 is asked and reported, not stored."
+          },
+          "fetch_id": {
+            "coverage": "internal",
+            "note": "The page's fetch; the fetch names the raw file by SHA-256."
+          }
+        }
       }
     }
   },

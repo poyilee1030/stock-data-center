@@ -621,6 +621,23 @@ industry_changes = sa.Table(
     sa.CheckConstraint("old_industry <> new_industry", name="category_changes"),
 )
 
+# Which category an exchange's by-category quotes listed a stock under on a
+# trade date (Step 39-b, ADR-0030 §2): TPEx as of that date, TWSE rebuilt under
+# the classification of the day it was fetched. The code is the ISIN industry
+# code the page was asked for (stock_data_center.v2.industry).
+industry_observations = sa.Table(
+    "industry_observations",
+    metadata,
+    *_daily_key(),
+    sa.Column("industry_code", sa.String(2), nullable=False),
+    _fetch_id(),
+    _daily_pk("industry_observations"),
+    sa.CheckConstraint(
+        "source IN ('tpex_otc_quotes', 'twse_mi_index')", name="source_value"
+    ),
+    sa.CheckConstraint("industry_code ~ '^[0-3][0-9]$'", name="industry_code_value"),
+)
+
 # ---------------------------------------------------------------- derived (Step 26)
 #
 # One wide row per (stock, source, date), computed from the latest input rows and
@@ -743,4 +760,5 @@ APPEND_ONLY = (
     "shareholding_distributions",
     "corporate_actions",
     "industry_changes",
+    "industry_observations",
 )

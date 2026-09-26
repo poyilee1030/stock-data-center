@@ -41,6 +41,8 @@ TWSE_DETAILS = {  # list id -> fixture
     "E3FF1BAE659211E9A1D8005056BE380E": "twse_detail_1081801827.json",
 }
 REGULATION = "B4B04EB3CD4D11EDB2DA005056BE380E"
+# The revision before 39-a: a later head must not turn the downgrade into a no-op.
+BEFORE_CHANGES = "17d077a6bbe6"
 
 
 def _twse_list() -> bytes:
@@ -281,7 +283,7 @@ def test_the_downgrade_refuses_stored_changes(isolated_database_url, tmp_path) -
                 announced_on=date(2026, 8, 19), document_number="n", old_industry="食品工業",
                 new_industry="電子通路業", fetch_id=fetch_id))
         with pytest.raises(DBAPIError, match="industry_changes"):
-            command.downgrade(alembic_config(isolated_database_url), "-1")
+            command.downgrade(alembic_config(isolated_database_url), BEFORE_CHANGES)
         with engine.connect() as connection:
             assert connection.scalar(
                 sa.select(sa.func.count()).select_from(industry_changes)) == 1

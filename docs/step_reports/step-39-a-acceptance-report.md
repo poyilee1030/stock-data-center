@@ -1,6 +1,6 @@
 # Step 39-a 驗收報告
 
-狀態：IN REVIEW (#72)
+狀態：MERGED (#72)
 
 範圍：歷史產業分類的第一步。兩個交易所的產業類別調整公告寫進新表 `industry_changes`，公告中的一次變更一列；
 產業代碼、類別改名與存續期間是程式常數；公開時點是 release rule `industry_announcement_next_day@1`。

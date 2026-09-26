@@ -30,7 +30,7 @@ DERIVED = {"technical_indicators", "institutional_streaks", "institutional_cumul
            "valuation_metrics"}
 # Step 38-a: listing spans, reference data rebuilt from the exchanges' tables.
 # Step 39-a: industry changes, history like any value table.
-LATER_HISTORY = {"industry_changes"}
+LATER_HISTORY = {"industry_changes", "industry_observations"}
 AFTER_BASELINE = DERIVED | {"listings"} | LATER_HISTORY
 BASELINE_TABLES = V2_TABLES - AFTER_BASELINE
 # `stocks` holds each company's identity, refreshed in place; `trading_days` is
