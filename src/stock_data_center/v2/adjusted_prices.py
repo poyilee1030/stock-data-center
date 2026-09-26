@@ -170,29 +170,30 @@ class AdjustedPrices:
         if connection.scalar(sa.select(stocks.c.stock_id).where(stocks.c.stock_id == stock_id)) \
                 is None:
             raise UnknownStockError(f"{stock_id!r} is not on the list")
+        if source is not None and source not in set(PRICE_SOURCE.values()):
+            raise ValueError(f"{source!r} is not a daily-price source")
+        # Every visible price from the window on: the last one is the anchor.
+        visible = visibility.rows(connection, daily_prices.name, pit, start=start_date,
+                                  end=date.max, stock_ids=[stock_id],
+                                  sources=None if source is None else [source])
         if source is None:
-            sources = connection.scalars(
-                sa.select(daily_prices.c.source).distinct()
-                .where(daily_prices.c.stock_id == stock_id).order_by(daily_prices.c.source)
-            ).all()
+            # Chosen from what this context sees in the window, never from rows it
+            # cannot see (§19): a stock that later moved market has one series here.
+            sources = sorted({p["source"] for p in visible if p["trade_date"] <= end_date})
             if len(sources) > 1:
                 raise ValueError(f"{stock_id} has prices from {', '.join(sources)}; "
                                  "name the source")
             if not sources:
                 return Series(stock_id, "", self._git_commit, (), ())
             (source,) = sources
-        if source not in set(PRICE_SOURCE.values()):
-            raise ValueError(f"{source!r} is not a daily-price source")
-        # Every visible price from the window on: the last one is the anchor.
-        prices = visibility.rows(connection, daily_prices.name, pit, start=start_date,
-                                 end=date.max, stock_ids=[stock_id], sources=[source])
-        if not prices:
+        prices = [p for p in visible if p["source"] == source]
+        if not prices or prices[0]["trade_date"] > end_date:
             return Series(stock_id, source, self._git_commit, (), ())
-        anchor = prices[-1]["trade_date"]
-        # An event on or before the window's first day adjusts nothing in it.
+        first, anchor = prices[0]["trade_date"], prices[-1]["trade_date"]
+        # An event on or before the window's first trade date adjusts nothing in it.
         found = [row for row in visibility.rows(
-            connection, "corporate_actions", pit, start=start_date, end=anchor,
-            stock_ids=[stock_id], sources=feeds_of(source)) if row["ex_date"] > start_date]
+            connection, "corporate_actions", pit, start=first, end=anchor,
+            stock_ids=[stock_id], sources=feeds_of(source)) if row["ex_date"] > first]
         found.sort(key=lambda row: (row["ex_date"], row["source"]))
         events = [Event(row["ex_date"], row["close_before"], row["reference_price"])
                   for row in found]

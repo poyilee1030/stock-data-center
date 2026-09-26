@@ -13,7 +13,7 @@ PIT 情境計算往回累積的還原因子，不建表；API 以 `adjusted-pric
 | `src/stock_data_center/api/__init__.py`、`api/derived.py`、`api/openapi.py` | `adjusted-prices-pit`：列在 `/v1/datasets`（`kind: derived_on_demand`），一次一檔，market 與 system PIT 都可 |
 | `scripts/report_adjusted_price_gaps.py`（新） | 對 `stockdc_backfill` 的每條序列，把原始與還原收盤價超過漲跌幅的缺口全部分類；有無法解釋的或不連續的事件日就 exit 1 |
 | `third-party/fubon/fetch_adjusted.py`、`compare_adjusted.py`（新） | Fubon 還原 K 線的交叉比對（§30.1，只作佐證） |
-| 測試 | `tests/unit/test_v2_adjusted_prices_math.py`（13）、`tests/integration/test_v2_adjusted_prices_pit.py`（10）、`tests/integration/test_api_adjusted_prices.py`（4）；`tests/unit/test_api_openapi.py` 跟著列入新資料集 |
+| 測試 | `tests/unit/test_v2_adjusted_prices_math.py`（13）、`tests/integration/test_v2_adjusted_prices_pit.py`（12）、`tests/integration/test_api_adjusted_prices.py`（4）；`tests/unit/test_api_openapi.py` 跟著列入新資料集 |
 | 文件 | `docs/derived_data.md`、`docs/pit_semantics.md`、`docs/api.md`、`docs/data_domain_inventory.md`、audit §4.10、ROADMAP（Step 36、§20、Step 38 狀態、順序）、CLAUDE.md 快照與 §43 |
 
 `src/` +288／−4 行（`adjusted_prices.py` 204 行為新檔）。沒有 migration：不建表。
@@ -80,7 +80,7 @@ event close_before != previous traded close        4
 
 ### PIT
 
-永久測試（`tests/integration/test_v2_adjusted_prices_pit.py`）：
+永久測試（`tests/integration/test_v2_adjusted_prices_pit.py`，後兩條來自 code review）：
 
 | 情境 | 測試 |
 |---|---|
@@ -90,6 +90,8 @@ event close_before != previous traded close        4
 | 更正的因子從更正列的 `recorded_at` 起生效 | `test_a_corrected_event_changes_the_factor_from_its_recorded_at` |
 | 事件只調整自己交易所的價格 | `test_an_event_adjusts_only_the_prices_of_its_own_market` |
 | 查詢區間不移動錨點 | `test_the_window_does_not_move_the_anchor` |
+| `events` 只列調整到回傳列的事件（視窗從休市日開始時也一樣） | `test_events_list_only_what_adjusts_a_returned_row` |
+| 未指定 `source` 時，只從這個情境在視窗內看得到的價格挑來源 | `test_the_source_is_chosen_from_what_the_context_sees_in_the_window` |
 
 真實資料抽查（2330，`stockdc_backfill`）：`information_as_of` = 2024-06-14 02:00 台北時，序列停在 06-12、因子全為 1、沒有事件；
 03:00（06-13 價格公布）時 06-13 出現，06-11、06-12 的因子 0.996150 = 905.5／909（除息 3.5 元），`events` 列出該筆。
@@ -114,10 +116,27 @@ event close_before != previous traded close        4
 
 唯一的差異類別是現金增資：我們依 §80 用交易所的除權參考價，Fubon 不調整。依 §30.1，差異分類、不改我們的值。
 
+## Owner 決定（2026-09-26）
+
+**現金增資除權日保留還原，照現在的做法**：因子用交易所的除權參考價（§80）。FinMind 免費等級的 `TaiwanStockDividendResult` 轉載同一份
+TWT49U 資料（6225：`after_price` 30.04 是除權參考價，`reference_price`／`open_price` 44.4 是減除股利參考價／開盤競價基準），
+只能作佐證（§30.1）；還原股價 `TaiwanStockPriceAdj` 需要付費等級。
+
+## Code review（2026-09-26）
+
+沒有高嚴重度問題；兩個低嚴重度問題都成立，已修正，各加一條永久測試（先紅後綠）：
+
+1. `events` 以 `start_date` 過濾，視窗從休市日開始時，會列出落在第一根 K 棒、其實沒調整到任何回傳列的事件；視窗內沒有列、`end`
+   之後才有價格時也會列出事件。改成以視窗內第一個交易日過濾，視窗內沒有列就不列事件。
+2. 未指定 `source` 時，從這檔股票所有存下的價格挑來源，沒套用 PIT 情境與查詢視窗：之後才轉市場的股票查轉市場前的區間會被要求指定
+   `source`，較早的 `system_as_of` 下還會帶出那時看不到的來源名稱（§19）。改成從這個情境在視窗內看得到的價格挑。
+
+修正後重跑缺口報告，輸出與修正前逐欄相同。
+
 ## 已知限制
 
 - 現金增資除權日，還原序列可能單日移動超過 10%（最大 +62.4%，6225 2026-08-18），是認購股東的報酬；不認購的股東的報酬較接近原始價。
-  若要「不反映增資」的版本，需要儲存交易所的 `減除股利參考價`／基準價（audit §6 目前不存），是新的衍生版本，不在 v1。
+  若日後要「不反映增資」的版本，需要儲存交易所的 `減除股利參考價`／基準價（audit §6 目前不存），是新的衍生版本。
 - 已下市公司沒有價格與事件（Step 38-b），序列存在存活者偏差。
 - 一個價格來源一條序列：轉市場的股票（14 檔）兩條序列不接起來。
 - 回傳值是浮點：累積因子與還原價以 IEEE 754 雙精度計算，事件因子以 `Decimal` 原樣回傳。
@@ -125,6 +144,6 @@ event close_before != previous traded close        4
 ## 測試
 
 ```text
-.venv/bin/python -m pytest -q tests      986 passed（基線 959，新增 27）
+.venv/bin/python -m pytest -q tests      988 passed（基線 959，新增 29）
 .venv/bin/ruff check <本 step 新增與修改的檔案>   All checks passed
 ```

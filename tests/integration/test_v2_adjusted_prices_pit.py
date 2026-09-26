@@ -178,3 +178,41 @@ def test_the_window_does_not_move_the_anchor(db, fetch_id) -> None:
     # An event on or before the window's first day adjusts nothing in it.
     later = SERVICE.compute(db, stock_id=STOCK, start_date=D3, end_date=D4, pit=LATEST)
     assert later.events == ()
+
+
+def test_events_list_only_what_adjusts_a_returned_row(db, fetch_id) -> None:
+    # Code review of #67: a window starting on a closed day begins at its first
+    # trade date, and an event on that date adjusts nothing in it.
+    _week(db, fetch_id)
+    _event(db, fetch_id, datetime(2024, 7, 3, 1, tzinfo=UTC))
+    _event(db, fetch_id, datetime(2024, 7, 1, 1, tzinfo=UTC), ex_date=D1)
+    saturday = date(2024, 6, 29)
+    series = SERVICE.compute(db, stock_id=STOCK, start_date=saturday, end_date=D4, pit=LATEST)
+    assert series.rows[0].bar.trade_date == D1
+    assert [e.row["ex_date"] for e in series.events] == [EX]
+    # A window with no row lists no event, though later prices anchor the series.
+    empty = SERVICE.compute(db, stock_id=STOCK, start_date=saturday,
+                            end_date=date(2024, 6, 30), pit=LATEST)
+    assert (empty.rows, empty.events) == ((), ())
+
+
+def test_the_source_is_chosen_from_what_the_context_sees_in_the_window(db, fetch_id) -> None:
+    # Code review of #67 (§19): a stock that moved from TPEx to TWSE has one
+    # series before the move, and a context that has not seen the second source
+    # neither fails on it nor names it.
+    moved = datetime(2024, 8, 1, tzinfo=UTC)
+    for day, close in ((D1, "100"), (D2, "100")):
+        _price(db, fetch_id, day, close)
+    for day, close in ((D3, "91"), (D4, "92")):
+        _price(db, fetch_id, day, close, source="twse_mi_index", recorded_at=moved)
+    before_move = SERVICE.compute(db, stock_id=STOCK, start_date=D1, end_date=D2, pit=LATEST)
+    assert before_move.source == PRICES
+    with pytest.raises(ValueError, match="name the source"):
+        _factors(db)
+    unseen = SERVICE.compute(db, stock_id=STOCK, start_date=D1, end_date=D4,
+                             pit=vis.SystemPIT(moved - timedelta(seconds=1)))
+    assert unseen.source == PRICES
+    assert [row.bar.trade_date for row in unseen.rows] == [D1, D2]
+    nothing = SERVICE.compute(db, stock_id=STOCK, start_date=D1, end_date=D4,
+                              pit=vis.SystemPIT(datetime(2024, 1, 1, tzinfo=UTC)))
+    assert (nothing.source, nothing.rows) == ("", ())
