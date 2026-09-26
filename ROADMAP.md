@@ -613,7 +613,7 @@ explicit out-of-scope work
 | 27-a | MERGED (#60) | 公開 API：PIT 可見性層 |
 | 27-b | MERGED (#61) | 公開 API：HTTP 層、觀測資料 |
 | 27-c | MERGED (#62) | 公開 API：財報、衍生資料、參考資料 |
-| 28 | 28-a PLANNED；28-b PLANNED；28-c PLANNED | 排程的前向抓取 |
+| 28 | 28-a IN REVIEW；28-b PLANNED；28-c PLANNED | 排程的前向抓取 |
 | 29 | SUPERSEDED | Python SDK 與下游整合（owner 決定移除，2026-09-24） |
 | 30 | PLANNED | 維運與可觀測性 |
 | 31 | PLANNED | 完整的正確性 CI 關卡 |
@@ -2411,7 +2411,7 @@ legacy `stock_db` 只有 `stock_info.listing_date`，沒有下市資料。
 
 ## Step 28 — 排程的前向抓取
 
-狀態：**28-a PLANNED；28-b PLANNED；28-c PLANNED**（2026-09-27 依 CLAUDE.md §1 拆成三段）。依賴：Steps 16–24、Step 35（schema v2）、Step 38-a、Step 39。
+狀態：**28-a IN REVIEW；28-b PLANNED；28-c PLANNED**（2026-09-27 依 CLAUDE.md §1 拆成三段）。依賴：Steps 16–24、Step 35（schema v2）、Step 38-a、Step 39。
 
 每日、每週、每月和每季的工作執行 adapter（Step 38 之後也包括上市／下市表，才能持續記到新的上市與下市）。它們包括重試、以日曆為基礎的缺漏資料警示，以及透過重新抓取近期期間來偵測更正。每個資料集的 revision 比率報告，量化 Step 15 描述的 backfill 限制。
 
@@ -2530,16 +2530,53 @@ quarantine reason，讓三張報表照樣解析——但那要先證明無法對
 
 ### 28-a — 交易日曆、排程宣告與待辦計畫
 
-- [ ] 程式：`trading_days` 的 v2 writer，來源 TWSE `FMTQIK`（Step 16 的 adapter，不改）：
-  一個月一次抓取，新的交易日寫入並指向那次抓取；已存的日子來源不再列出時不刪除，那次抓取
-  quarantine 並說明（交易日曆不靠猜，也不靜默縮小）
-- [ ] 程式：每個 job 的排程宣告，程式常數：期間從哪來、最早可抓時刻（營運值，不是 release
-  rule）、升級期限、回溯重抓時刻、哪段時間內的抓取算 `first_capture`
-- [ ] 程式：`plan(now)`——不抓取，從已存的 `fetches` 與資料列出每個待分派的
-  `(job, 期間, purpose, 原因)`；原因是「沒抓過」「還沒穩定」「回溯檢查」「backoff 中」之一；CLI 印出它
-- [ ] 營運：以 `gap_fill` 把 `stockdc_backfill` 從 2026-09-12 補到今天，日曆先補
-- [ ] 測試：日曆 writer（新增、重跑不重複、來源少一天時 quarantine）；每條宣告的時刻；
-  `plan` 的每種原因與 purpose 判定，含月營收與財報 `first_capture` 與 `gap_fill` 的分界
+- [x] 程式：`trading_days` 的 v2 writer（`stock_data_center.v2.trading_calendar`），來源 TWSE
+  `FMTQIK`：一個月一次抓取，新的交易日寫入並指向那次抓取；已存的日子來源不再列出時不刪除，
+  那次抓取 quarantine 為 `calendar_day_removed` 並列出日子（交易日曆不靠猜，也不靜默縮小）；
+  backfill CLI 的 `--job trading_days/twse`，排在所有 job 之前
+- [x] 程式：每個 job 的排程宣告（`stock_data_center.v2.schedule.DECLARATIONS`），程式常數：
+  期間從哪來、最早可抓時刻（營運值，不是 release rule）、穩定時刻、升級期限、回溯重抓時刻、
+  哪段時間內的抓取算 `first_capture`、重試間隔與 backoff
+- [x] 程式：`plan(now)`——不抓取，從已存的 `fetches`（財報另加已存版本）列出每個待分派的
+  `(job, 期間, purpose, 狀態)`；CLI `python -m stock_data_center.v2.schedule` 印出它
+- [x] 營運：以 `gap_fill` 把 `stockdc_backfill` 從 2026-09-12 補到今天，日曆先補：日曆 +7 天
+  （到 09-24），24 個 job 的 9 個交易日全部成功、沒有 quarantine；Step 26 衍生表增量重算
+- [x] 測試：日曆 writer（新增、重跑不重複、逐日長大、來源少一天時 quarantine、還沒有交易日時
+  empty）；每條宣告的時刻；`decide` 的每個狀態與 purpose 判定；`plan` 在真的資料列上
+
+實作中裁決：
+
+- **狀態只從 `fetches` 推出。** 一個期間的狀態是 `not_due`、`missing`、`given_up`、`fresh`、
+  `refresh`、`unsettled`、`recheck`、`done` 之一，由它的抓取紀錄與現在的時刻決定（`decide`，純函式）。
+  第一次缺漏的時間是上次完整抓取之後第一次沒成功的抓取；不另建表。
+- **穩定前抓一次，穩定後再抓一次。** 交易所每日資料在最早可抓時刻（15:00，融資融券與借券
+  21:00）抓第一次，之後不再每小時重抓，到 D+1 03:00（`exchange_daily_settled@1`）穩定後抓第二次。
+  穩定前的那份是暫定列，市場 PIT 在規則時刻之前本來就看不到；穩定後的那份修正 2026-03-27 那一類
+  「太早抓、被凍結」的錯誤。月營收、交易日曆每小時、公司行動每天重讀，直到期間穩定。
+- **回溯檢查一次。** 穩定後的每日資料在 D+1 03:00 再加 7 天以 `correction_check` 重抓一次，
+  28-c 以此量 revision 比率。
+- **重試不需要計時器，backoff 也不需要狀態。** 仍缺的期間在第一天每小時問一次，之後每天一次，
+  過了放棄期限（交易所 14 天、月營收 60 天、財報 90 天）就不再問、只列出來。升級期限：每日資料
+  D+1 08:00；月營收次月 11 日 08:00（整頁都抓不到才算，個別公司晚申報不算）；財報沒有
+  （晚申報不是缺口）；交易日曆、公司行動與 TDCC 以「多久沒有成功抓到」判定。
+- **purpose 規則。** 期間穩定後一天之內的抓取是 `first_capture`，之後是 `gap_fill`，回溯檢查是
+  `correction_check`。在窗口內、停機後才補上的抓取仍然是第一次看到，它的時刻仍是真的上界。
+- **財報只宣告仍開著的季。** 期限前 35 天起（2026Q1 最早的申報在期限前 32 天）到穩定後 90 天。
+  2020Q1–2026Q2 的 50,622 個「股票×季」中 8,205 個官方回答沒有這份申報——多半是那時還沒公開
+  發行的公司，每天問它們會變成每天 13 小時的 MOPS 請求；歷史是 backfill 的事。已存的版本
+  （23-c 多半從檔案庫寫入，resource key 是檔案庫的）也算完整抓取。
+- **FMTQIK 的「沒有符合條件的資料」是 `no_data_for_period`。** 月初第一個交易日收盤前，
+  該月還沒有任何交易日；adapter 版本升為 `twse-fmtqik-trading-calendar:v2`，其他非 OK 的
+  stat 仍是 `source_error`。兩者都不會被讀成整個月休市。
+
+發現（範圍外，排入後續）：
+
+- **KY 公司的財報沒有歷史。** 舊系統的 iXBRL 檔案庫沒有 KY 公司，23-c 從檔案庫匯入，所以
+  `stockdc_backfill` 的 2026Q2 有 161 家今天的普通股既沒有財報、也沒有被問過：118 家 KY 公司、
+  38 家金融保險業（依 v1 範圍不收，問一次就是最終的 `financial_industry_issuer`）、5 家其他
+  （2938、3718、7825、7856、8105）。官方 `t164sb01` 對 KY 公司可以解析（2026-09-27 以 1590 2026Q2
+  實測，386 個 fact）。前向抓取會從開著的季開始收它們；2020Q1–2026Q1 的補抓要另外排
+  （約 118 家 × 25 季）。
 
 ### 28-b — 每小時分派迴圈與通知
 

@@ -1639,6 +1639,17 @@ month. For example, July 2024 omits the typhoon closures on 2024-07-24/25.
 `holidaySchedule` lists planned closures only; the probe returned rows for 2023
 onward and none for 2020.
 
+Probed 2026-09-27 (Step 28-a), a Sunday after the 2026-09-25 中秋節 closure:
+the September file listed trading days through 09-24, and `holidaySchedule`
+listed 09-25 and 09-28 as closures. A date in the future answers
+`{"stat":"查詢日期大於今日，請重新查詢!"}`. A month whose first trading day
+has not closed yet is expected to answer TWSE's generic no-data stat
+`很抱歉，沒有符合條件的資料!` (the answer `MI_INDEX` gave for 09-25); adapter
+`twse-fmtqik-trading-calendar:v2` reads that one stat as `no_data_for_period`
+(nothing published yet) and every other non-`OK` stat as `source_error`. It is
+still never read as a month with no trading day. First real observation of a
+month's first day is due 2026-10-01.
+
 ### 4.13 Issuer dividend declarations
 
 The legacy system never fetched these. Its MOPS usage was `nas/t21/*` (monthly

@@ -167,7 +167,7 @@ def ingest(
     raise AssertionError("unreachable")  # pragma: no cover
 
 
-def _resource_key(stock_id: str, year: int, quarter: int, report_id: str) -> str:
+def resource_key(stock_id: str, year: int, quarter: int, report_id: str) -> str:
     request = m.FinancialFilingRequest(stock_id, year, quarter, report_id)
     return ADAPTER.resource(request).resource_key
 
@@ -188,7 +188,7 @@ def pending(connection: Connection, wanted: Sequence[tuple[str, int, int]]) -> l
             .group_by(reports.c.stock_id, reports.c.report_year, reports.c.report_quarter)
         )
     }
-    by_key = {_resource_key(*item, rid): item for item in wanted for rid in REPORT_IDS}
+    by_key = {resource_key(*item, rid): item for item in wanted for rid in REPORT_IDS}
     done = {item for item, fetched_at in stored.items()
             if fetched_at >= settled_at(*item[1:])}
     for key, status, reason, fetched_at in connection.execute(

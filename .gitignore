@@ -11,3 +11,6 @@ data/raw/*
 
 # Fubon Neo SDK runtime logs, written to the working directory
 log/
+
+# Forward-capture and backfill run logs
+logs/

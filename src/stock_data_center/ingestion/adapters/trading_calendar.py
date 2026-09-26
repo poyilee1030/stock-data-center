@@ -12,6 +12,9 @@ from stock_data_center.ingestion.models import (
     TradingCalendarRequest,
 )
 
+# The answer every TWSE rwd endpoint gives when it has no rows for the request.
+_NO_DATA = "很抱歉，沒有符合條件的資料!"
+
 
 class TradingCalendarAdapter:
     """Map one official monthly report into the market's actual trading days.
@@ -45,6 +48,13 @@ class TradingCalendarAdapter:
         payload = _json_object(content)
 
         stat = payload.get("stat")
+        if stat == _NO_DATA:
+            # A month whose first trading day has not closed yet (Step 28-a):
+            # nothing published so far, asked again later. Never a closed month.
+            raise SourceDataError(
+                "no_data_for_period",
+                f"{self.source} published no trading day for {request.month:%Y-%m} yet",
+            )
         if stat != "OK":
             raise SourceDataError(
                 "source_error",
@@ -102,7 +112,7 @@ class TradingCalendarAdapter:
 class TWSETradingCalendarAdapter(TradingCalendarAdapter):
     source = "twse"
     market = "TWSE"
-    version = "twse-fmtqik-trading-calendar:v1"
+    version = "twse-fmtqik-trading-calendar:v2"
     endpoint = "https://www.twse.com.tw/rwd/zh/afterTrading/FMTQIK"
     date_field = "日期"
 
