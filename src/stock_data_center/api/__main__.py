@@ -10,7 +10,8 @@ clear on the LAN; Tailscale encrypts it.
 The key and the database URL come from the environment, never the command
 line, so they stay out of the process list and shell history. In a container
 (`docker compose up -d`, `scripts/api_up.sh`) `STOCKDC_GIT_COMMIT` names the
-commit the image was built from.
+commit the image was built from, and `STOCKDC_WEB_DIR` the built web
+dashboard it serves at `/` (ADR-0029); without it no page is served.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from pathlib import Path
 
 import sqlalchemy as sa
 import uvicorn
@@ -42,8 +44,10 @@ def main(argv=None) -> int:
     if not url or not key:
         sys.exit("DATABASE_URL and STOCKDC_API_KEY must be set")
     engine = sa.create_engine(url, pool_pre_ping=True)
+    web = os.getenv("STOCKDC_WEB_DIR")
     app = create_app(api_key=key, connect=lambda: read_only(engine),
-                     git_commit=os.getenv("STOCKDC_GIT_COMMIT") or None)
+                     git_commit=os.getenv("STOCKDC_GIT_COMMIT") or None,
+                     web_dir=Path(web) if web else None)
     uvicorn.run(app, host=args.host, port=args.port, access_log=False)
     return 0
 

@@ -42,10 +42,28 @@ command line.
 Every `/v1` request needs the key in the `X-API-Key` header; without it the
 answer is `401`.
 
+## Web dashboard
+
+The container also serves the web dashboard (Step 37, ADR-0029) at `/`:
+`http://<address>:28617/`. The page asks for the key once and keeps it in the
+browser's localStorage; it reads data through `/v1` like any client and
+computes nothing itself. The page (`/`) and its content-hashed files
+(`/assets/*`) are served without the key, since they hold no data; every
+other path still needs it. `index.html` is sent with `Cache-Control:
+no-cache`, so a redeploy reaches the browser.
+
+`create_app(web_dir=...)` serves the built directory (`web/dist`);
+`python -m stock_data_center.api` takes it from `STOCKDC_WEB_DIR`, which the
+image sets to `/app/web`. Without it no page is served. For development,
+`cd web && npm run dev` serves the page with Vite and forwards `/v1` to the
+API on `127.0.0.1:28617` (`STOCKDC_API_URL` overrides it).
+`scripts/verify_web.sh` builds the page, serves it from a local API and runs
+the Playwright checks.
+
 ## Swagger UI
 
 `/docs` is Swagger UI and `/openapi.json` its OpenAPI description; both are
-served without the key (owner, 2026-09-25), since they describe the API's shape
+served without the key, like the web dashboard's page (owner, 2026-09-25), since they describe the API's shape
 and hold no data. Press **Authorize** and paste the key to try requests from
 the page. The page loads Swagger UI's script and stylesheet from
 cdn.jsdelivr.net, so the browser needs internet access.
