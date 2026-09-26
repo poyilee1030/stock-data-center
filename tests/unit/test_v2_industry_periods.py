@@ -229,3 +229,34 @@ def test_a_quote_anchor_is_checked_against_the_category_of_its_own_day() -> None
                        fetch_id=uuid4(), on=date(2024, 2, 5))
     assert vis.industry_chain_issues(span, changes, wrong) == [
         "on 2024-02-05 the chain says 02, but the anchor (tpex_otc_quotes) says 20"]
+
+
+# ---------------------------------------------------------------- code review of #74
+
+
+def test_the_category_before_a_change_is_the_one_public_then() -> None:
+    # A correction of a change's old category is public from its own recorded_at.
+    corrected = datetime(2026, 10, 1, tzinfo=UTC)
+    first = _change(date(2023, 5, 22), "30", "36")
+    fixed = _change(date(2023, 5, 22), "31", "36", recorded=corrected, available=corrected)
+    changes = {date(2023, 7, 3): [first, fixed]}
+    before = vis.industry_periods_of(_span(), changes, _isin("36"),
+                                     _pit(corrected - timedelta(seconds=1)))
+    assert (before[0].industry_code, before[0].fetch_id) == ("30", first.fetch_id)
+    after = vis.industry_periods_of(_span(), changes, _isin("36"), LATEST)
+    assert (after[0].industry_code, after[0].fetch_id) == ("31", fixed.fetch_id)
+    # Before the notice itself is public, the category in use is the original's.
+    early = vis.industry_periods_of(_span(), changes, _isin("36"),
+                                    _pit(_midnight(date(2023, 5, 1))))
+    assert [(p.industry_code, p.effective_to) for p in early] == [("30", None)]
+
+
+def test_a_category_that_ceased_ends_its_period_even_before_a_later_change() -> None:
+    # TPEx's 電子商務 ended on 2023-07-03; a company announced out of it later
+    # does not stay in it past its end (code review of #74).
+    changes = {date(2024, 6, 3): [_change(date(2024, 5, 15), "34", "36",
+                                          source="tpex_announcement")]}
+    periods = vis.industry_periods_of(_span(market="otc", stock_id="8477"), changes,
+                                      _isin("36"), LATEST)
+    assert [(p.industry_code, p.effective_from, p.effective_to) for p in periods] == [
+        ("34", date(2020, 1, 2), date(2023, 7, 3)), ("36", date(2024, 6, 3), None)]

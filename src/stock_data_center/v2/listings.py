@@ -472,10 +472,16 @@ def write(connection: Connection, assembly: Assembly) -> dict[str, int]:
         statement = pg_insert(stocks).values([
             {"stock_id": c.stock_id, "name": c.name, "industry": c.industry,
              "fetch_id": c.fetch_id} for c in assembly.companies])
+        # The fetch changes only with the values: it names the raw file they
+        # first came from, so its time is when they were first recorded, which
+        # the industry periods read as the ISIN category's (code review of #74).
+        changed = sa.tuple_(stocks.c.name, stocks.c.industry).is_distinct_from(
+            sa.tuple_(statement.excluded.name, statement.excluded.industry))
         connection.execute(statement.on_conflict_do_update(
             index_elements=[stocks.c.stock_id],
-            set_={column: statement.excluded[column] for column in ("name", "industry",
-                                                                     "fetch_id")}))
+            set_={"name": statement.excluded.name, "industry": statement.excluded.industry,
+                  "fetch_id": sa.case((changed, statement.excluded.fetch_id),
+                                      else_=stocks.c.fetch_id)}))
     connection.execute(sa.delete(listings))
     if assembly.spans:
         connection.execute(sa.insert(listings), [

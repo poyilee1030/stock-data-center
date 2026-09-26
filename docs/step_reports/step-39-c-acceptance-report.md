@@ -75,7 +75,7 @@ PIT 的三條規則，都有單元測試：
 | `/v1/stocks` 不補最後已知產業 | `test_a_delisted_company_carries_its_last_known_industry` |
 | `date` 與 `start` 同時可用、接受 2020-01-02 之前 | `test_a_request_it_cannot_answer_is_400` |
 
-全套測試：1177 passed（另見「範圍外的修正」）。ruff：改動與新增的檔案沒有問題。
+全套測試：1177 passed（review 修正後 1180；另見「範圍外的修正」）。ruff：改動與新增的檔案沒有問題。
 
 ## 真實資料（`stockdc_backfill`，經 API 量）
 
@@ -141,7 +141,7 @@ legacy 只有今天的產業快照，已在 39-a（有變更的 163 檔：160 �
 
 - 上市沒有當日分類的來源：公告的完整性只能靠變更鏈一致性佐證，從未出現在公告裡的變更抓不到（ADR-0030 §6）。
 - 下市的上市公司，類別是證交所以今天分類重建的最後已知類別。
-- `knowledge_as_of` 早於最近一次 ISIN 刷新時，沒有公告過變更的股票沒有期間：`stocks` 是就地刷新的參考資料，舊值沒有保留。
+- ISIN 類別改變過的股票，改變之前的舊值不保留（`stocks` 就地更新）；有公告的變更由公告負責，沒有公告的改變抓不到。
 - 5259 沒有期間。
 - API 容器要在合併後重新部署（migrate 不需要：本步沒有 migration）。
 
@@ -149,3 +149,13 @@ legacy 只有今天的產業快照，已在 39-a（有變更的 163 檔：160 �
 
 - 前向抓取（Step 28）：每年的調整公告、新下市公司的錨點（`industry_observations --anchors`）。
 - 38-b（下市公司的各資料集）之後，下市公司的期間就能配上它們的行情與財報。
+
+## Code review（#74）
+
+三項都成立，都先寫會紅的測試再修；真實資料上重跑驗收腳本，報告與修正前**逐字相同**（三種情況在真實資料都沒有出現）。
+
+| 發現 | 處置 | 測試 |
+|---|---|---|
+| 中：以較早的 `knowledge_as_of` 查詢，多數掛牌中的股票整個消失。ISIN 錨點的時間取 `stocks.fetch_id` 的 `fetched_at`，而 `listings.write` 每次刷新都覆寫它，所以永遠是最近一次刷新；原本寫成「已知限制」，低估了影響 | 根因在 38-a 的寫入：`stocks.fetch_id` 改為只在名稱或產業改變時才換，指向目前的值第一次出現的原始檔（provenance 不變），時間即第一次記錄的時間。`stockdc_backfill` 目前只刷新過一次，不需要回填 | `test_a_refresh_keeps_the_fetch_that_first_recorded_an_unchanged_company`（`test_v2_listings.py`，先紅） |
+| 中：market PIT 下「變更前」那段的類別取第一筆變更**最新**版本的原類別，沒有看那個版本在 `information_as_of` 是否已公開，連 `recorded_at`、`fetch_id` 一起沿用 | 取 `information_as_of` 時已公開的最新版本；公告本身尚未公開時用原本的版本 | `test_the_category_before_a_change_is_the_one_public_then`（先紅） |
+| 輕：類別停用的截斷（櫃買 34、18 到 2023-07-03）在輸出時被下一段的起日蓋掉，之後才公告的移出會讓期間延伸過停用日 | 停用日已公開、又早於下一段起日時保留，中間留空檔 | `test_a_category_that_ceased_ends_its_period_even_before_a_later_change`（先紅） |

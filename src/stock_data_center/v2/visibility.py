@@ -421,7 +421,11 @@ def industry_periods_of(span: Span, changes: dict[date, list[ChangeVersion]],
     # (from, code, basis, available_at, row) of each period that can be seen.
     drafts = []
     if recorded:
-        first = next(iter(recorded.values()))[-1]
+        # The old category as public then: a correction of it counts from its
+        # own available_at; before the notice is public, the original's.
+        versions = next(iter(recorded.values()))
+        public = [v for v in versions if not market_pit or v.available_at <= pit.information_as_of]
+        first = public[-1] if public else versions[0]
         drafts.append((span.start, first.old_code, "before_change", _midnight(span.start), first))
         for day, versions in recorded.items():
             public = [v for v in versions if not market_pit or v.available_at <= pit.information_as_of]
@@ -457,8 +461,11 @@ def industry_periods_of(span: Span, changes: dict[date, list[ChangeVersion]],
         pieces = [p for p in pieces if p[4] <= pit.information_as_of]
     out = []
     for n, (since, until, code, basis, available, row, end_public) in enumerate(pieces):
+        ceased = (until is not None and end_public is not None
+                  and (not market_pit or end_public <= pit.information_as_of))
         if n + 1 < len(pieces):
-            until = pieces[n + 1][0]
+            if not (ceased and until < pieces[n + 1][0]):  # a category that ceased keeps its end
+                until = pieces[n + 1][0]
         elif end_public is None or (market_pit and end_public > pit.information_as_of):
             until = None
         out.append(IndustryPeriod(
