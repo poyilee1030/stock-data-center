@@ -10,6 +10,9 @@ const EXCHANGE: Record<string, Exchange> = {
   twse_mi_qfiis: "twse", mops_t13sa150_otc: "tpex",
   twse_mi_margn: "twse", tpex_margin_balance: "tpex",
   twse_twt93u: "twse", tpex_margin_sbl: "tpex",
+  twse_bwibbu_d: "twse", tpex_pe_qry_date: "tpex",
+  // MOPS publishes monthly revenue per market (sii listed, otc OTC).
+  mops_t21sc03_sii: "twse", mops_t21sc03_otc: "tpex",
 };
 
 export function exchangeOf(source: string): Exchange {

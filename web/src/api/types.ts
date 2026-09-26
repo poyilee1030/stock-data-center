@@ -114,6 +114,7 @@ export interface AdjustmentEvent {
 export interface Derivation {
   dataset_code: string;
   derivation_version: string;
+  formula?: string;
   price_adjustment_convention?: string;
   git_commit?: string;
 }
@@ -207,3 +208,55 @@ export interface MarketFlowRow {
   sell: number | null;
   net: number | null;
 }
+
+// Step 37-c: fundamentals.
+
+export interface RevenueRow {
+  stock_id: string;
+  source: string;
+  revenue_month: string;
+  revenue?: number | null;
+  revenue_last_month?: number | null;
+  revenue_last_year_month?: number | null;
+  cumulative_revenue?: number | null;
+  cumulative_revenue_last_year?: number | null;
+  mom_pct: number | null;
+  yoy_pct: number | null;
+  cumulative_yoy_pct: number | null;
+  note: string | null;
+  available_at?: string | null;
+}
+
+export interface Fact {
+  statement: string;
+  account_code: string;
+  concept: string;
+  period_start: string | null;
+  period_end: string;
+  unit: string;
+  value: number | null;
+}
+
+export interface ReportRow {
+  stock_id: string;
+  report_year: number;
+  report_quarter: number;
+  report_category: string;
+  available_at: string | null;
+  facts: Fact[];
+}
+
+export interface OfficialValuationRow extends Dated {
+  pe_ratio: number | null;
+  pb_ratio: number | null;
+  dividend_yield: number | null;
+}
+
+export interface ValuationMetricsRow extends Dated {
+  ttm_eps: number | null;
+  pe_ratio: number | null;
+  pe_percentile: number | null;
+  roe: number | null;
+}
+
+export type ActionRow = { ex_date: string; source: string; event_type: string } & Record<string, unknown>;

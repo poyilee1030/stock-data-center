@@ -1,6 +1,6 @@
 # Step 37-b 驗收報告
 
-狀態：IN REVIEW (#70)
+狀態：MERGED (#70)
 
 範圍：網頁儀表板的籌碼與市場頁（ROADMAP Step 37、ADR-0029）。個股頁多一個「籌碼」分頁，新增「市場」頁；
 API 的 `indices` 多一個可重複的 `index_name` 篩選參數（owner 2026-09-26 決定）。37-a 狀態改為 MERGED（#69）。

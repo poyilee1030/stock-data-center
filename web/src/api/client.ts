@@ -4,7 +4,7 @@
 import type {
   AdjustedAnswer, ConcentrationRow, CumulativeRow, DistributionRow, FlowRow, ForeignRow, IndexRow, IndicatorRow,
   LendingRow, MarginMetricsRow, MarginRow, MarketFlowRow, PriceRow, RowsAnswer, StocksAnswer, StreakRow,
-  TradingDaysAnswer,
+  TradingDaysAnswer, ActionRow, OfficialValuationRow, ReportRow, RevenueRow, ValuationMetricsRow,
 } from "./types";
 
 const KEY = "stockdc.apiKey";
@@ -94,6 +94,15 @@ export const api = {
   lending: stockRows<LendingRow>("securities-lending"),
   distributions: stockRows<DistributionRow>("shareholding-distributions"),
   concentrations: stockRows<ConcentrationRow>("shareholding-concentrations"),
+  revenues: stockRows<RevenueRow>("monthly-revenues"),
+  officialValuations: stockRows<OfficialValuationRow>("official-valuations"),
+  valuationMetrics: stockRows<ValuationMetricsRow>("valuation-metrics"),
+  corporateActions: stockRows<ActionRow>("corporate-actions"),
+  // Only the income-statement accounts the tab shows: a report has about 420 facts.
+  reports: (stockId: string, codes: string[], signal?: AbortSignal) =>
+    get<RowsAnswer<ReportRow>>("datasets/financial-reports",
+                               { start: FIRST, end: todayInTaipei(), stock_id: stockId, statement: "income_statement",
+                                 account_code: codes }, signal),
   // Indices have no stock: a name narrows the query itself (index_name).
   indices: (params: { source?: string; index_name?: string; start?: string }, signal?: AbortSignal) =>
     get<RowsAnswer<IndexRow>>("datasets/indices",

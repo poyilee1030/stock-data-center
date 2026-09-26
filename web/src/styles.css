@@ -319,3 +319,9 @@ table.data tr.on td { background: color-mix(in srgb, var(--accent) 14%, transpar
   .brand-nav { gap: 8px; }
   .brand span { display: none; }
 }
+
+/* ---- Step 37-c ---- */
+table.data td.wrap { white-space: normal; min-width: 160px; color: var(--muted); }
+details.pit summary { cursor: pointer; }
+details.pit[open] { flex-basis: 100%; line-height: 1.5; }
+.chips-tab > .section-title { margin: 8px 0 -6px; }
