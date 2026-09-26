@@ -140,6 +140,7 @@ changes, and each row names the fetch it came from (ADR-0027).
 | stock universe | observed | `stocks (stock_id)`, `listings (stock_id, market, delisted_on)` | reference data refreshed in place; spans from 2020-01-02 | every table's `stock_id` |
 | `industry_changes` | observed | `industry_changes (stock_id, source, effective_date)` | release rule `industry_announcement_next_day@1` | industry exclusion, peer ranking, exposure (Step 39-c periods) |
 | `industry_observations` | observed | `industry_observations (stock_id, source, trade_date)` | no release rule: evidence for the Step 39-c periods, not served on its own | anchors of ended listing spans, OTC reconciliation (Step 39-c) |
+| `industry-classifications` (API) | periods derived at query time, not stored | from `industry_changes`, `industry_observations`, `listings`, `stocks` (ADR-0030 §3) | a period's start (category in use), a change's notice release rule, the 2023-03-28 category notice | industry exclusion, peer ranking, exposure |
 | `daily_price` | observed | `daily_prices (stock_id, source, trade_date)` | release rule `exchange_daily_settled@1` | indicators, valuation, backtests |
 | `monthly_revenue` | observed | `monthly_revenues (stock_id, source, revenue_month)` | stored `published_at`; NULL is invisible | EPS and selection |
 | `financial_filing` | observed | `financial_reports (stock_id, report_year, report_quarter)` + `financial_report_facts` | stored `published_at`; NULL is invisible | EPS, canonical fundamentals |

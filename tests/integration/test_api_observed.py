@@ -102,7 +102,7 @@ def test_datasets_are_named_apart_from_tables(client) -> None:
         "daily-prices", "indices", "official-valuations", "institutional-flows",
         "institutional-market-flows", "foreign-holdings", "margin-trading",
         "securities-lending", "shareholding-distributions", "monthly-revenues",
-        "corporate-actions", "financial-reports",
+        "corporate-actions", "financial-reports", "industry-classifications",
     }
     assert not names & set(metadata.tables)
     daily = next(d for d in listing if d["name"] == "daily-prices")

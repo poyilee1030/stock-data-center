@@ -114,7 +114,7 @@ Each required criterion must be PASS/FAIL with concrete evidence.
 
 ## Current Step Sequence
 
-ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–18, 19-a through 19-e, 20-a through 20-d, 21-a, 21-b, 22-a through 22-c, 23-a through 24-b, 35-a, 35-b-1, 35-c-1 through 35-c-4, 35-d-1 through 35-d-3, 26-b through 26-f, 27-a through 27-c, 36, 37-a through 37-c, 38-a and 39-a as MERGED, and 26-a, 29, 32 and 35-b-2 as SUPERSEDED; 39-b is IN REVIEW; no step is currently marked `THIS STEP` (a contextual marker, not an additional status value):
+ROADMAP §20 is the authoritative ledger. Its current snapshot identifies Steps 1–18, 19-a through 19-e, 20-a through 20-d, 21-a, 21-b, 22-a through 22-c, 23-a through 24-b, 35-a, 35-b-1, 35-c-1 through 35-c-4, 35-d-1 through 35-d-3, 26-b through 26-f, 27-a through 27-c, 36, 37-a through 37-c, 38-a, 39-a and 39-b as MERGED, and 26-a, 29, 32 and 35-b-2 as SUPERSEDED; 39-c is IN REVIEW; no step is currently marked `THIS STEP` (a contextual marker, not an additional status value):
 
 ```text
 Step 11  authoritative security lifecycle history        MERGED
@@ -182,8 +182,8 @@ Step 37-c web dashboard: fundamentals                  MERGED (#71)
 Step 38-a historical stock list: listing spans         MERGED (#66)
 Step 38-b historical stock list: delisted companies' data PLANNED (after 37)
 Step 39-a industry classification: announcements        MERGED (#72, ADR-0030, industry_changes)
-Step 39-b industry classification: by-category quotes    IN REVIEW (#73, industry_observations)
-Step 39-c industry classification: periods + API         PLANNED
+Step 39-b industry classification: by-category quotes    MERGED (#73, industry_observations)
+Step 39-c industry classification: periods + API         IN REVIEW (#PR, industry-classifications)
 ```
 
 `ROADMAP.md` remains authoritative if this snapshot becomes stale.

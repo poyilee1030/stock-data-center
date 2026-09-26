@@ -93,7 +93,8 @@ Observed datasets (`kind: observed`): `daily-prices`, `indices`,
 `official-valuations` (source-published PE/PB/yield, §53),
 `institutional-flows`, `institutional-market-flows`, `foreign-holdings`,
 `margin-trading`, `securities-lending`, `shareholding-distributions`,
-`monthly-revenues`, `corporate-actions`, `financial-reports`.
+`monthly-revenues`, `corporate-actions`, `financial-reports`, and
+`industry-classifications` (periods derived at query time, below).
 
 Stored derived datasets (`kind: derived`, Step 26): `technical-indicators`,
 `institutional-streaks`, `institutional-cumulative-flows`,
@@ -105,7 +106,7 @@ Stored derived datasets (`kind: derived`, Step 26): `technical-indicators`,
 
 | Parameter | Meaning |
 | --- | --- |
-| `start`, `end` | required, `YYYY-MM-DD`: the key's own date (trade date, snapshot date, revenue month, ex-date) is in `[start, end]` |
+| `start`, `end` | required, `YYYY-MM-DD`: the key's own date (trade date, snapshot date, revenue month, ex-date) is in `[start, end]`; `industry-classifications` also takes `date` instead |
 | `stock_id` | repeatable; a dataset without stocks (indices, market flows) refuses it |
 | `index_name` | `indices` only, repeatable: the published index name, such as `指數:櫃買指數`; the query itself is narrowed, so one index's history is about 0.6 MB where a whole source's is 30–50 MB (Step 37-b); any other dataset refuses it |
 | `source` | repeatable; results are always per source, never merged (§30) |
@@ -251,6 +252,47 @@ price the dilution the adjusted series moves by the subscription right's value
 who subscribes), not an error; Fubon's adjusted candles do not adjust cash
 rights issues at all (Step 36 report).
 
+## `industry-classifications`
+
+Each stock's official industry category on each market, as periods (Step 39,
+ADR-0030): `effective_from` to the day before `effective_to` (`null` while in
+effect). `date=YYYY-MM-DD` returns the periods in effect that day, `start` and
+`end` those overlapping the range; both from 2020-01-02, `stock_id` repeatable
+(at most 200), no whole-market limit (about 2,200 periods in all). No stored
+table: `stock_data_center.v2.visibility.industry_periods` derives them from
+`industry_changes`, `industry_observations`, `listings` and `stocks`.
+
+```json
+{"stock_id": "3130", "market": "sii", "source": "twse_announcement", "basis": "change",
+ "industry_code": "36", "industry_name": "數位雲端",
+ "effective_from": "2023-07-03", "effective_to": null,
+ "available_at": "2023-05-23T00:00:00+08:00", "recorded_at": "2026-09-26T…",
+ "provenance": {"fetch_id": "…", "raw_sha256": "…"}}
+```
+
+| `basis` | The category comes from | `available_at` |
+| --- | --- | --- |
+| `before_change` | the old category of the span's first announced change | the period's start (owner decision 3: the category in use was public) |
+| `change` | an announced change's new category | 00:00 Taipei the day after the notice (`industry_announcement_next_day@1`); a correction from its `recorded_at` |
+| `anchor` | a span with no change: today's ISIN category (open span, `source: twse_isin`) or the by-category quote of the span's last trading day (ended span, `tpex_otc_quotes` or `twse_mi_index`) | the period's start |
+| `rename` | 觀光事業 → 觀光餐旅 on 2023-07-03 | 2023-03-29 00:00 (both exchanges' notice of 2023-03-28) |
+
+- **Knowledge.** The chain is built from what was recorded by `knowledge_as_of`
+  (`system_as_of`): each change's rows, the quote's `recorded_at`, and for
+  today's ISIN category the fetch that stored it. Before any was recorded the
+  answer is empty.
+- **No end before it is public.** Under market PIT a change whose notice is not
+  yet public is left out, and so is its date as the end of the period before:
+  that period's `effective_to` is `null`. A span's last period ends at its
+  delisting once that day has come.
+- **Existence.** A period never lies outside its category's existence: 35–38
+  from 2023-07-03, TPEx's 18 and 34 until then. An anchor of today's category
+  alone therefore says nothing before the category existed.
+- A TWSE quote anchor is the last known category, not a history (TWSE rebuilds
+  its by-category quotes under today's categories); TPEx's is as of its day.
+  5259, delisted 2020-01-09, traded on no day inside the window and has no
+  period.
+
 ## Reference data
 
 `GET /v1/stocks` returns every listed and OTC common stock on today's list and
@@ -259,7 +301,10 @@ common stock (ADR-0026, ADR-0028), each with `listings`: one span per market,
 `listed_on` to the day before `delisted_on`, with the fetch and raw file behind
 the span and each date. `listed_on` is `null` for a listing older than the
 exchange's table (TWSE 2001-01-03, TPEx 2005); the top-level `market` and
-`listed_on` are the open span's, `null` for a delisted stock. `date=YYYY-MM-DD`
+`listed_on` are the open span's, `null` for a delisted stock. `industry` is
+today's ISIN category (`industry_source: isin`); a company no longer on the ISIN
+list has its last known one from `industry-classifications` instead
+(`industry_source: last_period`, Step 39-c). `date=YYYY-MM-DD`
 (from 2020-01-02) returns the stocks listed that day, `market=sii|otc` those
 with a span on that market, repeatable `stock_id` those codes. The datasets are
 still fetched only for stocks listed today (Step 38-b is to add the delisted

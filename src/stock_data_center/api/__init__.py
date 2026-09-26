@@ -2,6 +2,7 @@
 
     GET /v1/datasets                      what can be asked, and each dataset's shape
     GET /v1/datasets/{name}?start=&end=   rows as a PIT context sees them
+    GET /v1/datasets/industry-classifications?date=   each stock's industry periods
     GET /v1/stocks                        today's stock list (reference data, not PIT)
     GET /v1/trading-days?start=&end=      the trading calendar (reference data, not PIT)
 
@@ -55,6 +56,11 @@ _REPORT_PARAMS = _ROW_PARAMS | {"statement", "account_code"}
 _INDEX_PARAMS = _ROW_PARAMS | {"index_name"}
 _REFERENCE_PARAMS = _ROW_PARAMS | {"view"}
 _STOCK_PARAMS = frozenset({"market", "stock_id", "date"})
+# A stock's industry periods: a range they overlap, or the day they are in effect.
+_INDUSTRY_PARAMS = frozenset({"start", "end", "date", "stock_id", *_PIT_PARAMS})
+INDUSTRY = "industry-classifications"
+INDUSTRY_COLUMNS = ("stock_id", "market", "source", "basis", "industry_code", "industry_name",
+                    "effective_from", "effective_to", "available_at", "recorded_at")
 _CALENDAR_PARAMS = frozenset({"start", "end"})
 _REPEATABLE = frozenset({"stock_id", "source", "statement", "account_code", "index_name"})
 STATEMENTS = ("balance_sheet", "income_statement", "cash_flow")
@@ -199,15 +205,47 @@ def _describe_adjusted() -> dict:
     }
 
 
+def _describe_industry() -> dict:
+    return {
+        "name": INDUSTRY,
+        "kind": "observed",
+        "description": "Each stock's industry category on each market, as periods derived at "
+                       "query time from the exchanges' reclassification notices, their "
+                       "by-category quotes and today's ISIN list.",
+        "keys": ["stock_id", "market", "effective_from"],
+        "period": "effective_from",
+        "columns": list(INDUSTRY_COLUMNS),
+        "sources": sorted({*visibility.INDUSTRY_ANNOUNCEMENTS.values(),
+                           *visibility.INDUSTRY_QUOTES.values(), "twse_isin"}),
+    }
+
+
+def _industry_period(period, sha: dict) -> dict:
+    out = {name: getattr(period, name) for name in INDUSTRY_COLUMNS}
+    out["provenance"] = {"fetch_id": period.fetch_id, "raw_sha256": sha.get(period.fetch_id)}
+    if period.attachment_fetch_id is not None:
+        out["provenance"]["attachment_fetch_id"] = period.attachment_fetch_id
+        out["provenance"]["attachment_raw_sha256"] = sha.get(period.attachment_fetch_id)
+    return out
+
+
 def _provenance_of(row, sha: dict) -> dict:
     return {"fetch_id": row["fetch_id"], "raw_sha256": sha.get(row["fetch_id"])}
 
 
-def _stock(row, spans, sha: dict) -> dict:
-    """A company with every listing span; `market` and `listed_on` are its open span's."""
+def _stock(row, spans, sha: dict, last_known: dict) -> dict:
+    """A company with every listing span; `market` and `listed_on` are its open span's.
+
+    `industry` is today's ISIN category; a company no longer on the list has its
+    last known category instead, from its latest industry period, and
+    `industry_source` says which (Step 39-c)."""
     current = next((span for span in spans if span["delisted_on"] is None), None)
+    industry, source = row["industry"], "isin" if row["industry"] is not None else None
+    if industry is None and row["stock_id"] in last_known:
+        industry, source = last_known[row["stock_id"]], "last_period"
     return {
-        "stock_id": row["stock_id"], "name": row["name"], "industry": row["industry"],
+        "stock_id": row["stock_id"], "name": row["name"], "industry": industry,
+        "industry_source": source,
         "market": current["market"] if current else None,
         "listed_on": current["listed_on"] if current else None,
         "listings": [{
@@ -280,7 +318,8 @@ def create_app(*, api_key: str,
     def list_datasets() -> Response:
         return _json({"datasets": [*(_describe(d) for d in DATASETS.values()),
                                    *(_describe_derived(d) for d in DERIVED.values()),
-                                   _describe_reference(), _describe_adjusted()]})
+                                   _describe_reference(), _describe_adjusted(),
+                                   _describe_industry()]})
 
     @app.get("/v1/datasets/{name}", summary="Rows as a PIT context sees them",
              description=openapi.ROWS)
@@ -292,6 +331,8 @@ def create_app(*, api_key: str,
             return _reference_rows(request, arrived)
         if name == ADJUSTED:
             return _adjusted_rows(request, arrived)
+        if name == INDUSTRY:
+            return _industry_rows(request, arrived)
         dataset = DATASETS.get(name)
         if dataset is None:
             raise HTTPException(404, f"no dataset {name!r}; see /v1/datasets")
@@ -453,6 +494,34 @@ def create_app(*, api_key: str,
                         "factor": e.factor} for e in series.events],
         })
 
+    def _industry_rows(request: Request, arrived: datetime) -> Response:
+        params, lists = _params(request, _INDUSTRY_PARAMS, frozenset({"stock_id"}))
+        if "date" in params:
+            if "start" in params or "end" in params:
+                raise HTTPException(400, "date is one day: it takes no start or end")
+            start = end = _date(params, "date")
+        else:
+            start, end = _range(params)
+        if start < listings.WINDOW_START:
+            raise HTTPException(400, f"industry periods start at {listings.WINDOW_START}")
+        stock_ids = lists["stock_id"]
+        if stock_ids is not None and len(stock_ids) > MAX_STOCKS:
+            raise HTTPException(400, f"at most {MAX_STOCKS} stock_id per request")
+        resolved = _resolve(params, arrived)
+        with connect() as connection:
+            periods = visibility.industry_periods(connection, resolved.pit, start=start,
+                                                  end=end, stock_ids=stock_ids)
+            sha = _provenance(connection, [
+                {"fetch_id": p.fetch_id, "detail_fetch_id": p.attachment_fetch_id}
+                for p in periods])
+        query = ({"date": start} if "date" in params else {"start": start, "end": end})
+        return _json({
+            "dataset": INDUSTRY,
+            "pit": resolved.describe(),
+            "query": {**query, "stock_id": stock_ids},
+            "rows": [_industry_period(p, sha) for p in periods],
+        })
+
     @app.get("/v1/stocks", summary="Today's stock list", description=openapi.STOCKS)
     def stock_list(request: Request) -> Response:
         params, lists = _params(request, _STOCK_PARAMS, frozenset({"stock_id"}))
@@ -483,12 +552,20 @@ def create_app(*, api_key: str,
                 .order_by(spans.c.stock_id, spans.c.listed_on.asc().nulls_first(),
                           spans.c.delisted_on.asc().nulls_last())).mappings().all()
             sha = _provenance(connection, [*rows, *held])
+            unlisted = [r["stock_id"] for r in rows if r["industry"] is None]
+            last_known = {}
+            if unlisted:
+                now = visibility.MarketPIT(datetime.now(UTC), datetime.now(UTC))
+                for p in visibility.industry_periods(connection, now, start=listings.WINDOW_START,
+                                                     end=date.max, stock_ids=unlisted):
+                    last_known[p.stock_id] = p.industry_name  # sorted by start: the last wins
         by_stock: dict[str, list] = {}
         for span in held:
             by_stock.setdefault(span["stock_id"], []).append(span)
         return _json({
             "universe": UNIVERSE,
-            "rows": [_stock(row, by_stock.get(row["stock_id"], []), sha) for row in rows],
+            "rows": [_stock(row, by_stock.get(row["stock_id"], []), sha, last_known)
+                     for row in rows],
         })
 
     @app.get("/v1/trading-days", summary="The trading calendar",
@@ -512,10 +589,11 @@ def create_app(*, api_key: str,
     openapi.install(
         app,
         {"/v1/datasets": frozenset(),
-         "/v1/datasets/{name}": _REPORT_PARAMS | _REFERENCE_PARAMS | _INDEX_PARAMS,
+         "/v1/datasets/{name}": (_REPORT_PARAMS | _REFERENCE_PARAMS | _INDEX_PARAMS
+                                 | _INDUSTRY_PARAMS),
          "/v1/stocks": _STOCK_PARAMS, "/v1/trading-days": _CALENDAR_PARAMS},
         {"statement": STATEMENTS, "market": MARKETS, "view": VIEWS},
-        [*DATASETS, *DERIVED, PIT_REFERENCE, ADJUSTED])
+        [*DATASETS, *DERIVED, PIT_REFERENCE, ADJUSTED, INDUSTRY])
     if web_dir is not None:
         page = Path(web_dir) / "index.html"
 

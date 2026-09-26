@@ -182,6 +182,28 @@ at a time, under market or system PIT.
   rights issue out, so where the market does not price the dilution the
   adjusted close can move by more than 10% that day: the subscription right's
   value, as the reference price models it.
+
+## industry-classifications
+
+Each stock's official industry category on each market, as periods: from
+`effective_from` to the day before `effective_to` (`null` while in effect).
+Ask `date` for the periods in effect that day, or `start` and `end` for those
+overlapping the range; any number of stocks, over the whole history.
+
+- The periods are built from the exchanges' reclassification notices, the
+  category each exchange's by-category quotes gave a company on its last
+  trading day, and today's ISIN list; `basis` says which (`before_change`,
+  `change`, `anchor`, `rename`) and `source` names the row it came from.
+- A category in use is public from the period's start; a change from 00:00
+  Taipei time the day after its notice, which comes weeks before it takes
+  effect. Under market PIT a change not yet public is left out, and nothing
+  says when the period before it will end: its `effective_to` is `null`.
+- 觀光事業 became 觀光餐旅 on 2023-07-03, announced on 2023-03-28: a period
+  across that day is two, with the same `industry_code`.
+- A delisted company's last category is the one TWSE's by-category quotes give
+  it on its last trading day; TWSE rebuilds those under today's categories, so
+  it is the last known one, not a history. TPEx's are as of the day.
+- A stock that moved from TPEx to TWSE has periods on each market.
 """
 
 STOCKS = """\
@@ -198,6 +220,10 @@ delisted since 2020-01-02 that an official source shows to be a common stock.
   delisted stock.
 - Some companies delisted since 2020 are missing: no official source still
   says whether what they listed was a common stock.
+- `industry` is today's ISIN category (`industry_source: isin`). A company no
+  longer on the ISIN list has its last known category instead
+  (`industry_source: last_period`), from `industry-classifications`; for the
+  category on a past day, ask that dataset.
 - `date` returns the stocks listed on that day, `market` those with a span on
   that market, `stock_id` those codes. It is refreshed in place, not
   point-in-time, and takes no PIT parameter.
@@ -222,8 +248,10 @@ def _described(schema: dict, description: str, *, required: bool = False) -> tup
 PARAMETERS: dict[str, tuple[dict, bool, str]] = {
     "start": _described(_DATE, "First date, YYYY-MM-DD, of the key's own date: trade date, "
                                "snapshot date, revenue month, ex-date, or a report's quarter "
-                               "end.", required=True),
-    "end": _described(_DATE, "Last date, YYYY-MM-DD, inclusive.", required=True),
+                               "end. Required, except that industry-classifications takes "
+                               "date instead; there it is the first day of the periods to "
+                               "overlap."),
+    "end": _described(_DATE, "Last date, YYYY-MM-DD, inclusive. Required with start."),
     "stock_id": _described(_LIST, "Stock code, such as 2330; repeatable."),
     "source": _described(_LIST, "Source code; repeatable. Results are always per source, "
                                 "never merged; /v1/datasets lists each dataset's sources."),
@@ -250,9 +278,11 @@ PARAMETERS: dict[str, tuple[dict, bool, str]] = {
                        "takes no information_as_of."),
     "market": _described({"type": "string"}, "sii (listed) or otc: stocks with a listing "
                                               "span on that market."),
-    "date": _described(_DATE, "Stocks listed on this day, YYYY-MM-DD, from 2020-01-02: "
-                              "some span has listed_on on or before it (or unknown) and "
-                              "delisted_on after it (or none)."),
+    "date": _described(_DATE, "One day, YYYY-MM-DD, from 2020-01-02. /v1/stocks: the stocks "
+                              "listed that day (some span has listed_on on or before it, or "
+                              "unknown, and delisted_on after it, or none). "
+                              "industry-classifications: the periods in effect that day, "
+                              "instead of start and end."),
 }
 
 

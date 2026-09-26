@@ -322,10 +322,11 @@ def test_a_refetched_notice_without_a_company_is_quarantined(db: Connection, tmp
     report = _ingest(db, tmp_path, refetch=True,
                      http=Source(edit={"twse_detail_1101802256.json": dropped}))
     assert report["quarantined"] == [("1101802256", "notice_changed")]
-    assert db.execute(sa.select(fetches.c.status, fetches.c.reason_code)
-                      .where(fetches.c.resource_key == "twse_announcement:1101802256")
-                      .order_by(fetches.c.fetched_at.desc(), fetches.c.id).limit(1)
-                      ).one().reason_code == "notice_changed"
+    # The fake clock stamps every fetch alike, so "latest" cannot be told by time
+    # (flaky until Step 39-c): the first fetch succeeded, the refetch is quarantined.
+    fetched = db.execute(sa.select(fetches.c.status, fetches.c.reason_code).where(
+        fetches.c.resource_key == "twse_announcement:1101802256")).all()
+    assert sorted(fetched, key=str) == [("quarantined", "notice_changed"), ("succeeded", None)]
 
 
 def test_a_company_new_to_the_universe_is_added_on_refetch(db: Connection, tmp_path) -> None:
