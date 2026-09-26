@@ -1,6 +1,24 @@
 services:
   postgres:
     image: postgres:18
+    # Sized for this 31 GB desktop and a 13 GB database; measured before and
+    # after with scripts/bench_postgres.py. /dev/shm backs parallel query's
+    # shared memory, and Docker's default of 64 MB is too small for it.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=4GB
+      - -c
+      - effective_cache_size=16GB
+      - -c
+      - work_mem=32MB
+      - -c
+      - maintenance_work_mem=1GB
+      # The data sits on an NVMe SSD and mostly in RAM: with the default 4, a
+      # larger work_mem made the planner prefer a full sort to an index scan.
+      - -c
+      - random_page_cost=1.1
+    shm_size: 1g
     environment:
       POSTGRES_DB: stockdc
       POSTGRES_USER: stockdc
