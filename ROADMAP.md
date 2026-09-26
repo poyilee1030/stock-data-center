@@ -613,7 +613,7 @@ explicit out-of-scope work
 | 27-a | MERGED (#60) | 公開 API：PIT 可見性層 |
 | 27-b | MERGED (#61) | 公開 API：HTTP 層、觀測資料 |
 | 27-c | MERGED (#62) | 公開 API：財報、衍生資料、參考資料 |
-| 28 | PLANNED | 排程的前向抓取 |
+| 28 | 28-a PLANNED；28-b PLANNED；28-c PLANNED | 排程的前向抓取 |
 | 29 | SUPERSEDED | Python SDK 與下游整合（owner 決定移除，2026-09-24） |
 | 30 | PLANNED | 維運與可觀測性 |
 | 31 | PLANNED | 完整的正確性 CI 關卡 |
@@ -2411,11 +2411,33 @@ legacy `stock_db` 只有 `stock_info.listing_date`，沒有下市資料。
 
 ## Step 28 — 排程的前向抓取
 
-狀態：**PLANNED**。依賴：Steps 16–24。
+狀態：**28-a PLANNED；28-b PLANNED；28-c PLANNED**（2026-09-27 依 CLAUDE.md §1 拆成三段）。依賴：Steps 16–24、Step 35（schema v2）、Step 38-a、Step 39。
 
 每日、每週、每月和每季的工作執行 adapter（Step 38 之後也包括上市／下市表，才能持續記到新的上市與下市）。它們包括重試、以日曆為基礎的缺漏資料警示，以及透過重新抓取近期期間來偵測更正。每個資料集的 revision 比率報告，量化 Step 15 描述的 backfill 限制。
 
-抓取執行 §3.1 的流程：從 Step 16 讀取預期涵蓋、與已儲存的內容對帳、發出帶有 purpose 的 job、抓取、ingest。job 清單在記憶體中，fetcher 是本機的 HTTP fetcher；這個 PR 不建 queue，也不拆獨立服務。重點是由排程器決定要抓什麼、為什麼抓，而不是由任何 adapter 決定。
+抓取執行 §3.1 的流程：讀取預期涵蓋、與已儲存的內容對帳、發出帶有 purpose 的 job、抓取、ingest。job 清單在記憶體中，fetcher 是本機的 HTTP fetcher；這個 step 不建 queue，也不拆獨立服務。重點是由排程器決定要抓什麼、為什麼抓，而不是由任何 adapter 決定。
+
+**以 schema v2 重讀（2026-09-27）。** 這一節的原文寫在 schema v2 之前。v2 沒有
+`import_checkpoints`、`capture_bound` 或 Step 16 的涵蓋宣告表（ADR-0027）：
+
+- 一個期間做完了沒有，只看 `fetches`：那個資源最新一次抓取成功、沒有留下列，而且是在期間
+  穩定之後抓的（`exchange_daily.pending` 與各領域的 `pending`）。第一次發現缺漏的時間、嘗試
+  次數和最後的 reason code 也都在 `fetches` 裡，不另建表。
+- 首次看到的證據是 `fetches.purpose`：`first_capture` 可以把自己的時刻存成一個 key 第一列的
+  `published_at`，而只有月營收與財報有這個欄位；`gap_fill`、`correction_check` 不行
+  （CLAUDE.md §31–32）。交易所資料、TDCC 與公司行動的公開時間由 release rule 計算，
+  purpose 對它們只是稽核紀錄。
+- 預期涵蓋是程式常數（CLAUDE.md §0）：每個 job 的期間來自 `trading_days`（每日、每月）、
+  固定的申報窗口（財報）或來源本身（TDCC 只給最新一週）。v2 還沒有 job 寫 `trading_days`，
+  `stockdc_backfill` 的日曆停在 2026-09-15，所以 28-a 先補上它。
+- 2026-09-27 在 `stockdc_backfill` 對 2020-01-02 到 2026-09-15 的每個 job 跑 `pending`：除了
+  2026-09-14、09-15 與八、九月的月營收，沒有任何期間待處理。所以迴圈可以對整個宣告的窗口
+  對帳，而不是只看最近幾天；歷史上的永久缺口靠 backoff 處理，不靠縮窗。
+
+Owner 決定（2026-09-27）：迴圈是每小時一次的 systemd user timer（oneshot，用主機的 `.venv`，
+advisory lock 防止兩輪重疊）；升級通知經 ntfy 推到 owner 的手機，沿用舊系統
+`~/.config/systemd/user/stock-notify.env` 的 topic（不進 git）；前向抓取直接寫進
+`stockdc_backfill`；舊系統的 scraper 繼續跑，28-c 驗收之後再決定何時停。
 
 ### 分派迴圈由狀態驅動，而不是固定時刻表
 
@@ -2470,10 +2492,10 @@ quarantine reason，讓三張報表照樣解析——但那要先證明無法對
    一樣。
 3. **對永久不存在的期間做 backoff。** TPEx 在 2007-07-02 之前什麼都不提供，也不說明
    原因（audit §4.1）。沒有嘗試次數和最後嘗試時間，針對宣告錯誤的時間窗每小時執行的
-   迴圈，就會變成每小時轟炸來源。`import_checkpoints` 保存了一部分；仍需要記錄某個
-   期間第一次被發現缺漏的時間。
+   迴圈，就會變成每小時轟炸來源。v2 裡這些都能從 `fetches` 推出來：某個期間第一次被
+   發現缺漏的時間，是那個資源第一次沒有成功的抓取。
 4. **排程抓取和 gap-fill 抓取宣稱的證據不同，但價值多大取決於領域。** 在 D 的排程
-   執行是真正的首次看到，可以宣稱 `capture_bound`；三年後的 backfill 不行。這在發布
+   執行是真正的首次看到，以 `first_capture` 抓取；三年後的 backfill 是 `gap_fill`，不行。這在發布
    時刻逐列不同的地方很重要，在不是這樣的地方幾乎不重要：
 
    - **交易所發布的資料——每日價格、指數、法人買賣、融資融券——由交易所依固定
@@ -2495,14 +2517,47 @@ quarantine reason，讓三張報表照樣解析——但那要先證明無法對
    而更正偵測靠的是重新抓取，不是提早抓取。提早抓取正是舊系統凍結了不完整的
    2026-03-27 的原因。
 
-驗收：
+驗收（整個 Step 28；各段在下面標出自己負責哪幾條）：
 
-- 兩週無人值守的執行，涵蓋完整，失敗可續跑
-- 每小時的迴圈只分派仍缺漏的期間，而且一個晚上內分派的集合會逐輪縮小
-- 到升級時刻仍缺漏的期間會發出通知，帶有資料集、期間和最後的 reason code
-- 對同一個缺漏期間，排程執行和 gap-fill 執行產生不同的證據，而 gap-fill 的列以其 release rule 解析
-- 對已發布值有改變的期間做回溯重新抓取，會產生 revision；值沒有改變的則不產生
-- 在任何抓取發生之前，就可以列出待處理的 job 集合
+- 兩週無人值守的執行，涵蓋完整，失敗可續跑（28-c）
+- 每小時的迴圈只分派仍缺漏的期間，而且一個晚上內分派的集合會逐輪縮小（28-b）
+- 到升級時刻仍缺漏的期間會發出通知，帶有資料集、期間和最後的 reason code（28-b）
+- 對同一個缺漏期間，排程執行和 gap-fill 執行產生不同的證據：月營收與財報的排程執行在 key
+  的第一列存 `published_at`，gap-fill 存 NULL（Market PIT 看不到）；其他資料集兩者都以
+  release rule 解析，purpose 只留在 `fetches`（28-a 決定 purpose，28-b 在真資料上驗）
+- 對已發布值有改變的期間做回溯重新抓取，會產生 revision；值沒有改變的則不產生（28-b）
+- 在任何抓取發生之前，就可以列出待處理的 job 集合（28-a）
+
+### 28-a — 交易日曆、排程宣告與待辦計畫
+
+- [ ] 程式：`trading_days` 的 v2 writer，來源 TWSE `FMTQIK`（Step 16 的 adapter，不改）：
+  一個月一次抓取，新的交易日寫入並指向那次抓取；已存的日子來源不再列出時不刪除，那次抓取
+  quarantine 並說明（交易日曆不靠猜，也不靜默縮小）
+- [ ] 程式：每個 job 的排程宣告，程式常數：期間從哪來、最早可抓時刻（營運值，不是 release
+  rule）、升級期限、回溯重抓時刻、哪段時間內的抓取算 `first_capture`
+- [ ] 程式：`plan(now)`——不抓取，從已存的 `fetches` 與資料列出每個待分派的
+  `(job, 期間, purpose, 原因)`；原因是「沒抓過」「還沒穩定」「回溯檢查」「backoff 中」之一；CLI 印出它
+- [ ] 營運：以 `gap_fill` 把 `stockdc_backfill` 從 2026-09-12 補到今天，日曆先補
+- [ ] 測試：日曆 writer（新增、重跑不重複、來源少一天時 quarantine）；每條宣告的時刻；
+  `plan` 的每種原因與 purpose 判定，含月營收與財報 `first_capture` 與 `gap_fill` 的分界
+
+### 28-b — 每小時分派迴圈與通知
+
+- [ ] 程式：執行 `plan` 的迴圈（每台主機的速率控管沿用 `HostRateGovernor`），一輪一個
+  advisory lock；每日另外刷新 `stocks`／上市下市表（Step 38）、公司行動當年度、TDCC 最新週、
+  產業公告（Step 39），以及資料改變後的 Step 26 衍生表
+- [ ] 程式：升級通知（ntfy），同一個期間只通知一次；backoff 到期後停止分派並列在報告裡
+- [ ] 營運：systemd user unit（`.service`、`.timer`）與安裝說明，放在 repo 裡
+- [ ] 決定：Step 23-c 交來的 `t164sb01` 使用者造字位元組怎麼處理（見上）
+- [ ] 測試：分派集合逐輪縮小、失敗不需要重試計時器、通知只發一次、回溯重抓只在值改變時
+  產生 revision
+
+### 28-c — 兩週無人值守與 revision 比率
+
+- [ ] 營運：兩週無人值守的執行，每個宣告的期間都有結果或已通知
+- [ ] 報告：每個資料集的 revision 比率（穩定前的暫定列與穩定後的更正分開算），以及實測的
+  最早可抓時刻，回寫 28-a 的宣告
+- [ ] 決定：舊系統的 scraper 何時停（owner）
 
 ## Step 30 — 維運與可觀測性
 

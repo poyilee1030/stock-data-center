@@ -159,7 +159,7 @@ Step 26-f valuation metrics                            MERGED
 Step 27-a public API: PIT visibility layer             MERGED
 Step 27-b public API: HTTP layer + observed datasets   MERGED
 Step 27-c public API: reports, derived, reference data MERGED
-Step 28  scheduled forward capture                     PLANNED
+Step 28  scheduled forward capture                     PLANNED (split 28-a, 28-b, 28-c)
 Step 29  Python SDK + downstream integration           SUPERSEDED (removed by owner)
 Step 30  operations + observability                    PLANNED
 Step 31  full correctness CI gate                      PLANNED
